@@ -1,11 +1,17 @@
-# Pulseq
+<div align="center">
+<a href="http://pulseq.github.io/" target="_blank">
+<img src="http://pulseq.github.io/logo_hires.png" width="250" alt="Pulseq logo"></img>
+</a>
+</div>
 
-This project is an open source framework for the development, 
+# Introduction
+
+*Pulseq* is an open source framework for the development, 
 representation and execution of magnetic resonance (MR) sequences. A central contribution 
 of this project is an **open file format** to compactly describe MR sequences 
 suitable for execution on an MR scanner. 
 MATLAB and C++ source code is provided for reading and writing sequence files. The main homepage for Pulseq is
-http://github.com/. This is the GitHub repository of the source code.
+http://pulseq.github.io/. This readme is part of the GitHub repository of the source code.
 
 
 

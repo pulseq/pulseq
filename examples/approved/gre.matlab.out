@@ -1,0 +1,10 @@
+Testing file: ../examples/gre.seq
+Number of blocks: 160
+Number of events:
+   RF:       32
+   Gx:       64
+   Gy:       32
+   Gz:       64
+   ADC:      32
+   Delay:    64
+Sequence duration: 6.4003s

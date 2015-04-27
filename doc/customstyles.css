@@ -1,0 +1,81 @@
+
+.tabs, .tabs2, .tabs3 {
+	background-image: none;
+	border-style: none;
+	border-width: 1px;
+    border-top-style: solid;
+    border-top-color: #C2CDE4
+}
+
+.tablist li {
+	background-image: none;
+}
+
+.tablist a {
+	background-image: none;
+}
+
+.tablist a:hover {
+    background-image: none;
+    color: #356a57;
+    text-shadow: none;
+}
+
+.tablist li.current a {
+	background-image: none;
+	color: #356a57;
+    text-shadow: none;
+}
+
+.navpath ul {
+	background-image: none;
+	border-style: none;
+	border-width: 1px;
+    border-top-style: solid;
+}
+
+.memproto, dl.reflist dt {
+	background-image: none;
+}
+
+#projectlogo
+{
+	text-align: center;
+	vertical-align: bottom;
+	border-collapse: separate;
+}
+ 
+#projectlogo img
+{ 
+	border: 0px none;
+	margin: 0px;
+}
+ 
+#projectname
+{
+	font: 200% Tahoma, Arial,sans-serif;
+	margin: 0px;
+	padding: 2px 0px;
+}
+    
+#projectbrief
+{
+	font: 120% Tahoma, Arial,sans-serif;
+	margin: 0px 0px 2px;
+	padding: 2px;
+}
+
+#projectnumber
+{
+	font: 50% Tahoma, Arial,sans-serif;
+	margin: 0px;
+	padding: 0px;
+}
+
+#titlearea
+{
+	padding: 0px;
+	margin: 0px;
+	width: 100%;
+	border-bottom: 1px solid #5373B4;
+}

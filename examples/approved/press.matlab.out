@@ -1,0 +1,10 @@
+Testing file: ../examples/press.seq
+Number of blocks: 8
+Number of events:
+   RF:        3
+   Gx:        1
+   Gy:        2
+   Gz:        1
+   ADC:       1
+   Delay:     3
+Sequence duration: 0.1302s

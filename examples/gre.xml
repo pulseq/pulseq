@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Parameters FOVx="200" FOVy="200" FOVz="1" GradMaxAmpl="8" GradSlewRate="45" Name="P" Nx="32" Ny="32" Nz="1" TE="10" TR="200">
+   <ConcatSequence Name="C" Observe="P,Ny" Repetitions="a1">
+      <ATOMICSEQUENCE Azimuth="0" Inclination="0" Name="Aslice" RotAngle="0">
+         <TRAPGRADPULSE Axis="GZ" FlatTopArea="4" FlatTopTime="a1" Name="GSS" Observe="RF,Duration"/>
+         <SINCRFPULSE Apodization="0" Bandwidth="1" FlipAngle="90" Name="RF" Symmetry="0.5" Zeros="2"/>
+      </ATOMICSEQUENCE>
+      <ATOMICSEQUENCE Azimuth="0" Inclination="0" Name="Apre" RotAngle="0">
+         <TRAPGRADPULSE Area="-a1/2" Axis="GX" Duration="3" Name="preX" Observe="ro,Area"/>
+         <TRAPGRADPULSE Area="-1*a1+(a2*a3)" Axis="GY" Duration="3" Name="preY" Observe="P,KMAXy/P,DKy/C,Counter"/>
+         <TRAPGRADPULSE Area="-a1/2" Axis="GZ" Duration="3" Name="rphZ" Observe="GSS,Area"/>
+      </ATOMICSEQUENCE>
+      <DELAYATOMICSEQUENCE Delay="a1" DelayType="C2C" Name="DTE" Observe="P,TE" StartSeq="Aslice" StopSeq="Aro"/>
+      <ATOMICSEQUENCE Azimuth="0" Inclination="0" Name="Aro" RotAngle="0">
+         <TRAPGRADPULSE ADCs="a2" Axis="GX" FlatTopArea="2*a1" FlatTopTime="6.4" Frequency="0" InitialPhase="0*a3" Name="ro" Observe="P,KMAXx/P,Nx/C,Counter"/>
+      </ATOMICSEQUENCE>
+      <DELAYATOMICSEQUENCE Delay="a1" DelayType="B2E" Name="DTR" Observe="P,TR" StartSeq="Aslice"/>
+   </ConcatSequence>
+</Parameters>

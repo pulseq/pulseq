@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Parameters Name="P">
+   <ConcatSequence Name="C1">
+      <ATOMICSEQUENCE Name="A1">
+         <HARDRFPULSE Duration="0.1" FlipAngle="90" Name="P1" Symmetry="0.5"/>
+      </ATOMICSEQUENCE>
+      <DELAYATOMICSEQUENCE Delay="5" DelayType="B2E" Name="D2"/>
+      <ATOMICSEQUENCE Name="A2">
+         <EMPTYPULSE ADCs="64" Axis="NONE" Duration="3.2" Name="P2"/>
+      </ATOMICSEQUENCE>
+   </ConcatSequence>
+</Parameters>

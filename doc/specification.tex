@@ -1,0 +1,420 @@
+\documentclass{article}
+\usepackage[framed]{seqcode}	% Also includes listings package
+
+\usepackage{tabularx}
+
+\usepackage{graphicx}
+\usepackage{float}
+
+\usepackage{booktabs}
+
+\usepackage[bookmarks=true,ocgcolorlinks=true,plainpages=false, breaklinks=true, bookmarksopen=true, bookmarksnumbered=true]{hyperref}
+\hypersetup{linkcolor=blue, citecolor=magenta,urlcolor=blue} % electronic
+\hypersetup{colorlinks=true}
+\hypersetup{
+    pdftitle={Open file format for MR sequences},    % title
+    pdfauthor={Kelvin Layton},                     % author
+    pdfsubject={MRI},                        % subject of the document
+    pdfkeywords={MRI,open format,console}, % list of keywords
+    }
+
+\def\myversion{1.0 }
+
+
+
+
+\date{}
+\author{}
+
+
+\lstset{% general command to set parameter(s)
+%basicstyle=\small, % print whole listing small
+% underlined bold black keywords
+identifierstyle=, % nothing happens
+%stringstyle=\ttfamily, % typewriter type for strings
+showstringspaces=true,
+%showlines=true,
+%numbers=left,
+belowskip=0em,
+aboveskip=1em,
+frame=single
+} % no special string spaces
+
+
+\definecolor{shadecolor}{gray}{0.96}
+
+\newcommand{\superscript}[1]{\ensuremath{^{\textrm{#1}}}}
+
+
+\usepackage{hyperref}
+
+
+
+\begin{document}
+
+\begin{titlepage}
+\begin{centering}
+\rule{\textwidth}{5pt}\vskip1cm
+\Huge{Open file format for MR sequences \\}
+\vspace{1cm}
+\LARGE{Version \myversion\\}
+\vspace{1cm}
+\large Kelvin Layton\\ Maxim Zaitsev\\
+\vspace{1cm}
+\large University Medical Centre Freiburg \\%
+ \verb+kelvin.layton@uniklinik-freiburg.de+\\%
+ \verb+maxim.zaitsev@uniklinik-freiburg.de+\\%
+ \vspace{1cm}
+ This file specification is part of the Pulseq project:
+ \vspace{0.5cm}
+ 
+ \href{http://pulseq.github.io/}{\includegraphics[width=0.3\textwidth]{logo}}
+ \vfill
+\small This file format is licensed under the Creative Commons Attribution 4.0 International License. To view a copy of this license, visit \url{ http://creativecommons.org/licenses/by/4.0/ }\\
+\rule{\textwidth}{5pt}
+\end{centering}
+\end{titlepage}
+
+\newpage
+
+\setlength\parindent{0pt}
+\setlength{\parskip}{0.4\baselineskip}%
+
+\tableofcontents
+
+\setlength\parindent{0pt}
+\setlength{\parskip}{\baselineskip}%
+
+\newpage
+\section*{Revision History}
+\begin{tabular}{lll}
+\toprule
+Version & Date & Description \\
+\midrule
+1.0 & 26 Jun 2014 & Draft specification \\
+\bottomrule
+\end{tabular}
+
+
+\section{Introduction}
+The purpose of this file format is to compactly represent a magnetic resonance (MR) sequence in an open and vendor independent manner. The format is intended for research and educational purposes and currently omits complex sequence features such as physiological triggering or logical coordinate-frame transformations. The format has been developed with the following \textbf{design goals}:
+\begin{enumerate}
+\item \textbf{Human-readable:} The basic sequence structure should be easily understood without processing.
+\item \textbf{Easily parsed:} The format should be easy for a computer program to parse without the need for external libraries.
+\item \textbf{Vendor independent:} The sequence format must not contain definitions specific to a particular hardware manufacturer.
+\item \textbf{Compact:} The sequence must not contain redundant definitions. As such, re-use of existing definitions at different times is inherent in the sequence format.
+%\item \textbf{Simple:} The sequence must be as simple
+\item \textbf{Low-level:} The format should be sufficiently low-level. This allows for maximum flexibility of sequence specifications and does not limit the high-level design tools.
+\end{enumerate}
+
+The first goal of human readability necessitates a text-file format. The file format is intended to describe a sequence that can be run on scanner hardware. Therefore, the second goal of machine readability ensures that the file can be read and interpreted without the use of external libraries that might be unavailable on different platforms. This prohibits the use of an existing markup language like XML, which are not straightforward to parse. Further, units  that are inherently hardware dependent have been avoided, such as `Volts' or `Tesla'.
+
+
+\subsection{Example}
+
+Before defining the detailed specification, a simple example is presented to demonstrate the main structure of a sequence. Below is a simple FID experiment with RF pulse, delay and ADC readout.
+\lstinputlisting{../examples/fiddisp.seq}
+
+
+
+\section{Specification}
+
+\subsection{Overall Description}
+
+\begin{figure}[H]
+\includegraphics[width=\columnwidth]{block_diagram}
+\caption{Visualisation of the hierarchical structure of the file format for an FID example.\label{fig:block_diagram}}
+\end{figure}
+
+The sequence description consists of a three-level hierarchical structure as demonstrated in Figure~\ref{fig:block_diagram}. This ensures the most compact representation, since repeating events (or shapes) are only declared once.
+\begin{description}
+\item[Blocks] At the top level the sequence is specified by a number of blocks. Each block refers to one or more event(s) to be executed simultaneously.
+\item[Events] The definition of events are dependent on the type (e.g. gradient, ADC) but some types may refer to one or more basic shapes.
+\item[Shapes] A shape is a compressed list of samples. The uncompressed samples can describe, for example, the RF pulse shape or an arbitrary gradient shape. The compression scheme is a type of run-length encoding.
+\end{description}
+
+\subsection{Identification numbers}
+A key idea of the hierarchical sequence structure is the use of ID numbers to refer to objects defined one level below in the hierarchy. For example, blocks contain the ID of one or more event(s). Likewise, events may contain the ID of one or more shape(s). Restrictions are placed on these IDs to ensure consistency: 
+\begin{itemize}
+\item IDs must be positive integers.
+\item The ID of each shape must be unique.
+\item The ID of events within a single class must be unique. For example, an RF event and delay event may both use an ID of 1, since the events are of a different class. An exception is the \verb.[GRADIENTS]. and \verb.[TRAP]. events where the union of these sets must contain unique event IDs. 
+\item There are no restrictions on the ordering of IDs, although sequential ordering is often implemented.
+\item There are no restrictions on the first ID of an event class.
+\end{itemize}
+
+\subsection{General}
+
+Comments are specified by a line starting with a hash.
+\begin{lstlisting}
+# This is a comment
+\end{lstlisting}
+
+The sequence may contain general definitions indicated by the \verb.[DEFINITIONS]. keyword. Each definition is defined on a new line with the following format 
+\begin{lstlisting}
+<key> <value>
+\end{lstlisting}
+This defines a list of user-specified key/value pairs.
+
+\begin{tabularx}{\textwidth}{llXl}
+\toprule
+Tag & Type & Description & Units\\
+\midrule
+\verb.<key>. & text & Name of user definition & -- \\
+\verb.<value>. & any & Value of definition & -- \\
+\bottomrule
+\end{tabularx}
+
+\textbf{Example:}
+\begin{lstlisting}
+[DEFINITIONS]
+Scan_ID 237
+FOV 150 150
+TE 5
+TR 100
+Num_Blocks 3072
+\end{lstlisting}
+It is important to note that all definitions are optional and do not affect the basic sequence execution. Precise timing is given by the low-level specification of events. The definitions section may be used for user-specific purposes, including attaching metadata or hardware-dependent parameters.
+
+
+\subsection{Blocks}
+
+The section containing sequence blocks is declared with the \verb.[BLOCKS]. keyword. Each subsequence line declares a single block specified by a list of six event IDs. An ID of 0 indicated no event.
+\begin{lstlisting}
+<id> <delay> <rf> <gx> <gy> <gz> <adc>
+\end{lstlisting}
+
+Each tag represents the ID of the corresponding event.
+
+\begin{tabularx}{\textwidth}{llXl}
+\toprule
+Tag & Type & Description & Units\\
+\midrule
+\verb.<id>. & integer & ID of the sequence block & -- \\
+\verb.<delay>. & integer & ID of the delay event & -- \\
+\verb.<rf>. & integer & ID of the RF event & -- \\
+\verb.<gx>. & integer & ID of the gradient event on the X channel & --\\
+\verb.<gy>. & integer & ID of the gradient event on the Y channel & -- \\
+\verb.<gz>. & integer & ID of the gradient event on the Z channel & -- \\
+\verb.<adc>. & integer & ID of the ADC event & -- \\
+\bottomrule
+\end{tabularx}
+
+\begin{minipage}{\textwidth}
+The sequence must declare at least one block. Any non-zero number of blocks may be defined. The blocks are executed sequentially. The duration of each block is defined by the longest event comprising this block. X, Y and Z refer to physical scanner gradient channels.
+
+
+\textbf{Example:}
+\begin{lstlisting}
+[BLOCKS]
+   1   0   1   0   0   2    0
+\end{lstlisting}   
+\end{minipage}
+
+The block above is the first in the sequence and contains an RF pulse with ID of 1 and a z-gradient pulse with ID of 2. The block has no delay, X gradient, Y gradient or ADC events, indicated by zero IDs.
+
+\subsection{Events}
+
+Events are defined in sections, each starting with one the following keywords: \verb.[RF]., \verb.[GRADIENTS]., \verb.[TRAP]., \verb.[ADC]. or \verb.[DELAYS].. Each event is specified on a single line and contains an ID followed by type-specific definition.
+
+\subsubsection{RF}
+The RF section is declared with the \verb.[RF]. keyword. Following this declaration, each RF event is specified by a single line containing six numbers.
+\begin{lstlisting}
+<id> <amp> <mag_id> <phase_id> <freq> <phase>
+\end{lstlisting}
+
+The specifiers are
+
+\begin{tabularx}{\textwidth}{llXl}
+\toprule
+Tag & Type & Description & Units\\
+\midrule
+\verb.<id>. & integer & ID of the RF event & -- \\
+\verb.<amp>. & float & Peak amplitude & Hz \\
+\verb.<mag_id>. & integer & Shape ID for magnitude profile & -- \\
+\verb.<phase_id>. & integer & Shape ID for phase profile & --\\
+\verb.<freq>. & float & Frequency offset & Hz \\
+\verb.<phase>. & float & Phase offset & rad \\
+\bottomrule
+\end{tabularx}
+
+\begin{minipage}{\textwidth}
+\textbf{Example:}
+\begin{lstlisting}
+[RF]
+  1    2500  1   2       0.000  0.000
+\end{lstlisting}
+\end{minipage}
+
+In the example above, the RF pulse has ID of 1, peak amplitude of 2500Hz. The magnitude and phase profiles are defined with the shapes of ID 1 and 2, respectively. The RF pulse does not have any frequency or phase offset.
+
+\subsubsection{Gradients}
+Gradient events are declared in two sections. Arbitrary gradients are in a section declared with the \verb.[GRADIENTS]. keyword. Each line in the section is an arbitrary gradient specified by three numbers,
+\begin{lstlisting}
+<id> <amp> <shape_id>
+\end{lstlisting}
+Trapezoidal gradients are in a section declared with the \verb.[TRAP]. keyword. Each line in the section is a trapezoidal gradients specified by five numbers,
+\begin{lstlisting}
+<id> <amp> <rise> <flat> <fall>
+\end{lstlisting}
+
+The specifiers are
+
+\begin{tabularx}{\textwidth}{llXl}
+\toprule
+Tag & Type & Description & Units\\
+\midrule
+\verb.<id>. & integer & ID of the gradient event & -- \\
+\verb.<amp>. & float & Peak amplitude & Hz/m \\
+\verb.<shape_id>. & integer & Shape ID for arbitrary gradient waveform & -- \\
+\verb.<rise>. & integer & Rise time of the trapezoid & $\rm \mu s$ \\
+\verb.<flat>. & integer & Flat-top time of the trapezoid & $\rm \mu s$ \\
+\verb.<fall>. & integer & Fall time of the trapezoid & $\rm \mu s$ \\
+\bottomrule
+\end{tabularx}
+
+The gradient ID must be unique across both arbitrary and trapezoid gradients. That is, a trapezoid gradient cannot have the same ID as an arbitrary gradient.
+
+
+\begin{minipage}{\textwidth}
+\textbf{Example:}
+\begin{lstlisting}
+[GRADIENTS]
+  1    159154.9  3
+[TRAP]
+  2       25000    30  940  30 
+  3    20066.89    10  980  10 
+\end{lstlisting}
+\end{minipage}
+
+The example above contains two gradients: an arbitrary gradient with peak amplitude of approximately 159kHz/m and shape ID 3 and two trapezoid gradients (IDs 2 and 3) with duration 1ms specified by amplitude, rise time, flat-top time and fall time.
+
+\subsubsection{ADC}
+The ADC section is declared with the \verb.[ADC]. keyword. Each line in the section is an ADC event specified by six numbers,
+\begin{lstlisting}
+<id> <num> <dwell> <delay> <freq> <phase>
+\end{lstlisting}
+
+The specifiers are
+
+\begin{tabularx}{\textwidth}{llXl}
+\toprule
+Tag & Type & Description & Units\\
+\midrule
+\verb.<id>. & integer & ID of the ADC event & -- \\
+\verb.<num>. & integer & Number of samples & -- \\
+\verb.<dwell>. & float & The ADC dwell time & $\rm n s$ \\
+\verb.<delay>. & integer & Delay between start of block and first sample & $\rm \mu s$  \\
+\verb.<freq>. & float & Frequency offset of ADC receiver & Hz \\
+\verb.<phase>. & float & Phase offset of ADC receiver & rad \\
+\bottomrule
+\end{tabularx}
+
+The duration of the ADC readout is given by the product of \verb.<num>. and \verb.<dwell>..
+
+\begin{minipage}{\textwidth}
+\textbf{Example:}
+\begin{lstlisting}
+[ADC]
+  1    512  5000  0  0.000   0.000
+\end{lstlisting}
+\end{minipage}
+
+The example above contains an ADC with 512 samples, and dwell time of 5000ns, and no frequency and phase offsets. The frequency and phase offset are used, for example, for RF spoiling or inplane shifting of the FOV.
+
+\subsubsection{Delays}
+The delay section is declared with the \verb.[DELAYS]. keyword. Each line in the section is a delay event specificed by two numbers,
+
+\begin{lstlisting}
+<id> <delay>
+\end{lstlisting}
+
+The specifiers are
+
+\begin{tabularx}{\textwidth}{llXl}
+\toprule
+Tag & Type & Description & Units\\
+\midrule
+\verb.<id>. & integer & ID of the delay event & -- \\
+\verb.<delay>. & integer & Delay before starting the execution of the block & $\rm \mu s$ \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Shapes}
+
+The shape section is declared with the \verb.[SHAPES]. keyword. Each shape is then declared with a header followed by a list of samples values (one per line). The end of the shape definition is declared with a blank line.
+
+\begin{lstlisting}
+Shape_ID <id>
+Num_Uncompressed <num>
+<sample_1>
+<sample_2>
+...
+\end{lstlisting}
+
+The specifiers are
+
+\begin{tabularx}{\textwidth}{llXl}
+\toprule
+Tag & Type & Description & Units\\
+\midrule
+\verb.<id>. & integer & ID of the shape & -- \\
+\verb.<num>. & integer & Number of samples of the uncompressed shape & -- \\
+\verb.<sample_.§$n$§\verb.>. & integer & The $n^{\rm th}$ sample of the compressed shape  & -- \\
+\bottomrule
+\end{tabularx}
+
+The decompressed samples must be in the normalised range [0, 1]. Since the purpose of this section is to define the basic shape of a gradient or RF pulse, the amplitude information is defined in the events section. This allows the same shape to be used with different amplitudes, without repeated definitions. 
+
+The number of points after decompressing all samples defined in a shape must equal the number declared in \verb.<num>..
+
+\subsubsection{Compression}
+
+Storing every sample of the shape would lead to very large sequence descriptions. Suppose a sequence contains a block RF pulse for 4ms and a sinusoidally-ramped constant gradient for 100ms. Assuming sampling times of $1{\rm \mu s}$ and $10{\rm \mu s}$ for the RF and gradients, respectively, $14000$ samples would be required. Instead, the shapes are compressed by encoding the derivative in a run-length compressed format.
+
+\begin{center}
+\begin{tabular}{rrrrr}
+\toprule
+Shape & & Step 1 (derivative) && Step 2 (compression) \\
+\midrule
+0.0 && 0.0 && 0 \\
+0.1 && 0.1 && 0.1 \\
+0.25&& 0.15&& 0.15 \\
+0.5 && 0.25&& 0.25 \\
+1.0 && 0.5 && 0.5 \\
+1.0 && 0.0 && 0.0 \\
+1.0 & $\rightarrow$& 0.0 & $\rightarrow$ & 0.0 \\
+1.0 && 0.0 && 4 \\
+1.0 && 0.0 && -0.25 \\
+1.0 && 0.0 && -0.25 \\
+1.0 && 0.0 && 2 \\
+0.75&& -0.25 \\
+0.5 && -0.25 \\
+0.25&& -0.25 \\
+0.0 && -0.25 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+A zero value for 100 samples is encoded as 0 0 98. A constant value of 1.0 for 100 samples is represented by: 1.0 0 0 97. 
+
+\section{Source code}
+This specification is distributed with source code for reading and writing the sequences file format described here. MATLAB code is provided for detailed sequence generation, visualisation, as well as reading and writing sequence files. A C++ class and example program is also provided for reading sequence files. Detailed documentation and latest updates of this code are available here: \url{http://pulseq.github.io/}.
+
+\newpage
+\section{Examples}
+
+\subsection{Free induction decay}
+
+\lstinputlisting{../examples/fiddisp.seq}
+
+\subsection{Point-resolved spectroscopy (PRESS)}
+
+\lstinputlisting{../examples/pressdisp.seq}
+
+\subsection{Gradient echo}
+
+\lstinputlisting{../examples/gredisp.seq}
+
+
+\end{document} 

@@ -1,0 +1,10 @@
+Testing file: ../examples/fid.seq
+Number of blocks: 3
+Number of events:
+   RF:        1
+   Gx:        0
+   Gy:        0
+   Gz:        0
+   ADC:       1
+   Delay:     1
+Sequence duration: 0.0083s

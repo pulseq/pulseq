@@ -1,0 +1,50 @@
+# Sequence Blocks
+# Created by JEMRIS 2.8
+
+[DEFINITIONS]
+Scan_ID 1
+Num_Blocks 3
+Rot_Matrix 0 -1 -0 1 0 -0 0 0 1
+
+# Format of blocks:
+##  D RF  GX  GY  GZ ADC
+[BLOCKS]
+1  0  1   0   0   0  0
+2  1  0   0   0   0  0
+3  0  0   0   0   0  1
+
+# Format of RF events:
+# id amplitude mag_id phase_id freq phase
+# ..        Hz   ....     ....   Hz   rad
+[RF]
+1         2500 1 2 0 0
+
+# Format of ADC events:
+# id num dwell delay freq phase
+# ..  ..    ns    us   Hz   rad
+[ADC]
+ 1  64  50000   0 0 0
+
+# Format of delays:
+# id delay (us)
+[DELAYS]
+1 5000
+
+# Sequence Shapes
+
+[SHAPES]
+
+shape_id 1
+num_samples 100
+1
+0
+0
+97
+
+shape_id 2
+num_samples 100
+0
+0
+98
+
+

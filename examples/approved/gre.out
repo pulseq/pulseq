@@ -1,0 +1,11 @@
+# ==========================================
+# ===== EXTERNAL SEQUENCE #    2 ===========
+# ==========================================
+Number of blocks:      160
+Number of RF pulses:    32
+Number of GX events:    64
+Number of GY events:    32
+Number of GZ events:    64
+Number of readouts:     32
+Number of Delays:       64
+

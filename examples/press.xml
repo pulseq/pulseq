@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Parameters FOVx="200" FOVy="200" GradMaxAmpl="8" GradSlewRate="45" Name="P" TE="50">
+   <ConcatSequence Name="C1">
+      <ATOMICSEQUENCE Azimuth="0" Inclination="0" Name="Ay" RotAngle="0">
+         <SINCRFPULSE Apodization="0.5" Bandwidth="1" FlipAngle="90" Frequency="0" InitialPhase="0" Name="RF" Symmetry="0.5" Zeros="2"/>
+         <TRAPGRADPULSE Area="4.9915" Axis="GY" Duration="4" Name="GSS"/>
+      </ATOMICSEQUENCE>
+      <ATOMICSEQUENCE Azimuth="0" Inclination="0" Name="A2" RotAngle="0">
+         <TRAPGRADPULSE Area="-a1/2" Axis="GY" Duration="2" Name="rephGZ" Observe="GSS,Area"/>
+      </ATOMICSEQUENCE>
+      <DELAYATOMICSEQUENCE Delay="a1/2" DelayType="C2C" Name="D1" Observe="P,TE" StartSeq="Ay" StopSeq="Ax"/>
+      <ATOMICSEQUENCE Azimuth="0" Inclination="0" Name="Ax" RotAngle="0">
+         <SINCRFPULSE Apodization="0.5" Bandwidth="1" FlipAngle="180" Frequency="0" InitialPhase="0" Name="RFx" Symmetry="0.5" Zeros="2"/>
+         <TRAPGRADPULSE Area="a1" Axis="GX" Duration="a2" Name="GSSx" Observe="GSS,Area/GSS,Duration"/>
+      </ATOMICSEQUENCE>
+      <DELAYATOMICSEQUENCE Delay="a1" DelayType="C2C" Name="D2" Observe="P,TE" StartSeq="Ax" StopSeq="Az"/>
+      <ATOMICSEQUENCE Azimuth="0" Inclination="0" Name="Az" RotAngle="0">
+         <SINCRFPULSE Apodization="0.5" Bandwidth="1" FlipAngle="180" Frequency="0" InitialPhase="0" Name="RFz" Symmetry="0.5" Zeros="2"/>
+         <TRAPGRADPULSE Area="a1" Axis="GZ" Duration="a2" Name="GSSz" Observe="GSS,Area/GSS,Duration"/>
+      </ATOMICSEQUENCE>
+      <DELAYATOMICSEQUENCE Delay="a1" DelayType="C2C" Name="D3" Observe="P,TE" StartSeq="Az" StopSeq="Aro"/>
+      <ATOMICSEQUENCE Azimuth="0" Inclination="0" Name="Aro" RotAngle="0">
+         <EMPTYPULSE ADCs="256" Axis="NONE" Duration="6.4" InitialPhase="0" Name="P2"/>
+      </ATOMICSEQUENCE>
+   </ConcatSequence>
+</Parameters>
