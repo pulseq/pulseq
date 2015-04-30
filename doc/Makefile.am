@@ -31,7 +31,7 @@ DOXY_STAMP = doxygen-build.stamp
 DOXY_FILE = doxy.conf
 DOXY_AUX = header.html footer.html customstyles.css matlab.css DoxygenLayout.xml
 HTML_AUX = $(top_srcdir)/doc/html/demoWrite.html $(top_srcdir)/doc/html/demoRead.html $(top_srcdir)/doc/html/Sequence.html
-WEBSITE_AUX = $(LATEX_BASENAME).pdf logo_hires.png README.md
+WEBSITE_AUX = $(LATEX_BASENAME).pdf logo_hires.png README.md favicon.ico
 
 EXTRA_DIST += $(DOXY_FILE).in doxygen-build.stamp
 
