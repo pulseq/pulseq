@@ -31,7 +31,8 @@ DOXY_STAMP = doxygen-build.stamp
 DOXY_FILE = doxy.conf
 DOXY_AUX = header.html footer.html customstyles.css matlab.css DoxygenLayout.xml
 HTML_AUX = $(top_srcdir)/doc/html/demoWrite.html $(top_srcdir)/doc/html/demoRead.html $(top_srcdir)/doc/html/Sequence.html
-  
+WEBSITE_AUX = $(LATEX_BASENAME).pdf logo_hires.png README.md
+
 EXTRA_DIST += $(DOXY_FILE).in doxygen-build.stamp
 
 #html/demoWrite.html: $(top_srcdir)/matlab/demoWrite.m
@@ -41,7 +42,7 @@ EXTRA_DIST += $(DOXY_FILE).in doxygen-build.stamp
 
 doxygen-build.stamp: $(DOXY_FILE) $(DOXY_AUX) $(HTML_AUX) $(top_srcdir)/src/*.h $(top_srcdir)/src/*.cpp *.dox   
 	doxygen $(DOXY_FILE)
-	cp $(LATEX_BASENAME).pdf html/
+	cp $(WEBSITE_AUX) html/
 	touch doxygen-build.stamp
 
 endif
