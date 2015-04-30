@@ -60,7 +60,7 @@ seq.addBlock(gx);
 seq.plot();
 ~~~~~~~~~~~~~
 
-\image html demoRead_03.png "Example design and visualization of an MR sequence in MATLAB"
+\image html demoRead_03.png "Example design and visualization of an MRI sequence in MATLAB"
 
 
 
@@ -70,8 +70,9 @@ seq.plot();
   \page matlab MATLAB source code
   
   A MATLAB interface is provided through the `mr` package. The package 
-  contains stand-alone functions for generating common sequence blocks such as 
-  selective RF pulses, trapezoid gradients and ADC readout events.  
+  contains stand-alone functions for generating common sequence blocks suitable 
+  for MRI or spectroscopy such as selective RF pulses, trapezoid gradients 
+  and ADC readout events.  
   The `Sequence` class maintains all sequence data in a compressed form and provides methods 
   to read/write sequence files or modify blocks directly. 
 
@@ -82,10 +83,10 @@ Examples
 <div class="directory">
 <table class="directory">
 <tr class="even"><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span><a class="el" href="matlabWrite.html">Write sequence</a></td><td class="desc">Generate sequence blocks and write to file</td></tr>
+<span class="icona"><span class="icon">M</span></span><a class="el" href="matlabWrite.html">Write sequence</a></td><td class="desc">Generate sequence blocks and write to file.</td></tr>
 
 <tr><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span>
-<span class="icona"><span class="icon">M</span></span><a class="el" href="matlabRead.html">Read sequence</a></td><td class="desc">Read file and visualise MR sequence</td></tr>
+<span class="icona"><span class="icon">M</span></span><a class="el" href="matlabRead.html">Read sequence</a></td><td class="desc">Read file and visualise the MR sequence.</td></tr>
 
 </table>
 </div><!-- directory -->
@@ -97,7 +98,7 @@ Examples
 <div class="directory">
 <table class="directory">
 <tr class="even"><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span><a class="el" href="SequenceCode.html">Sequence</a></td><td class="desc">MATLAB class for generating, reading and writing MR sequences</td></tr>
+<span class="icona"><span class="icon">M</span></span><a class="el" href="SequenceCode.html">Sequence</a></td><td class="desc">MATLAB class for generating, reading and writing MR sequences.</td></tr>
 </table>
 </div><!-- directory -->
 \endhtmlonly
@@ -146,7 +147,7 @@ Examples
 
 // *************************** READ EXAMPLE *******************
 /**
-\page matlabRead
+\page matlabRead MATLAB read example
 
 \htmlinclude demoRead.html 
   \n
@@ -154,7 +155,7 @@ Examples
 
 // *************************** WRITE EXAMPLE *******************
 /**
-\page matlabWrite
+\page matlabWrite MATLAB write example
 
 \htmlinclude demoWrite.html 
   \n
@@ -162,6 +163,6 @@ Examples
 
 // *************************** CLASS *******************
 /**
-  \page SequenceCode
+  \page SequenceCode MATLAB class
   \htmlinclude Sequence.html 
   */ 

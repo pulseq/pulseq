@@ -1,5 +1,5 @@
 /**
- * @file parsemri.cpp
+ * @file parsemr.cpp
  *
  * Parser for the open MRI sequence format
  * ---------------------------------------
@@ -11,7 +11,7 @@
  * @author Kelvin Layton <kelvin.layton@uniklinik-freiburg.de>
  */
 
-/** \example parsemri.cpp
+/** \example parsemr.cpp
  *
  * @brief This simple console program demonstrates how to use the ExternalSequence class.
  *

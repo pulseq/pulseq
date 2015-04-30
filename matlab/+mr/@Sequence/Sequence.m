@@ -4,8 +4,8 @@ classdef Sequence < handle
     % MR sequence including RF pulses, gradients, ADC events, etc.
     %
     % The class provides an implementation of the open MR sequence format
-    % defined in doc/specificaiton.pdf
-    %   See http://www.git/whatever
+    % defined by the Pulseq project.
+    %   See http://pulseq.github.io/
     %
     % Sequence Properties:
     %    definitions - A list of custom definitions
@@ -20,13 +20,13 @@ classdef Sequence < handle
     % Examples:
     %
     % To read a sequence from file:
-    %     read(seqObj,'my_sequences/seq.txt');
+    %     read(seqObj,'my_sequences/gre.seq');
     %
     % To plot a sequence:
     %     plot(seqObj)
     %
     % See also   demoRead.m, demoWrite.m
-    % Examples defining a sequence and reading/writing files
+    % Examples defining an MRI sequence and reading/writing files
     %
     % Kelvin Layton <kelvin.layton@uniklinik-freiburg.de>
     

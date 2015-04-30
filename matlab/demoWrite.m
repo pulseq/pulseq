@@ -1,17 +1,18 @@
 %% Generate a sequence in MATLAB and write to files
 % 
 % The |Sequence| class provides functionality to create magnetic
-% resonance sequences from basic building blocks.
+% resonance sequences (MRI or NMR) from basic building blocks.
 %
 % This provides an implementation of the open file format for MR sequences
-% described here: http://www.blah/progj.html
+% described here: http://pulseq.github.io/specification.pdf
 %
 % This example performs the following steps:
 % 
-% # Create slice selective RF pulse
-% # Create readout gradient and phase encode strategy
-% # Loop through phase encoding and generate sequence blocks
-% # Write the sequence to an open file format
+% # Create slice selective RF pulse for imaging.
+% # Create readout gradient and phase encode strategy.
+% # Loop through phase encoding and generate sequence blocks.
+% # Write the sequence to an open file format suitable for execution on a
+% scanner.
 % 
 
 %%% Instantiation and gradient limits

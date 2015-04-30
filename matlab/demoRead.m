@@ -1,9 +1,9 @@
 %% Read a sequence into MATLAB
 %
 % The |Sequence| class provides an implementation of the _open file
-% format_ for MR sequences described here: http://www.blah/progj.html
+% format_ for MR sequences described here: http://pulseq.github.io/specification.pdf
 %
-% This example demonstrates parsing sequences stored in this format,
+% This example demonstrates parsing an MRI sequence stored in this format,
 % accessing sequence parameters and visualising the sequence.
 
 %% Read a sequence file
@@ -13,8 +13,9 @@ seq=mr.Sequence();
 seq.read('../examples/gre.seq');
 
 %% Access sequence parameters and blocks
-% Parameters defined with in the [DEFINITIONS] section of the sequence file
-% are accessed with the |getDefinition| method.
+% Parameters defined with in the |[DEFINITIONS]| section of the sequence file
+% are accessed with the |getDefinition| method. These are user-specified
+% definitions and do not effect the execution of the sequence.
 scanId=seq.getDefinition('Scan_ID')
 
 %%
@@ -52,7 +53,8 @@ b4.adc
 %% Plot the sequence 
 % Visualise the sequence using the |plot| method of the class. This creates
 % a new figure and shows ADC, RF and gradient events. The axes are linked
-% so zooming is consitent.
+% so zooming is consitent. In this example, a simple gradient echo sequence
+% for MRI is displayed.
 seq.plot()
 
 %%

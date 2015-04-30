@@ -82,7 +82,8 @@ clean-local:
 	if test -f doxy.conf; then rm -f doxy.conf; fi
 	rm -f *.log *.aux *.synctex *.bbl *.blg *.toc *.out
 
-
+install-html-local: $(EXTRA_DIST)
+	cp -r html/* ../../pulseq_website/
 
 
 

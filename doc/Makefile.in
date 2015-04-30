@@ -406,7 +406,7 @@ install-exec-am:
 
 install-html: install-html-am
 
-install-html-am:
+install-html-am: install-html-local
 
 install-info: install-info-am
 
@@ -449,13 +449,13 @@ uninstall-am: uninstall-docDATA uninstall-local
 	dvi-am html html-am info info-am install install-am \
 	install-data install-data-am install-data-local \
 	install-docDATA install-dvi install-dvi-am install-exec \
-	install-exec-am install-html install-html-am install-info \
-	install-info-am install-man install-pdf install-pdf-am \
-	install-ps install-ps-am install-strip installcheck \
-	installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-generic pdf \
-	pdf-am ps ps-am tags-am uninstall uninstall-am \
-	uninstall-docDATA uninstall-local
+	install-exec-am install-html install-html-am \
+	install-html-local install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-generic pdf pdf-am ps ps-am tags-am uninstall \
+	uninstall-am uninstall-docDATA uninstall-local
 
 
 @BUILD_LATEX_TRUE@$(LATEX_BASENAME).pdf: $(LATEX_BASENAME).tex
@@ -507,6 +507,9 @@ clean-local:
 	if test -f doxy-build.stamp; then rm -f doxy-build.stamp; fi
 	if test -f doxy.conf; then rm -f doxy.conf; fi
 	rm -f *.log *.aux *.synctex *.bbl *.blg *.toc *.out
+
+install-html-local: $(EXTRA_DIST)
+	cp -r html/* ../../pulseq_website/
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

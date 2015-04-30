@@ -7,7 +7,7 @@ function [rf, gz] = makeSincPulse(flip,varargin)
 %   Create sinc pulse with frequency offset and phase offset.
 %
 %   [rf gz]=makeSincPulse(...,'SliceThickness',st) Return the
-%   corresponding slice select gradient.
+%   corresponding slice select gradient suitable for MRI.
 %
 %   See also  Sequence.addBlock
 
