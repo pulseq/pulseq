@@ -29,20 +29,22 @@ enum MessageType {
 };
 
 // Define the current level of messages to display
-#define MSG_LEVEL NORMAL_MSG
+const MessageType MSG_LEVEL = NORMAL_MSG;
 
 
 /**
  * @brief Internal storage order
  */
 enum Event {
-	RF_EVENT,
-	XGRAD_EVENT,
-	YGRAD_EVENT,
-	ZGRAD_EVENT,
-	ADC_EVENT
+	DELAY,
+	RF,
+	GX,
+	GY,
+	GZ,
+	ADC,
 };
-
+const int NUM_EVENTS=ADC+1;
+const int NUM_GRADS=ADC-GX;
 
 /**
  * @brief RF event data
@@ -52,11 +54,11 @@ enum Event {
  */
 struct RFEvent
 {
-	float amplitude;	/**< @brief Amplitude of RF event (Hz) */
-	int magShape;		/**< @brief ID of shape for magnitude */
-	int phaseShape;		/**< @brief ID of shape for phase */
-	float freqOffset;	/**< @brief Frequency offset of transmitter (Hz) */
-	float phaseOffset;	/**< @brief Phase offset of transmitter (Hz) */
+	float amplitude;     /**< @brief Amplitude of RF event (Hz) */
+	int magShape;        /**< @brief ID of shape for magnitude */
+	int phaseShape;      /**< @brief ID of shape for phase */
+	float freqOffset;    /**< @brief Frequency offset of transmitter (Hz) */
+	float phaseOffset;   /**< @brief Phase offset of transmitter (Hz) */
 };
 
 
@@ -70,13 +72,13 @@ struct RFEvent
  */
 struct GradEvent
 {
-	float amplitude;	/**< @brief Amplitude of gradient (Hz/m) */
+	float amplitude;      /**< @brief Amplitude of gradient (Hz/m) */
 	// Trapezoid:
-	long rampUpTime;	/**< @brief Ramp up time of trapezoid (us) */
-	long flatTime;		/**< @brief Flat-top time of trapezoid (us) */
-	long rampDownTime;	/**< @brief Ramp down time of trapezoid (us) */
+	long rampUpTime;      /**< @brief Ramp up time of trapezoid (us) */
+	long flatTime;        /**< @brief Flat-top time of trapezoid (us) */
+	long rampDownTime;    /**< @brief Ramp down time of trapezoid (us) */
 	// Arbitrary:
-	int shape;			/**< @brief ID of shape for arbitrary gradient */
+	int shape;            /**< @brief ID of shape for arbitrary gradient */
 };
 
 
@@ -89,13 +91,22 @@ struct GradEvent
  */
 struct ADCEvent
 {
-	int numSamples;		/**< @brief Number of samples */
-	int dwellTime;		/**< @brief Dwell time of ADC readout (ns) */
-	int delay;			/**< @brief Delay before first sample (us) */
-	float freqOffset;	/**< @brief Frequency offset of receiver (Hz) */
-	float phaseOffset;	/**< @brief Phase offset of receiver (Hz) */
+	int numSamples;     /**< @brief Number of samples */
+	int dwellTime;      /**< @brief Dwell time of ADC readout (ns) */
+	int delay;          /**< @brief Delay before first sample (us) */
+	float freqOffset;   /**< @brief Frequency offset of receiver (Hz) */
+	float phaseOffset;  /**< @brief Phase offset of receiver (Hz) */
 };
 
+/**
+ * @brief List of event IDs
+ *
+ * Stores IDs that reference events stored in the event libraries.
+ */
+struct EventIDs
+{
+	int id[NUM_EVENTS];
+};
 
 
 /**
@@ -112,7 +123,7 @@ public:
 	/**
 	 * @brief Constructor
 	 */
-	SeqBlock() {}
+	SeqBlock() { gradWaveforms.resize(NUM_GRADS); }
 
 	/**
 	 * @brief Return `true` if block has RF event
@@ -169,27 +180,17 @@ public:
 	/**
 	 * @brief Return the gradient event of the given channel
 	 */
-	GradEvent GetGradEvent(int channel);
+	GradEvent& GetGradEvent(int channel);
 
 	/**
-	 * @brief Directly get a pointer to the samples of the arbitrary X gradient
+	 * @brief Directly get a pointer to the samples of the arbitrary gradient
 	 */
-	float* GetXGradientPtr();
-
-	/**
-	 * @brief Directly get a pointer to the samples of the arbitrary Y gradient
-	 */
-	float* GetYGradientPtr();
-
-	/**
-	 * @brief Directly get a pointer to the samples of the arbitrary Z gradient
-	 */
-	float* GetZGradientPtr();
+	float* GetGradientPtr(int channel);
 
 	/**
 	 * @brief Return the RF event
 	 */
-	RFEvent	GetRFEvent();
+	RFEvent&	GetRFEvent();
 
 	/**
 	 * @brief Return the number of samples of the RF shape
@@ -209,7 +210,7 @@ public:
 	/**
 	 * @brief Return the ADC event
 	 */
-	ADCEvent GetADCEvent();
+	ADCEvent& GetADCEvent();
 
 	/**
 	 * @brief Return a brief string description of the block
@@ -221,28 +222,26 @@ public:
 	 */
 	void   free();
 protected:
-	int index;			/**< @brief Index of this block */
+	int index;          /**< @brief Index of this block */
 	
 	// Event array contains integer indices to events stored in the parent ExternalSequence object
-	int events[5];		/**< @brief list of event indices (RF, GX, GY, GZ, ADC) */
+	int events[NUM_EVENTS];	/**< @brief list of event indices (RF, GX, GY, GZ, ADC) */
 
-	long delay;			/**< @brief delay of this block (in us) */
-	long duration;		/**< @brief duration of this block (in us) used for error checking */
+	long delay;         /**< @brief delay of this block (in us) */
+	long duration;      /**< @brief duration of this block (in us) used for error checking */
 
-	RFEvent rf;			/**< @brief RF event */
-	GradEvent grad[3];	/**< @brief gradient events */
-	ADCEvent adc;		/**< @brief ADC event  */
+	RFEvent rf;                 /**< @brief RF event */
+	GradEvent grad[NUM_GRADS];  /**< @brief gradient events */
+	ADCEvent adc;               /**< @brief ADC event  */
 
-	// Below is only valid once decompressed
+	// Below is only valid once decompressed:
 		
 	// RF
-	std::vector<float> rfAmplitude;	/**< @brief RF amplitude shape (uncompressed) */
-	std::vector<float> rfPhase;		/**< @brief RF phase shape (uncompressed) */
+	std::vector<float> rfAmplitude;  /**< @brief RF amplitude shape (uncompressed) */
+	std::vector<float> rfPhase;      /**< @brief RF phase shape (uncompressed) */
 
-	// Grad
-	std::vector<float> grad_x;		/**< @brief Arbitrary gradient shape for X channel (uncompressed) */
-	std::vector<float> grad_y;		/**< @brief Arbitrary gradient shape for Y channel (uncompressed) */
-	std::vector<float> grad_z;		/**< @brief Arbitrary gradient shape for Z channel (uncompressed) */
+	// Gradient waveforms
+	std::vector< std::vector<float> > gradWaveforms;    /**< @brief Arbitrary gradient shapes for each channel (uncompressed) */
 
 };
 
@@ -251,34 +250,23 @@ protected:
 // * ------------------------------------------------------------------ *
 inline int       SeqBlock::GetIndex() { return index; }
 
-inline bool      SeqBlock::isRF() { return (events[RF_EVENT]>0); }
-inline bool      SeqBlock::isTrapGradient(int channel) { return ((events[channel+1]>0) & (grad[channel].shape==0)); }
-inline bool      SeqBlock::isArbitraryGradient(int channel) { return ((events[channel+1]>0) & (grad[channel].shape>0)); }
-inline bool      SeqBlock::isADC() { return (events[ADC_EVENT]>0); }
-inline bool      SeqBlock::isDelay() { return (delay>0); }
+inline bool      SeqBlock::isRF() { return (events[RF]>0); }
+inline bool      SeqBlock::isTrapGradient(int channel) { return ((events[channel+GX]>0) & (grad[channel].shape==0)); }
+inline bool      SeqBlock::isArbitraryGradient(int channel) { return ((events[channel+GX]>0) & (grad[channel].shape>0)); }
+inline bool      SeqBlock::isADC() { return (events[ADC]>0); }
+inline bool      SeqBlock::isDelay() { return (events[DELAY]>0); }
 
 inline long      SeqBlock::GetDelay() { return delay; }
-inline long      SeqBlock::GetDuration() { return duration; }	/* maybe not needed? */
-
-inline GradEvent SeqBlock::GetGradEvent(int channel) { return grad[channel]; }
-inline RFEvent   SeqBlock::GetRFEvent() { return rf; }
-inline ADCEvent  SeqBlock::GetADCEvent() { return adc; }
+inline long      SeqBlock::GetDuration() { return duration; }
 
 inline int       SeqBlock::GetEventIndex(Event type) { return events[type]; }
 
+inline GradEvent& SeqBlock::GetGradEvent(int channel) { return grad[channel]; }
+inline RFEvent&   SeqBlock::GetRFEvent() { return rf; }
+inline ADCEvent&  SeqBlock::GetADCEvent() { return adc; }
 
-inline int       SeqBlock::GetGradientLength(int channel) {
-	if (channel==0)
-		return grad_x.size();
-	else if (channel==1)
-		return grad_y.size();
-	else if (channel==2)
-		return grad_z.size();
-	else
-		return 0;
-} 
 
-inline std::string       SeqBlock::GetTypeString() {
+inline std::string SeqBlock::GetTypeString() {
 	std::string type;
 	if (isRF()) type = type + "RF";
 	if (isTrapGradient(0)) type += " TrapX";
@@ -288,13 +276,12 @@ inline std::string       SeqBlock::GetTypeString() {
 	if (isArbitraryGradient(1)) type += " ArbY";
 	if (isArbitraryGradient(2)) type += " ArbZ";
 	if (isADC()) type += " ADC";
-	if (GetDelay()>0) type += " Delay";
+	if (isDelay()) type += " Delay";
 	return type;
 } 
 
-inline float*    SeqBlock::GetXGradientPtr() { return (grad_x.size()>0) ? &grad_x[0] : NULL; }
-inline float*    SeqBlock::GetYGradientPtr() { return (grad_y.size()>0) ? &grad_y[0] : NULL; }
-inline float*    SeqBlock::GetZGradientPtr() { return (grad_z.size()>0) ? &grad_z[0] : NULL; }
+inline float*    SeqBlock::GetGradientPtr(int channel) { return (gradWaveforms[channel].size()>0) ? &gradWaveforms[channel][0] : NULL; }
+inline int       SeqBlock::GetGradientLength(int channel) {	return gradWaveforms[channel].size(); } 
 
 inline float*    SeqBlock::GetRFAmplitudePtr() { return &rfAmplitude[0]; }
 inline float*    SeqBlock::GetRFPhasePtr() { return &rfPhase[0]; }
@@ -304,9 +291,7 @@ inline void      SeqBlock::free() {
 	// Force the memory to be freed
 	std::vector<float>().swap(rfAmplitude);
 	std::vector<float>().swap(rfPhase);
-	std::vector<float>().swap(grad_x);
-	std::vector<float>().swap(grad_y);
-	std::vector<float>().swap(grad_z);
+	std::vector<std::vector<float> >().swap(gradWaveforms);
  }
 
 
@@ -319,8 +304,8 @@ inline void      SeqBlock::free() {
  */
 struct CompressedShape
 {
-	int numUncompressedSamples;		/**< @brief Number of samples *after* decompression */
-	std::vector<float> samples;		/**< @brief Compressed samples */
+	int numUncompressedSamples;    /**< @brief Number of samples *after* decompression */
+	std::vector<float> samples;    /**< @brief Compressed samples */
 };
 
 
@@ -397,58 +382,16 @@ class ExternalSequence
 	 */
 	static void SetPrintFunction(PrintFunPtr fun);
 
-
 	/**
-	 * @brief Return the Scan ID set in the [DEFINITIONS] block
+	 * @brief Lookup the custom definition
+	 * 
+	 * Search the list of user-specified definitions through the [DEFINITIONS] section.
+	 * If the definition key is not found, an empty vector is returned.
+	 *
+	 * @param key  the definition name
+	 * @return a list of values (or empty vector)
 	 */
-	int   GetScanID(void);
-
-	/**
-	 * @brief Return the FOV set in the [DEFINITIONS] block
-	 */
-	float GetFOV(int dim);
-
-	/**
-	 * @brief Return the FOV set in the [DEFINITIONS] block
-	 */
-	float GetSliceThickness(void);
-
-	/**
-	 * @brief Return the resoution set in the [DEFINITIONS] block
-	 */
-	int   GetBaseResolution(void);
-
-	/**
-	 * @brief Return the TE set in the [DEFINITIONS] block
-	 */
-	float GetTE(void);
-
-	/**
-	 * @brief Return the TR set in the [DEFINITIONS] block
-	 */
-	float GetTR(void);
-
-	/**
-	 * @brief Return an element of the rotation matrix set in the [DEFINITIONS] block
-	 */
-	double GetRotMatrix(int i, int j);
-
-	/**
-	 * @brief Return the gradient delay of a given channel as set in the [DEFINITIONS] block
-	 */
-	long  GetDelay(int channel);
-
-	/**
-	 * @brief Return the maximum gradient delay
-	 */
-	long  GetMaxDelay(void);
-
-#ifdef MASTER_SLAVE_FORMAT
-	/**
-	 * @brief Return the Scan ID set in the [DEFINITIONS] block
-	 */
-	void  SetSlave(bool isSlave);
-#endif
+	std::vector<double> GetDefinition(std::string key);
 	
 	/**
 	 * @brief Return number of sequence blocks
@@ -456,7 +399,12 @@ class ExternalSequence
 	int  GetNumberOfBlocks(void);
 
 	/**
-	 * @brief Return a pointer to a sequence block
+	 * @brief Construct a sequence block from the library events
+	 *
+	 * Events are loaded from the library. However, arbitrary waveforms are
+	 * not decoded until decodeBlock() is called.
+	 *
+	 * @see decodeBlock()
 	 */
 	SeqBlock*  GetBlock(int blockIndex);
 
@@ -503,14 +451,15 @@ class ExternalSequence
 	 */
 	bool decompressShape(CompressedShape& encoded, float *shape);
 
+
 	/**
-	 * @brief Check the block contains references to defined events
+	 * @brief Check the IDs contains references to valid events in the library
 	 *
-	 * @param  block The sequence block to check
-	 * @return true if block references are ok
+	 * @param  events The event IDs to check
+	 * @return true if event references are ok
 	 * @see checkRF(), checkGradient()
 	 */
-	bool checkBlockReferences(SeqBlock& block);
+	bool checkBlockReferences(EventIDs& events);
 
 	/**
 	 * @brief Check the shapes defining the arbitrary gradient events (if present)
@@ -541,58 +490,39 @@ class ExternalSequence
 
 	// *** Static members ***
 
-	static PrintFunPtr print_fun;			/**< @brief Pointer to output print function */
+	static PrintFunPtr print_fun;              /**< @brief Pointer to output print function */
 
 	// *** Members ***
 
-	std::map<std::string,int> m_fileIndex;	/**< @brief File location of sections, [RF], [ADC] etc */
-
-	// Members to store parameters provided through the [DEFINITIONS] section
-	int				m_BaseResolution[3];	/**< @brief Resolution (if provided through [DEFINITIONS] section) */
-	float			m_FOV[3];				/**< @brief Field-of-view (if provided through [DEFINITIONS] section) */
-	float			m_sliceThickness;		/**< @brief Slice thickness (if provided through [DEFINITIONS] section) */
-	float			m_TE;					/**< @brief Echo time (if provided through [DEFINITIONS] section) */
-	float			m_TR;					/**< @brief Repetition time (if provided through [DEFINITIONS] section) */
-	int				m_scanID;				/**< @brief Scan ID (if provided through [DEFINITIONS] section) */
-	double			m_RotMatrix[3][3];		/**< @brief Rotation matrix (if provided through [DEFINITIONS] section) */
-	long			m_delays[3];			/**< @brief Gradient delays (if provided through [DEFINITIONS] section) */
-	long			m_maxDelay;				/**< @brief Maximum gradient delay*/
-
-#ifdef MASTER_SLAVE_FORMAT
-	bool			m_isSlave;				/**< @brief True if running on the slave host/mpcu */
-#endif
-
+	std::map<std::string,int> m_fileIndex;     /**< @brief File location of sections, [RF], [ADC] etc */
+	
 	// Low level sequence blocks
-	std::vector<SeqBlock> m_blocks;	/**< @brief List of sequence blocks */
+	std::vector<EventIDs> m_blocks;            /**< @brief List of sequence blocks */
 
+	// Global user-specified definitions
+	std::map<std::string, std::vector<double> >m_definitions;  /**< @brief Custom definitions provided through [DEFINITIONS] section) */
+	
 	// List of events (referenced by blocks)
-	std::map<int,RFEvent>   m_rfLibrary;	/**< @brief Library of RF events */
-	std::map<int,GradEvent> m_gradLibrary;	/**< @brief Library of gradient events */
-	std::map<int,ADCEvent>  m_adcLibrary;	/**< @brief Library of ADC readouts */
-	std::map<int,long>      m_delayLibrary;	/**< @brief Library of delays */
+	std::map<int,RFEvent>   m_rfLibrary;       /**< @brief Library of RF events */
+	std::map<int,GradEvent> m_gradLibrary;     /**< @brief Library of gradient events */
+	std::map<int,ADCEvent>  m_adcLibrary;      /**< @brief Library of ADC readouts */
+	std::map<int,long>      m_delayLibrary;    /**< @brief Library of delays */
 	
 	// List of basic shapes (referenced by events)
-	std::map<int,CompressedShape> m_shapeLibrary;	/**< @brief Library of compressed shapes */
+	std::map<int,CompressedShape> m_shapeLibrary;    /**< @brief Library of compressed shapes */
 };
 
 // * ------------------------------------------------------------------ *
 // * Inline functions                                                   *
 // * ------------------------------------------------------------------ *
-inline int		ExternalSequence::GetScanID(void){ return m_scanID; }
-inline float	ExternalSequence::GetFOV(int dim){ return m_FOV[dim]; }
-inline int		ExternalSequence::GetBaseResolution(void){ return m_BaseResolution[0]; }
-inline float	ExternalSequence::GetSliceThickness(void){ return m_sliceThickness; }
-inline float	ExternalSequence::GetTE(void){ return m_TE; }
-inline float	ExternalSequence::GetTR(void){ return m_TR; }
-inline int		ExternalSequence::GetNumberOfBlocks(void){return m_blocks.size();}
-inline double	ExternalSequence::GetRotMatrix(int i, int j){return m_RotMatrix[i][j];}
-inline long		ExternalSequence::GetDelay(int channel){return m_delays[channel];}
-inline long		ExternalSequence::GetMaxDelay(void){return m_maxDelay;}
-#ifdef MASTER_SLAVE_FORMAT
-inline void		ExternalSequence::SetSlave(bool isSlave){ m_isSlave = isSlave; }
-#endif
 
-inline SeqBlock*	ExternalSequence::GetBlock(int index) { return &m_blocks[index]; }
+inline int ExternalSequence::GetNumberOfBlocks(void){return m_blocks.size();}
+inline std::vector<double>	ExternalSequence::GetDefinition(std::string key){
+	if (m_definitions.count(key)>0)
+		return m_definitions[key];
+	else
+		return std::vector<double>();
+}
 
 inline void ExternalSequence::defaultPrint(const std::string &str) { std::cout << str << std::endl; }
 inline void ExternalSequence::SetPrintFunction(PrintFunPtr fun) { print_fun=fun; }

@@ -65,6 +65,7 @@ int main(int argc, char* argv[])
 		if (block->isTrapGradient(0) || block->isArbitraryGradient(0) ) numGx++;
 		if (block->isTrapGradient(1) || block->isArbitraryGradient(1) ) numGy++;
 		if (block->isTrapGradient(2) || block->isArbitraryGradient(2) ) numGz++;
+		delete block;
 	}
 
 	// Display summary of sequence events

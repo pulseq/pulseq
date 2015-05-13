@@ -4,8 +4,7 @@
 #include <cstring>		// strlen etc
 #include <iomanip>		// std::setw etc
 
-#include <algorithm>	// for std::sort
-#include <functional>	// for std::sort
+#include <algorithm>	// for std::max_element
 
 
 #ifndef MAX
@@ -19,26 +18,7 @@ const char ExternalSequence::COMMENT_CHAR = '#';
 /***********************************************************/
 ExternalSequence::ExternalSequence()
 {
-	m_scanID			= 1;
-	m_FOV[0]			= 256.0;
-	m_FOV[1]			= 256.0;
-	m_BaseResolution[0]	= 64;
-	m_BaseResolution[1]	= 64;
-	m_TE				= 15.0;
-	m_TR				= 50.0;
-	m_sliceThickness	= 3.0;
-#ifdef MASTER_SLAVE_FORMAT
-	m_isSlave			= false;
-#endif
-
-	m_RotMatrix[0][0] = 1.0; m_RotMatrix[1][0] = 0.0; m_RotMatrix[2][0] = 0.0;
-	m_RotMatrix[0][1] = 0.0; m_RotMatrix[1][1] = 1.0; m_RotMatrix[2][1] = 0.0;
-	m_RotMatrix[0][2] = 0.0; m_RotMatrix[1][2] = 0.0; m_RotMatrix[2][2] = 1.0;
-	
-	m_delays[0] = 0; m_delays[1] = 0; m_delays[2] = 0;
-
-	m_blocks.clear();
-	
+	m_blocks.clear();	// probably not needed.
 }
 
 
@@ -60,9 +40,6 @@ void ExternalSequence::print_msg(MessageType level, std::ostream& ss) {
 bool ExternalSequence::load(std::string path)
 {
 	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "Reading external sequence files");
-#ifdef MASTER_SLAVE_FORMAT
-	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "Expecting 6-channel file format");
-#endif
 
 	char buffer[MAX_LINE_SIZE];
 	char tmpStr[MAX_LINE_SIZE];
@@ -280,17 +257,6 @@ bool ExternalSequence::load(std::string path)
 		buildFileIndex(data_file);
 	}
 
-	// File storage order
-	// -----------------
-	enum Fields {
-		DELAY, RF,
-		GX, GY, GZ,
-#ifdef MASTER_SLAVE_FORMAT
-		GA, GB, GC,
-#endif
-		ADC
-	};
-	const int NUM_FIELDS = ADC+1;
 
 	// Read definition section
 	// ------------------------
@@ -298,90 +264,34 @@ bool ExternalSequence::load(std::string path)
 	if (m_fileIndex.find("[DEFINITIONS]") != m_fileIndex.end()) {
 		data_file.seekg(m_fileIndex["[DEFINITIONS]"], std::ios::beg);
 		
-	#ifdef MASTER_SLAVE_FORMAT
-		std::vector<long> delays(6,0);
-	#else
-		std::vector<long> delays(3,0);
-	#endif
-
-		// Define the definition structure: a mapping of string keys to
-		// a vector of pointers (destination variables) and the corresponding types for scanf.
-		// The vector allows multiple values per line
-		std::map<std::string,std::pair<std::string,std::vector<void*> > > definitions;
-		definitions["Num_Blocks"]        = std::make_pair(std::string("%d"),  std::vector<void*>(1,&numBlocks));
-		definitions["Scan_ID"]           = std::make_pair(std::string("%d"),  std::vector<void*>(1,&m_scanID));
-		definitions["SliceThickness_mm"] = std::make_pair(std::string("%f"),  std::vector<void*>(1,&m_sliceThickness));
-		definitions["TE_ms"]             = std::make_pair(std::string("%f"),  std::vector<void*>(1,&m_TE));
-		definitions["TR_ms"]             = std::make_pair(std::string("%f"),  std::vector<void*>(1,&m_TR));
-		definitions["FOV_mm"]            = std::make_pair(std::string("%f %f"),std::vector<void*>(1,&m_FOV[0]));
-		definitions["FOV_mm"].second.push_back(&m_FOV[1]);
-		void *ptr[9] = {&m_RotMatrix[0][0],&m_RotMatrix[0][1],&m_RotMatrix[0][2],
-						&m_RotMatrix[1][0],&m_RotMatrix[1][1],&m_RotMatrix[1][2],
-						&m_RotMatrix[2][0],&m_RotMatrix[2][1],&m_RotMatrix[2][2] };
-		definitions["Rot_Matrix"]        = std::make_pair(std::string("%lf %lf %lf %lf %lf %lf %lf %lf %lf"),std::vector<void*>());
-		unsigned int i;
-		for (i=0; i<9; i++) {
-			definitions["Rot_Matrix"].second.push_back(ptr[i]);
-		}
-		definitions["Delays_us"]         = std::make_pair(std::string(""),std::vector<void*>());
-		for (i=0; i<delays.size(); i++) {
-			definitions["Delays_us"].first += std::string(" %ld");
-			definitions["Delays_us"].second.push_back(&delays[i]);
-		}
-
-		// Read each line and search for the key.
-		// If found read into corresponding pointer
+		// Read each definition line
+		m_definitions.clear();
 		while (data_file.getline(buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
 			}
-			std::istringstream ss_buf(buffer);
-			std::string key, val, type;
-			ss_buf >> key;
-			if (definitions.find(key) == definitions.end()) {
-				print_msg(WARNING_MSG, std::ostringstream().flush() << "WARNING: Definition " << key << " ignored");
-			} else {
-				// Found key, so parse value according to type string
-				std::istringstream ss_type((char*)definitions[key].first.c_str());
-				std::vector<void*> ptrs = definitions[key].second;
-				for (unsigned int i=0; i<ptrs.size(); i++) {
-					ss_buf >> val;		// get the value as a string
-					ss_type >> type;	// get the scanf type
-					sscanf(val.c_str(), type.c_str(), ptrs[i]);
-				}
+			std::istringstream ss(buffer);
+			std::string key;
+			ss >> key;
+			double value;
+			std::vector<double> values;
+			while (ss >> value) {
+				values.push_back(value);
 			}
+			m_definitions[key] = values;
 		}
 	
-	
-		print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- DEFINITIONS READ: "
-			<<"ID: "<< m_scanID << " "
-			<<"Num blocks: "<< numBlocks << " "
-			<<"FOV: "<< m_FOV[0] << " " << m_FOV[1] << " "
-			<<"ST: " << m_sliceThickness << " "
-			<<"TE: "<< m_TE << " TR: " << m_TR << " "
-			<<"Rot:[" << m_RotMatrix[0][0] << " " << m_RotMatrix[0][1] << " " << m_RotMatrix[0][2] << "; "
-			<< m_RotMatrix[1][0] << " " << m_RotMatrix[1][1] << " " << m_RotMatrix[1][2] << "; "
-			<< m_RotMatrix[2][0] << " " << m_RotMatrix[2][1] << " " << m_RotMatrix[2][2] << "] " 
-			<< "Delays: " << delays[0] << " " << delays[1] << " " << delays[2] << " "
-#ifdef MASTER_SLAVE_FORMAT
-			<< delays[3] << " " << delays[4] << " " << delays[5] 
-#endif
-			);
-
-		m_maxDelay = *((std::max_element)(delays.begin(), delays.end()));
-		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Max delay: " << m_maxDelay);
-
-		m_delays[0]=delays[0];
-		m_delays[1]=delays[1];
-		m_delays[2]=delays[2];
-		
-#ifdef MASTER_SLAVE_FORMAT
-		if (m_isSlave) {
-			m_delays[0]=delays[3];
-			m_delays[1]=delays[4];
-			m_delays[2]=delays[5];
+		std::ostringstream out;
+		out << "-- " << "DEFINITIONS READ: " << m_definitions.size() << " : ";
+		for (std::map<std::string,std::vector<double> >::iterator it=m_definitions.begin(); it!=m_definitions.end(); ++it)
+		{
+			out<< it->first << " ";
+			for (int i=0; i<it->second.size(); i++)
+				out << it->second[i] << " ";
 		}
-#endif
+
+		print_msg(DEBUG_HIGH_LEVEL, out);
+
 	} // if definitions exist
 	
 	// Read blocks section
@@ -391,14 +301,9 @@ bool ExternalSequence::load(std::string path)
 		return false;
 	}
 	data_file.seekg(m_fileIndex["[BLOCKS]"], std::ios::beg);
-
-	// System timing parameters
-	long COIL_LEAD_TIME=100;
-	long lCoilLeadTime=0;
-	long lFreqResetTime=10;
 	
 	int blockIdx;
-	int eventId[NUM_FIELDS];
+	EventIDs events;
 	
 	// Read blocks
 	m_blocks.clear();
@@ -407,95 +312,20 @@ bool ExternalSequence::load(std::string path)
 			break;
 		}
 
-#ifdef MASTER_SLAVE_FORMAT
-		sscanf(buffer, "%d%d%d%d%d%d%d%d%d%d", &blockIdx, 
-			&eventId[DELAY],							// Delay
-			&eventId[RF],								// RF
-			&eventId[GX],&eventId[GY],&eventId[GY],		// Linear
-			&eventId[GA],&eventId[GB],&eventId[GC],		// Patloc
-			&eventId[ADC]								// ADCs
-			);
-#else
 		sscanf(buffer, "%d%d%d%d%d%d%d", &blockIdx, 
-			&eventId[DELAY],							// Delay
-			&eventId[RF],								// RF
-			&eventId[GX],&eventId[GY],&eventId[GZ],		// Gradients
-			&eventId[ADC]								// ADCs
+			&events.id[DELAY],                              // Delay
+			&events.id[RF],                                 // RF
+			&events.id[GX],&events.id[GY],&events.id[GZ],   // Gradients
+			&events.id[ADC]                                 // ADCs
 			);
-#endif
-
-		SeqBlock block;
-		block.index = blockIdx-1;
-
-		// Calculate duration of block
-		long duration = 0;
-		lCoilLeadTime=0;
-		if (eventId[RF]>0) {
-			RFEvent &rf = m_rfLibrary[eventId[RF]];
-			lCoilLeadTime=COIL_LEAD_TIME;
-			//duration = MAX(duration, lFreqResetTime+lCoilLeadTime+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
-			duration = MAX(duration, lCoilLeadTime+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
-		}
-		for (int iC=GX; iC<ADC; iC++)
-		{
-			if (eventId[iC]>0) {	// has gradient
-				GradEvent &grad = m_gradLibrary[eventId[iC]];
-				if (grad.shape>0)
-					duration = MAX(duration, lCoilLeadTime + (long)(10*m_shapeLibrary[grad.shape].numUncompressedSamples));
-				else
-					duration = MAX(duration, lCoilLeadTime + grad.rampUpTime + grad.flatTime + grad.rampDownTime);
-			}
-		}
-		if (eventId[ADC]>0) {
-			ADCEvent &adc = m_adcLibrary[eventId[ADC]];
-			duration = MAX(duration, lFreqResetTime + adc.delay + adc.numSamples*(adc.dwellTime/1000));
-		}
-
-		block.events[RF_EVENT]    = eventId[RF];		// RF
-		block.events[ADC_EVENT]   = eventId[ADC];		// ADC
-		block.events[XGRAD_EVENT] = eventId[GX];		// Linear gradients: X, Y, Z
-		block.events[YGRAD_EVENT] = eventId[GY];
-		block.events[ZGRAD_EVENT] = eventId[GZ];
 		
-#ifdef MASTER_SLAVE_FORMAT
-		// Assign events based on patloc mode
-		if (m_isSlave) {
-			block.events[RF_EVENT]    = 0;				// No RF on PatLoc slave
-			block.events[ADC_EVENT]   = 0;				// No ADC on PatLoc slave
-			block.events[XGRAD_EVENT] = eventId[GA];	// PatLoc gradients: A, B, C
-			block.events[YGRAD_EVENT] = eventId[GB];
-			block.events[ZGRAD_EVENT] = eventId[GC];
-		}
-#endif
-		// Set some defaults
-		block.delay = 0;
-		block.adc.numSamples = 0;
-		
-		// Set event structures (if applicable) so e.g. gradient type can be determined
-		if (block.events[XGRAD_EVENT]>0)  block.grad[0] = m_gradLibrary[block.events[XGRAD_EVENT]];
-		if (block.events[YGRAD_EVENT]>0)  block.grad[1] = m_gradLibrary[block.events[YGRAD_EVENT]];
-		if (block.events[ZGRAD_EVENT]>0)  block.grad[2] = m_gradLibrary[block.events[ZGRAD_EVENT]];
-		if (block.events[RF_EVENT]>0)     block.rf      = m_rfLibrary[block.events[RF_EVENT]];
-		if (block.events[ADC_EVENT]>0)    block.adc     = m_adcLibrary[block.events[ADC_EVENT]];
-		if (eventId[DELAY]>0)             block.delay   = m_delayLibrary[eventId[DELAY]];
-		
-#ifdef MASTER_SLAVE_FORMAT
-		// Adjust timing for coil lead time when nonlinear gradients are present during RF pulse
-		if (m_isSlave && eventId[RF]>0 && (eventId[GX]>0 || eventId[GY]>0 || eventId[GZ]>0))
-			block.delay += lCoilLeadTime;
-#endif
-
-		block.duration = duration + block.delay;
-	
-		//print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Block duration: " << block->duration );
-		
-		if (!checkBlockReferences(block)) {
+		if (!checkBlockReferences(events)) {
 			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Block " << blockIdx
 				<< " contains references to undefined events" );
 			return false;
 		}
-		// Add block to list
-		m_blocks.push_back(block);
+		// Add event IDs to list of blocks
+		m_blocks.push_back(events);
 	}
 	data_file.close();
 
@@ -504,12 +334,13 @@ bool ExternalSequence::load(std::string path)
 	// Num_Blocks definition (if defined) is used to check the correct number of blocks are read
 	if (numBlocks>0 && m_blocks.size()!=numBlocks) {
 		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Expected " << numBlocks
-			<< " blocks but read " << m_blocks.size() << " blocks");
+		    << " blocks but read " << m_blocks.size() << " blocks");
 		return false;
 	}
-
+	std::vector<double> def = GetDefinition("Scan_ID");
+	int scanID = def.empty() ? 0: (int)def[0];
 	print_msg(NORMAL_MSG, std::ostringstream().flush() << "==========================================" );
-	print_msg(NORMAL_MSG, std::ostringstream().flush() << "===== EXTERNAL SEQUENCE #" << std::setw(5) << m_scanID << " ===========" );
+	print_msg(NORMAL_MSG, std::ostringstream().flush() << "===== EXTERNAL SEQUENCE #" << std::setw(5) << scanID << " ===========" );
 	print_msg(NORMAL_MSG, std::ostringstream().flush() << "==========================================" );
 	
 	return true;
@@ -546,18 +377,69 @@ void ExternalSequence::buildFileIndex(std::ifstream &fileStream)
 };
 
 /***********************************************************/
+SeqBlock*	ExternalSequence::GetBlock(int index) {
+	SeqBlock *block = new SeqBlock();
+
+	// Copy event IDs
+	EventIDs events = m_blocks[index];
+	std::copy(events.id,events.id+NUM_EVENTS,&block->events[0]);
+
+	// Set some defaults
+	block->index = index;
+	block->delay = 0;
+	block->adc.numSamples = 0;
+
+	// Set event structures (if applicable) so e.g. gradient type can be determined
+	if (events.id[RF]>0)     block->rf     = m_rfLibrary[events.id[RF]];
+	if (events.id[ADC]>0)    block->adc    = m_adcLibrary[events.id[ADC]];
+	if (events.id[DELAY]>0)  block->delay  = m_delayLibrary[events.id[DELAY]];
+	for (unsigned int i=0; i<NUM_GRADS; i++)
+		if (events.id[GX+i]>0) block->grad[i] = m_gradLibrary[events.id[GX+i]];
+
+	// System timing parameters
+	long COIL_LEAD_TIME=100;
+	long lCoilLeadTime=0;
+	long lFreqResetTime=10;
+
+	// Calculate duration of block
+	long duration = 0;
+	if (block->isRF()) {
+		RFEvent &rf = block->GetRFEvent();
+		lCoilLeadTime=COIL_LEAD_TIME;
+		//duration = MAX(duration, lFreqResetTime+lCoilLeadTime+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
+		duration = MAX(duration, lCoilLeadTime+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
+	}
+	for (int iC=0; iC<NUM_GRADS; iC++)
+	{
+		GradEvent &grad = block->GetGradEvent(iC);
+		if (block->isArbitraryGradient(iC))
+			duration = MAX(duration, lCoilLeadTime + (long)(10*m_shapeLibrary[grad.shape].numUncompressedSamples));
+		else if (block->isTrapGradient(iC))
+			duration = MAX(duration, lCoilLeadTime + grad.rampUpTime + grad.flatTime + grad.rampDownTime);
+	}
+	if (block->isADC()) {
+		ADCEvent &adc = block->GetADCEvent();
+		duration = MAX(duration, lFreqResetTime + adc.delay + (adc.numSamples*adc.dwellTime)/1000);
+	}
+
+	block->duration = duration + block->delay;
+
+	return block;
+}
+
+/***********************************************************/
 bool ExternalSequence::decodeBlock(SeqBlock *block)
 {
-
+	int *events = &block->events[0];
 	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Decoding block " << block->index << " events: "
-		<< block->events[0]+1 << " " << block->events[1]+1 << " " << block->events[2]+1 << " "
-		<< block->events[3]+1 << " " << block->events[4]+1 );
+		<< events[0]+1 << " " << events[1]+1 << " " << events[2]+1 << " "
+		<< events[3]+1 << " " << events[4]+1 );
 
 	std::vector<float> waveform;
-
+	
 	// Decode RF
-	if (block->events[RF_EVENT]>0)
-	{		
+	if (block->isRF())
+	{
 		// Decompress the shape for this channel
 		CompressedShape& shape = m_shapeLibrary[block->rf.magShape];
 		waveform.resize(shape.numUncompressedSamples);
@@ -574,32 +456,37 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 	}
 
 	// Decode gradients
-	for (int iC=XGRAD_EVENT; iC<=ZGRAD_EVENT; iC++)
+	for (int iC=GX; iC<ADC; iC++)
 	{
-		if (block->events[iC]>0)	// has a gradient?
+
+		if (block->isArbitraryGradient(iC-GX))	// is arbitrary gradient?
 		{
-			if (block->grad[iC-1].shape>0)	// is arbitrary gradient?
-			{
-				// Decompress the arbitrary shape for this channel
-				CompressedShape& shape = m_shapeLibrary[block->grad[iC-1].shape];
+			// Decompress the arbitrary shape for this channel
+			CompressedShape& shape = m_shapeLibrary[block->grad[iC-GX].shape];
 
-				print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Loaded shape with "
-					<< shape.samples.size() << " compressed samples" );
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Loaded shape with "
+				<< shape.samples.size() << " compressed samples" );
 
-				waveform.resize(shape.numUncompressedSamples);
-				decompressShape(shape,&waveform[0]);
-		
-				print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape uncompressed to "
-					<< shape.numUncompressedSamples << " samples" );
+			waveform.resize(shape.numUncompressedSamples);
+			decompressShape(shape,&waveform[0]);
 
-				if (iC==XGRAD_EVENT)
-					block->grad_x = std::vector<float>(waveform);
-				else if (iC==YGRAD_EVENT)
-					block->grad_y = std::vector<float>(waveform);
-				else if (iC==ZGRAD_EVENT)
-					block->grad_z = std::vector<float>(waveform);
-			} 
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape uncompressed to "
+				<< shape.numUncompressedSamples << " samples" );
+
+			block->gradWaveforms[iC-GX] = std::vector<float>(waveform);
 		}
+	}
+
+	// Decode ADC
+	if (block->isADC())
+	{
+		block->adc = m_adcLibrary[events[ADC]];
+	}
+	
+	// Decode Delays
+	if (block->isDelay())
+	{
+		block->delay = m_delayLibrary[events[DELAY]];
 	}
 
 	checkGradient(*block);
@@ -655,14 +542,15 @@ bool ExternalSequence::decompressShape(CompressedShape& encoded, float *shape)
 };
 
 /***********************************************************/
-bool ExternalSequence::checkBlockReferences(SeqBlock& block)
+bool ExternalSequence::checkBlockReferences(EventIDs& events)
 {
 	bool error;
-	error = (block.events[RF_EVENT]>0    && m_rfLibrary.count(block.events[RF_EVENT])==0);
-	error|=	(block.events[XGRAD_EVENT]>0 && m_gradLibrary.count(block.events[XGRAD_EVENT])==0);
-	error|=	(block.events[YGRAD_EVENT]>0 && m_gradLibrary.count(block.events[YGRAD_EVENT])==0);
-	error|=	(block.events[ZGRAD_EVENT]>0 && m_gradLibrary.count(block.events[ZGRAD_EVENT])==0);
-	error|=	(block.events[ADC_EVENT]>0   && m_adcLibrary.count(block.events[ADC_EVENT])==0);
+	error = (events.id[RF]>0    && m_rfLibrary.count(events.id[RF])==0);
+	error|= (events.id[GX]>0    && m_gradLibrary.count(events.id[GX])==0);
+	error|= (events.id[GY]>0    && m_gradLibrary.count(events.id[GY])==0);
+	error|= (events.id[GZ]>0    && m_gradLibrary.count(events.id[GZ])==0);
+	error|= (events.id[ADC]>0   && m_adcLibrary.count(events.id[ADC])==0);
+	error|= (events.id[DELAY]>0 && m_delayLibrary.count(events.id[DELAY])==0);
 	
 	return (!error);
 }
@@ -670,28 +558,19 @@ bool ExternalSequence::checkBlockReferences(SeqBlock& block)
 /***********************************************************/
 void ExternalSequence::checkGradient(SeqBlock& block)
 {
-	unsigned int i;
-	for (i=0; i<block.grad_x.size(); i++)
+	for (unsigned int i=0; i<NUM_GRADS; i++)
 	{
-		if (block.grad_x[i]>1.0)  block.grad_x[i]= 1.0;
-		if (block.grad_x[i]<-1.0) block.grad_x[i]=-1.0;
+		std::vector<float> &waveform = block.gradWaveforms[i];
+		for (unsigned j=0; j<waveform.size(); j++)
+		{
+			if (waveform[i]>1.0)  waveform[i]= 1.0;
+			if (waveform[i]<-1.0) waveform[i]=-1.0;
+		}
+		// Ensure last point is zero
+		if (waveform.size()>0) waveform[waveform.size()-1]=0.0;
 	}
-	for (i=0; i<block.grad_y.size(); i++)
-	{
-		if (block.grad_y[i]>1.0)  block.grad_y[i]= 1.0;
-		if (block.grad_y[i]<-1.0) block.grad_y[i]=-1.0;
-	}
-	for (i=0; i<block.grad_z.size(); i++)
-	{
-		if (block.grad_z[i]>1.0)  block.grad_z[i]= 1.0;
-		if (block.grad_z[i]<-1.0) block.grad_z[i]=-1.0;
-	}
-
-	// Ensure last point is zero
-	if (block.grad_x.size()>0) block.grad_x[block.grad_x.size()-1]=0.0;
-	if (block.grad_y.size()>0) block.grad_y[block.grad_y.size()-1]=0.0;
-	if (block.grad_z.size()>0) block.grad_z[block.grad_z.size()-1]=0.0;
 }
+
 
 /***********************************************************/
 void ExternalSequence::checkRF(SeqBlock& block)
