@@ -1,6 +1,8 @@
 
-if BUILD_TESTS
+if BUILD_TESTS 
+if BUILD_MATLAB_TESTS
   TESTS = testmatlab.py
+endif
 endif
 
 # Generate local API documentation?

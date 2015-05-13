@@ -589,6 +589,9 @@ ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
 LTLIBOBJS
 LIBOBJS
+BUILD_MATLAB_TESTS_FALSE
+BUILD_MATLAB_TESTS_TRUE
+MATLAB
 BUILD_TESTS_FALSE
 BUILD_TESTS_TRUE
 PYTHON
@@ -4101,6 +4104,64 @@ else
 fi
 
 
+# Check for matlab
+build_matlab_tests=yes
+MATLAB=
+for ac_prog in matlab
+do
+  # Extract the first word of "$ac_prog", so it can be a program name with args.
+set dummy $ac_prog; ac_word=$2
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if ${ac_cv_prog_MATLAB+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  if test -n "$MATLAB"; then
+  ac_cv_prog_MATLAB="$MATLAB" # Let the user override the test.
+else
+as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_prog_MATLAB="$ac_prog"
+    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+fi
+fi
+MATLAB=$ac_cv_prog_MATLAB
+if test -n "$MATLAB"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $MATLAB" >&5
+$as_echo "$MATLAB" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+  test -n "$MATLAB" && break
+done
+
+if test -z "$MATLAB"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: matlab not found, cannot run matlab tests" >&5
+$as_echo "$as_me: WARNING: matlab not found, cannot run matlab tests" >&2;}
+  build_matlab_tests=no
+fi
+ if test x$build_matlab_tests = xyes; then
+  BUILD_MATLAB_TESTS_TRUE=
+  BUILD_MATLAB_TESTS_FALSE='#'
+else
+  BUILD_MATLAB_TESTS_TRUE='#'
+  BUILD_MATLAB_TESTS_FALSE=
+fi
+
 
 # Define output files
 ac_config_files="$ac_config_files Makefile src/Makefile matlab/Makefile doc/Makefile doc/doxy.conf"
@@ -4293,6 +4354,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${BUILD_TESTS_TRUE}" && test -z "${BUILD_TESTS_FALSE}"; then
   as_fn_error $? "conditional \"BUILD_TESTS\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${BUILD_MATLAB_TESTS_TRUE}" && test -z "${BUILD_MATLAB_TESTS_FALSE}"; then
+  as_fn_error $? "conditional \"BUILD_MATLAB_TESTS\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 

@@ -67,6 +67,15 @@ if test -z "$PYTHON"; then
 fi
 AM_CONDITIONAL(BUILD_TESTS, test x$build_tests = xyes)
 
+# Check for matlab
+build_matlab_tests=yes
+MATLAB=
+AC_CHECK_PROGS([MATLAB], [matlab])
+if test -z "$MATLAB"; then
+  AC_MSG_WARN([matlab not found, cannot run matlab tests])
+  build_matlab_tests=no
+fi
+AM_CONDITIONAL(BUILD_MATLAB_TESTS, test x$build_matlab_tests = xyes)
 
 # Define output files
 AC_CONFIG_FILES([Makefile src/Makefile matlab/Makefile doc/Makefile doc/doxy.conf])

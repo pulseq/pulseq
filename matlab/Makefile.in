@@ -345,6 +345,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
+MATLAB = @MATLAB@
 MKDIR_P = @MKDIR_P@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -404,7 +405,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-@BUILD_TESTS_TRUE@TESTS = testmatlab.py
+@BUILD_MATLAB_TESTS_TRUE@@BUILD_TESTS_TRUE@TESTS = testmatlab.py
 
 # Generate local API documentation?
 @BUILD_DOCS_TRUE@HTMLDIR = $(top_srcdir)/doc/html
