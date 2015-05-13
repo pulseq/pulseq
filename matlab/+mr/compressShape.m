@@ -9,10 +9,8 @@ function s=compressShape(w)
 %
 %   See also decompressShape
 
-w=[0; w(:)];
-
 diff = w(2:end)-w(1:end-1);
-%diff=[0; diff];
+diff =[w(1); diff(:)];
 
 idx=1;
 v=[];

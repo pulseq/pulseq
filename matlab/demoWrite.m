@@ -29,9 +29,9 @@ gradOpts = mr.opts('MaxGradAmp',30,'AmpUnit','mT/m',...
 
 %% Sequence events
 % Some sequence parameters are defined using standard MATLAB variables
-fov=200e-3;
+fov=220e-3;
 Nx=64; Ny=64;
-sliceThickness=3e-3;
+sliceThickness=5e-3;
 
 %%% Slice selection
 % Key concepts in the sequence description are *blocks* and *events*.
@@ -42,8 +42,8 @@ sliceThickness=3e-3;
 % First, a slice selective RF pulse (and corresponding slice gradient) can
 % be generated using the |makeSincPulse| function.
 %
-flip=90*pi/180;
-[rf, gz] = mr.makeSincPulse(flip,'Duration',3e-3,'SliceThickness',5e-3,...
+flip=15*pi/180;
+[rf, gz] = mr.makeSincPulse(flip,'Duration',4e-3,'SliceThickness',sliceThickness,...
     'apodization',0.5,'timeBwProduct',4,gradOpts);
 
 figure
@@ -54,12 +54,12 @@ plot(rf.t,real(rf.signal))
 % To define the remaining encoding gradients we need to calculate the
 % $k$-space sampling. The Fourier relationship
 %
-% $$\Delta k = \frac{2\pi}{FOV}$$
+% $$\Delta k = \frac{1}{FOV}$$
 % 
 % Therefore the area of the readout gradient is $n\Delta k$.
-deltak=2*pi/fov;
+deltak=1/fov;
 kWidth = Nx*deltak;
-readoutTime = 3.2e-3;
+readoutTime = 6.4e-3;
 gx = mr.makeTrapezoid('x','FlatArea',kWidth,'FlatTime',readoutTime,gradOpts);
 
 adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime);
@@ -68,14 +68,14 @@ adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime);
 % To move the $k$-space trajectory away from 0 prior to the readout a
 % prephasing gradient must be used. Furthermore rephasing of the slice
 % select gradient is required.
-gxPre = mr.makeTrapezoid('x','Area',gx.area/2,'Duration',2e-3,gradOpts);
-gzReph = mr.makeTrapezoid('x','Area',gz.area/2,'Duration',2e-3,gradOpts);
+gxPre = mr.makeTrapezoid('x','Area',-gx.area/2,'Duration',2e-3,gradOpts);
+gzReph = mr.makeTrapezoid('z','Area',-gz.area/2,'Duration',2e-3,gradOpts);
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
 
 %%% Calculate timing
-delayTE=20e-3 - mr.calcDuration(gxPre) - mr.calcDuration(rf)/2 ...
+delayTE=10e-3 - mr.calcDuration(gxPre) - mr.calcDuration(rf)/2 ...
     - mr.calcDuration(gx)/2;
-delayTR=50e-3 - mr.calcDuration(gxPre) - mr.calcDuration(rf) ...
+delayTR=20e-3 - mr.calcDuration(gxPre) - mr.calcDuration(rf) ...
     - mr.calcDuration(gx) - delayTE;
 delay1 = mr.makeDelay(delayTE);
 delay2 = mr.makeDelay(delayTR);
@@ -85,7 +85,7 @@ delay2 = mr.makeDelay(delayTR);
 
 for i=1:Ny
     seq.addBlock(rf,gz);
-    gyPre = mr.makeTrapezoid('x','Area',phaseAreas(i),'Duration',2e-3,gradOpts);
+    gyPre = mr.makeTrapezoid('y','Area',phaseAreas(i),'Duration',2e-3,gradOpts);
     seq.addBlock(gxPre,gyPre,gzReph);
     seq.addBlock(delay1);
     seq.addBlock(gx,adc);

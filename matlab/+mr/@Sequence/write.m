@@ -95,7 +95,7 @@ if ~isempty(obj.delayLibrary)
     fprintf(fid,'[DELAYS]\n');
     keys=cell2mat(obj.delayLibrary.keys);
     for k=keys
-        fprintf(fid,'%d %d\n',[k 1e6*obj.delayLibrary(k).data]);
+        fprintf(fid,'%d %d\n',[k round(1e6*obj.delayLibrary(k).data)]);
     end
     fprintf(fid,'\n');
 end
