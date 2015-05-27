@@ -2,7 +2,7 @@
   \mainpage Introduction
 
 This project is an open source framework for the development and execution of 
-magnetic resonance (MR) sequences for imaging and spectroscopy. 
+magnetic resonance (MR) pulse sequences for imaging and spectroscopy. 
 A central contribution of this project is an **open file format** to compactly 
 describe MR sequences suitable for execution on an MR scanner. The detailed file specification 
 can be obtained here: <a href="specification.pdf">`specification.pdf`</a>
@@ -10,14 +10,21 @@ can be obtained here: <a href="specification.pdf">`specification.pdf`</a>
 The source code provides example implementations of this format. Code documentation is 
 divided into <a href="matlab.html">MATLAB</a> and <a href="annotated.html">C++</a> sections. 
 
-## Examples
+## Sequence examples
 
-Some example uses of the source code are
+Some source code examples are
 
--  <a href="matlabWrite.html">MATLAB write sequence</a>
--  <a href="matlabRead.html">MATLAB read sequence</a>
+-  <a href="matlabWrite.html">Create an MRI sequence in MATLAB</a>
+-  <a href="matlabRead.html">Load a sequence into MATLAB</a>
 -  <a href="examples.html">C++ console parser</a>
 
+## Scanner implementations
+
+Currently, *Pulseq* sequences can be executed on the following platforms. Please <a href="mailto:kelvin.layton@uniklinik-freiburg.de">contact us</a> if 
+you would like to run open and flexible sequences at your institution.
+
+- Siemens
+- Bruker
 
 ## Download source code
 
@@ -37,7 +44,7 @@ Now run `make` to build the executables and/or documentation.
 
 ## Sneak peak
 
-The C++ class `ExternalSequence` provides functionality to read a sequence file and decompress 
+The C++ class `ExternalSequence` provides functionality to read a pulse sequence file and decompress 
 the sequence blocks. This implementation is ideal for running MR sequences on different hardware
 platforms.
 ~~~~~~~~~~~~~{.cpp}
@@ -49,7 +56,7 @@ SeqBlock* block = seq.GetBlock(1);
 bool isRF = block->isRF();
 ~~~~~~~~~~~~~
 
-The MATLAB package `mr` provides extended functionality to create and visualize sequences as well as
+The <a href="matlab.html">MATLAB package</a> `mr` provides extended functionality to create and visualize sequences as well as
 reading and writing sequence files.
 ~~~~~~~~~~~~~{.matlab}
 % Load a sequence and add a new GX gradient to the end before visualizing.
@@ -163,6 +170,6 @@ Examples
 
 // *************************** CLASS *******************
 /**
-  \page SequenceCode MATLAB class
+  \page SequenceCode MATLAB sequence class
   \htmlinclude Sequence.html 
   */ 

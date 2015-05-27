@@ -28,6 +28,12 @@ try
     fid=fopen(htmlFile,'w');
     fwrite(fid,s);
     
+    %% Remove timestamp from images
+    f=dir([outDir '/' baseName '*.png']);
+    for i=1:length(f)
+        I=imread([outDir '/' f(i).name]);
+        imwrite(I,[outDir '/' f(i).name],'ImageModTime',1);
+    end
 catch e
     disp(e)
     fprintf('Error detected. Exiting MATLAB...\n');

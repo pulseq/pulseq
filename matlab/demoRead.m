@@ -53,12 +53,12 @@ b4.adc
 %% Plot the sequence 
 % Visualise the sequence using the |plot| method of the class. This creates
 % a new figure and shows ADC, RF and gradient events. The axes are linked
-% so zooming is consitent. In this example, a simple gradient echo sequence
+% so zooming is consistent. In this example, a simple gradient echo sequence
 % for MRI is displayed.
 seq.plot()
 
 %%
-% The details of indiviual pulses are not well-represented when the entire
+% The details of individual pulses are not well-represented when the entire
 % sequence is visualised. Interactive zooming is helpful here.
 % Alternatively, a time range can be specified.  An additional parameter
 % also allows the display units to be changed for easy reading. 
@@ -68,7 +68,7 @@ fig=seq.plot('TimeRange',[0 15e-3],'timeDisp','ms')
 %% Modifying sequence blocks
 % In addition to loading a sequence and accessing sequence blocks, blocks
 % can be modified. In this example, a Hamming window is applied to the
-% first RF pulse of the sequece and the flip angle is changed to 45
+% first RF pulse of the sequence and the flip angle is changed to 45
 % degrees. The remaining RF pulses are unchanged. 
 
 rf2=rf;

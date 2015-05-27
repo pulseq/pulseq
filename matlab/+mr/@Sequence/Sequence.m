@@ -105,8 +105,8 @@ classdef Sequence < handle
             
         end
         
-        %TODO: replacing blocks mid sequence can cause library indexing
-        %issues, no longer run in order (ok?), unused library entries (can prune).
+        %TODO: Replacing blocks in the middle of sequence can cause unused
+        %events in the libraries. These can be detected and pruned.
         function setBlock(obj,index,varargin)
             %setBlock Replace sequence block.
             %   setBlock(obj, index, bStruct) Replace block at index with new
@@ -115,8 +115,8 @@ classdef Sequence < handle
             %   setBlock(obj, index, e1, e2, ...) Create a new block from
             %   events and store at position given by index.
             %
-            %   The block or events are provides in uncompressed form and
-            %   will be stored in a compressed, non-redundant internal
+            %   The block or events are provided in uncompressed form and
+            %   will be stored in the compressed, non-redundant internal
             %   libraries.
             %
             %   See also  getBlock, addBlock
@@ -131,7 +131,8 @@ classdef Sequence < handle
                 event = varargin{i};
                 switch event.type
                     case 'rf'
-                        % TODO: interpolate to 1us time grid using event.t
+                        % TODO: Interpolate to 1us time grid using event.t
+                        % if required.
                         
                         mag = abs(event.signal);
                         amplitude=max(mag);

@@ -47,5 +47,5 @@ try
 catch e
     disp(e)
     fprintf('Error detected, exiting MATLAB...\n');
-    %exit();
+    exit();
 end

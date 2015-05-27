@@ -35,9 +35,10 @@ sliceThickness=5e-3;
 
 %%% Slice selection
 % Key concepts in the sequence description are *blocks* and *events*.
-% Blocks describe a group of events that are executed simulaneously. This
-% heirachial structure means that one event can be used in multiple blocks,
-% a common occurance in MR sequences, particularly in imaging sequences.
+% Blocks describe a group of events that are executed simultaneously. This
+% hierarchical structure means that one event can be used in multiple
+% blocks, a common occurrence in MR sequences, particularly in imaging
+% sequences. 
 %
 % First, a slice selective RF pulse (and corresponding slice gradient) can
 % be generated using the |makeSincPulse| function.
