@@ -2,6 +2,7 @@
 \usepackage[framed]{seqcode}	% Also includes listings package
 
 \usepackage{tabularx}
+\usepackage{multirow}
 
 \usepackage{graphicx}
 \usepackage{float}
@@ -18,7 +19,7 @@
     pdfkeywords={Magnetic Resonance Imaging,spectroscopy,MRI,NMR,MR,open format}, % list of keywords
     }
 
-\def\myversion{1.0 }
+\def\myversion{1.01 }
 
 
 
@@ -92,6 +93,7 @@ frame=single
 Version & Date & Description \\
 \midrule
 1.0 & 26 Jun 2014 & Draft specification \\
+1.01 & 11 Jun 2015 & Included draft of binary specification \\
 \bottomrule
 \end{tabular}
 
@@ -117,7 +119,7 @@ Before defining the detailed specification, a simple example is presented to dem
 
 
 
-\section{Specification}
+\section{Specification}\label{sec:specification}
 
 \subsection{Overall Description}
 
@@ -397,6 +399,72 @@ Shape & & Step 1 (derivative) && Step 2 (compression) \\
 \end{center}
 
 A zero value for 100 samples is encoded as 0 0 98. A constant value of 1.0 for 100 samples is represented by: 1.0 0 0 97. 
+
+\section{Binary files}
+The specification described in Section~\ref{sec:specification} can be implemented as a binary file. The same general principles apply with specific modifications outlined here. In general, \textbf{integer} types are stored as 64-bit unsigned integers while \textbf{floating-point} numbers are in the 64-bit IEEE 754 floating-point format.
+
+The basic structure of a binary \emph{pulseq} file is depicted below,
+\texttt{
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|c|c|l}
+\hline
+0x01 & p & u & l & s & e & q & 0x02 \\
+\hline
+\multicolumn{8}{|c|}{0x0000000000000001} \\
+\hline
+\multicolumn{8}{|c|}{section code} \\
+\hline
+\multicolumn{8}{|c|}{\multirow{2}{*}{data}} \\
+\multicolumn{8}{|c|}{}\\
+\hline
+\multicolumn{8}{|c|}{section code} \\
+\hline
+\multicolumn{8}{|c|}{\multirow{2}{*}{data}} \\
+\multicolumn{8}{|c|}{}\\
+\hline
+\multicolumn{8}{|c|}{$\cdots$}\\
+\hline
+\end{tabular}
+\end{center}
+}
+
+\subsection{File and section codes}
+
+A binary \textit{Pulseq} file begins with the 64 bit code \verb.0x0170756C73657102. (the characters \verb.pulseq. enclosed by \verb.0x01. and \verb.0x02.)  followed by an integer describing the file version (currently always version 1). The remaining file is made up of multiple sections each with an integer section code followed by section-specific storage. The section codes corresponding to text file tags are
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Section & Section code \\
+\midrule
+\verb.[DEFINITIONS]. & \verb.0xFFFFFFFF 0x00000001. \\
+\verb.[BLOCKS]. & \verb.0xFFFFFFFF 0x00000002. \\
+\verb.[RF]. & \verb.0xFFFFFFFF 0x00000003. \\
+\verb.[GRADIENTS]. & \verb.0xFFFFFFFF 0x00000004. \\
+\verb.[TRAP]. & \verb.0xFFFFFFFF 0x00000005. \\
+\verb.[ADC]. & \verb.0xFFFFFFFF 0x00000006. \\
+\verb.[DELAYS]. & \verb.0xFFFFFFFF 0x00000007. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Section details}
+
+Unlike the text format, the \verb.[DEFINITIONS]. section is declared with the section code followed by \emph{four} fields per definition
+\begin{lstlisting}
+<key> <type> <num> <value_1> <value_2>...
+\end{lstlisting}
+The \verb.<key>. is a null-terminated ASCII encoded string. \verb.<type>. is an integer code either \verb.1. to denote integer or \verb.2. to denote floating-point. \verb.<num>. is an integer defining the number of values in this definition and \verb.<value_.$n$\verb.>. are the values of given type. The next definition immediately follows otherwise a new section code follows or it is the end of the file.
+
+The \verb.[SHAPES]. section is declared with the appropriate section code followed by
+\begin{lstlisting}
+<id> <num_uncompressed> <num_compressed> <sample_1> <sample_2>...
+\end{lstlisting}
+The \verb.<id>. is an integer shape ID, \verb.<num_uncompressed>. is the number of samples after decompression, \verb.<num_compressed>. is the number of compressed samples for this shape. Following are exactly the specified number of compressed samples stored as floating-point numbers. The next shape begins immediately after the last otherwise a new section code is declared (or end-of-file) to indicate the end of the \verb.[SHAPES]. section.
+
+The remaining sections are declared exactly as in Section~\ref{sec:specification} with storage defined by the value type. For \verb.integer. types an integer is used and for \verb.float. types a floating point number is used.
+
+
 
 \section{Source code}
 This specification is distributed with source code for reading and writing the sequences file format described here. MATLAB code is provided for detailed sequence generation, visualisation, as well as reading and writing sequence files. A C++ class and example program is also provided for reading sequence files. Detailed documentation and latest updates of this code are available here: \url{http://pulseq.github.io/}.
