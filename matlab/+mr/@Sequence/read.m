@@ -4,9 +4,9 @@ function read(obj,filename)
 %   data into sequence object.
 %
 %   Examples:
-%   Load the sequence defined in gre.txt in my_sequences directory
+%   Load the sequence defined in gre.seq in my_sequences directory
 %
-%       read(seqObj,'my_sequences/gre.txt')
+%       read(seqObj,'my_sequences/gre.seq')
 %
 % See also  write
 

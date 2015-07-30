@@ -6,7 +6,7 @@ function write(obj,filename)
 %   Examples:
 %   Write the sequence file to the my_sequences directory
 %
-%       write(seqObj,'my_sequences/se.txt')
+%       write(seqObj,'my_sequences/gre.seq')
 %
 % See also  read
 
@@ -23,6 +23,7 @@ if ~isempty(obj.definitions)
         fprintf(fid,'%g ',values{i});
         fprintf(fid,'\n');
     end
+	fprintf(fid,'\n');
 end
 
 fprintf(fid,'# Format of blocks:\n');
@@ -47,7 +48,7 @@ if ~isempty(obj.rfLibrary)
     fprintf(fid,'\n');
 end
 
-arbGradMask=cellfun(@(x)strcmp(x.type,'arb'), obj.gradLibrary.values);
+arbGradMask=cellfun(@(x)strcmp(x.type,'grad'), obj.gradLibrary.values);
 trapGradMask=cellfun(@(x)strcmp(x.type,'trap'), obj.gradLibrary.values);
 
 if any(arbGradMask)

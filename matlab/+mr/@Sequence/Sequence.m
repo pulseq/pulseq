@@ -65,6 +65,10 @@ classdef Sequence < handle
         % See write.m
         write(obj,filename)
         
+        % See writeBinary.m
+        writeBinary(obj,filename);
+        
+        
         function value=getDefinition(obj,key)
             %getDefinition Return the values of custom definition.
             %   val=getDefinitions(seqObj,key) Return value of the
@@ -386,7 +390,23 @@ classdef Sequence < handle
             end
         end
         
-        
+        function codes=getBinaryCodes()
+            %getBinaryCodes Return binary codes for section headers in
+            %   in a binary sequence file.
+            %
+            %   See also  writeBinary
+
+            codes.fileHeader = [1 'pulseq' 2];
+            codes.version = int64(1);
+            codes.section.definitions = int32(hex2dec('FFFFFFFF00000001'));
+            codes.section.blocks      = int32(hex2dec('FFFFFFFF00000002'));
+            codes.section.rf          = int32(hex2dec('FFFFFFFF00000003'));
+            codes.section.gradients   = int32(hex2dec('FFFFFFFF00000004'));
+            codes.section.trapezoids  = int32(hex2dec('FFFFFFFF00000005'));
+            codes.section.adc         = int32(hex2dec('FFFFFFFF00000006'));
+            codes.section.delays      = int32(hex2dec('FFFFFFFF00000007'));
+            codes.section.shapes      = int32(hex2dec('FFFFFFFF00000008'));
+        end
         
     end % Static methods
     
