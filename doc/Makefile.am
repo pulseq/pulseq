@@ -1,12 +1,12 @@
 instdir = $(DESTDIR)$(docdir)
-EXTRA_DIST = $(static_docs) 
+EXTRA_DIST = $(static_docs)
 
 # Generate specification PDF documentation?
 ###########################################
 if BUILD_LATEX
 
-EXTRA_DIST += $(LATEX_BASENAME).pdf 
- 
+EXTRA_DIST += $(LATEX_BASENAME).pdf
+
 LATEX_BASENAME = specification
 LATEX_FILENAME = $(LATEX_BASENAME).tex
 
@@ -30,8 +30,8 @@ if BUILD_DOCS
 DOXY_STAMP = doxygen-build.stamp
 DOXY_FILE = doxy.conf
 DOXY_AUX = header.html footer.html customstyles.css matlab.css DoxygenLayout.xml
-HTML_AUX = $(top_srcdir)/doc/html/demoWrite.html $(top_srcdir)/doc/html/demoRead.html $(top_srcdir)/doc/html/Sequence.html
-WEBSITE_AUX = $(LATEX_BASENAME).pdf logo_hires.png README.md favicon.ico
+HTML_AUX = $(top_srcdir)/doc/html/demoWriteGre.html $(top_srcdir)/doc/html/demoWriteRf.html $(top_srcdir)/doc/html/demoRead.html $(top_srcdir)/doc/html/Sequence.html
+WEBSITE_AUX = $(LATEX_BASENAME).pdf logo_hires.png README.md favicon.ico images/gre.png images/rf2d.png
 
 EXTRA_DIST += $(DOXY_FILE).in doxygen-build.stamp
 
@@ -40,7 +40,7 @@ EXTRA_DIST += $(DOXY_FILE).in doxygen-build.stamp
 #	matlab -nodesktop -nosplash -nodisplay -r "make_matlab_doc('demoWrite.m','$(top_srcdir)/doc/html'); exit;" && \
 #	cd ../doc
 
-doxygen-build.stamp: $(DOXY_FILE) $(DOXY_AUX) $(HTML_AUX) $(top_srcdir)/src/*.h $(top_srcdir)/src/*.cpp *.dox   
+doxygen-build.stamp: $(DOXY_FILE) $(DOXY_AUX) $(HTML_AUX) $(top_srcdir)/src/*.h $(top_srcdir)/src/*.cpp *.dox
 	doxygen $(DOXY_FILE)
 	cp $(WEBSITE_AUX) html/
 	touch doxygen-build.stamp
@@ -85,7 +85,3 @@ clean-local:
 
 install-html-local: $(EXTRA_DIST)
 	cp -r html/* ../../pulseq_website/
-
-
-
-
