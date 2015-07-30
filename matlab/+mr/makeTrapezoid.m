@@ -24,16 +24,21 @@ if isempty(parser)
     parser.addParamValue('area',0,@isnumeric);
     parser.addParamValue('flatTime',[],@isnumeric);
     parser.addParamValue('flatArea',[],@isnumeric);
-    defaultOpts=mr.opts();
-    parser.addParamValue('maxGradAmp',defaultOpts.maxGradAmp,@isnumeric);
-    parser.addParamValue('maxGradSlew',defaultOpts.maxGradSlew,@isnumeric);
+    parser.addParamValue('maxGrad',0,@isnumeric);
+    parser.addParamValue('maxSlew',0,@isnumeric);
+    parser.addOptional('gradOpts',mr.opts(),@isstruct);
 end
 parse(parser,channel,varargin{:});
 opt = parser.Results;
 
-maxSlew=opt.maxGradSlew;
-maxAmp=opt.maxGradAmp; % TODO: use this when no duration is supplied
-
+maxSlew=opt.gradOpts.maxSlew;
+maxGrad=opt.gradOpts.maxGrad; % TODO: use this when no duration is supplied
+if opt.maxGrad>0
+    maxGrad=opt.maxGrad;
+end
+if opt.maxSlew>0
+    maxSlew=opt.maxSlew;
+end
 
 if isempty(opt.area) && isempty(opt.flatArea)
     error('makeTrapezoid:invalidArguments','Must supply either ''area'', ''flatArea'' or ''amplitude''');

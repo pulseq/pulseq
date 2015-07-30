@@ -1,46 +1,43 @@
-function [rf, gz] = makeSincPulse(flip,varargin)
-%makeSincPulse Create a slice selective since pulse.
-%   rf=makeSincPulse(flip, 'Duration', dur) Create sinc pulse
-%   with given flip angle and duration.
+function [rf, gz] = makeArbitraryRf(signal,flip,varargin)
+%makeArbitraryRf Create an RF pulse with the given pulse shape.
+%   rf=makeArbitraryRf(singal, flip) Create RF pulse with complex signal 
+%   and given flip angle (in radians)
 %
-%   rf=makeSincPulse(..., 'FreqOffset', f,'PhaseOffset',p)
-%   Create sinc pulse with frequency offset and phase offset.
+%   rf=makeArbitraryRf(..., 'FreqOffset', f,'PhaseOffset',p)
+%   Create block pulse with frequency offset and phase offset.
 %
-%   [rf, gz]=makeSincPulse(...,'SliceThickness',st) Return the
-%   corresponding slice select gradient suitable for MRI.
+%   [rf, gz]=makeArbitraryRf(..., 'Bandwidth', bw, 'SliceThickness', st) 
+%   Create RF pulse and corresponding slice select gradient. The bandwidth
+%   of the pulse must be given for the specified shape.
 %
-%   See also  Sequence.addBlock
+%   See also  Sequence.makeSincPulse, Sequence.addBlock
 
 persistent parser
 if isempty(parser)
     parser = inputParser;
-    parser.FunctionName = 'makeSincPulse';
+    parser.FunctionName = 'makeArbitraryRf';
     
     % RF params
+    addRequired(parser,'signal',@isnumeric);
     addRequired(parser,'flipAngle',@isnumeric);
-    addParamValue(parser,'duration',0,@isnumeric);
     addParamValue(parser,'freqOffset',0,@isnumeric);
     addParamValue(parser,'phaseOffset',0,@isnumeric);
-    addParamValue(parser,'timeBwProduct',4,@isnumeric);
-    addParamValue(parser,'apodization',0,@isnumeric);
+    addParamValue(parser,'timeBwProduct',0,@isnumeric);
+    addParamValue(parser,'bandwidth',0,@isnumeric);
     % Slice params
     addParamValue(parser,'maxGrad',0,@isnumeric);
     addParamValue(parser,'maxSlew',0,@isnumeric);
     parser.addOptional('gradOpts',mr.opts(),@isstruct);
     addParamValue(parser,'sliceThickness',0,@isnumeric);
 end
-parse(parser,flip,varargin{:});
+parse(parser,signal,flip,varargin{:});
 opt = parser.Results;
 
-BW=opt.timeBwProduct/opt.duration;
-alpha=opt.apodization;
-N=round(opt.duration/1e-6);
+signal = signal./sum(signal.*mr.Sequence.RfRasterTime)*flip/(2*pi);
+
+N=length(signal);
+duration = N*mr.Sequence.RfRasterTime;
 t = (1:N)*mr.Sequence.RfRasterTime;
-tt = t - opt.duration/2;
-window = (1.0-alpha+alpha*cos(2*pi*tt/opt.duration));
-signal = window.*sinc(BW*tt);
-flip=sum(signal)*mr.Sequence.RfRasterTime*2*pi;
-signal=signal*opt.flipAngle/flip;
 
 rf.type = 'rf';
 rf.signal = signal;
@@ -57,9 +54,14 @@ if nargout>1
         opt.gradOpts.maxSlew = opt.maxSlew;
     end
     
+    BW=opt.bandwidth;
+    if opt.timeBwProduct>0
+        BW=opt.timeBwProduct/duration;
+    end
+
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
-    gz = mr.makeTrapezoid('z','flatTime',opt.duration,'flatArea',area);
+    gz = mr.makeTrapezoid('z','flatTime',opt.duration,'flatArea',area,opt.gradOpts);
     
     tFill = (1:round(gz.riseTime/1e-6))*1e-6;   % Round to microsecond
     rf.t = [tFill rf.t+tFill(end) tFill+rf.t(end)+tFill(end)];
