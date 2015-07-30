@@ -563,8 +563,8 @@ void ExternalSequence::checkGradient(SeqBlock& block)
 		std::vector<float> &waveform = block.gradWaveforms[i];
 		for (unsigned j=0; j<waveform.size(); j++)
 		{
-			if (waveform[i]>1.0)  waveform[i]= 1.0;
-			if (waveform[i]<-1.0) waveform[i]=-1.0;
+			if (waveform[j]>1.0)  waveform[j]= 1.0;
+			if (waveform[j]<-1.0) waveform[j]=-1.0;
 		}
 		// Ensure last point is zero
 		if (waveform.size()>0) waveform[waveform.size()-1]=0.0;

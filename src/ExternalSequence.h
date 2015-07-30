@@ -58,7 +58,7 @@ struct RFEvent
 	int magShape;        /**< @brief ID of shape for magnitude */
 	int phaseShape;      /**< @brief ID of shape for phase */
 	float freqOffset;    /**< @brief Frequency offset of transmitter (Hz) */
-	float phaseOffset;   /**< @brief Phase offset of transmitter (Hz) */
+	float phaseOffset;   /**< @brief Phase offset of transmitter (rad) */
 };
 
 
@@ -95,7 +95,7 @@ struct ADCEvent
 	int dwellTime;      /**< @brief Dwell time of ADC readout (ns) */
 	int delay;          /**< @brief Delay before first sample (us) */
 	float freqOffset;   /**< @brief Frequency offset of receiver (Hz) */
-	float phaseOffset;  /**< @brief Phase offset of receiver (Hz) */
+	float phaseOffset;  /**< @brief Phase offset of receiver (rad) */
 };
 
 /**
