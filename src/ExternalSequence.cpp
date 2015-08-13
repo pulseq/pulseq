@@ -6,7 +6,6 @@
 
 #include <algorithm>	// for std::max_element
 
-
 #ifndef MAX
 #define MAX(a,b) ( (a)>(b) ? (a) : (b) )
 #endif
@@ -14,7 +13,7 @@
 ExternalSequence::PrintFunPtr ExternalSequence::print_fun = &ExternalSequence::defaultPrint;
 const int ExternalSequence::MAX_LINE_SIZE = 256;
 const char ExternalSequence::COMMENT_CHAR = '#';
-	
+
 /***********************************************************/
 ExternalSequence::ExternalSequence()
 {
@@ -43,7 +42,7 @@ bool ExternalSequence::load(std::string path)
 
 	char buffer[MAX_LINE_SIZE];
 	char tmpStr[MAX_LINE_SIZE];
-	
+
 	// **********************************************************************************************************************
 	// ************************ READ SHAPES ***********************************
 
@@ -54,14 +53,15 @@ bool ExternalSequence::load(std::string path)
 	if (filepath.substr(filepath.size()-4) != std::string(".seq")) {
 		filepath = path + "/external.seq";
 	}
-	data_file.open(filepath.c_str(), std::ifstream::in);
+	// Open in binary mode to ensure all end-of-line characters are processed
+	data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
 	data_file.seekg(0, std::ios::beg);
 
 	if (!data_file.good())
 	{
 		// Try separate file mode (blocks.seq, events.seq, shapes.seq)
 		filepath = path + "/shapes.seq";
-		data_file.open(filepath.c_str(), std::ifstream::in);
+		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
 		data_file.seekg(0, std::ios::beg);
 		isSingleFileMode = false;
 	}
@@ -70,11 +70,11 @@ bool ExternalSequence::load(std::string path)
 		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
 		return false;
 	}
-	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Buildingindex" );
-	
+	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Building index" );
+
 	// Save locations of section tags
 	buildFileIndex(data_file);
-	
+
 	// Read shapes section
 	// ------------------------
 	if (m_fileIndex.find("[SHAPES]") == m_fileIndex.end()) {
@@ -86,19 +86,19 @@ bool ExternalSequence::load(std::string path)
 
 	int shapeId, numSamples;
 	float sample;
-	
+
 	m_shapeLibrary.clear();
 	while (data_file.good() && buffer[0]=='s')
 	{
 		sscanf(buffer, "%s%d", tmpStr, &shapeId);
-		data_file.getline(buffer, MAX_LINE_SIZE);
+		getline(data_file, buffer, MAX_LINE_SIZE);
 		sscanf(buffer, "%s%d", tmpStr, &numSamples);
 
 		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Reading shape " << shapeId );
 
 		CompressedShape shape;
 		shape.samples.clear();
-		while (data_file.getline(buffer, MAX_LINE_SIZE)) {
+		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='s' || strlen(buffer)==0) {
 				break;
 			}
@@ -111,20 +111,20 @@ bool ExternalSequence::load(std::string path)
 			<< " compressed and " << shape.numUncompressedSamples << " uncompressed samples" );
 
 		m_shapeLibrary[shapeId] = shape;
-		
+
 		skipComments(data_file,buffer);			// Ignore comments & empty lines
 	}
 	data_file.clear();	// In case EOF reached
 
 	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- SHAPES READ numShapes: " << m_shapeLibrary.size() );
-	
+
 
 	// **********************************************************************************************************************
 	// ************************ READ EVENTS ********************
 	if (!isSingleFileMode) {
 		filepath = path + "/events.seq";
 		data_file.close();
-		data_file.open(filepath.c_str(), std::ifstream::in);
+		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
 		data_file.seekg(0, std::ios::beg);
 
 		if (!data_file.good())
@@ -142,7 +142,7 @@ bool ExternalSequence::load(std::string path)
 
 		int rfId;
 		m_rfLibrary.clear();
-		while (data_file.getline(buffer, MAX_LINE_SIZE)) {
+		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
 			}
@@ -162,7 +162,7 @@ bool ExternalSequence::load(std::string path)
 		data_file.seekg(m_fileIndex["[GRADIENTS]"], std::ios::beg);
 
 		m_gradLibrary.clear();
-		while (data_file.getline(buffer, MAX_LINE_SIZE)) {
+		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
 			}
@@ -173,13 +173,13 @@ bool ExternalSequence::load(std::string path)
 			m_gradLibrary[gradId] = event;
 		}
 	}
-	
+
 	// Read *trapezoid* gradient section
 	// -------------------------------
 	if (m_fileIndex.find("[TRAP]") != m_fileIndex.end()) {
 		data_file.seekg(m_fileIndex["[TRAP]"], std::ios::beg);
 
-		while (data_file.getline(buffer, MAX_LINE_SIZE)) {
+		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
 			}
@@ -197,7 +197,7 @@ bool ExternalSequence::load(std::string path)
 	// -----------------------------
 	//std::sort(m_gradLibrary.begin(),m_gradLibrary.end(),compareGradEvents);
 
-	
+
 	// Read ADC section
 	// -------------------------------
 	if (m_fileIndex.find("[ADC]") != m_fileIndex.end()) {
@@ -205,7 +205,7 @@ bool ExternalSequence::load(std::string path)
 
 		int adcId;
 		m_adcLibrary.clear();
-		while (data_file.getline(buffer, MAX_LINE_SIZE)) {
+		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
 			}
@@ -216,7 +216,7 @@ bool ExternalSequence::load(std::string path)
 			m_adcLibrary[adcId] = event;
 		}
 	}
-	
+
 	// Read delays section
 	// -------------------------------
 	if (m_fileIndex.find("[DELAYS]") != m_fileIndex.end()) {
@@ -225,7 +225,7 @@ bool ExternalSequence::load(std::string path)
 		int delayId;
 		long delay;
 		m_delayLibrary.clear();
-		while (data_file.getline(buffer, MAX_LINE_SIZE)) {
+		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
 			}
@@ -235,7 +235,7 @@ bool ExternalSequence::load(std::string path)
 	}
 
 	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- EVENTS READ: "
-		<<" RF: " << m_rfLibrary.size() 
+		<<" RF: " << m_rfLibrary.size()
 		<<" GRAD: " << m_gradLibrary.size()
 		<<" ADC: " << m_adcLibrary.size()
 		<<" DELAY: " << m_delayLibrary.size());
@@ -246,7 +246,7 @@ bool ExternalSequence::load(std::string path)
 	if (!isSingleFileMode) {
 		filepath = path + "/blocks.seq";
 		data_file.close();
-		data_file.open(filepath.c_str(), std::ifstream::in);
+		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
 		data_file.seekg(0, std::ios::beg);
 
 		if (!data_file.good())
@@ -263,10 +263,10 @@ bool ExternalSequence::load(std::string path)
 	unsigned int numBlocks = 0;
 	if (m_fileIndex.find("[DEFINITIONS]") != m_fileIndex.end()) {
 		data_file.seekg(m_fileIndex["[DEFINITIONS]"], std::ios::beg);
-		
+
 		// Read each definition line
 		m_definitions.clear();
-		while (data_file.getline(buffer, MAX_LINE_SIZE)) {
+		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
 			}
@@ -280,7 +280,7 @@ bool ExternalSequence::load(std::string path)
 			}
 			m_definitions[key] = values;
 		}
-	
+
 		std::ostringstream out;
 		out << "-- " << "DEFINITIONS READ: " << m_definitions.size() << " : ";
 		for (std::map<std::string,std::vector<double> >::iterator it=m_definitions.begin(); it!=m_definitions.end(); ++it)
@@ -293,7 +293,7 @@ bool ExternalSequence::load(std::string path)
 		print_msg(DEBUG_HIGH_LEVEL, out);
 
 	} // if definitions exist
-	
+
 	// Read blocks section
 	// ------------------------
 	if (m_fileIndex.find("[BLOCKS]") == m_fileIndex.end()) {
@@ -301,24 +301,24 @@ bool ExternalSequence::load(std::string path)
 		return false;
 	}
 	data_file.seekg(m_fileIndex["[BLOCKS]"], std::ios::beg);
-	
+
 	int blockIdx;
 	EventIDs events;
-	
+
 	// Read blocks
 	m_blocks.clear();
-	while (data_file.getline(buffer, MAX_LINE_SIZE)) {
+	while (getline(data_file, buffer, MAX_LINE_SIZE)) {
 		if (buffer[0]=='[' || strlen(buffer)==0) {
 			break;
 		}
 
-		sscanf(buffer, "%d%d%d%d%d%d%d", &blockIdx, 
+		sscanf(buffer, "%d%d%d%d%d%d%d", &blockIdx,
 			&events.id[DELAY],                              // Delay
 			&events.id[RF],                                 // RF
 			&events.id[GX],&events.id[GY],&events.id[GZ],   // Gradients
 			&events.id[ADC]                                 // ADCs
 			);
-		
+
 		if (!checkBlockReferences(events)) {
 			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Block " << blockIdx
 				<< " contains references to undefined events" );
@@ -342,7 +342,7 @@ bool ExternalSequence::load(std::string path)
 	print_msg(NORMAL_MSG, std::ostringstream().flush() << "==========================================" );
 	print_msg(NORMAL_MSG, std::ostringstream().flush() << "===== EXTERNAL SEQUENCE #" << std::setw(5) << scanID << " ===========" );
 	print_msg(NORMAL_MSG, std::ostringstream().flush() << "==========================================" );
-	
+
 	return true;
 };
 
@@ -350,7 +350,7 @@ bool ExternalSequence::load(std::string path)
 /***********************************************************/
 void ExternalSequence::skipComments(std::ifstream &fileStream, char *buffer)
 {
-	while (fileStream.getline(buffer, MAX_LINE_SIZE)) {
+	while (getline(fileStream, buffer, MAX_LINE_SIZE)) {
 		if (buffer[0]!=COMMENT_CHAR && strlen(buffer)>0) {
 			break;
 		}
@@ -362,14 +362,16 @@ void ExternalSequence::skipComments(std::ifstream &fileStream, char *buffer)
 void ExternalSequence::buildFileIndex(std::ifstream &fileStream)
 {
 	char buffer[MAX_LINE_SIZE];
-	int pos=0;
-	while (fileStream.getline(buffer, MAX_LINE_SIZE)) {
-		// tellp() has bugs in ancient compilers, so we accumulate gcount()
-		pos += fileStream.gcount();
+	int count, pos=0;
+	while (getline(fileStream, buffer, MAX_LINE_SIZE, &count)) {
+		// tellg() has bugs in ancient compilers, so we accumulate count
+		pos += count;
 		std::string line = std::string(buffer);
-		
+//std::cout << "pos: " << pos << " tellg: " << fileStream.tellg() << endl;
 		if (line[0]=='[' && line[line.length()-1]==']') {
-			m_fileIndex[line] = pos;
+			//m_fileIndex[line] = pos;
+			m_fileIndex[line] = fileStream.tellg();
+			
 		}
 	}
 	fileStream.clear();		// reset EOF flag
@@ -436,7 +438,7 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 		<< events[3]+1 << " " << events[4]+1 );
 
 	std::vector<float> waveform;
-	
+
 	// Decode RF
 	if (block->isRF())
 	{
@@ -449,7 +451,7 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 		CompressedShape& shapePhase = m_shapeLibrary[block->rf.phaseShape];
 		waveform.resize(shapePhase.numUncompressedSamples);
 		decompressShape(shapePhase,&waveform[0]);
-		
+
 		// Scale phase by 2pi
 		std::transform(waveform.begin(), waveform.end(), waveform.begin(), std::bind1st(std::multiplies<float>(),TWO_PI));
 		block->rfPhase = std::vector<float>(waveform);
@@ -482,7 +484,7 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 	{
 		block->adc = m_adcLibrary[events[ADC]];
 	}
-	
+
 	// Decode Delays
 	if (block->isDelay())
 	{
@@ -509,13 +511,13 @@ bool ExternalSequence::decompressShape(CompressedShape& encoded, float *shape)
 	int countUnpack=1;
 	while (countPack<numPacked)
 	{
-		
+
 		if (packed[countPack-1]!=packed[countPack])
 		{
 			shape[countUnpack-1]=((float)packed[countPack-1]);
 			countPack++; countUnpack++;
-		} 
-		else 
+		}
+		else
 		{
 			int rep = ((int)packed[countPack+1])+2;
 			for (int i=countUnpack-1; i<=countUnpack+rep-2; i++)
@@ -551,7 +553,7 @@ bool ExternalSequence::checkBlockReferences(EventIDs& events)
 	error|= (events.id[GZ]>0    && m_gradLibrary.count(events.id[GZ])==0);
 	error|= (events.id[ADC]>0   && m_adcLibrary.count(events.id[ADC])==0);
 	error|= (events.id[DELAY]>0 && m_delayLibrary.count(events.id[DELAY])==0);
-	
+
 	return (!error);
 }
 
@@ -580,54 +582,39 @@ void ExternalSequence::checkRF(SeqBlock& block)
 	{
 		if (block.rfAmplitude[i]>1.0) block.rfAmplitude[i]=1.0;
 		if (block.rfAmplitude[i]<0.0) block.rfAmplitude[i]=0.0;
-		if (block.rfPhase[i]>TWO_PI) block.rfPhase[i]=(float)TWO_PI;
+		if (block.rfPhase[i]>TWO_PI-1.e-4) block.rfPhase[i]=(float)(TWO_PI-1.e-4);
 		if (block.rfPhase[i]<0)      block.rfPhase[i]=0.0;
 	}
 }
 
 
-
-// * ------------------------------------------------------------------ *
-// * Name        :  safeGetLine
-// *
-// * Description :  Read a line from the input stream handling three different line endings: 
-// *                UNIX/OSX (\n), Windows (\r\n), Old Mac (\r). 
-// *
-// *                This allows robust reading of files on the host and MPCU
-// *
-// * Return      :  The stream
-// *
-// * ------------------------------------------------------------------ *
-/*std::istream& ExternalSequence::safeGetLine(std::istream& is, std::string& t)
+/***********************************************************/
+std::istream& ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE, int *count)
 {
-    t.clear();
-
-    // The characters in the stream are read one-by-one using a std::streambuf.
-    // That is faster than reading them one-by-one using the std::istream.
-    // Code that uses streambuf this way must be guarded by a sentry object.
-    // The sentry object performs various tasks,
-    // such as thread synchronization and updating the stream state.
-
-	return is;
-    //std::istream::sentry se(is, true);
-    std::streambuf* sb = is.rdbuf();
-
-    for(;;) {
-        int c = sb->sbumpc();
-        switch (c) {
-        case '\n':
-            return is;
-        case '\r':
-            if(sb->sgetc() == '\n')
-                sb->sbumpc();
-            return is;
-        case EOF:
-            // Also handle the case when the last line has no line ending
-            //if(t.empty())
-            //    is.setstate(std::ios::eofbit);
-            return is;
-        default:
-            t += (char)c;
-        }
-    }
-}*/
+	int i=0;
+	for(;;) {
+		char c = (char)is.get();
+		if (count!=NULL)
+			*count = i+1;
+		switch (c) {
+			case '\n':
+				buffer[i]='\0';
+				return is;
+			case '\r':
+				if(is.peek() == '\n') {
+					c = is.get();
+					if (count!=NULL) (*count)++;
+				}
+				buffer[i]='\0';
+				return is;
+			case EOF:
+				// Also handle the case when the last line has no line ending
+				if(i==0)
+					is.seekg(-1);	// Create error on stream
+				buffer[i]='\0';
+				return is;
+			default:
+				buffer[i++] = (char)c;
+		}
+	}
+}

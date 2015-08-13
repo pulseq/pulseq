@@ -68,7 +68,7 @@ struct RFEvent
  * Stores gradient amplitude and additional information
  * depending on the type:
  *  - **trapezoid:** ramp up, flat time, ramp down
- *  - **arbirary:** index to basic shape (see CompressedShape)
+ *  - **arbitrary:** index to basic shape (see CompressedShape)
  */
 struct GradEvent
 {
@@ -176,7 +176,7 @@ public:
 	 * Only relevant for arbitrary gradients
 	 */
 	int     GetGradientLength(int channel);
-	
+
 	/**
 	 * @brief Return the gradient event of the given channel
 	 */
@@ -223,7 +223,7 @@ public:
 	void   free();
 protected:
 	int index;          /**< @brief Index of this block */
-	
+
 	// Event array contains integer indices to events stored in the parent ExternalSequence object
 	int events[NUM_EVENTS];	/**< @brief list of event indices (RF, GX, GY, GZ, ADC) */
 
@@ -235,7 +235,7 @@ protected:
 	ADCEvent adc;               /**< @brief ADC event  */
 
 	// Below is only valid once decompressed:
-		
+
 	// RF
 	std::vector<float> rfAmplitude;  /**< @brief RF amplitude shape (uncompressed) */
 	std::vector<float> rfPhase;      /**< @brief RF phase shape (uncompressed) */
@@ -278,10 +278,10 @@ inline std::string SeqBlock::GetTypeString() {
 	if (isADC()) type += " ADC";
 	if (isDelay()) type += " Delay";
 	return type;
-} 
+}
 
 inline float*    SeqBlock::GetGradientPtr(int channel) { return (gradWaveforms[channel].size()>0) ? &gradWaveforms[channel][0] : NULL; }
-inline int       SeqBlock::GetGradientLength(int channel) {	return gradWaveforms[channel].size(); } 
+inline int       SeqBlock::GetGradientLength(int channel) {	return gradWaveforms[channel].size(); }
 
 inline float*    SeqBlock::GetRFAmplitudePtr() { return &rfAmplitude[0]; }
 inline float*    SeqBlock::GetRFPhasePtr() { return &rfPhase[0]; }
@@ -330,17 +330,17 @@ struct CompressedShape
 class ExternalSequence
 {
   public:
-	
+
 	/**
-	 * @brief Contructor
+	 * @brief Constructor
 	 */
 	ExternalSequence();
-	
+
 	/**
 	 * @brief Destructor
 	 */
 	~ExternalSequence();
-	
+
 	/**
 	 * @brief Load the sequence from file
 	 *
@@ -353,13 +353,13 @@ class ExternalSequence
 	 * @param  path location of file or directory
 	 */
 	bool load(std::string path);
-	
+
 
 	/**
 	 * @brief Display an output message
 	 *
 	 * Display a message only if the MSG_LEVEL is sufficiently high.
-	 * This function calls the low-level output function, which can be overriden
+	 * This function calls the low-level output function, which can be overridden
 	 * using SetPutMsgFunction().
 	 *
 	 * @param  level  type of message
@@ -384,7 +384,7 @@ class ExternalSequence
 
 	/**
 	 * @brief Lookup the custom definition
-	 * 
+	 *
 	 * Search the list of user-specified definitions through the [DEFINITIONS] section.
 	 * If the definition key is not found, an empty vector is returned.
 	 *
@@ -392,7 +392,7 @@ class ExternalSequence
 	 * @return a list of values (or empty vector)
 	 */
 	std::vector<double> GetDefinition(std::string key);
-	
+
 	/**
 	 * @brief Return number of sequence blocks
 	 */
@@ -419,11 +419,26 @@ class ExternalSequence
 	bool decodeBlock(SeqBlock *block);
 
   private:
-	
+
 	static const int MAX_LINE_SIZE;	/**< @brief Maximum length of line */
 	static const char COMMENT_CHAR;	/**< @brief Character defining the start of a comment line */
 
 	// *** Private helper functions ***
+
+	/**
+	 * @brief Read a line from the input stream *independent of line ending*.
+	 *
+	 * Unlike istream::getline(), this function safely handles three
+	 * different line endings:
+	 *  - Unix/OSX (\\n)
+	 *  - Windows (\\r\\n)
+	 *  - Old Mac (\\r)
+	 *
+	 * @param stream the input file stream to read from
+	 * @param buffer the output line buffer (null terminated)
+	 * @param MAX_SIZE maximum size of the buffer
+	 */
+	static std::istream& getline(std::istream& stream, char *buffer, int MAX_SIZE, int* count=NULL);
 
 	/**
 	 * @brief Search the file stream for section headers e.g. [RF], [GRAD] etc
@@ -440,8 +455,6 @@ class ExternalSequence
 	 * @param buffer return output buffer of next non-comment line
 	 */
 	void skipComments(std::ifstream &stream, char* buffer);
-	
-	//std::istream& safeGetLine(std::istream& is, std::string& t);
 
 	/**
 	 * @brief Decompress a run-length compressed shape
@@ -480,7 +493,7 @@ class ExternalSequence
 	 * @see checkGradient()
 	 */
 	void checkRF(SeqBlock& block);
-	
+
 	// *** Static helper function ***
 
 	/**
@@ -495,19 +508,19 @@ class ExternalSequence
 	// *** Members ***
 
 	std::map<std::string,int> m_fileIndex;     /**< @brief File location of sections, [RF], [ADC] etc */
-	
+
 	// Low level sequence blocks
 	std::vector<EventIDs> m_blocks;            /**< @brief List of sequence blocks */
 
 	// Global user-specified definitions
 	std::map<std::string, std::vector<double> >m_definitions;  /**< @brief Custom definitions provided through [DEFINITIONS] section) */
-	
+
 	// List of events (referenced by blocks)
 	std::map<int,RFEvent>   m_rfLibrary;       /**< @brief Library of RF events */
 	std::map<int,GradEvent> m_gradLibrary;     /**< @brief Library of gradient events */
 	std::map<int,ADCEvent>  m_adcLibrary;      /**< @brief Library of ADC readouts */
 	std::map<int,long>      m_delayLibrary;    /**< @brief Library of delays */
-	
+
 	// List of basic shapes (referenced by events)
 	std::map<int,CompressedShape> m_shapeLibrary;    /**< @brief Library of compressed shapes */
 };
