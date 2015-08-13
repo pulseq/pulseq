@@ -438,7 +438,7 @@ class ExternalSequence
 	 * @param buffer the output line buffer (null terminated)
 	 * @param MAX_SIZE maximum size of the buffer
 	 */
-	static std::istream& getline(std::istream& stream, char *buffer, int MAX_SIZE, int* count=NULL);
+	static std::istream& getline(std::istream& stream, char *buffer, const int MAX_SIZE);
 
 	/**
 	 * @brief Search the file stream for section headers e.g. [RF], [GRAD] etc

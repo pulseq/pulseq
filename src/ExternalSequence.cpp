@@ -362,14 +362,10 @@ void ExternalSequence::skipComments(std::ifstream &fileStream, char *buffer)
 void ExternalSequence::buildFileIndex(std::ifstream &fileStream)
 {
 	char buffer[MAX_LINE_SIZE];
-	int count, pos=0;
-	while (getline(fileStream, buffer, MAX_LINE_SIZE, &count)) {
-		// tellg() has bugs in ancient compilers, so we accumulate count
-		pos += count;
+	
+	while (getline(fileStream, buffer, MAX_LINE_SIZE)) {
 		std::string line = std::string(buffer);
-//std::cout << "pos: " << pos << " tellg: " << fileStream.tellg() << endl;
 		if (line[0]=='[' && line[line.length()-1]==']') {
-			//m_fileIndex[line] = pos;
 			m_fileIndex[line] = fileStream.tellg();
 			
 		}
@@ -398,16 +394,14 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 	for (unsigned int i=0; i<NUM_GRADS; i++)
 		if (events.id[GX+i]>0) block->grad[i] = m_gradLibrary[events.id[GX+i]];
 
-	// System timing parameters
-	long COIL_LEAD_TIME=100;
-	long lCoilLeadTime=0;
-	long lFreqResetTime=10;
+	// System timing parameters (us)
+	const long lCoilLeadTime=100;
+	const long lFreqResetTime=10;
 
 	// Calculate duration of block
 	long duration = 0;
 	if (block->isRF()) {
 		RFEvent &rf = block->GetRFEvent();
-		lCoilLeadTime=COIL_LEAD_TIME;
 		//duration = MAX(duration, lFreqResetTime+lCoilLeadTime+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
 		duration = MAX(duration, lCoilLeadTime+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
 	}
@@ -504,9 +498,6 @@ bool ExternalSequence::decompressShape(CompressedShape& encoded, float *shape)
 	int numPacked = encoded.samples.size();
 	int numSamples = encoded.numUncompressedSamples;
 
-	/*for (int j=0; j<numPacked; j++)
-		std::cout << "packed: " << packed[j] << std::endl;*/
-
 	int countPack=1;
 	int countUnpack=1;
 	while (countPack<numPacked)
@@ -530,10 +521,6 @@ bool ExternalSequence::decompressShape(CompressedShape& encoded, float *shape)
 	if (countPack==numPacked) {
 		shape[countUnpack-1]=((float)packed[countPack-1]);
 	}
-
-	/*for ( j=numSamples-10; j<numSamples; j++) {
-		std::cout << "unpacked " << shape[j] << std::endl;	// Prev problem with the last decoded sampled
-	}*/
 
 	// Cumulative sum
 	for (int i=1; i<numSamples; i++) {
@@ -577,44 +564,42 @@ void ExternalSequence::checkGradient(SeqBlock& block)
 /***********************************************************/
 void ExternalSequence::checkRF(SeqBlock& block)
 {
-	unsigned int i;
-	for (i=0; i<block.rfAmplitude.size(); i++)
+	for (unsigned int i=0; i<block.rfAmplitude.size(); i++)
 	{
 		if (block.rfAmplitude[i]>1.0) block.rfAmplitude[i]=1.0;
 		if (block.rfAmplitude[i]<0.0) block.rfAmplitude[i]=0.0;
 		if (block.rfPhase[i]>TWO_PI-1.e-4) block.rfPhase[i]=(float)(TWO_PI-1.e-4);
-		if (block.rfPhase[i]<0)      block.rfPhase[i]=0.0;
+		if (block.rfPhase[i]<0) block.rfPhase[i]=0.0;
 	}
 }
 
 
 /***********************************************************/
-std::istream& ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE, int *count)
+std::istream& ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE)
 {
-	int i=0;
+	int i=0;	// Current position in buffer
 	for(;;) {
 		char c = (char)is.get();
-		if (count!=NULL)
-			*count = i+1;
+
 		switch (c) {
 			case '\n':
 				buffer[i]='\0';
 				return is;
 			case '\r':
 				if(is.peek() == '\n') {
-					c = is.get();
-					if (count!=NULL) (*count)++;
+					is.get();       // Discard character
 				}
 				buffer[i]='\0';
 				return is;
 			case EOF:
-				// Also handle the case when the last line has no line ending
 				if(i==0)
-					is.seekg(-1);	// Create error on stream
-				buffer[i]='\0';
+					is.seekg(-1);   // Create error on stream
+				buffer[i]='\0';     // In case last line has no line ending
 				return is;
 			default:
-				buffer[i++] = (char)c;
+				buffer[i++] = c;
+				if (i>=MAX_SIZE)
+					return is;
 		}
 	}
 }
