@@ -65,7 +65,7 @@ else
 end
 
 grad.type = 'trap';
-grad.channel = find(strcmp(opt.channel,validChannels));
+grad.channel = opt.channel;
 grad.amplitude = amplitude;
 grad.riseTime = riseTime;
 grad.flatTime = flatTime;

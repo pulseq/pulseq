@@ -43,15 +43,15 @@ xlabel('k_x (1/m)'); ylabel('k_y (1/m)');
 % The RF pulse is defined closely following Pauly et al, JMR 1989;
 % 81:43-56. The target excitation is a Gaussian defined by
 %
-% $$f(x) = a exp(-|x|^2/\sigma^2)$$
+% $$f(x) = a \exp(-|x|^2/\sigma^2)$$
 %
 % The equivalent in k-space is calculated with the Fourier transform
 %
-% $$g(x) = b exp(-\beta^2 |k|^2)$$
+% $$g(x) = b \exp(-\beta^2 |k|^2)$$
 %
 % where the width is given by
 %
-% $$\beta=\frac{2\pi A \sigma}{2\sqrt(2)}$$
+% $$\beta=\frac{2\pi K_{\rm max} \sigma}{2\sqrt{2}}$$
 %
 tr=0:mr.Sequence.RfRasterTime:T-mr.Sequence.RfRasterTime;
 kxRf=interp1(tk,kx,tr,'linear','extrap');
@@ -59,6 +59,7 @@ kyRf=interp1(tk,ky,tr,'linear','extrap');
 beta=2*pi*kMax*targetWidth/2/sqrt(2);  % Gaussian width in k-space
 signal0 = exp(-beta.^2.*(1-tr/T).^2).*sqrt((2*pi*n*(1-tr/T)).^2+1);
 
+%%%
 % Two RF waveforms are superimposed to excite a replica pattern offset 5cm
 % in x and y directions. The shifted pattern is achieved with modulation by
 % a complex exponential.
@@ -67,20 +68,20 @@ signal = signal0.*(1 + exp(-1j.*2*pi*5e-2*(kxRf + kyRf)));
 plot(1e3*tr,real(signal),1e3*tr,imag(signal));
 xlabel('t (ms)'); ylabel('Signal (Hz)');
 
-%%
+%%%
 % Add gradient ramps to achieve the starting gradient value and moment
 % (first k-space point) and likewise ramp the gradients to zero afterwards.
 % The RF pulse is also padded with zeros during the ramp times.
 [kx,ky,signal]=mr.addRamps({kx,ky},'rf',signal);
 
+%%%
 % The gradient waveforms are calculated based from the k-space trajectory
 % using the |traj2grad| function, which internally calculates the finite
-% differences. 
+% differences. The arbitrary gradient and RF events are then defined using
+% functions in the |mr| toolbox.
 gx = mr.traj2grad(kx);
 gy = mr.traj2grad(ky);
 
-% Define arbitrary gradient and RF events using functions in the |mr|
-% toolbox.
 rf = mr.makeArbitraryRf(signal,20*pi/180);
 gxRf = mr.makeArbitraryGrad('x',gx);
 gyRf = mr.makeArbitraryGrad('y',gy);

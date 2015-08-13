@@ -38,7 +38,7 @@ assert(max(abs(slew))<maxSlew,'Slew rate violation (%.0f%%)',max(abs(slew))/maxS
 assert(max(abs(g))<maxGrad,'Gradient amplitude violation (%.0f%%)',max(abs(g))/maxGrad*100);
 
 grad.type = 'grad';
-grad.channel = find(strcmp(opt.channel,validChannels));
+grad.channel = opt.channel;
 grad.waveform = g;
 grad.t = (0:length(g)-1)*mr.Sequence.GradRasterTime;
 
