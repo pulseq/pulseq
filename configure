@@ -1329,7 +1329,7 @@ Optional Features:
                           do not reject slow dependency extractors
   --disable-dependency-tracking
                           speeds up one-time build
-  --enable-documentation  turn on documentation C++ library support (default: no)
+  --enable-documentation  turn on documentation generation (default: no)
 
 Some influential environment variables:
   CXX         C++ compiler command
@@ -2364,9 +2364,8 @@ fi
 
 
 # Define the identity of the package.
-
- PACKAGE=pulseq
- VERSION=1.0
+ PACKAGE='pulseq'
+ VERSION='1.0'
 
 
 cat >>confdefs.h <<_ACEOF
@@ -3925,7 +3924,7 @@ fi
 
 if test x$documentation = xtrue; then
 
-# Check for doxygen
+# Check for doxygen (required for documentation)
 build_docs=yes
 DOXYGEN=
 for ac_prog in doxygen

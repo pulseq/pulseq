@@ -5,7 +5,7 @@ AC_PREREQ([2.69])
 AC_INIT(pulseq, 1.0, kelvin.layton@uniklinik-freiburg.de)
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_AUX_DIR(config)
-AM_INIT_AUTOMAKE(pulseq, 1.0)
+AM_INIT_AUTOMAKE([foreign])
 
 
 # Checks for programs.
@@ -25,7 +25,7 @@ AC_LANG(C++)
 #AC_HEADER_STDBOOL
 #AC_C_INLINE
 AC_ARG_ENABLE([documentation],
-     [  --enable-documentation  turn on documentation C++ library support (default: no)],
+     [  --enable-documentation  turn on documentation generation (default: no)],
      [case "${enableval}" in
        yes) documentation=true ;;
        no)  documentation=false ;;
@@ -35,7 +35,7 @@ AC_ARG_ENABLE([documentation],
 
 if test x$documentation = xtrue; then
 
-# Check for doxygen
+# Check for doxygen (required for documentation)
 build_docs=yes
 DOXYGEN=
 AC_CHECK_PROGS([DOXYGEN], [doxygen])

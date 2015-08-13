@@ -23,16 +23,16 @@ matlab_build.stamp: $(HTMLDIR)/demoWriteGre.html $(HTMLDIR)/demoWriteRf.html $(H
 	touch matlab_build.stamp
 
 $(HTMLDIR)/demoWriteGre.html: demoWriteGre.m make_matlab_doc.m
-	matlab -nodesktop -nosplash  -r "make_matlab_doc('$<','$(HTMLDIR)'); exit;"
+	matlab -wait -nodesktop -nosplash  -r "make_matlab_doc('$<','$(HTMLDIR)'); exit;"
 
 $(HTMLDIR)/demoWriteRf.html: demoWriteRf.m make_matlab_doc.m
-	matlab -nodesktop -nosplash  -r "make_matlab_doc('$<','$(HTMLDIR)'); exit;"
+	matlab -wait -nodesktop -nosplash  -r "make_matlab_doc('$<','$(HTMLDIR)'); exit;"
 
 $(HTMLDIR)/demoRead.html: demoRead.m make_matlab_doc.m
-	matlab -nodesktop -nosplash  -r "make_matlab_doc('$<','$(HTMLDIR)'); exit;"
+	matlab -wait -nodesktop -nosplash  -r "make_matlab_doc('$<','$(HTMLDIR)'); exit;"
 
-$(HTMLDIR)/Sequence.html: \+mr/\@Sequence/Sequence.m make_matlab_doc.m
-	matlab -nodesktop -nosplash  -r "make_matlab_doc('$<','$(HTMLDIR)'); exit;"
+$(HTMLDIR)/Sequence.html: +mr/@Sequence/Sequence.m make_matlab_doc.m
+	matlab -wait -nodesktop -nosplash  -r "make_matlab_doc('$<','$(HTMLDIR)'); exit;"
 endif
 
 
