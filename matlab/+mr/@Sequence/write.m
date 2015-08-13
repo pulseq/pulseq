@@ -11,8 +11,8 @@ function write(obj,filename)
 % See also  read
 
 fid=fopen(filename,'w');
-fprintf(fid,'# Sequence Blocks\n');
-fprintf(fid,'# Created by MATLAB open sequence\n\n');
+fprintf(fid,'# Pulseq sequence file\n');
+fprintf(fid,'# Created by MATLAB mr toolbox\n\n');
 
 if ~isempty(obj.definitions)
     fprintf(fid,'[DEFINITIONS]\n');

@@ -11,6 +11,17 @@ function read(obj,filename)
 % See also  write
 
 fid=fopen(filename);
+
+% Clear sequence data
+obj.blockEvents=[];
+obj.definitions=containers.Map();
+obj.gradLibrary=containers.Map('KeyType','double','ValueType','any');
+obj.shapeLibrary=containers.Map('KeyType','double','ValueType','any');
+obj.rfLibrary=containers.Map('KeyType','double','ValueType','any');
+obj.adcLibrary=containers.Map('KeyType','double','ValueType','any');
+obj.delayLibrary=containers.Map('KeyType','double','ValueType','any');
+
+% Load data from file
 while true
     section = skipComments(fid);
     if section==-1
@@ -34,6 +45,8 @@ while true
             obj.delayLibrary = readEvents(fid,1e-6);
         case '[SHAPES]'
             obj.shapeLibrary = readShapes(fid);
+        otherwise
+            error('Unknown section code: %s',section);
     end
 end
 fclose(fid);

@@ -65,6 +65,9 @@ classdef Sequence < handle
         % See write.m
         write(obj,filename)
         
+        % See readBinary.m
+        readBinary(obj,filename);
+        
         % See writeBinary.m
         writeBinary(obj,filename);
         
@@ -168,13 +171,15 @@ classdef Sequence < handle
                         grad.type = 'grad';
                         id = mr.Sequence.searchLibrary(obj.gradLibrary,grad);
                         obj.gradLibrary(id) = grad;
-                        obj.blockEvents(index,2+event.channel)=id;
+                        idx = 2+find(strcmp(event.channel,{'x','y','z'}));
+                        obj.blockEvents(index,idx)=id;
                     case 'trap'
                         grad.data = [event.amplitude event.riseTime event.flatTime event.fallTime];
                         grad.type = 'trap';
                         id = mr.Sequence.searchLibrary(obj.gradLibrary,grad);
                         obj.gradLibrary(id) = grad;
-                        obj.blockEvents(index,event.channel+2)=id;
+                        idx = 2+find(strcmp(event.channel,{'x','y','z'}));
+                        obj.blockEvents(index,idx)=id;
                     case 'adc'
                         adc.data = [event.numSamples event.dwell event.delay event.freqOffset event.phaseOffset];
                         id = mr.Sequence.searchLibrary(obj.adcLibrary,adc);
@@ -398,14 +403,15 @@ classdef Sequence < handle
 
             codes.fileHeader = [1 'pulseq' 2];
             codes.version = int64(1);
-            codes.section.definitions = int32(hex2dec('FFFFFFFF00000001'));
-            codes.section.blocks      = int32(hex2dec('FFFFFFFF00000002'));
-            codes.section.rf          = int32(hex2dec('FFFFFFFF00000003'));
-            codes.section.gradients   = int32(hex2dec('FFFFFFFF00000004'));
-            codes.section.trapezoids  = int32(hex2dec('FFFFFFFF00000005'));
-            codes.section.adc         = int32(hex2dec('FFFFFFFF00000006'));
-            codes.section.delays      = int32(hex2dec('FFFFFFFF00000007'));
-            codes.section.shapes      = int32(hex2dec('FFFFFFFF00000008'));
+            prefix = bitshift(int64(hex2dec('FFFFFFFF')),32);
+            codes.section.definitions = bitor(prefix,int64(1));
+            codes.section.blocks      = bitor(prefix,int64(2));
+            codes.section.rf          = bitor(prefix,int64(3));
+            codes.section.gradients   = bitor(prefix,int64(4));
+            codes.section.trapezoids  = bitor(prefix,int64(5));
+            codes.section.adc         = bitor(prefix,int64(6));
+            codes.section.delays      = bitor(prefix,int64(7));
+            codes.section.shapes      = bitor(prefix,int64(8));
         end
         
     end % Static methods
