@@ -394,28 +394,23 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 	for (unsigned int i=0; i<NUM_GRADS; i++)
 		if (events.id[GX+i]>0) block->grad[i] = m_gradLibrary[events.id[GX+i]];
 
-	// System timing parameters (us)
-	const long lCoilLeadTime=100;
-	const long lFreqResetTime=10;
-
 	// Calculate duration of block
 	long duration = 0;
 	if (block->isRF()) {
 		RFEvent &rf = block->GetRFEvent();
-		//duration = MAX(duration, lFreqResetTime+lCoilLeadTime+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
-		duration = MAX(duration, lCoilLeadTime+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
+		duration = MAX(duration, (long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
 	}
 	for (int iC=0; iC<NUM_GRADS; iC++)
 	{
 		GradEvent &grad = block->GetGradEvent(iC);
 		if (block->isArbitraryGradient(iC))
-			duration = MAX(duration, lCoilLeadTime + (long)(10*m_shapeLibrary[grad.shape].numUncompressedSamples));
+			duration = MAX(duration, (long)(10*m_shapeLibrary[grad.shape].numUncompressedSamples));
 		else if (block->isTrapGradient(iC))
-			duration = MAX(duration, lCoilLeadTime + grad.rampUpTime + grad.flatTime + grad.rampDownTime);
+			duration = MAX(duration, grad.rampUpTime + grad.flatTime + grad.rampDownTime);
 	}
 	if (block->isADC()) {
 		ADCEvent &adc = block->GetADCEvent();
-		duration = MAX(duration, lFreqResetTime + adc.delay + (adc.numSamples*adc.dwellTime)/1000);
+		duration = MAX(duration, adc.delay + (adc.numSamples*adc.dwellTime)/1000);
 	}
 
 	block->duration = duration + block->delay;
