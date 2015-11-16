@@ -7,7 +7,11 @@
 /config.status
 /doc/html
 /doc/doxy.conf
+/doc/doxygen-build.stamp
 /examples/*.out
+/matlab/matlab_build.stamp
+/matlab/doc/*
+/matlab/+mr/codegen/*
 
 #implicit
 
@@ -19,5 +23,4 @@
 *.asv
 .deps/
 Makefile
-
 

@@ -17,6 +17,7 @@ if isempty(parser)
         @(x) any(validatestring(x,validSlewUnits)));
     parser.addParamValue('maxGrad',[],@isnumeric);
     parser.addParamValue('maxSlew',[],@isnumeric);
+    parser.addParamValue('riseTime',[],@isnumeric);
 end
 parse(parser,varargin{:});
 opt = parser.Results;
@@ -31,8 +32,12 @@ if isempty(opt.maxSlew)
 else
     maxSlew = mr.convert(opt.maxSlew,opt.slewUnit,'Hz/m');
 end
+if ~isempty(opt.riseTime)
+    maxSlew=[];
+end
 
 out.maxGrad = maxGrad;
 out.maxSlew = maxSlew;
+out.riseTime = opt.riseTime;
 
 end

@@ -130,8 +130,11 @@ classdef Sequence < handle
             
             % Convert block structure to cell array of events
             varargin=mr.block2events(varargin);
+            varargin(cellfun(@(C)isempty(C),varargin))=[];
             
             obj.blockEvents(index,:) = zeros(1,6);
+            duration = 0;
+            
             % Loop over events adding to library if necessary and creating
             % block event structure.
             for i=1:length(varargin)
@@ -148,7 +151,7 @@ classdef Sequence < handle
                         phase(phase<0)=phase(phase<0)+2*pi;
                         phase=phase/(2*pi);
                         
-                        magShape = mr.compressShape(mag);
+                        magShape = mr.compressShape(mag(:));
                         magId = mr.Sequence.searchLibrary(obj.shapeLibrary,magShape);
                         obj.shapeLibrary(magId) = magShape;
                         
@@ -160,7 +163,9 @@ classdef Sequence < handle
                         id = mr.Sequence.searchLibrary(obj.rfLibrary,rf);
                         obj.rfLibrary(id) = rf;
                         obj.blockEvents(index,2)=id;
+                        duration=max(duration,length(mag)*mr.Sequence.RfRasterTime);
                     case 'grad'
+                        channelNum = find(strcmp(event.channel,{'x','y','z'}));
                         amplitude = max(abs(event.waveform));
                         g = event.waveform./amplitude;
                         shape = mr.compressShape(g);
@@ -171,25 +176,30 @@ classdef Sequence < handle
                         grad.type = 'grad';
                         id = mr.Sequence.searchLibrary(obj.gradLibrary,grad);
                         obj.gradLibrary(id) = grad;
-                        idx = 2+find(strcmp(event.channel,{'x','y','z'}));
+                        idx = 2+channelNum;
                         obj.blockEvents(index,idx)=id;
+                        duration=max(duration,length(g)*mr.Sequence.GradRasterTime);
                     case 'trap'
+                        channelNum = find(strcmp(event.channel,{'x','y','z'}));
                         grad.data = [event.amplitude event.riseTime event.flatTime event.fallTime];
                         grad.type = 'trap';
                         id = mr.Sequence.searchLibrary(obj.gradLibrary,grad);
                         obj.gradLibrary(id) = grad;
-                        idx = 2+find(strcmp(event.channel,{'x','y','z'}));
+                        idx = 2+channelNum;
                         obj.blockEvents(index,idx)=id;
+                        duration=max(duration,event.riseTime+event.flatTime+event.fallTime);
                     case 'adc'
                         adc.data = [event.numSamples event.dwell event.delay event.freqOffset event.phaseOffset];
                         id = mr.Sequence.searchLibrary(obj.adcLibrary,adc);
                         obj.adcLibrary(id) = adc;
                         obj.blockEvents(index,6)=id;
+                        duration=max(duration,event.delay+event.numSamples*event.dwell);
                     case 'delay'
                         delay.data = [event.delay];
                         id = mr.Sequence.searchLibrary(obj.delayLibrary,delay);
                         obj.delayLibrary(id) = delay;
                         obj.blockEvents(index,1)=id;
+                        duration=max(duration,event.delay);
                 end
             end
         end
@@ -315,47 +325,43 @@ classdef Sequence < handle
             xlabel(ax(3),['t (' opt.timeDisp ')']);
             xlabel(ax(6),['t (' opt.timeDisp ')']);
             
-            t=0;
+            t0=0;
             for i=1:size(obj.blockEvents,1)
                 block = obj.getBlock(i);
-                isValid = t>=opt.timeRange(1) && t<=opt.timeRange(2);
-                if ~isempty(block.adc)
-                    if isValid
+                isValid = t0>=opt.timeRange(1) && t0<=opt.timeRange(2);
+                if isValid
+                    if ~isempty(block.adc)
                         adc=block.adc;
-                        tt=adc.delay + (0:adc.numSamples-1)*adc.dwell;
-                        plot(tFactor*(t+tt),zeros(size(tt)),'rx','Parent',ax(1));
+                        t=adc.delay + (0:adc.numSamples-1)*adc.dwell;
+                        plot(tFactor*(t0+t),zeros(size(t)),'rx','Parent',ax(1));
                     end
-                end
-                if ~isempty(block.rf)
-                    if isValid
+                    if ~isempty(block.rf)
                         rf=block.rf;
-                        tt=rf.t;
-                        plot(tFactor*(t+tt),abs(rf.signal),'Parent',ax(2));
-                        plot(tFactor*(t+tt),angle(rf.signal),'Parent',ax(3));
+                        t=rf.t;
+                        plot(tFactor*(t0+t),abs(rf.signal),'Parent',ax(2));
+                        plot(tFactor*(t0+t),angle(rf.signal),'Parent',ax(3));
                     end
-                end
-                gradChannels={'gx','gy','gz'};
-                for j=1:length(gradChannels)
-                    grad=block.(gradChannels{j});
-                    if ~isempty(block.(gradChannels{j}))
-                        if strcmp(grad.type,'grad')
-                            tt=grad.t;
-                            waveform=grad.waveform;
-                        else
-                            tt=cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);
-                            waveform=grad.amplitude*[0 1 1 0];
+                    gradChannels={'gx','gy','gz'};
+                    for j=1:length(gradChannels)
+                        grad=block.(gradChannels{j});
+                        if ~isempty(block.(gradChannels{j}))
+                            if strcmp(grad.type,'grad')
+                                t=grad.t;
+                                waveform=grad.waveform;
+                            else
+                                t=cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);
+                                waveform=grad.amplitude*[0 1 1 0];
+                            end
+                            plot(tFactor*(t0+t),waveform,'Parent',ax(3+j));
                         end
-                        
-                        if isValid
-                            plot(tFactor*(t+tt),waveform,'Parent',ax(3+j));
-                        end
-                    end
+                    end                
                 end
-                t=t+mr.calcDuration(block);
+                t0=t0+mr.calcDuration(block);
             end
             
+            
             linkaxes(ax(:),'x')
-            dispRange = tFactor*[opt.timeRange(1) min(opt.timeRange(2),t)];
+            dispRange = tFactor*[opt.timeRange(1) min(opt.timeRange(2),t0)];
             xlim(ax(1),dispRange);
             
             h = zoom;
@@ -376,14 +382,14 @@ classdef Sequence < handle
             %   See also  addBlock
             
             found=0;
-            keys=cell2mat(library.keys);
+            keys=library.keys;
             values=library.values;
             for iL=1:length(keys)
                 %                 data=library(keys(iL)).data;
                 data=values{iL}.data;
                 if length(data)==length(dataStruct.data) && ...
                         norm(data-dataStruct.data)<1e-6
-                    id=keys(iL);
+                    id=keys{iL};
                     found=1;
                     break;
                 end
@@ -391,8 +397,9 @@ classdef Sequence < handle
             if isempty(keys)
                 id=1;
             elseif ~found
-                id=max(keys)+1;
+                id=max(cell2mat(keys))+1;
             end
+            
         end
         
         function codes=getBinaryCodes()

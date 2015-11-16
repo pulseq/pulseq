@@ -22,6 +22,7 @@ if isempty(parser)
     
     % RF params
     addRequired(parser,'flipAngle',@isnumeric);
+    addOptional(parser,'gradOpts',mr.opts(),@isstruct); % for slice grad
     addParamValue(parser,'duration',0,@isnumeric);
     addParamValue(parser,'freqOffset',0,@isnumeric);
     addParamValue(parser,'phaseOffset',0,@isnumeric);
@@ -30,7 +31,6 @@ if isempty(parser)
     % Slice params
     addParamValue(parser,'maxGrad',0,@isnumeric);
     addParamValue(parser,'maxSlew',0,@isnumeric);
-    parser.addOptional('gradOpts',mr.opts(),@isstruct);
     addParamValue(parser,'sliceThickness',0,@isnumeric);
 end
 parse(parser,flip,varargin{:});
@@ -68,7 +68,7 @@ if nargout>1
     
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
-    gz = mr.makeTrapezoid('z','flatTime',opt.duration,'flatArea',area,opt.gradOpts);
+    gz = mr.makeTrapezoid('z',opt.gradOpts,'flatTime',opt.duration,'flatArea',area);
     
     tFill = (1:round(gz.riseTime/1e-6))*1e-6;   % Round to microsecond
     rf.t = [tFill rf.t+tFill(end) tFill+rf.t(end)+tFill(end)];

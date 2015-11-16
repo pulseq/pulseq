@@ -6,21 +6,23 @@ function c=block2events(b)
 %   If b is already a cell array of events this array is
 %   returned unmodified.
 
-c=b;    % Assume b is already a cell array
+c=b;    % Assume b is already a cell array of events
 if iscell(b)
-    b=b{1}; % Check if first element is block structure
+    first=b{1}; % Use first element to test for block structure
 end
-if isfield(b,'rf')
+if isfield(first,'rf')
     % Argument is a block structure, copy events to cell array
     % varargin for further processing.
-    s=b;
+    assert(length(b)==1,'Only a single block structre can be added');
     c={};
-    fields=fieldnames(s)';
+    fields=fieldnames(first)';
     for f=fields
-        if ~isempty(s.(char(f)))
-            c{end+1}=s.(char(f));
+        if ~isempty(first.(char(f)))
+            c{end+1}=first.(char(f));
         end
     end
+elseif iscell(first)
+    c=first;
 end
 
 end

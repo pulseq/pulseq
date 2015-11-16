@@ -1,13 +1,16 @@
 function [rf, gz] = makeSincPulse(flip,varargin)
 %makeSincPulse Create a slice selective since pulse.
 %   rf=makeSincPulse(flip, 'Duration', dur) Create sinc pulse
-%   with given flip angle and duration.
+%   with given flip angle (rad) and duration (s).
 %
 %   rf=makeSincPulse(..., 'FreqOffset', f,'PhaseOffset',p)
-%   Create sinc pulse with frequency offset and phase offset.
+%   Create sinc pulse with frequency offset (Hz) and phase offset (rad).
 %
 %   [rf, gz]=makeSincPulse(...,'SliceThickness',st) Return the
-%   corresponding slice select gradient suitable for MRI.
+%   slice select gradient corresponding to given slice thickness (m).
+%
+%   [rf, gz]=makeSincPulse(flip,lims,...) Create slice selection gradient 
+%   with the specificed gradient limits (e.g. amplitude, slew).
 %
 %   See also  Sequence.addBlock
 
@@ -18,6 +21,7 @@ if isempty(parser)
     
     % RF params
     addRequired(parser,'flipAngle',@isnumeric);
+    addOptional(parser,'gradOpts',mr.opts(),@isstruct); % for slice grad
     addParamValue(parser,'duration',0,@isnumeric);
     addParamValue(parser,'freqOffset',0,@isnumeric);
     addParamValue(parser,'phaseOffset',0,@isnumeric);
@@ -26,7 +30,6 @@ if isempty(parser)
     % Slice params
     addParamValue(parser,'maxGrad',0,@isnumeric);
     addParamValue(parser,'maxSlew',0,@isnumeric);
-    parser.addOptional('gradOpts',mr.opts(),@isstruct);
     addParamValue(parser,'sliceThickness',0,@isnumeric);
 end
 parse(parser,flip,varargin{:});
@@ -59,10 +62,11 @@ if nargout>1
     
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
-    gz = mr.makeTrapezoid('z','flatTime',opt.duration,'flatArea',area);
+    gz = mr.makeTrapezoid('z',opt.gradOpts,'flatTime',opt.duration,'flatArea',area);
     
+    % Pad RF pulse with zeros during gradient ramp up
     tFill = (1:round(gz.riseTime/1e-6))*1e-6;   % Round to microsecond
-    rf.t = [tFill rf.t+tFill(end) tFill+rf.t(end)+tFill(end)];
-    rf.signal=[zeros(size(tFill)), rf.signal, zeros(size(tFill))];
+    rf.t = [tFill rf.t+tFill(end) ];
+    rf.signal=[zeros(size(tFill)), rf.signal];
 end
 end

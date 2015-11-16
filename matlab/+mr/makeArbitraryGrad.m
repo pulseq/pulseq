@@ -3,22 +3,24 @@ function grad=makeArbitraryGrad(channel,varargin)
 %   g=makeArbitraryGrad(channel, waveform) Create gradient on
 %   the given channel with the specified waveform.
 %
-%   g=makeArbitraryGrad(...,gradOpts) Ensure the waveforms satisfy the
-%   gradient hardware constraints
+%   g=makeArbitraryGrad(channel,waveform,lims) Ensure the waveform 
+%   satisfies the gradient hardware constraints.
 %
-%   See also  Sequence.addBlock
+%   See also  Sequence.addBlock 
 
 persistent parser
-validChannels = {'x','y','z'};
+
 if isempty(parser)
+    validChannels = {'x','y','z'};
     parser = inputParser;
     parser.FunctionName = 'makeArbitraryGrad';
     parser.addRequired('channel',...
         @(x) any(validatestring(x,validChannels)));
     parser.addRequired('waveform');
+    parser.addOptional('gradOpts',mr.opts(),@isstruct);
     parser.addParamValue('maxGrad',0,@isnumeric);
     parser.addParamValue('maxSlew',0,@isnumeric);
-    parser.addOptional('gradOpts',mr.opts(),@isstruct);
+    
 end
 parse(parser,channel,varargin{:});
 opt = parser.Results;

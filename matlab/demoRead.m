@@ -63,7 +63,7 @@ seq.plot()
 % Alternatively, a time range can be specified.  An additional parameter
 % also allows the display units to be changed for easy reading. 
 % Further, the handle of the created figure can be returned if required.
-fig=seq.plot('TimeRange',[0 15e-3],'timeDisp','ms')
+fig=seq.plot('TimeRange',[0 16e-3],'timeDisp','ms')
 
 %% Modifying sequence blocks
 % In addition to loading a sequence and accessing sequence blocks, blocks

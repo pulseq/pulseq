@@ -11,6 +11,7 @@ function write(obj,filename)
 % See also  read
 
 fid=fopen(filename,'w');
+assert(fid~=-1,'Cannot open file: %s',filename);
 fprintf(fid,'# Pulseq sequence file\n');
 fprintf(fid,'# Created by MATLAB mr toolbox\n\n');
 
@@ -27,7 +28,7 @@ if ~isempty(obj.definitions)
 end
 
 fprintf(fid,'# Format of blocks:\n');
-fprintf(fid,'##  D RF  GX  GY  GZ ADC\n');
+fprintf(fid,'#  #  D RF  GX  GY  GZ ADC\n');
 fprintf(fid,'[BLOCKS]\n');
 idFormatWidth=length(num2str(size(obj.blockEvents,1)));
 idFormatStr=['%' num2str(idFormatWidth) 'd'];
