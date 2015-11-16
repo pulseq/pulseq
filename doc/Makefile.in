@@ -246,7 +246,7 @@ EXTRA_DIST = $(static_docs) $(am__append_1) $(am__append_2)
 @BUILD_DOCS_TRUE@DOXY_FILE = doxy.conf
 @BUILD_DOCS_TRUE@DOXY_AUX = header.html footer.html customstyles.css matlab.css DoxygenLayout.xml
 @BUILD_DOCS_TRUE@HTML_AUX = $(top_srcdir)/doc/html/demoWriteGre.html $(top_srcdir)/doc/html/demoWriteRf.html $(top_srcdir)/doc/html/demoRead.html $(top_srcdir)/doc/html/Sequence.html
-@BUILD_DOCS_TRUE@WEBSITE_AUX = $(LATEX_BASENAME).pdf logo_hires.png README.md favicon.ico images/gre.png images/rf2d.png
+@BUILD_DOCS_TRUE@WEBSITE_AUX = $(LATEX_BASENAME).pdf logo_hires.png README.md favicon.ico images/gre.png images/rf2d.png images/overview.png
 doc_DATA = $(EXTRA_DIST)
 all: all-am
 

@@ -2,13 +2,16 @@
   \mainpage Introduction
 
 This project is an open source framework for the development and execution of
-magnetic resonance (MR) pulse sequences for imaging and spectroscopy.
+magnetic resonance (MR) pulse sequences for imaging and spectroscopy. In summary, MRI sequence can be programmed directly in MATLAB and executed on real hardware.
+
+<img src="overview.png">
+
 A central contribution of this project is an **open file format** to compactly
 describe MR sequences suitable for execution on an MRI scanner. The detailed file specification
 can be obtained here: <a href="specification.pdf">`specification.pdf`</a>
 
 The source code provides example implementations of this format. Code documentation is
-divided into <a href="matlab.html">MATLAB</a> and <a href="annotated.html">C++</a> sections.
+divided into <a href="matlab.html">MATLAB</a> and <a href="annotated.html">C++</a> sections. Alternatively, sequences can be programming in <a href="http://www.jemris.org/">JEMRIS</a> using a graphical interface and exported to the Pulseq file format for execution.
 
 ## Sequence examples
 
@@ -81,12 +84,10 @@ bool isRF = block->isRF();
 */
 
 
+/**
+\page matlab MATLAB toolbox
 
-  /**
-  \page matlab MATLAB source code
-
-  A MATLAB interface is provided through the `mr` package. The package contains stand-alone functions for generating common sequence blocks suitable for MRI or spectroscopy such as selective RF pulses, trapezoid gradients and ADC readout events. The `Sequence` class maintains all sequence data in a compressed form and provides methods to read/write sequence files or modify blocks directly. Sequences are executed on real MR hardware using vendor-specific interpreter modules.
-
+A MATLAB interface is provided through the `mr` toolbox. The toolbox contains stand-alone functions for generating common sequence blocks suitable for MRI or spectroscopy such as selective RF pulses, trapezoid gradients and ADC readout events. The `Sequence` class maintains all sequence data in a compressed form and provides methods to read/write sequence files or modify blocks directly. Sequences are executed on real MR hardware using vendor-specific interpreter modules.
 
 Examples
 
