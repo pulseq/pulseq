@@ -19,6 +19,7 @@ def cmp_lines(path_1, path_2):
 	return True
 
 sequences = ['fid','gre','press']
+binary_sequences = ['gre_binary']
 base_dir = '../examples/'
 approved_dir = '../examples/approved/'
 ok = True
@@ -26,13 +27,15 @@ ok = True
 cellStr = '{';
 for index, seq in enumerate(sequences):
     cellStr += "'" + base_dir + seq + ".seq',"
+for index, seq in enumerate(binary_sequences):
+	cellStr += "'" + base_dir + seq + ".bin',"
 cellStr += "}"
 
 funCmd = "parsemr({0}); exit;".format(cellStr)
 matlabCmd = 'matlab -wait -nodisplay -nosplash -r "{0}"'.format(funCmd)
 call(matlabCmd,shell=True)
 
-for index, seq in enumerate(sequences):
+for index, seq in enumerate(sequences + binary_sequences):
     same = cmp_lines(base_dir + seq + '.matlab.out',approved_dir + seq + '.matlab.out')
 
     result = "ok" if same else "not ok"

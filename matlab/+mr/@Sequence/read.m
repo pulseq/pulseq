@@ -15,11 +15,11 @@ fid=fopen(filename);
 % Clear sequence data
 obj.blockEvents=[];
 obj.definitions=containers.Map();
-obj.gradLibrary=containers.Map('KeyType','double','ValueType','any');
-obj.shapeLibrary=containers.Map('KeyType','double','ValueType','any');
-obj.rfLibrary=containers.Map('KeyType','double','ValueType','any');
-obj.adcLibrary=containers.Map('KeyType','double','ValueType','any');
-obj.delayLibrary=containers.Map('KeyType','double','ValueType','any');
+obj.gradLibrary=mr.EventLibrary();
+obj.shapeLibrary=mr.EventLibrary();
+obj.rfLibrary=mr.EventLibrary();
+obj.adcLibrary=mr.EventLibrary();
+obj.delayLibrary=mr.EventLibrary();
 
 % Load data from file
 while true
@@ -36,9 +36,9 @@ while true
         case '[RF]'
             obj.rfLibrary = readEvents(fid,1);
         case '[GRAD]'
-            obj.gradLibrary = readEvents(fid,1,'grad',obj.gradLibrary);
+            obj.gradLibrary = readEvents(fid,1,'g',obj.gradLibrary);
         case '[TRAP]'
-            obj.gradLibrary = readEvents(fid,[1 1e-6 1e-6 1e-6],'trap',obj.gradLibrary);
+            obj.gradLibrary = readEvents(fid,[1 1e-6 1e-6 1e-6],'t',obj.gradLibrary);
         case '[ADC]'
             obj.adcLibrary = readEvents(fid,[1 1e-9 1e-6 1 1]);
         case '[DELAYS]'
@@ -50,6 +50,7 @@ while true
     end
 end
 fclose(fid);
+
 
 return
 
@@ -102,17 +103,19 @@ return
             scale=1;
         end
         if nargin<4
-            eventLibrary=containers.Map('KeyType','double','ValueType','any');
+            eventLibrary=mr.EventLibrary();
         end
         line = fgetl(fid);
         while ischar(line) && ~(isempty(line) || line(1)=='#')
             data=sscanf(line,'%f')';
             id=data(1);
-            event.data=scale.*data(2:end);
-            if nargin>2
-                event.type=type;
+            data=scale.*data(2:end);
+            if nargin<3
+                eventLibrary.insert(id,data);
+            else
+                eventLibrary.insert(id,data,type);
             end
-            eventLibrary(id)=event;
+            
             line=fgetl(fid);
         end
     end
@@ -122,7 +125,7 @@ return
         %   library=readShapes(fid) Read shapes from file identifier of an
         %   open MR sequence file and return a library of shapes.
 
-        shapeLibrary=containers.Map('KeyType','double','ValueType','any');
+        shapeLibrary=mr.EventLibrary();
         line = skipComments(fid);
         while ~(~ischar(line) || isempty(line) || ~strcmp(line(1:8),'shape_id'))
             tok=textscan(line,'%s');
@@ -137,9 +140,8 @@ return
                 line=fgetl(fid);
             end
             line = skipComments(fid);
-            shape.num_samples = num_samples;
-            shape.data = data;
-            shapeLibrary(id) = shape;
+            data = [num_samples data];
+            shapeLibrary.insert(id,data);
         end
     end
 

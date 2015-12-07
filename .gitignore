@@ -8,13 +8,18 @@
 /doc/html
 /doc/doxy.conf
 /doc/doxygen-build.stamp
+/src/parsemr
 /examples/*.out
 /matlab/matlab_build.stamp
 /matlab/doc/*
-/matlab/+mr/codegen/*
 
 #implicit
 
+/matlab/+mr/codegen/*
+/matlab/+mr/@Sequence/codegen/*
+/matlab/+mr/@EventLibrary/codegen/*
+*.mexa64
+*.mexw64
 *~
 .*~
 *.o

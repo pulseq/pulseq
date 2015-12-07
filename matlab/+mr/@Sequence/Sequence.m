@@ -52,12 +52,13 @@ classdef Sequence < handle
         
         function obj = Sequence()
             obj.definitions=containers.Map();
-            obj.gradLibrary=containers.Map('KeyType','double','ValueType','any');
-            obj.shapeLibrary=containers.Map('KeyType','double','ValueType','any');
-            obj.rfLibrary=containers.Map('KeyType','double','ValueType','any');
-            obj.adcLibrary=containers.Map('KeyType','double','ValueType','any');
-            obj.delayLibrary=containers.Map('KeyType','double','ValueType','any');
+            obj.gradLibrary=mr.EventLibrary();
+            obj.shapeLibrary=mr.EventLibrary();
+            obj.rfLibrary=mr.EventLibrary();
+            obj.adcLibrary=mr.EventLibrary();
+            obj.delayLibrary=mr.EventLibrary();
         end
+        
         
         % See read.m
         read(obj,filename)
@@ -152,16 +153,25 @@ classdef Sequence < handle
                         phase=phase/(2*pi);
                         
                         magShape = mr.compressShape(mag(:));
-                        magId = mr.Sequence.searchLibrary(obj.shapeLibrary,magShape);
-                        obj.shapeLibrary(magId) = magShape;
+                        data = [magShape.num_samples magShape.data];
+                        [magId,found] = obj.shapeLibrary.find(data);
+                        if ~found
+                            obj.shapeLibrary.insert(magId,data);
+                        end
                         
                         phaseShape = mr.compressShape(phase);
-                        phaseId = mr.Sequence.searchLibrary(obj.shapeLibrary,phaseShape);
-                        obj.shapeLibrary(phaseId) = phaseShape;
+                        data = [phaseShape.num_samples phaseShape.data];
+                        [phaseId,found] = obj.shapeLibrary.find(data);
+                        if ~found
+                            obj.shapeLibrary.insert(phaseId,data);
+                        end
                         
-                        rf.data = [amplitude magId phaseId event.freqOffset event.phaseOffset];
-                        id = mr.Sequence.searchLibrary(obj.rfLibrary,rf);
-                        obj.rfLibrary(id) = rf;
+                        data = [amplitude magId phaseId event.freqOffset event.phaseOffset];
+                        [id,found] = obj.rfLibrary.find(data);
+                        if ~found
+                            obj.rfLibrary.insert(id,data);
+                        end
+                        
                         obj.blockEvents(index,2)=id;
                         duration=max(duration,length(mag)*mr.Sequence.RfRasterTime);
                     case 'grad'
@@ -169,35 +179,43 @@ classdef Sequence < handle
                         amplitude = max(abs(event.waveform));
                         g = event.waveform./amplitude;
                         shape = mr.compressShape(g);
-                        shapeId = mr.Sequence.searchLibrary(obj.shapeLibrary,shape);
-                        obj.shapeLibrary(shapeId) = shape;
-                        
-                        grad.data = [amplitude shapeId];
-                        grad.type = 'grad';
-                        id = mr.Sequence.searchLibrary(obj.gradLibrary,grad);
-                        obj.gradLibrary(id) = grad;
+                        data = [shape.num_samples shape.data];
+                        [shapeId,found] = obj.shapeLibrary.find(data);
+                        if ~found
+                            obj.shapeLibrary.insert(shapeId,data);
+                        end
+                        data = [amplitude shapeId];
+                        [id,found] = obj.gradLibrary.find(data);
+                        if ~found
+                            obj.gradLibrary.insert(id,data,'g');
+                        end
                         idx = 2+channelNum;
                         obj.blockEvents(index,idx)=id;
                         duration=max(duration,length(g)*mr.Sequence.GradRasterTime);
                     case 'trap'
                         channelNum = find(strcmp(event.channel,{'x','y','z'}));
-                        grad.data = [event.amplitude event.riseTime event.flatTime event.fallTime];
-                        grad.type = 'trap';
-                        id = mr.Sequence.searchLibrary(obj.gradLibrary,grad);
-                        obj.gradLibrary(id) = grad;
+                        data = [event.amplitude event.riseTime event.flatTime event.fallTime];
+                        [id,found] = obj.gradLibrary.find(data);
+                        if ~found
+                            obj.gradLibrary.insert(id,data,'t');
+                        end
                         idx = 2+channelNum;
                         obj.blockEvents(index,idx)=id;
                         duration=max(duration,event.riseTime+event.flatTime+event.fallTime);
                     case 'adc'
-                        adc.data = [event.numSamples event.dwell event.delay event.freqOffset event.phaseOffset];
-                        id = mr.Sequence.searchLibrary(obj.adcLibrary,adc);
-                        obj.adcLibrary(id) = adc;
+                        data = [event.numSamples event.dwell event.delay event.freqOffset event.phaseOffset];
+                        [id,found] = obj.adcLibrary.find(data);
+                        if ~found
+                            obj.adcLibrary.insert(id,data);
+                        end
                         obj.blockEvents(index,6)=id;
                         duration=max(duration,event.delay+event.numSamples*event.dwell);
                     case 'delay'
-                        delay.data = [event.delay];
-                        id = mr.Sequence.searchLibrary(obj.delayLibrary,delay);
-                        obj.delayLibrary(id) = delay;
+                        data = [event.delay];
+                        [id,found] = obj.delayLibrary.find(data);
+                        if ~found
+                            obj.delayLibrary.insert(id,data);
+                        end
                         obj.blockEvents(index,1)=id;
                         duration=max(duration,event.delay);
                 end
@@ -220,18 +238,24 @@ classdef Sequence < handle
             
             if eventInd(1)>0
                 delay.type = 'delay';
-                delay.delay = obj.delayLibrary(eventInd(1)).data;
+                delay.delay = obj.delayLibrary.data(eventInd(1)).array;
                 block.delay = delay;
             end
             if eventInd(2)>0
                 rf.type='rf';
-                libData = obj.rfLibrary(eventInd(2)).data;
+                libData = obj.rfLibrary.data(eventInd(2)).array;
                 
                 amplitude = libData(1);
                 magShape = libData(2);
                 phaseShape = libData(3);
-                mag = mr.decompressShape(obj.shapeLibrary(magShape));
-                phase = mr.decompressShape(obj.shapeLibrary(phaseShape));
+                shapeData = obj.shapeLibrary.data(magShape).array;
+                compressed.num_samples = shapeData(1);
+                compressed.data=shapeData(2:end);
+                mag = mr.decompressShape(compressed);
+                shapeData = obj.shapeLibrary.data(phaseShape).array;
+                compressed.num_samples = shapeData(1);
+                compressed.data=shapeData(2:end);
+                phase = mr.decompressShape(compressed);
                 rf.signal = amplitude*mag.*exp(1j*2*pi*phase);
                 rf.t = (1:length(mag))'*mr.Sequence.RfRasterTime;
                 
@@ -243,14 +267,21 @@ classdef Sequence < handle
             gradChannels = {'gx','gy','gz'};
             for i=1:length(gradChannels)
                 if eventInd(2+i)>0
-                    type = obj.gradLibrary(eventInd(2+i)).type;
-                    libData = obj.gradLibrary(eventInd(2+i)).data;
-                    grad.type = type;
-                    grad.channel = i;
-                    if strcmp(type,'grad')
+                    type = obj.gradLibrary.type(eventInd(2+i));
+                    libData = obj.gradLibrary.data(eventInd(2+i)).array;
+                    if type=='t'
+                        grad.type = 'trap';
+                    else
+                        grad.type = 'grad';
+                    end
+                    grad.channel = gradChannels{i}(2);
+                    if strcmp(grad.type,'grad')
                         amplitude = libData(1);
                         shapeId = libData(2);
-                        g = mr.decompressShape(obj.shapeLibrary(shapeId));
+                        shapeData = obj.shapeLibrary.data(shapeId).array;
+                        compressed.num_samples = shapeData(1);
+                        compressed.data=shapeData(2:end);
+                        g = mr.decompressShape(compressed);
                         grad.waveform = amplitude*g;
                         grad.t = (1:length(g))'*mr.Sequence.GradRasterTime;
                     else
@@ -266,7 +297,7 @@ classdef Sequence < handle
                 end
             end
             if eventInd(6)>0
-                libData = obj.adcLibrary(eventInd(6)).data;
+                libData = obj.adcLibrary.data(eventInd(6)).array;
                 adc = cell2struct(num2cell(libData),...
                     {'numSamples','dwell','delay','freqOffset','phaseOffset'},2);
                 adc.type='adc';
@@ -291,7 +322,6 @@ classdef Sequence < handle
             %
             %   f=plot(...) Return the new figure handle.
             %
-            
             validPlotTypes = {'Gradient','Kspace'};
             validTimeUnits = {'s','ms','us'};
             persistent parser
@@ -311,13 +341,14 @@ classdef Sequence < handle
             if nargout>0
                 f=fig;
             end
+            ax=zeros(1,6);
             for i=1:6
                 ax(i)=subplot(3,2,i);
             end
-            ax=ax([1 3 5 2 4 6]);
+            ax=ax([1 3 5 2 4 6]);   % Re-order axes
             arrayfun(@(x)hold(x,'on'),ax);
             arrayfun(@(x)grid(x,'on'),ax);
-            labels={'ADC','RF mag (Hz)','RF ph (rad)','Gx (Hz/m)','Gy (Hz/m)','Gz (Hz/m)'};
+            labels={'ADC','RF mag (Hz)','RF ph (rad)','Gx (kHz/m)','Gy (kHz/m)','Gz (kHz/m)'};
             arrayfun(@(x)ylabel(ax(x),labels{x}),1:6);
             
             tFactorList = [1 1e3 1e6];
@@ -326,8 +357,8 @@ classdef Sequence < handle
             xlabel(ax(6),['t (' opt.timeDisp ')']);
             
             t0=0;
-            for i=1:size(obj.blockEvents,1)
-                block = obj.getBlock(i);
+            for iB=1:size(obj.blockEvents,1)
+                block = obj.getBlock(iB);
                 isValid = t0>=opt.timeRange(1) && t0<=opt.timeRange(2);
                 if isValid
                     if ~isempty(block.adc)
@@ -347,10 +378,10 @@ classdef Sequence < handle
                         if ~isempty(block.(gradChannels{j}))
                             if strcmp(grad.type,'grad')
                                 t=grad.t;
-                                waveform=grad.waveform;
+                                waveform=1e-3*grad.waveform;
                             else
                                 t=cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);
-                                waveform=grad.amplitude*[0 1 1 0];
+                                waveform=1e-3*grad.amplitude*[0 1 1 0];
                             end
                             plot(tFactor*(t0+t),waveform,'Parent',ax(3+j));
                         end
@@ -359,49 +390,16 @@ classdef Sequence < handle
                 t0=t0+mr.calcDuration(block);
             end
             
-            
-            linkaxes(ax(:),'x')
+            % Set axis limits and zoom properties
             dispRange = tFactor*[opt.timeRange(1) min(opt.timeRange(2),t0)];
-            xlim(ax(1),dispRange);
-            
-            h = zoom;
+            arrayfun(@(x)xlim(x,dispRange),ax);
+            linkaxes(ax(:),'x')
+            h = zoom(fig);
             setAxesZoomMotion(h,ax(1),'horizontal');
         end
     end
     methods (Static)
-        
-        function id = searchLibrary(library,dataStruct)
-            %searchLibrary Lookup a data structure in the given library.
-            %   idx=searchLibrary(lib,data) Return the index of the data in
-            %   the library. If the data doesn't exist in the library then
-            %   the index for the next new entry is returned.
-            %
-            %   The dataStruct must have a field .data with numeric valued
-            %   array
-            %
-            %   See also  addBlock
-            
-            found=0;
-            keys=library.keys;
-            values=library.values;
-            for iL=1:length(keys)
-                %                 data=library(keys(iL)).data;
-                data=values{iL}.data;
-                if length(data)==length(dataStruct.data) && ...
-                        norm(data-dataStruct.data)<1e-6
-                    id=keys{iL};
-                    found=1;
-                    break;
-                end
-            end
-            if isempty(keys)
-                id=1;
-            elseif ~found
-                id=max(cell2mat(keys))+1;
-            end
-            
-        end
-        
+                
         function codes=getBinaryCodes()
             %getBinaryCodes Return binary codes for section headers in
             %   in a binary sequence file.

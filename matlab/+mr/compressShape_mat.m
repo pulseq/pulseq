@@ -12,7 +12,7 @@ function s=compressShape_mat(w)
 
 data = [w(1); diff(w(:))];
 
-maskChanges = [true; abs(diff(data))>1e-6];   % TRUE if values change
+maskChanges = [true; abs(diff(data))>1e-8];   % TRUE if values change
 vals = data(maskChanges);                     % Elements without repetitions
 k = find([maskChanges', true]);               % Indices of changes
 n = diff(k)';                                 % Number of repetitions
@@ -24,7 +24,7 @@ vals2(nExtra<0)=nan;
 nExtra(nExtra<0)=nan;
 v=[vals vals2 nExtra]';
 v=v(isfinite(v));
-
+v(abs(v)<1e-10)=0;
 s.num_samples = length(w);
 s.data = v.';
 

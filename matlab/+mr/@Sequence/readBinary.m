@@ -20,11 +20,11 @@ assert(version==binaryCodes.version,'Unsupported version %d',version)
 % Clear sequence data
 obj.blockEvents=[];
 obj.definitions=containers.Map();
-obj.gradLibrary=containers.Map('KeyType','double','ValueType','any');
-obj.shapeLibrary=containers.Map('KeyType','double','ValueType','any');
-obj.rfLibrary=containers.Map('KeyType','double','ValueType','any');
-obj.adcLibrary=containers.Map('KeyType','double','ValueType','any');
-obj.delayLibrary=containers.Map('KeyType','double','ValueType','any');
+obj.gradLibrary=mr.EventLibrary();
+obj.shapeLibrary=mr.EventLibrary();
+obj.rfLibrary=mr.EventLibrary();
+obj.adcLibrary=mr.EventLibrary();
+obj.delayLibrary=mr.EventLibrary();
 
 % Load data from file
 while true
@@ -43,10 +43,10 @@ while true
             obj.rfLibrary = readEvents(fid,format,1);
         case binaryCodes.section.gradients
             format = {'float64','int32'};
-            obj.gradLibrary = readEvents(fid,format,1,'grad',obj.gradLibrary);
+            obj.gradLibrary = readEvents(fid,format,1,'g',obj.gradLibrary);
         case binaryCodes.section.trapezoids
             format = {'float64','int64','int64','int64'};
-            obj.gradLibrary = readEvents(fid,format,[1 1e-6 1e-6 1e-6],'trap',obj.gradLibrary);
+            obj.gradLibrary = readEvents(fid,format,[1 1e-6 1e-6 1e-6],'t',obj.gradLibrary);
         case binaryCodes.section.adc
             format = {'int64','int64','int64','float64','float64'};
             obj.adcLibrary = readEvents(fid,format,[1 1e-9 1e-6 1 1]);
@@ -60,6 +60,7 @@ while true
     end
 end
 fclose(fid);
+
 
 return
 
@@ -109,22 +110,20 @@ return
 
     function eventLibrary = readEvents(fid,format,scale,type,eventLibrary)
         %readEvents Read an event section of a sequence file.
-        %   library=readEvents(fid) Read event data from file identifier of
-        %   an open MR sequence file and return a library of events.
+        %   library=readEvents(fid,fmt,scale) Read event data of given
+        %   format and scale elements according to column vector scale.
         %
-        %   library=readEvents(fid,scale) Read event data and scale
-        %   elements according to column vector scale.
-        %
-        %   library=readEvents(fid,scale,type) Attach the type string to
-        %   elements of the library.
+        %   library=readEvents(fid,fmt,scale,type) Attach the type string
+        %   to elements of the library.
         %
         %   library=readEvents(...,library) Append new events to the given
         %   library.
+        
         if nargin<3
             scale=1;
         end
         if nargin<5
-            eventLibrary=containers.Map('KeyType','double','ValueType','any');
+            eventLibrary=mr.EventLibrary();
         end
         numEvents = fread(fid,1,'int64');
         for i=1:numEvents
@@ -133,11 +132,12 @@ return
             for j=1:length(format)
                 data(j) = double(fread(fid,1,format{j}));
             end
-            event.data=scale.*data;
-            if nargin>3
-                event.type=type;
+            data=scale.*data;
+            if nargin<4
+                eventLibrary.insert(id,data);
+            else
+                eventLibrary.insert(id,data,type);
             end
-            eventLibrary(id)=event;
         end
     end
 
@@ -146,16 +146,15 @@ return
         %   library=readShapes(fid) Read shapes from file identifier of an
         %   open MR sequence file and return a library of shapes.
         
-        shapeLibrary=containers.Map('KeyType','double','ValueType','any');
+        shapeLibrary=mr.EventLibrary();
         numShapes = fread(fid,1,'int64');
         for i=1:numShapes
             id = double(fread(fid,1,'int32'));
             numUncompressed = double(fread(fid,1,'int64'));
             numCompressed = double(fread(fid,1,'int64'));
-            data = double(fread(fid,numCompressed,'float64'));
-            shape.num_samples = numUncompressed;
-            shape.data = data;
-            shapeLibrary(id) = shape;
+            data = double(fread(fid,numCompressed,'float64'))';
+            shapeData = [numUncompressed data];
+            shapeLibrary.insert(id,shapeData);
         end
     end
 

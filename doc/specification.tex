@@ -372,8 +372,10 @@ The number of points after decompressing all samples defined in a shape must equ
 
 \subsubsection{Compression}
 
-Storing every sample of the shape would lead to very large sequence descriptions. Suppose a sequence contains a block RF pulse for 4ms and a sinusoidally-ramped constant gradient for 100ms. Assuming sampling times of $1{\rm \mu s}$ and $10{\rm \mu s}$ for the RF and gradients, respectively, $14000$ samples would be required. Instead, the shapes are compressed by encoding the derivative in a run-length compressed format.
+Storing every sample of the shape would lead to very large sequence descriptions. Suppose a sequence contains a block RF pulse for 4ms and a sinusoidally-ramped constant gradient for 100ms. Assuming sampling times of $1{\rm \mu s}$ and $10{\rm \mu s}$ for the RF and gradients, respectively, $14000$ samples would be required. Instead, the shapes are compressed by \textbf{encoding the derivative in a run-length compressed} format. 
 
+\textbf{Example 1: } A shape consisting of a ramp-up, constant and ramp-down is encoded as follows
+\vspace{-1em}
 \begin{center}
 \begin{tabular}{rrrrr}
 \toprule
@@ -398,7 +400,35 @@ Shape & & Step 1 (derivative) && Step 2 (compression) \\
 \end{tabular}
 \end{center}
 
-A zero value for 100 samples is encoded as 0 0 98. A constant value of 1.0 for 100 samples is represented by: 1.0 0 0 97.
+\textbf{Example 2: } A shape with 100 zeros values
+\vspace{-1em}
+\begin{center}
+\begin{tabular}{rrrrr}
+\toprule
+Shape & & Step 1 (derivative) && Step 2 (compression) \\
+\midrule
+0.0 && 0.0 && 0 \\
+0.0 & $\rightarrow$ & 0.0 & $\rightarrow$ & 0 \\
+$\cdots$ &  & $\cdots$ &  & 98 \\
+0.0 && 0.0 &&  \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Example 3: } A shape with a constant value of 1.0 for 100 samples
+\vspace{-1em}
+\begin{center}
+\begin{tabular}{rrrrr}
+\toprule
+Shape & & Step 1 (derivative) && Step 2 (compression) \\
+\midrule
+1.0 && 1.0 && 1.0 \\
+1.0 & $\rightarrow$ & 0.0 & $\rightarrow$ & 0 \\
+$\cdots$ &  & $\cdots$  &  & 0 \\
+1.0 && 0.0 &&  97 \\
+\bottomrule
+\end{tabular}
+\end{center}
 
 \section{Binary files}
 The specification described in Section~\ref{sec:specification} can be implemented as a binary file. The same general principles apply with specific modifications outlined here. The basic structure of a binary \emph{pulseq} file is depicted below,

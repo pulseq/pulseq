@@ -15,8 +15,13 @@ try
     for i=1:length(seqFiles)
         file=seqFiles{i};
         
-        % Read file
-        seq.read(file);
+        try
+            % Read text file
+            seq.read(file);
+        catch
+            % Read binary file
+            seq.readBinary(file);
+        end
         
         % Loop over blocks and gather statistics
         numBlocks = size(seq.blockEvents,1);

@@ -37,29 +37,29 @@ for i=1:size(obj.blockEvents,1)
 end
 fprintf(fid,'\n');
 
-if ~isempty(obj.rfLibrary)
+if ~isempty(obj.rfLibrary.keys)
     fprintf(fid,'# Format of RF events:\n');
     fprintf(fid,'# id amplitude mag_id phase_id freq phase\n');
     fprintf(fid,'# ..        Hz   ....     ....   Hz   rad\n');
     fprintf(fid,'[RF]\n');
-    keys=cell2mat(obj.rfLibrary.keys);
+    keys=obj.rfLibrary.keys;
     for k=keys
-        fprintf(fid,'%d %12g %d %d %g %g\n',[k obj.rfLibrary(k).data]);
+        fprintf(fid,'%d %12g %d %d %g %g\n',[k obj.rfLibrary.data(k).array]);
     end
     fprintf(fid,'\n');
 end
 
-arbGradMask=cellfun(@(x)strcmp(x.type,'grad'), obj.gradLibrary.values);
-trapGradMask=cellfun(@(x)strcmp(x.type,'trap'), obj.gradLibrary.values);
+arbGradMask=obj.gradLibrary.type=='g';
+trapGradMask=obj.gradLibrary.type=='t';
 
 if any(arbGradMask)
     fprintf(fid,'# Format of arbitrary gradients:\n');
     fprintf(fid,'# id amplitude shape_id\n');
     fprintf(fid,'# ..      Hz/m     ....\n');
     fprintf(fid,'[GRADIENTS]\n');
-    keys=cell2mat(obj.gradLibrary.keys);
+    keys=obj.gradLibrary.keys;
     for k=keys(arbGradMask)
-        fprintf(fid,'%d %12g %d \n',[k obj.gradLibrary(k).data]);
+        fprintf(fid,'%d %12g %d \n',[k obj.gradLibrary.data(k).array]);
     end
     fprintf(fid,'\n');
 end
@@ -69,49 +69,49 @@ if any(trapGradMask)
     fprintf(fid,'# id amplitude rise flat fall\n');
     fprintf(fid,'# ..      Hz/m   us   us   us\n');
     fprintf(fid,'[TRAP]\n');
-    keys=cell2mat(obj.gradLibrary.keys);
+    keys=obj.gradLibrary.keys;
     for k=keys(trapGradMask)
-        data=obj.gradLibrary(k).data;
+        data=obj.gradLibrary.data(k).array;
         data(2:end)=round(1e6*data(2:end));
         fprintf(fid,'%2d %12g %3d %4d %3d\n',[k data]);
     end
     fprintf(fid,'\n');
 end
 
-if ~isempty(obj.adcLibrary)
+if ~isempty(obj.adcLibrary.keys)
     fprintf(fid,'# Format of ADC events:\n');
     fprintf(fid,'# id num dwell delay freq phase\n');
     fprintf(fid,'# ..  ..    ns    us   Hz   rad\n');
     fprintf(fid,'[ADC]\n');
-    keys=cell2mat(obj.adcLibrary.keys);
+    keys=obj.adcLibrary.keys;
     for k=keys
-        data=obj.adcLibrary(k).data.*[1 1e9 1e6 1 1];
+        data=obj.adcLibrary.data(k).array.*[1 1e9 1e6 1 1];
         fprintf(fid,'%2d %3d %6d %3d %g %g\n',[k data]);
     end
     fprintf(fid,'\n');
 end
 
-if ~isempty(obj.delayLibrary)
+if ~isempty(obj.delayLibrary.keys)
     fprintf(fid,'# Format of delays:\n');
     fprintf(fid,'# id delay (us)\n');
     fprintf(fid,'[DELAYS]\n');
-    keys=cell2mat(obj.delayLibrary.keys);
+    keys=obj.delayLibrary.keys;
     for k=keys
-        fprintf(fid,'%d %d\n',[k round(1e6*obj.delayLibrary(k).data)]);
+        fprintf(fid,'%d %d\n',[k round(1e6*obj.delayLibrary.data(k).array)]);
     end
     fprintf(fid,'\n');
 end
 
 
-if ~isempty(obj.shapeLibrary)
+if ~isempty(obj.shapeLibrary.keys)
     fprintf(fid,'# Sequence Shapes\n');
     fprintf(fid,'[SHAPES]\n\n');
-    keys=cell2mat(obj.shapeLibrary.keys);
+    keys=obj.shapeLibrary.keys;
     for k=keys
-        shape = obj.shapeLibrary(k);
+        shape_dat = obj.shapeLibrary.data(k).array;
         fprintf(fid,'shape_id %d\n',k);
-        fprintf(fid,'num_samples %d\n',shape.num_samples);
-        fprintf(fid,'%g\n',shape.data);
+        fprintf(fid,'num_samples %d\n',shape_dat(1));
+        fprintf(fid,'%g\n',shape_dat(2:end));
         fprintf(fid,'\n');
     end
 end
