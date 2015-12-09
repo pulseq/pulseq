@@ -69,4 +69,18 @@ if nargout>1
     rf.t = [tFill rf.t+tFill(end) ];
     rf.signal=[zeros(size(tFill)), rf.signal];
 end
+
+function y=sinc(x)
+    % sinc Calculate the sinc function:
+    %   sinc(x) = sin(pi*x)/(pi*x)
+    %
+    % This is a useful helper function for those without the signal processing
+    % toolbox 
+    
+    i=find(x==0);                                                              
+    x(i)= 1;
+    y = sin(pi*x)./(pi*x);                                                     
+    y(i) = 1;   
+end
+
 end
