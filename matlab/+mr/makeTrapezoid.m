@@ -65,7 +65,7 @@ if opt.flatTime>0
         amplitude = opt.flatArea/opt.flatTime;
     end
     if isempty(riseTime)
-        riseTime = amplitude/maxSlew;
+        riseTime = abs(amplitude)/maxSlew;
         riseTime = ceil(riseTime/mr.Sequence.GradRasterTime)*mr.Sequence.GradRasterTime;
     end
     fallTime = riseTime;
