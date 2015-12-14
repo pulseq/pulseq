@@ -21,7 +21,7 @@ if isempty(parser)
     
     % RF params
     addRequired(parser,'flipAngle',@isnumeric);
-    addOptional(parser,'gradOpts',mr.opts(),@isstruct); % for slice grad
+    addOptional(parser,'system',mr.opts(),@isstruct);
     addParamValue(parser,'duration',0,@isnumeric);
     addParamValue(parser,'freqOffset',0,@isnumeric);
     addParamValue(parser,'phaseOffset',0,@isnumeric);
@@ -38,11 +38,11 @@ opt = parser.Results;
 BW=opt.timeBwProduct/opt.duration;
 alpha=opt.apodization;
 N=round(opt.duration/1e-6);
-t = (1:N)*mr.Sequence.RfRasterTime;
+t = (1:N)*opt.system.rfRasterTime;
 tt = t - opt.duration/2;
 window = (1.0-alpha+alpha*cos(2*pi*tt/opt.duration));
 signal = window.*sinc(BW*tt);
-flip=sum(signal)*mr.Sequence.RfRasterTime*2*pi;
+flip=sum(signal)*opt.system.rfRasterTime*2*pi;
 signal=signal*opt.flipAngle/flip;
 
 rf.type = 'rf';
@@ -50,25 +50,37 @@ rf.signal = signal;
 rf.t = t;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
+rf.deadTime = opt.system.rfDeadTime;
 
+fillTime=0;
 if nargout>1
     assert(opt.sliceThickness>0,'SliceThickness must be provided');
     if opt.maxGrad>0
-        opt.gradOpts.maxGrad = opt.maxGrad;
+        opt.system.maxGrad = opt.maxGrad;
     end
     if opt.maxSlew>0
-        opt.gradOpts.maxSlew = opt.maxSlew;
+        opt.system.maxSlew = opt.maxSlew;
     end
     
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
-    gz = mr.makeTrapezoid('z',opt.gradOpts,'flatTime',opt.duration,'flatArea',area);
+    gz = mr.makeTrapezoid('z',opt.system,'flatTime',opt.duration,'flatArea',area);
     
     % Pad RF pulse with zeros during gradient ramp up
-    tFill = (1:round(gz.riseTime/1e-6))*1e-6;   % Round to microsecond
+    fillTime=gz.riseTime;
+    tFill = (1:round(fillTime/1e-6))*1e-6;   % Round to microsecond
     rf.t = [tFill rf.t+tFill(end) ];
     rf.signal=[zeros(size(tFill)), rf.signal];
 end
+
+% Add dead time to start of pulse, if required
+if fillTime<rf.deadTime
+    fillTime=rf.deadTime-fillTime;
+    tFill = (1:round(fillTime/1e-6))*1e-6;   % Round to microsecond
+    rf.t = [tFill rf.t+tFill(end) ];
+    rf.signal=[zeros(size(tFill)), rf.signal];
+end
+    
 
 function y=sinc(x)
     % sinc Calculate the sinc function:

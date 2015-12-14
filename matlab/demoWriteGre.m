@@ -15,16 +15,17 @@
 % scanner.
 % 
 
-%%% Instantiation and gradient limits
-% A new sequence object is created by calling the class constructor.
-seq=mr.Sequence();
-
-%%%
-% The gradient limits can be specified in various units _mT/m_, _Hz/cm_, or
-% _Hz/m_. However the limits will be stored internally in units of _Hz/m_
-% for amplitude and _Hz/m/s_ for slew.
-gradLims = mr.opts('MaxGrad',30,'GradUnit','mT/m',...
+%% Instantiation and gradient limits
+% The system gradient limits can be specified in various units _mT/m_,
+% _Hz/cm_, or _Hz/m_. However the limits will be stored internally in units
+% of _Hz/m_ for amplitude and _Hz/m/s_ for slew. Unspecificied hardware
+% parameters will be assigned default values.
+system = mr.opts('MaxGrad',30,'GradUnit','mT/m',...
     'MaxSlew',170,'SlewUnit','T/m/s')
+
+%%
+% A new sequence object is created by calling the class constructor.
+seq=mr.Sequence(system);
 
 
 %% Sequence events
@@ -44,7 +45,7 @@ sliceThickness=5e-3;
 % be generated using the |makeSincPulse| function.
 %
 flip=15*pi/180;
-[rf, gz] = mr.makeSincPulse(flip,gradLims,'Duration',4e-3,...
+[rf, gz] = mr.makeSincPulse(flip,system,'Duration',4e-3,...
     'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4);
 
 figure
@@ -61,7 +62,7 @@ plot(rf.t,real(rf.signal))
 deltak=1/fov;
 kWidth = Nx*deltak;
 readoutTime = 6.4e-3;
-gx = mr.makeTrapezoid('x',gradLims,'FlatArea',kWidth,'FlatTime',readoutTime);
+gx = mr.makeTrapezoid('x',system,'FlatArea',kWidth,'FlatTime',readoutTime);
 
 adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime);
 
@@ -69,8 +70,8 @@ adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime);
 % To move the $k$-space trajectory away from 0 prior to the readout a
 % prephasing gradient must be used. Furthermore rephasing of the slice
 % select gradient is required.
-gxPre = mr.makeTrapezoid('x',gradLims,'Area',-gx.area/2,'Duration',2e-3);
-gzReph = mr.makeTrapezoid('z',gradLims,'Area',-gz.area/2,'Duration',2e-3);
+gxPre = mr.makeTrapezoid('x',system,'Area',-gx.area/2,'Duration',2e-3);
+gzReph = mr.makeTrapezoid('z',system,'Area',-gz.area/2,'Duration',2e-3);
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
 
 %%% Calculate timing
@@ -86,7 +87,7 @@ delay2 = mr.makeDelay(delayTR);
 
 for i=1:Ny
     seq.addBlock(rf,gz);
-    gyPre = mr.makeTrapezoid('y',gradLims,'Area',phaseAreas(i),'Duration',2e-3);
+    gyPre = mr.makeTrapezoid('y',system,'Area',phaseAreas(i),'Duration',2e-3);
     seq.addBlock(gxPre,gyPre,gzReph);
     seq.addBlock(delay1);
     seq.addBlock(gx,adc);

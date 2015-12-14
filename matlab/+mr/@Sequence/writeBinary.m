@@ -81,7 +81,7 @@ if ~isempty(obj.adcLibrary.keys)
     fwrite(fid,binaryCodes.section.adc,'int64');
     fwrite(fid,length(keys),'int64');
     for k=keys
-        data=obj.adcLibrary.data(k).array.*[1 1e9 1e6 1 1];
+        data=obj.adcLibrary.data(k).array(1:5).*[1 1e9 1e6 1 1];
         fwrite(fid,k,'int32');
         fwrite(fid,data(1:3),'int64');      % number, dwell, delay
         fwrite(fid,data(4:5),'float64');    % freq, phase offset

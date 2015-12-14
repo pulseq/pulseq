@@ -80,7 +80,7 @@ window = (1.0-alpha+alpha*cos(2*pi*t/duration));    % Hamming window
 signal = window.*sinc(BW*t);
 
 % Normalise area to achieve 2*pi rotation
-signal=signal./(mr.Sequence.RfRasterTime*sum(real(signal)));
+signal=signal./(seq.rfRasterTime*sum(real(signal)));
 
 % Scale to 45 degree flip angle
 rf2.signal=signal.*45/360;

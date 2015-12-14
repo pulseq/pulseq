@@ -22,7 +22,7 @@ if isempty(parser)
     
     % RF params
     addRequired(parser,'flipAngle',@isnumeric);
-    addOptional(parser,'gradOpts',mr.opts(),@isstruct); % for slice grad
+    addOptional(parser,'system',mr.opts(),@isstruct); % for slice grad
     addParamValue(parser,'duration',0,@isnumeric);
     addParamValue(parser,'freqOffset',0,@isnumeric);
     addParamValue(parser,'phaseOffset',0,@isnumeric);
@@ -48,7 +48,7 @@ end
 
 BW = 1/(4*opt.duration);
 N=round(opt.duration/1e-6);
-t = (1:N)*mr.Sequence.RfRasterTime;
+t = (1:N)*opt.system.rfRasterTime;
 signal=opt.flipAngle/(2*pi)/opt.duration*ones(size(t));
 
 rf.type = 'rf';
@@ -56,22 +56,34 @@ rf.signal = signal;
 rf.t = t;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
+rf.deadTime = opt.system.rfDeadTime;
 
+fillTime=0;
 if nargout>1
     assert(opt.sliceThickness>0,'SliceThickness must be provided');
     if opt.maxGrad>0
-        opt.gradOpts.maxGrad = opt.maxGrad;
+        opt.system.maxGrad = opt.maxGrad;
     end
     if opt.maxSlew>0
-        opt.gradOpts.maxSlew = opt.maxSlew;
+        opt.system.maxSlew = opt.maxSlew;
     end
     
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
-    gz = mr.makeTrapezoid('z',opt.gradOpts,'flatTime',opt.duration,'flatArea',area);
+    gz = mr.makeTrapezoid('z',opt.system,'flatTime',opt.duration,'flatArea',area);
     
-    tFill = (1:round(gz.riseTime/1e-6))*1e-6;   % Round to microsecond
+    fillTime=gz.riseTime;
+    tFill = (1:round(fillTime/1e-6))*1e-6;   % Round to microsecond
     rf.t = [tFill rf.t+tFill(end) tFill+rf.t(end)+tFill(end)];
     rf.signal=[zeros(size(tFill)), rf.signal, zeros(size(tFill))];
 end
+
+% Add dead time to start of pulse, if required
+if fillTime<rf.deadTime
+    fillTime=rf.deadTime-fillTime;
+    tFill = (1:round(fillTime/1e-6))*1e-6;   % Round to microsecond
+    rf.t = [tFill rf.t+tFill(end) ];
+    rf.signal=[zeros(size(tFill)), rf.signal];
+end
+
 end

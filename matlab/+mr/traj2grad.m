@@ -14,7 +14,8 @@ if isempty(parser)
     parser = inputParser;
     parser.FunctionName = 'traj2grad';
     parser.addRequired('k',@isnumeric);
-    parser.addParamValue('RasterTime',mr.Sequence.GradRasterTime,@isnumeric);
+    system=mr.opts();
+    parser.addParamValue('RasterTime',system.gradRasterTime,@isnumeric);
 end
 parse(parser,k,varargin{:});
 opt = parser.Results;

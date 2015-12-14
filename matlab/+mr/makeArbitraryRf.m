@@ -20,6 +20,7 @@ if isempty(parser)
     % RF params
     addRequired(parser,'signal',@isnumeric);
     addRequired(parser,'flipAngle',@isnumeric);
+    addOptional(parser,'system',mr.opts(),@isstruct);
     addParamValue(parser,'freqOffset',0,@isnumeric);
     addParamValue(parser,'phaseOffset',0,@isnumeric);
     addParamValue(parser,'timeBwProduct',0,@isnumeric);
@@ -27,31 +28,32 @@ if isempty(parser)
     % Slice params
     addParamValue(parser,'maxGrad',0,@isnumeric);
     addParamValue(parser,'maxSlew',0,@isnumeric);
-    parser.addOptional('gradOpts',mr.opts(),@isstruct);
     addParamValue(parser,'sliceThickness',0,@isnumeric);
 end
 parse(parser,signal,flip,varargin{:});
 opt = parser.Results;
 
-signal = signal./sum(signal.*mr.Sequence.RfRasterTime)*flip/(2*pi);
+signal = signal./sum(signal.*opt.system.rfRasterTime)*flip/(2*pi);
 
 N=length(signal);
-duration = N*mr.Sequence.RfRasterTime;
-t = (1:N)*mr.Sequence.RfRasterTime;
+duration = N*opt.system.rfRasterTime;
+t = (1:N)*opt.system.rfRasterTime;
 
 rf.type = 'rf';
 rf.signal = signal;
 rf.t = t;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
+rf.deadTime = opt.system.rfDeadTime;
 
 if nargout>1
     assert(opt.sliceThickness>0,'SliceThickness must be provided');
+    assert(opt.bandwidth>0,'Bandwdith of pulse must be provided');
     if opt.maxGrad>0
-        opt.gradOpts.maxGrad = opt.maxGrad;
+        opt.system.maxGrad = opt.maxGrad;
     end
     if opt.maxSlew>0
-        opt.gradOpts.maxSlew = opt.maxSlew;
+        opt.system.maxSlew = opt.maxSlew;
     end
     
     BW=opt.bandwidth;
@@ -61,7 +63,7 @@ if nargout>1
 
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
-    gz = mr.makeTrapezoid('z','flatTime',opt.duration,'flatArea',area,opt.gradOpts);
+    gz = mr.makeTrapezoid('z',opt.system,'flatTime',opt.duration,'flatArea',area);
     
     tFill = (1:round(gz.riseTime/1e-6))*1e-6;   % Round to microsecond
     rf.t = [tFill rf.t+tFill(end) tFill+rf.t(end)+tFill(end)];

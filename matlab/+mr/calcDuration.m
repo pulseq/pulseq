@@ -15,10 +15,12 @@ for i=1:length(varargin)
     switch event.type
         case 'delay'
             duration=max(duration,event.delay);
-        case {'rf','grad'}
+        case 'rf'
+            duration=max(duration,event.t(end)+event.deadTime);
+        case 'grad'
             duration=max(duration,event.t(end));
         case 'adc'
-            adcTime = event.delay + event.numSamples*event.dwell;
+            adcTime = event.delay + event.numSamples*event.dwell + event.deadTime;
             duration=max(duration,adcTime);
         case 'trap'
             duration=max(duration,event.riseTime+event.flatTime+event.fallTime);

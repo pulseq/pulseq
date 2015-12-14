@@ -27,7 +27,7 @@ if isempty(parser)
     parser.FunctionName = 'makeTrapezoid';
     parser.addRequired('channel',...
         @(x) any(validatestring(x,validChannels)));
-    parser.addOptional('gradOpts',mr.opts(),@isstruct);
+    parser.addOptional('system',mr.opts(),@isstruct);
     parser.addParamValue('duration',0,@(x)(isnumeric(x) && x>0));
     parser.addParamValue('area',0,@isnumeric);
     parser.addParamValue('flatTime',[],@isnumeric);
@@ -41,9 +41,9 @@ end
 parse(parser,channel,varargin{:});
 opt = parser.Results;
 
-maxSlew=opt.gradOpts.maxSlew;
-riseTime=opt.gradOpts.riseTime;
-maxGrad=opt.gradOpts.maxGrad;
+maxSlew=opt.system.maxSlew;
+riseTime=opt.system.riseTime;
+maxGrad=opt.system.maxGrad;
 
 if opt.maxGrad>0
     maxGrad=opt.maxGrad;
@@ -66,7 +66,7 @@ if opt.flatTime>0
     end
     if isempty(riseTime)
         riseTime = abs(amplitude)/maxSlew;
-        riseTime = ceil(riseTime/mr.Sequence.GradRasterTime)*mr.Sequence.GradRasterTime;
+        riseTime = ceil(riseTime/opt.system.gradRasterTime)*opt.system.gradRasterTime;
     end
     fallTime = riseTime;
     flatTime = opt.flatTime;
@@ -86,7 +86,7 @@ elseif opt.duration>0
             
     end
     if isempty(riseTime)
-        riseTime = ceil(amplitude/maxSlew/mr.Sequence.GradRasterTime)*mr.Sequence.GradRasterTime;
+        riseTime = ceil(amplitude/maxSlew/opt.system.gradRasterTime)*opt.system.gradRasterTime;
     end
     fallTime = riseTime;
     flatTime = opt.duration-riseTime-fallTime;

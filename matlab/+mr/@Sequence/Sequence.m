@@ -29,15 +29,12 @@ classdef Sequence < handle
     % Examples defining an MRI sequence and reading/writing files
     %
     % Kelvin Layton <kelvin.layton@uniklinik-freiburg.de>
-    
-    properties(Constant)
-        RfRasterTime = 1e-6;
-        GradRasterTime = 10e-6;
-    end
-    
+
     % Private properties
     %
     properties(GetAccess = public, SetAccess = private)
+        rfRasterTime;   % RF raster time (system dependent)
+        gradRasterTime; % Gradient raster time (system dependent)
         definitions     % Optional sequence definitions
         
         blockEvents;    % Event table (references to events)
@@ -50,13 +47,21 @@ classdef Sequence < handle
     
     methods
         
-        function obj = Sequence()
+        function obj = Sequence(varargin)
             obj.definitions=containers.Map();
             obj.gradLibrary=mr.EventLibrary();
             obj.shapeLibrary=mr.EventLibrary();
             obj.rfLibrary=mr.EventLibrary();
             obj.adcLibrary=mr.EventLibrary();
             obj.delayLibrary=mr.EventLibrary();
+            
+            if nargin<1
+                sys=mr.opts();
+            else
+                sys=varargin{1};
+            end
+            obj.rfRasterTime = sys.rfRasterTime;
+            obj.gradRasterTime = sys.gradRasterTime;
         end
         
         
@@ -166,14 +171,14 @@ classdef Sequence < handle
                             obj.shapeLibrary.insert(phaseId,data);
                         end
                         
-                        data = [amplitude magId phaseId event.freqOffset event.phaseOffset];
+                        data = [amplitude magId phaseId event.freqOffset event.phaseOffset event.deadTime];
                         [id,found] = obj.rfLibrary.find(data);
                         if ~found
                             obj.rfLibrary.insert(id,data);
                         end
                         
                         obj.blockEvents(index,2)=id;
-                        duration=max(duration,length(mag)*mr.Sequence.RfRasterTime);
+                        duration=max(duration,length(mag)*obj.rfRasterTime+event.deadTime);
                     case 'grad'
                         channelNum = find(strcmp(event.channel,{'x','y','z'}));
                         amplitude = max(abs(event.waveform));
@@ -191,7 +196,7 @@ classdef Sequence < handle
                         end
                         idx = 2+channelNum;
                         obj.blockEvents(index,idx)=id;
-                        duration=max(duration,length(g)*mr.Sequence.GradRasterTime);
+                        duration=max(duration,length(g)*obj.gradRasterTime);
                     case 'trap'
                         channelNum = find(strcmp(event.channel,{'x','y','z'}));
                         data = [event.amplitude event.riseTime event.flatTime event.fallTime];
@@ -203,13 +208,14 @@ classdef Sequence < handle
                         obj.blockEvents(index,idx)=id;
                         duration=max(duration,event.riseTime+event.flatTime+event.fallTime);
                     case 'adc'
-                        data = [event.numSamples event.dwell event.delay event.freqOffset event.phaseOffset];
+                        data = [event.numSamples event.dwell event.delay ...
+                            event.freqOffset event.phaseOffset event.deadTime];
                         [id,found] = obj.adcLibrary.find(data);
                         if ~found
                             obj.adcLibrary.insert(id,data);
                         end
                         obj.blockEvents(index,6)=id;
-                        duration=max(duration,event.delay+event.numSamples*event.dwell);
+                        duration=max(duration,event.delay+event.numSamples*event.dwell+event.deadTime);
                     case 'delay'
                         data = [event.delay];
                         [id,found] = obj.delayLibrary.find(data);
@@ -257,10 +263,14 @@ classdef Sequence < handle
                 compressed.data=shapeData(2:end);
                 phase = mr.decompressShape(compressed);
                 rf.signal = amplitude*mag.*exp(1j*2*pi*phase);
-                rf.t = (1:length(mag))'*mr.Sequence.RfRasterTime;
+                rf.t = (1:length(mag))'*obj.rfRasterTime;
                 
                 rf.freqOffset = libData(4);
                 rf.phaseOffset = libData(5);
+                if length(libData)<6
+                    libData(end+1)=0;
+                end
+                rf.deadTime = libData(6);
                 
                 block.rf = rf;
             end
@@ -283,7 +293,7 @@ classdef Sequence < handle
                         compressed.data=shapeData(2:end);
                         g = mr.decompressShape(compressed);
                         grad.waveform = amplitude*g;
-                        grad.t = (1:length(g))'*mr.Sequence.GradRasterTime;
+                        grad.t = (1:length(g))'*obj.gradRasterTime;
                     else
                         grad.amplitude = libData(1);
                         grad.riseTime = libData(2);
@@ -298,8 +308,11 @@ classdef Sequence < handle
             end
             if eventInd(6)>0
                 libData = obj.adcLibrary.data(eventInd(6)).array;
+                if length(libData)<6
+                    libData(end+1)=0;
+                end
                 adc = cell2struct(num2cell(libData),...
-                    {'numSamples','dwell','delay','freqOffset','phaseOffset'},2);
+                    {'numSamples','dwell','delay','freqOffset','phaseOffset','deadTime'},2);
                 adc.type='adc';
                 block.adc = adc;
             end
@@ -397,6 +410,7 @@ classdef Sequence < handle
             h = zoom(fig);
             setAxesZoomMotion(h,ax(1),'horizontal');
         end
+        
     end
     methods (Static)
                 

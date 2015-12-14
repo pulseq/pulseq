@@ -44,7 +44,8 @@ if ~isempty(obj.rfLibrary.keys)
     fprintf(fid,'[RF]\n');
     keys=obj.rfLibrary.keys;
     for k=keys
-        fprintf(fid,'%d %12g %d %d %g %g\n',[k obj.rfLibrary.data(k).array]);
+        libData=obj.rfLibrary.data(k).array(1:5);
+        fprintf(fid,'%d %12g %d %d %g %g\n',[k libData]);
     end
     fprintf(fid,'\n');
 end
@@ -85,7 +86,7 @@ if ~isempty(obj.adcLibrary.keys)
     fprintf(fid,'[ADC]\n');
     keys=obj.adcLibrary.keys;
     for k=keys
-        data=obj.adcLibrary.data(k).array.*[1 1e9 1e6 1 1];
+        data=obj.adcLibrary.data(k).array(1:5).*[1 1e9 1e6 1 1];
         fprintf(fid,'%2d %3d %6d %3d %g %g\n',[k data]);
     end
     fprintf(fid,'\n');

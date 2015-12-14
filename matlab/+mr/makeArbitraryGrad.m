@@ -17,7 +17,7 @@ if isempty(parser)
     parser.addRequired('channel',...
         @(x) any(validatestring(x,validChannels)));
     parser.addRequired('waveform');
-    parser.addOptional('gradOpts',mr.opts(),@isstruct);
+    parser.addOptional('system',mr.opts(),@isstruct);
     parser.addParamValue('maxGrad',0,@isnumeric);
     parser.addParamValue('maxSlew',0,@isnumeric);
     
@@ -25,8 +25,8 @@ end
 parse(parser,channel,varargin{:});
 opt = parser.Results;
 
-maxSlew=opt.gradOpts.maxSlew;
-maxGrad=opt.gradOpts.maxGrad; % TODO: use this when no duration is supplied
+maxSlew=opt.system.maxSlew;
+maxGrad=opt.system.maxGrad; % TODO: use this when no duration is supplied
 if opt.maxGrad>0
     maxGrad=opt.maxGrad;
 end
@@ -35,13 +35,13 @@ if opt.maxSlew>0
 end
 
 g=opt.waveform;
-slew=(g(2:end)-g(1:end-1))./mr.Sequence.GradRasterTime;
+slew=(g(2:end)-g(1:end-1))./opt.system.gradRasterTime;
 assert(max(abs(slew))<maxSlew,'Slew rate violation (%.0f%%)',max(abs(slew))/maxSlew*100);
 assert(max(abs(g))<maxGrad,'Gradient amplitude violation (%.0f%%)',max(abs(g))/maxGrad*100);
 
 grad.type = 'grad';
 grad.channel = opt.channel;
 grad.waveform = g;
-grad.t = (0:length(g)-1)*mr.Sequence.GradRasterTime;
+grad.t = (0:length(g)-1)*opt.system.gradRasterTime;
 
 end

@@ -8,12 +8,12 @@ T=8e-3;                 % Pulse duration
 
 % Define spiral k-space trajectory
 kMax=(2*n)/foe/2;       % Units of 1/m (not rad/m)
-tk=0:mr.Sequence.GradRasterTime:T-mr.Sequence.GradRasterTime;
+tk=0:seq.gradRasterTime:T-seq.gradRasterTime;
 kx=kMax*(1-tk/T).*cos(2*pi*n*tk/T);
 ky=kMax*(1-tk/T).*sin(2*pi*n*tk/T);
 
 % Define RF pulse
-tr=0:mr.Sequence.RfRasterTime:T-mr.Sequence.RfRasterTime;
+tr=0:seq.rfRasterTime:T-seq.rfRasterTime;
 kxRf=interp1(tk,kx,tr,'linear','extrap');
 kyRf=interp1(tk,ky,tr,'linear','extrap');
 beta=2*pi*kMax*targetWidth/2/sqrt(2);  % Gaussian width in k-space

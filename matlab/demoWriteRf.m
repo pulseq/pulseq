@@ -32,7 +32,7 @@ T=8e-3;                         % Pulse duration
 % field-of-excitation and number of spiral turns defines the maximum
 % k-space extent. 
 kMax=(2*n)/foe/2;               % Units of 1/m (not rad/m)
-tk=0:mr.Sequence.GradRasterTime:T-mr.Sequence.GradRasterTime;
+tk=0:seq.gradRasterTime:T-seq.gradRasterTime;
 kx=kMax*(1-tk/T).*cos(2*pi*n*tk/T);
 ky=kMax*(1-tk/T).*sin(2*pi*n*tk/T);
 
@@ -53,13 +53,13 @@ xlabel('k_x (1/m)'); ylabel('k_y (1/m)');
 %
 % $$\beta=\frac{2\pi K_{\rm max} \sigma}{2\sqrt{2}}$$
 %
-tr=0:mr.Sequence.RfRasterTime:T-mr.Sequence.RfRasterTime;
+tr=0:seq.rfRasterTime:T-seq.rfRasterTime;
 kxRf=interp1(tk,kx,tr,'linear','extrap');
 kyRf=interp1(tk,ky,tr,'linear','extrap');
 beta=2*pi*kMax*targetWidth/2/sqrt(2);  % Gaussian width in k-space
 signal0 = exp(-beta.^2.*(1-tr/T).^2).*sqrt((2*pi*n*(1-tr/T)).^2+1);
 
-%%%
+%%
 % Two RF waveforms are superimposed to excite a replica pattern offset 5cm
 % in x and y directions. The shifted pattern is achieved with modulation by
 % a complex exponential.
@@ -68,7 +68,7 @@ signal = signal0.*(1 + exp(-1j.*2*pi*5e-2*(kxRf + kyRf)));
 plot(1e3*tr,real(signal),1e3*tr,imag(signal));
 xlabel('t (ms)'); ylabel('Signal (Hz)');
 
-%%%
+%%
 % Add gradient ramps to achieve the starting gradient value and moment
 % (first k-space point) and likewise ramp the gradients to zero afterwards.
 % The RF pulse is also padded with zeros during the ramp times.
@@ -94,7 +94,7 @@ adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime);
 gxPre = mr.makeTrapezoid('x','Area',-gx.area/2,'Duration',2e-3);
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
 
-%%% Refocusing pulse and spoiling gradients. 
+%%% Refocusing pulse and spoiling gradients
 % The refocusing pulse selects a single slice through the excited volume.
 [rf180, gz] = mr.makeBlockPulse(pi,'Duration',1e-3,'SliceThickness',5e-3);
 gzSpoil = mr.makeTrapezoid('z','Area',gx.area,'Duration',2e-3);

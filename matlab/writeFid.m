@@ -1,6 +1,7 @@
 seq=mr.Sequence();              % Create a new sequence object
 Nx=256;
 Nrep=1;
+
 % Create non-selective pulse 
 rf = mr.makeBlockPulse(pi/2,'Duration',0.1e-3);
 
