@@ -13,7 +13,8 @@ function read(obj,filename)
 fid=fopen(filename);
 
 % Clear sequence data
-obj.blockEvents=[];
+%obj.blockEvents=[];
+obj.blockEvents={};
 obj.definitions=containers.Map();
 obj.gradLibrary=mr.EventLibrary();
 obj.shapeLibrary=mr.EventLibrary();
@@ -31,6 +32,22 @@ while true
     switch section
         case '[DEFINITIONS]'
             obj.definitions = readDefinitions(fid);
+        case '[VERSION]'
+%             obj.definitions = readDefinitions(fid); % MZ: I guess this should be OK
+                                                      % SK: Nope. Overwrites definitions.
+            % SK: This works:
+            [version_major, ...
+             version_minor, ...
+             version_revision] = readVersion(fid);
+            assert(version_major==obj.version_major, ...
+                'Unsupported version_major %d', version_major)
+            assert(version_minor==obj.version_minor, ...
+                'Unsupported version_minor %d', version_minor)
+            assert(version_revision==obj.version_revision, ...
+                'Unsupported version_revision %d', version_revision)
+            obj.version_major = version_major;
+            obj.version_minor = version_minor;
+            obj.version_revision = version_revision;
         case '[BLOCKS]'
             obj.blockEvents = readBlocks(fid);
         case '[RF]'
@@ -70,6 +87,29 @@ return
             def(tok{1}{1})=str2double(tok{1}(2:end));
             line=fgetl(fid);
         end
+    end    
+
+    function [major, minor, revision] = readVersion(fid)
+        %readVersion Read the [VERSION] section of a sequence file.
+        %   defs=readVersion(fid) Read Pulseq version from file
+        %   identifier of an open MR sequence file and return it
+        
+        major = [];
+        minor = [];
+        revision = [];
+        line = fgetl(fid);
+        while ischar(line) && ~(isempty(line) || line(1)=='#')
+            tok = textscan(line,'%s');
+            switch tok{1}{1}
+                case 'major'
+                    major = str2double(tok{1}(2:end));
+                case 'minor'
+                    minor = str2double(tok{1}(2:end));
+                case 'revision'
+                    revision = str2double(tok{1}(2:end));
+            end
+            line=fgetl(fid);
+        end
     end
 
     function eventTable = readBlocks(fid)
@@ -77,11 +117,12 @@ return
         %   library=readBlocks(fid) Read blocks from file identifier of an
         %   open MR sequence file and return the event table.
         
-        eventTable=[];
+        eventTable={};
         line = fgetl(fid);
         while ischar(line) && ~(isempty(line) || line(1)=='#')
             blockEvents=sscanf(line,'%f')';
-            eventTable=[eventTable; blockEvents(2:end)];
+            %eventTable=[eventTable; blockEvents(2:end)];
+            eventTable{blockEvents(1)}=blockEvents(2:end);
             line=fgetl(fid);
         end
     end

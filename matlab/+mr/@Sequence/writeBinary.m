@@ -1,19 +1,23 @@
 function writeBinary(obj,filename)
 %WRITEBINARY Write sequence to file in binary format.
-%   WRITE(seqObj, filename) Write the sequence data to the given
-%   filename using the Pulseq open file format for MR sequences.
+%   WRITEBINARY(seqObj, filename) Write the sequence data to the given
+%   filename using the binary version of the Pulseq open file format for MR
+%   sequences. The file specification is available at 
+%   http://pulseq.github.io
 %
 %   Examples:
 %   Write the sequence file to the sequences directory
 %
-%       write(seqObj,'sequences/gre.seq')
+%       writeBinary(seqObj,'sequences/gre.bin')
 %
-% See also  read
+% See also  readBinary
 
-binaryCodes = mr.Sequence.getBinaryCodes();
+binaryCodes = obj.getBinaryCodes();
 fid=fopen(filename,'w');
 fwrite(fid,binaryCodes.fileHeader);
-fwrite(fid,binaryCodes.version,'int64');
+fwrite(fid,binaryCodes.version_major,'int64');
+fwrite(fid,binaryCodes.version_minor,'int64');
+fwrite(fid,binaryCodes.version_revision,'int64');
 
 if ~isempty(obj.definitions)
     fwrite(fid,binaryCodes.section.definitions,'int64');
@@ -30,9 +34,9 @@ if ~isempty(obj.definitions)
 end
 
 fwrite(fid,binaryCodes.section.blocks,'int64');
-fwrite(fid,size(obj.blockEvents,1),'int64');
-for i=1:size(obj.blockEvents,1)
-    fwrite(fid,obj.blockEvents(i,:),'int32');
+fwrite(fid,size(obj.blockEvents,2),'int64');
+for i = 1:length(obj.blockEvents)
+    fwrite(fid,obj.blockEvents{i}(:),'int32');
 end
 
 if ~isempty(obj.rfLibrary.keys)

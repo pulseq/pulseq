@@ -51,6 +51,7 @@ rf.t = t;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = opt.system.rfDeadTime;
+rf.ringdownTime = opt.system.rfRingdownTime;
 
 fillTime=0;
 if nargout>1
@@ -79,6 +80,12 @@ if fillTime<rf.deadTime
     tFill = (1:round(fillTime/1e-6))*1e-6;   % Round to microsecond
     rf.t = [tFill rf.t+tFill(end) ];
     rf.signal=[zeros(size(tFill)), rf.signal];
+end
+
+if rf.ringdownTime>0
+    tFill = (1:round(rf.ringdownTime/1e-6))*1e-6;  % Round to microsecond
+    rf.t = [rf.t rf.t(end)+tFill];
+    rf.signal = [rf.signal, zeros(size(tFill))];
 end
     
 

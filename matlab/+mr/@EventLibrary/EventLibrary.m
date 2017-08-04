@@ -31,6 +31,7 @@ classdef EventLibrary < handle
         data;
         lengths;
         type;
+        keymap;
     end
     
     methods
@@ -39,6 +40,7 @@ classdef EventLibrary < handle
             obj.data=struct('array',{});
             obj.lengths=zeros(1,0);
             obj.type=char(zeros(1,0));
+            obj.keymap=containers.Map('KeyType', 'char', 'ValueType', 'double'); % unsure if int64 is a good choice
         end
         
         function [id, found] = find(obj,data)
@@ -51,10 +53,29 @@ classdef EventLibrary < handle
             %
             %   See also  insert mr.Sequence.addBlock
             
+            %try
+            %    [id, found] = mr.EventLibrary.find_mex(obj.keys,obj.data,obj.lengths,data);
+            %catch 
+            %    [id, found] = mr.EventLibrary.find_mat(obj.keys,obj.data,obj.lengths,obj.keymap,data);
+            %end
+            
+            % use map index for faster searches
+            % matlab is extremely limited with regard to advanced contasiners
+            % we therefore are forced to use hashed map and convert data to a
+            % string
+            data_string=sprintf('%.6g ', data); % precision can be discussed
+            % containers.Map does not have a proper find function so we use direct
+            % access and catch the possible error
             try
-                [id, found] = mr.EventLibrary.find_mex(obj.keys,obj.data,obj.lengths,data);
+                id=obj.keymap(data_string);
+                found=true;
             catch 
-                [id, found] = mr.EventLibrary.find_mat(obj.keys,obj.data,obj.lengths,data);
+                if isempty(obj.keys)
+                    id=1;
+                else
+                    id=max(obj.keys)+1;
+                end
+                found=false;
             end
         end
                
@@ -67,6 +88,16 @@ classdef EventLibrary < handle
             obj.keys(id)=id;
             obj.data(id).array=data;
             obj.lengths(id)=length(data);
+            
+            % use map index for faster searches
+            % matlab is extremely limited with regard to advanced contasiners
+            % we therefore are forced to use hashed map and convert data to a
+            % string
+            %data_string=num2hex(data)';
+            %data_string=data_string(:)';
+            data_string=sprintf('%.6g ', data);
+            obj.keymap(data_string)=id;
+            
             if nargin>3
                 obj.type(id)=type;
             end
@@ -77,8 +108,8 @@ classdef EventLibrary < handle
     methods(Static)
         % Helper functions for fast searching
         % See find_mat.m
-        [id,found] = find_mat(keys,data,lengths,newData);
-        [id,found] = find_mex(keys,data,lengths,newData);
+        [id,found] = find_mat(keys,data,lengths,keymap,newData);
+        %[id,found] = find_mex(keys,data,lengths,newData);
     end
     
 end

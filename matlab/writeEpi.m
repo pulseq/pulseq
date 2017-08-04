@@ -6,7 +6,7 @@ lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
     'MaxSlew',130,'SlewUnit','T/m/s');  
 
 % Create 90 degree slice selection pulse and gradient
-[rf, gz] = mr.makeSincPulse(pi/2,'Duration',3e-3,...
+[rf, gz] = mr.makeSincPulse(pi/2,'system',lims,'Duration',3e-3,...
     'SliceThickness',3e-3,'apodization',0.5,'timeBwProduct',4);
 
 % Define other gradients and ADC events
@@ -37,4 +37,3 @@ end
 
 seq.write('epi.seq');   % Output sequence for scanner
 seq.plot();             % Plot sequence waveforms
-

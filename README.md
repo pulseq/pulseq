@@ -38,3 +38,4 @@ System requirements vary depending on which features one intends to use or modif
 - python is required to run the build tests (i.e. `make check`)
 
 These are optional and not essential to start using Pulseq.
+

@@ -23,19 +23,15 @@ try
             seq.readBinary(file);
         end
         
-        % Loop over blocks and gather statistics
-        numBlocks = size(seq.blockEvents,1);
-        eventCount=zeros(1,size(seq.blockEvents,2));
-        duration=0;
-        for iB=1:numBlocks
-            b=seq.getBlock(iB);
-            eventCount = eventCount + (seq.blockEvents(iB,:)>0);
-            duration=duration+mr.calcDuration(b);
-        end
+        [duration, numBlocks, eventCount]=seq.duration();
+        
         
         % Open output file for writing
         [outDir,outFile,~]=fileparts(file);
-        fid=fopen([outDir '/' outFile '.matlab.out'],'w');
+        if ~isempty(outDir) then
+            outDir=[outDir '/'];
+        end
+        fid=fopen([outDir outFile '.matlab.out'],'w');
         fprintf(fid,'Testing file: %s\n',file);
         fprintf(fid,'Number of blocks: %d\n',numBlocks);
         fprintf(fid,'Number of events:\n');
@@ -52,5 +48,5 @@ try
 catch e
     disp(e)
     fprintf('Error detected, exiting MATLAB...\n');
-    exit();
+    rethrow(e)
 end

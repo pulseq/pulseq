@@ -19,6 +19,7 @@ if isempty(parser)
     parser.addParamValue('maxSlew',[],@isnumeric);
     parser.addParamValue('riseTime',[],@isnumeric);
     parser.addParamValue('rfDeadTime',0,@isnumeric);
+    parser.addParamValue('rfRingdownTime',0,@isnumeric);
     parser.addParamValue('adcDeadTime',0,@isnumeric);
     parser.addParamValue('rfRasterTime',1e-6,@isnumeric);
     parser.addParamValue('gradRasterTime',10e-6,@isnumeric);
@@ -44,6 +45,7 @@ out.maxGrad = maxGrad;
 out.maxSlew = maxSlew;
 out.riseTime = opt.riseTime;
 out.rfDeadTime = opt.rfDeadTime;
+out.rfRingdownTime = opt.rfRingdownTime;
 out.adcDeadTime = opt.adcDeadTime;
 out.rfRasterTime = opt.rfRasterTime;
 out.gradRasterTime = opt.gradRasterTime;

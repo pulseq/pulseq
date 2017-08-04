@@ -1,46 +1,67 @@
 #!/usr/bin/env python
+"""
+testmatlab.py
+"""
 
+from __future__ import print_function
+import subprocess
+import os
 
-print "Testing matlab code for open MRI format"
-print "======================================="
+print("Testing matlab code for open MRI format")
+print("=======================================")
 
-from subprocess import call
 
 def cmp_lines(path_1, path_2):
-	"""Compare two files, ignoring line-endings"""
-	l1 = l2 = ' '
-	with open(path_1, 'r') as f1:
-		with open(path_2, 'r') as f2:
-			while l1 != '' and l2 != '':
-				l1 = f1.readline()
-				l2 = f2.readline()
-				if l1 != l2:
-					return False
-	return True
+    """Compare two files, ignoring line-endings"""
+    line_1 = line_2 = ' '
+    with open(path_1, 'r') as file_1:
+        with open(path_2, 'r') as file_2:
+            while line_1 != '' and line_2 != '':
+                line_1 = file_1.readline()
+                line_2 = file_2.readline()
+                if line_1 != line_2:
+                    return False
+    return True
 
-sequences = ['fid','gre','press']
-binary_sequences = ['gre_binary']
-base_dir = '../examples/'
-approved_dir = '../examples/approved/'
-ok = True
 
-cellStr = '{';
-for index, seq in enumerate(sequences):
-    cellStr += "'" + base_dir + seq + ".seq',"
-for index, seq in enumerate(binary_sequences):
-	cellStr += "'" + base_dir + seq + ".bin',"
-cellStr += "}"
+def main():
+    """Main"""
+    sequences = ['fid', 'gre', 'press']
+    binary_sequences = ['gre_binary']
+    base_dir = '../examples/'
+    approved_dir = '../examples/approved/'
+    ok_flag = True
 
-funCmd = "parsemr({0}); exit;".format(cellStr)
-matlabCmd = 'matlab -wait -nodisplay -nosplash -r "{0}"'.format(funCmd)
-call(matlabCmd,shell=True)
+    cell_str = '{'
+    for _, seq in enumerate(sequences):
+        cell_str += "'" + base_dir + seq + ".seq',"
+    for _, seq in enumerate(binary_sequences):
+        cell_str += "'" + base_dir + seq + ".bin',"
+    cell_str += "}"
 
-for index, seq in enumerate(sequences + binary_sequences):
-    same = cmp_lines(base_dir + seq + '.matlab.out',approved_dir + seq + '.matlab.out')
+    # Cleanup previous results
+    for _, seq in enumerate(sequences + binary_sequences):
+        try:
+            os.remove(base_dir + seq + '.matlab.out')
+        except:
+            pass
 
-    result = "ok" if same else "not ok"
-    print "Comparing output {0}: {1}".format(seq,result)
+    fun_cmd = "parsemr({0}); exit;".format(cell_str)
+    matlab_cmd = 'matlab -nodisplay -nosplash -r ' +\
+        '"try; {0}; catch; exit(-1); end"'.format(fun_cmd)
+    subprocess.call(matlab_cmd, shell=True)
 
-    ok = ok & same
+    for _, seq in enumerate(sequences + binary_sequences):
+        same = cmp_lines(base_dir + seq + '.matlab.out',
+                         approved_dir + seq + '.matlab.out')
 
-exit(0 if ok else 1)
+        result = "ok" if same else "not ok"
+        print("Comparing output {0}: {1}".format(seq, result))
+
+        ok_flag = ok_flag & same
+
+    exit(0 if ok_flag else 1)
+
+
+if __name__ == '__main__':
+    main()

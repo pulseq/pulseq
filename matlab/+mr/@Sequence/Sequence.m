@@ -33,6 +33,9 @@ classdef Sequence < handle
     % Private properties
     %
     properties(GetAccess = public, SetAccess = private)
+        version_major;
+        version_minor;
+        version_revision;
         rfRasterTime;   % RF raster time (system dependent)
         gradRasterTime; % Gradient raster time (system dependent)
         definitions     % Optional sequence definitions
@@ -48,12 +51,16 @@ classdef Sequence < handle
     methods
         
         function obj = Sequence(varargin)
+            obj.version_major = 1;
+            obj.version_minor = 1;
+            obj.version_revision = 0;
             obj.definitions=containers.Map();
             obj.gradLibrary=mr.EventLibrary();
             obj.shapeLibrary=mr.EventLibrary();
             obj.rfLibrary=mr.EventLibrary();
             obj.adcLibrary=mr.EventLibrary();
             obj.delayLibrary=mr.EventLibrary();
+            obj.blockEvents={};
             
             if nargin<1
                 sys=mr.opts();
@@ -77,6 +84,23 @@ classdef Sequence < handle
         % See writeBinary.m
         writeBinary(obj,filename);
         
+        
+        function [duration, numBlocks, eventCount]=duration(obj)
+            % duration() 
+            %     Returns the total duration of the sequence
+            %     optionally returns the total count of events
+            %
+            
+            % Loop over blocks and gather statistics
+            numBlocks = length(obj.blockEvents);
+            eventCount=zeros(size(obj.blockEvents{1}));
+            duration=0;
+            for iB=1:numBlocks
+                b=obj.getBlock(iB);
+                eventCount = eventCount + (obj.blockEvents{iB}>0);
+                duration=duration+mr.calcDuration(b);
+            end
+        end
         
         function value=getDefinition(obj,key)
             %getDefinition Return the values of custom definition.
@@ -114,7 +138,8 @@ classdef Sequence < handle
             %   events e1, e2, etc.
             %
             %   See also  setBlock, makeAdc, makeTrapezoid, makeSincPulse
-            setBlock(obj,size(obj.blockEvents,1)+1,varargin{:});
+            %setBlock(obj,size(obj.blockEvents,1)+1,varargin{:});
+            setBlock(obj,length(obj.blockEvents)+1,varargin{:});
             
         end
         
@@ -136,9 +161,16 @@ classdef Sequence < handle
             
             % Convert block structure to cell array of events
             varargin=mr.block2events(varargin);
-            varargin(cellfun(@(C)isempty(C),varargin))=[];
+            %varargin_bak=varargin;
+            %varargin(cellfun(@(C)isempty(C),varargin))=[]; % this costs time but does not seem to do anything
+            %if (~isequal(varargin, varargin_bak)) then
+            %    printf('it does something!');
+            %    varargin_bak
+            %    varargin
+            %end                
             
-            obj.blockEvents(index,:) = zeros(1,6);
+            %obj.blockEvents(index,:) = zeros(1,6);
+            obj.blockEvents{index}=zeros(1,6);
             duration = 0;
             
             % Loop over events adding to library if necessary and creating
@@ -171,14 +203,15 @@ classdef Sequence < handle
                             obj.shapeLibrary.insert(phaseId,data);
                         end
                         
-                        data = [amplitude magId phaseId event.freqOffset event.phaseOffset event.deadTime];
+                        data = [amplitude magId phaseId event.freqOffset event.phaseOffset event.deadTime event.ringdownTime];
                         [id,found] = obj.rfLibrary.find(data);
                         if ~found
                             obj.rfLibrary.insert(id,data);
                         end
                         
-                        obj.blockEvents(index,2)=id;
-                        duration=max(duration,length(mag)*obj.rfRasterTime+event.deadTime);
+                        %obj.blockEvents(index,2)=id;
+                        obj.blockEvents{index}(2)=id;
+                        duration=max(duration,length(mag)*obj.rfRasterTime+event.deadTime+event.ringdownTime);
                     case 'grad'
                         channelNum = find(strcmp(event.channel,{'x','y','z'}));
                         amplitude = max(abs(event.waveform));
@@ -195,7 +228,8 @@ classdef Sequence < handle
                             obj.gradLibrary.insert(id,data,'g');
                         end
                         idx = 2+channelNum;
-                        obj.blockEvents(index,idx)=id;
+                        %obj.blockEvents(index,idx)=id;
+                        obj.blockEvents{index}(idx)=id;
                         duration=max(duration,length(g)*obj.gradRasterTime);
                     case 'trap'
                         channelNum = find(strcmp(event.channel,{'x','y','z'}));
@@ -205,7 +239,8 @@ classdef Sequence < handle
                             obj.gradLibrary.insert(id,data,'t');
                         end
                         idx = 2+channelNum;
-                        obj.blockEvents(index,idx)=id;
+                        %obj.blockEvents(index,idx)=id;
+                        obj.blockEvents{index}(idx)=id;
                         duration=max(duration,event.riseTime+event.flatTime+event.fallTime);
                     case 'adc'
                         data = [event.numSamples event.dwell event.delay ...
@@ -214,7 +249,8 @@ classdef Sequence < handle
                         if ~found
                             obj.adcLibrary.insert(id,data);
                         end
-                        obj.blockEvents(index,6)=id;
+                        %obj.blockEvents(index,6)=id;
+                        obj.blockEvents{index}(6)=id;
                         duration=max(duration,event.delay+event.numSamples*event.dwell+event.deadTime);
                     case 'delay'
                         data = [event.delay];
@@ -222,7 +258,8 @@ classdef Sequence < handle
                         if ~found
                             obj.delayLibrary.insert(id,data);
                         end
-                        obj.blockEvents(index,1)=id;
+                        %obj.blockEvents(index,1)=id;
+                        obj.blockEvents{index}(1)=id;
                         duration=max(duration,event.delay);
                 end
             end
@@ -240,7 +277,8 @@ classdef Sequence < handle
             
             block=struct('rf',{},'gx',{},'gy',{},'gz',{},'adc',{},'delay',{});
             block(1).rf=[];
-            eventInd = obj.blockEvents(index,:);
+            %eventInd = obj.blockEvents(index,:);
+            eventInd = obj.blockEvents{index};
             
             if eventInd(1)>0
                 delay.type = 'delay';
@@ -267,10 +305,16 @@ classdef Sequence < handle
                 
                 rf.freqOffset = libData(4);
                 rf.phaseOffset = libData(5);
+                % SK: Is this a hack?
                 if length(libData)<6
                     libData(end+1)=0;
                 end
                 rf.deadTime = libData(6);
+                % SK: Using the same hack here
+                if length(libData) < 7
+                    libData(end+1) = 0;
+                end
+                rf.ringdownTime = libData(7);
                 
                 block.rf = rf;
             end
@@ -370,7 +414,8 @@ classdef Sequence < handle
             xlabel(ax(6),['t (' opt.timeDisp ')']);
             
             t0=0;
-            for iB=1:size(obj.blockEvents,1)
+            %for iB=1:size(obj.blockEvents,1)
+            for iB=1:length(obj.blockEvents)
                 block = obj.getBlock(iB);
                 isValid = t0>=opt.timeRange(1) && t0<=opt.timeRange(2);
                 if isValid
@@ -411,17 +456,117 @@ classdef Sequence < handle
             setAxesZoomMotion(h,ax(1),'horizontal');
         end
         
-    end
-    methods (Static)
+        function grad_waveforms=gradient_waveforms(obj)
+            %gradient_waveforms()
+            %   Decompress the entire gradient waveform
+            %   Returns an array of gradient_axes x timepoints
+            %   gradient_axes is typically 3.
+            %
+             
+            [duration, numBlocks, ~]=obj.duration();
+            
+            wave_length = ceil(duration / obj.gradRasterTime);
+            grad_channels=3;
+            grad_waveforms=zeros(grad_channels, wave_length);
+            gradChannels={'gx','gy','gz'};
+            
+            t0=0;
+            t0_n=0;
+            for iB=1:numBlocks
+                block = obj.getBlock(iB);
+                for j=1:length(gradChannels)
+                    grad=block.(gradChannels{j});
+                    if ~isempty(block.(gradChannels{j}))
+                        if strcmp(grad.type,'grad')
+                            nt_start=round(grad.t(1)/obj.gradRasterTime);
+                            waveform=grad.waveform;
+                        else
+                            nt_start=0;
+                            if (abs(grad.flatTime)>eps) % interp1 gets confused by triangular gradients
+                                t=cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);
+                                trapform=grad.amplitude*[0 1 1 0];
+                            else
+                                t=cumsum([0 grad.riseTime grad.fallTime]);
+                                trapform=grad.amplitude*[0 1 0];
+                            end
+                            tn=floor(t(end)/obj.gradRasterTime);
+                            
+                            % it turns out that we need an additional zero-
+                            % padding at the endotherwise interp1() 
+                            % generates NaNs at the end of the shape
+                            t=[t t(end)+obj.gradRasterTime];
+                            trapform=[trapform 0];
+                            
+                            %fprintf('%g : %g | ', [t*1e6 ;trapform]);
+                            %fprintf('\n');
+                            
+                            if abs(grad.amplitude)>eps 
+                                waveform=interp1(t,trapform,obj.gradRasterTime*(0:tn));
+                            else
+                                waveform=zeros(1,tn+1);
+                            end
+                        end
+                        if numel(waveform)~=sum(isfinite(waveform(:)))
+                            fprintf('Warning: not all elements of the generated waveform are finite!\n');
+                        end
+                        %plot(tFactor*(t0+t),waveform,'Parent',ax(3+j));
+                        grad_waveforms(j,(t0_n+1+nt_start):(t0_n+nt_start+length(waveform)))=waveform;
+                    end
+                end                
+
+                t0=t0+mr.calcDuration(block);
+                t0_n=round(t0/obj.gradRasterTime);
+            end
+        end
+        
+        function sound_data=sound(obj)
+            %sound()
+            %   "play out" the sequence through the system speaker
+            %
+            
+            grad_waveforms=obj.gradient_waveforms();
+            grad_wavelen=size(grad_waveforms,2);
+            
+            sample_rate=44100; %Hz
+            dwell_time=1/sample_rate;
+            sound_length=floor((grad_wavelen-1)*obj.gradRasterTime/dwell_time)+1;
+            
+            sound_data(2,sound_length)=0; %preallocate
+            sound_data(1,:)=interp1((0:(grad_wavelen-1))*obj.gradRasterTime,grad_waveforms(1,:)+0.5*grad_waveforms(3,:),(0:(sound_length-1))*dwell_time);
+            sound_data(2,:)=interp1((0:(grad_wavelen-1))*obj.gradRasterTime,grad_waveforms(2,:)+0.5*grad_waveforms(3,:),(0:(sound_length-1))*dwell_time);
+            
+            % filter like we did it in the gradient music project
+            %b = fir1(40, 10000/sample_rate);
+            %sound_data = filter(b, 1, sound_data,[],2);
+            % use Gaussian convolution instead to supress ringing
+            gw=gausswin(round(sample_rate/6000)*2+1);
+            gw=gw/sum(gw(:));
+            sound_data(1,:) = conv(sound_data(1,:), gw, 'same');
+            sound_data(2,:) = conv(sound_data(2,:), gw, 'same');
+            
+            sound_data_max=max(sound_data(:));            
+            sound_data = 0.95 * sound_data / sound_data_max;
+            
+            % info
+            fprintf('playing out the sequence waveform, duration %.1gs\n', sound_length*dwell_time);
+            
+            % play out the sound
+            % we have to zero-pad the weveform due to the limitations of
+            % matlab-to-sound interface
+            sound([zeros(2,sample_rate/2) sound_data zeros(2,sample_rate/2)], sample_rate); 
+        end
+        
                 
-        function codes=getBinaryCodes()
+        function codes=getBinaryCodes(obj)
             %getBinaryCodes Return binary codes for section headers in
             %   in a binary sequence file.
             %
             %   See also  writeBinary
 
             codes.fileHeader = [1 'pulseq' 2];
-            codes.version = int64(1);
+            codes.version_major = int64(obj.version_major);
+            codes.version_minor = int64(obj.version_minor);
+            codes.version_revision = int64(obj.version_revision);
             prefix = bitshift(int64(hex2dec('FFFFFFFF')),32);
             codes.section.definitions = bitor(prefix,int64(1));
             codes.section.blocks      = bitor(prefix,int64(2));
@@ -432,9 +577,5 @@ classdef Sequence < handle
             codes.section.delays      = bitor(prefix,int64(7));
             codes.section.shapes      = bitor(prefix,int64(8));
         end
-        
-    end % Static methods
-    
-    
-    
+    end
 end % classdef

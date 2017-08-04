@@ -15,6 +15,12 @@ assert(fid~=-1,'Cannot open file: %s',filename);
 fprintf(fid,'# Pulseq sequence file\n');
 fprintf(fid,'# Created by MATLAB mr toolbox\n\n');
 
+fprintf(fid, '[VERSION]\n');
+fprintf(fid, 'major %s\n', num2str(obj.version_major));
+fprintf(fid, 'minor %s\n', num2str(obj.version_minor));
+fprintf(fid, 'revision %s\n', num2str(obj.version_revision));
+fprintf(fid,'\n');
+
 if ~isempty(obj.definitions)
     fprintf(fid,'[DEFINITIONS]\n');
     keys = obj.definitions.keys;
@@ -30,10 +36,12 @@ end
 fprintf(fid,'# Format of blocks:\n');
 fprintf(fid,'#  #  D RF  GX  GY  GZ ADC\n');
 fprintf(fid,'[BLOCKS]\n');
-idFormatWidth=length(num2str(size(obj.blockEvents,1)));
+idFormatWidth=length(num2str(length(obj.blockEvents)));
 idFormatStr=['%' num2str(idFormatWidth) 'd'];
-for i=1:size(obj.blockEvents,1)
-    fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d\n'],[i obj.blockEvents(i,:)]);
+for i=1:length(obj.blockEvents)
+    %fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d 0\n'],[i obj.blockEvents(i,:)]);
+    %fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d 0\n'],[i obj.blockEvents{i}]);
+    fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d\n'],[i obj.blockEvents{i}]); % PulSeq standard 1.0 (no control events)
 end
 fprintf(fid,'\n');
 

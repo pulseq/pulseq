@@ -1,9 +1,12 @@
 seq=mr.Sequence();              % Create a new sequence object
 fov=220e-3; Nx=256; Ny=256;     % Define FOV and resolution
 
+% set system limits
+sys = mr.opts('rfRingdownTime', 30e-6, 'rfDeadTime', 100e-6);
+
 % Create 20 degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(20*pi/180,'Duration',4e-3,...
-    'SliceThickness',5e-3,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',5e-3,'apodization',0.5,'timeBwProduct',4,'system',sys);
 
 % Define other gradients and ADC events
 deltak=1/fov;
@@ -14,9 +17,9 @@ gzReph = mr.makeTrapezoid('z','Area',-gz.area/2,'Duration',2e-3);
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
 
 % Calculate timing
-delayTE=20e-3 - mr.calcDuration(gxPre) - mr.calcDuration(gz)/2 ...
+delayTE=10e-3 - mr.calcDuration(gxPre) - mr.calcDuration(gz)/2 ...
     - mr.calcDuration(gx)/2;
-delayTR=100e-3 - mr.calcDuration(gxPre) - mr.calcDuration(gz) ...
+delayTR=1000e-3 - mr.calcDuration(gxPre) - mr.calcDuration(gz) ...
     - mr.calcDuration(gx) - delayTE;
 
 % Loop over phase encodes and define sequence blocks

@@ -20,8 +20,9 @@
 % _Hz/cm_, or _Hz/m_. However the limits will be stored internally in units
 % of _Hz/m_ for amplitude and _Hz/m/s_ for slew. Unspecificied hardware
 % parameters will be assigned default values.
-system = mr.opts('MaxGrad',30,'GradUnit','mT/m',...
-    'MaxSlew',170,'SlewUnit','T/m/s')
+system = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
+    'MaxSlew', 170, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 30e-6, ...
+    'rfDeadTime', 100e-6);
 
 %%
 % A new sequence object is created by calling the class constructor.
@@ -87,11 +88,12 @@ delay2 = mr.makeDelay(delayTR);
 
 for i=1:Ny
     seq.addBlock(rf,gz);
+%     seq.addBlock(rf);
     gyPre = mr.makeTrapezoid('y',system,'Area',phaseAreas(i),'Duration',2e-3);
     seq.addBlock(gxPre,gyPre,gzReph);
     seq.addBlock(delay1);
     seq.addBlock(gx,adc);
-    seq.addBlock(delay2)
+    seq.addBlock(delay2);
 end
 
 %% Write to file

@@ -45,10 +45,11 @@ rf.t = t;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = opt.system.rfDeadTime;
+rf.ringdownTime = opt.system.rfRingdownTime;
 
 if nargout>1
     assert(opt.sliceThickness>0,'SliceThickness must be provided');
-    assert(opt.bandwidth>0,'Bandwdith of pulse must be provided');
+    assert(opt.bandwidth>0,'Bandwidth of pulse must be provided');
     if opt.maxGrad>0
         opt.system.maxGrad = opt.maxGrad;
     end
@@ -69,4 +70,11 @@ if nargout>1
     rf.t = [tFill rf.t+tFill(end) tFill+rf.t(end)+tFill(end)];
     rf.signal=[zeros(size(tFill)), rf.signal, zeros(size(tFill))];
 end
+
+if rf.ringdownTime>0
+    tFill = (1:round(rf.ringdownTime/1e-6))*1e-6;  % Round to microsecond
+    rf.t = [rf.t rf.t(end)+tFill];
+    rf.signal = [rf.signal, zeros(size(tFill))];
+end
+
 end

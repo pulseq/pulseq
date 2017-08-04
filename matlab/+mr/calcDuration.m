@@ -16,7 +16,7 @@ for i=1:length(varargin)
         case 'delay'
             duration=max(duration,event.delay);
         case 'rf'
-            duration=max(duration,event.t(end)+event.deadTime);
+            duration=max(duration,event.t(end)+event.deadTime+event.ringdownTime);
         case 'grad'
             duration=max(duration,event.t(end));
         case 'adc'

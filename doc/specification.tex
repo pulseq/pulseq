@@ -19,7 +19,12 @@
     pdfkeywords={Magnetic Resonance Imaging,spectroscopy,MRI,NMR,MR,open format,Pulseq}, % list of keywords
     }
 
-\def\myversion{1.01 }
+%\def\myversion{1.01 }
+\def\myversionmajor{1}
+\def\myversionminor{1}
+\def\myversionrevision{0}
+\def\myversion{\myversionmajor.\myversionminor.\myversionrevision }
+%\def\myversion{1.0.2 }
 
 
 
@@ -94,6 +99,7 @@ Version & Date & Description \\
 \midrule
 1.0 & 26 Jun 2014 & Draft specification \\
 1.01 & 11 Jun 2015 & Included draft of binary specification \\
+1.1.0 & 11 Jul 2017 & Changed versioning scheme \\
 \bottomrule
 \end{tabular}
 
@@ -178,6 +184,27 @@ Num_Blocks 3072
 \end{lstlisting}
 It is important to note that all definitions are optional and do not affect the basic sequence execution. Precise timing is given by the low-level specification of events. The definitions section may be used for user-specific purposes, including attaching metadata or hardware-dependent parameters.
 
+\subsection{Version}
+
+The versioning scheme is $\langle$major$\rangle$.$\langle$minor$\rangle$.$\langle$revision$\rangle$.
+
+\begin{lstlisting}[escapechar=\%]
+[VERSION]
+major %$\langle$%major%$\rangle$%
+minor %$\langle$%minor%$\rangle$%
+revision %$\langle$%revision%$\rangle$%
+\end{lstlisting}
+
+Providing the version of the standard is vital for sequence execution.
+If this section is not provided, the interpreter sequence may either refuse execution or assume version 1.0.0.
+
+\textbf{Example:}
+\begin{lstlisting}[escapechar=\%]
+[VERSION]
+major %\myversionmajor%
+minor %\myversionminor%
+revision %\myversionrevision%
+\end{lstlisting}
 
 \subsection{Blocks}
 
@@ -438,7 +465,14 @@ The specification described in Section~\ref{sec:specification} can be implemente
 \hline
 0x01 & p & u & l & s & e & q & 0x02 \\
 \hline
-\multicolumn{8}{|c|}{0x0000000000000001} \\
+%\multicolumn{8}{|c|}{0x0000000000000001} \\
+\multicolumn{8}{|c|}{version major} \\
+\hline
+%\multicolumn{8}{|c|}{0x0000000000000001} \\
+\multicolumn{8}{|c|}{version minor} \\
+\hline
+%\multicolumn{8}{|c|}{0x0000000000000000} \\
+\multicolumn{8}{|c|}{version revision} \\
 \hline
 \multicolumn{8}{|c|}{section code} \\
 \hline
@@ -462,7 +496,7 @@ The specification described in Section~\ref{sec:specification} can be implemente
 
 \subsection{File and section codes}
 
-A binary \textit{Pulseq} file begins with the 64 bit code \verb.0x0170756C73657102. (the characters \verb.pulseq. enclosed by \verb.0x01. and \verb.0x02.)  followed by an integer describing the file version (currently always version 1). The remaining file is made up of multiple sections each with an integer section code followed by section-specific storage. The section codes corresponding to text file tags are
+A binary \textit{Pulseq} file begins with the 64 bit code \verb.0x0170756C73657102. (the characters \verb.pulseq. enclosed by \verb.0x01. and \verb.0x02.)  followed by three integers describing the file version (major, minor, revision). The remaining file is made up of multiple sections each with an integer section code followed by section-specific storage. The section codes corresponding to text file tags are
 
 \begin{center}
 \begin{tabular}{ll}
