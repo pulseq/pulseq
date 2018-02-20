@@ -66,6 +66,9 @@ if nargout>1
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
     gz = mr.makeTrapezoid('z',opt.system,'flatTime',opt.duration,'flatArea',area);
+    if rf.deadTime > gz.riseTime
+        gz.delay = round((rf.deadTime - gz.riseTime)/1e-6)*1e-6; % round to microsecond
+    end
     
     % Pad RF pulse with zeros during gradient ramp up
     fillTime=gz.riseTime;
