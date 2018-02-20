@@ -20,7 +20,7 @@ if isempty(parser)
     parser.addOptional('system',mr.opts(),@isstruct);
     parser.addParamValue('maxGrad',0,@isnumeric);
     parser.addParamValue('maxSlew',0,@isnumeric);
-    
+    parser.addParamValue('delay',0,@isnumeric);
 end
 parse(parser,channel,varargin{:});
 opt = parser.Results;
@@ -35,13 +35,18 @@ if opt.maxSlew>0
 end
 
 g=opt.waveform;
+% figure; plot(g)
 slew=(g(2:end)-g(1:end-1))./opt.system.gradRasterTime;
+% figure; plot(slew)
 assert(max(abs(slew))<maxSlew,'Slew rate violation (%.0f%%)',max(abs(slew))/maxSlew*100);
 assert(max(abs(g))<maxGrad,'Gradient amplitude violation (%.0f%%)',max(abs(g))/maxGrad*100);
 
 grad.type = 'grad';
 grad.channel = opt.channel;
 grad.waveform = g;
+grad.delay = opt.delay;
 grad.t = (0:length(g)-1)*opt.system.gradRasterTime;
+grad.first = g(1);
+grad.last = g(end);
 
 end
