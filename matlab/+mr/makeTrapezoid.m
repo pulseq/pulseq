@@ -1,4 +1,4 @@
-function grad=makeTrapezoid(channel,varargin)
+function grad=makeTrapezoid(channel, varargin)
 %makeTrapezoid Create a trapezoid gradient event.
 %   g=makeTrapezoid(channel, ...) Create trapezoid gradient on
 %   the given channel.
@@ -36,6 +36,7 @@ if isempty(parser)
     parser.addParamValue('maxGrad',0,@isnumeric);
     parser.addParamValue('maxSlew',0,@isnumeric);
     parser.addParamValue('riseTime',0,@isnumeric);
+    parser.addParamValue('delay',0,@isnumeric);
     
 end
 parse(parser,channel,varargin{:});
@@ -86,7 +87,7 @@ elseif opt.duration>0
             
     end
     if isempty(riseTime)
-        riseTime = ceil(amplitude/maxSlew/opt.system.gradRasterTime)*opt.system.gradRasterTime;
+        riseTime = ceil(abs(amplitude)/maxSlew/opt.system.gradRasterTime)*opt.system.gradRasterTime;
     end
     fallTime = riseTime;
     flatTime = opt.duration-riseTime-fallTime;
@@ -107,5 +108,8 @@ grad.flatTime = flatTime;
 grad.fallTime = fallTime;
 grad.area = amplitude*(flatTime + riseTime/2 + fallTime/2);
 grad.flatArea = amplitude*flatTime;
+grad.delay = opt.delay;
+grad.first = 0;
+grad.last = 0;
 
 end
