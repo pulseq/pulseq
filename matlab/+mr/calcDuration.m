@@ -16,14 +16,14 @@ for i=1:length(varargin)
         case 'delay'
             duration=max(duration,event.delay);
         case 'rf'
-            duration=max(duration,event.t(end)+event.deadTime+event.ringdownTime);
-        case 'grad'
             duration=max(duration,event.t(end));
+        case 'grad'
+            duration=max(duration,event.t(end)+event.delay);
         case 'adc'
             adcTime = event.delay + event.numSamples*event.dwell + event.deadTime;
             duration=max(duration,adcTime);
         case 'trap'
-            duration=max(duration,event.riseTime+event.flatTime+event.fallTime);
+            duration=max(duration,event.delay+event.riseTime+event.flatTime+event.fallTime);
     end
 end
 
