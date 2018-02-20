@@ -63,26 +63,26 @@ trapGradMask=obj.gradLibrary.type=='t';
 
 if any(arbGradMask)
     fprintf(fid,'# Format of arbitrary gradients:\n');
-    fprintf(fid,'# id amplitude shape_id\n');
-    fprintf(fid,'# ..      Hz/m     ....\n');
+    fprintf(fid,'# id amplitude shape_id delay\n');
+    fprintf(fid,'# ..      Hz/m     ....    us\n');
     fprintf(fid,'[GRADIENTS]\n');
     keys=obj.gradLibrary.keys;
     for k=keys(arbGradMask)
-        fprintf(fid,'%d %12g %d \n',[k obj.gradLibrary.data(k).array]);
+        fprintf(fid,'%d %12g %d %3d\n',[k obj.gradLibrary.data(k).array(1:3)]);
     end
     fprintf(fid,'\n');
 end
 
 if any(trapGradMask)
     fprintf(fid,'# Format of trapezoid gradients:\n');
-    fprintf(fid,'# id amplitude rise flat fall\n');
-    fprintf(fid,'# ..      Hz/m   us   us   us\n');
+    fprintf(fid,'# id amplitude rise flat fall delay\n');
+    fprintf(fid,'# ..      Hz/m   us   us   us    us\n');
     fprintf(fid,'[TRAP]\n');
     keys=obj.gradLibrary.keys;
     for k=keys(trapGradMask)
         data=obj.gradLibrary.data(k).array;
         data(2:end)=round(1e6*data(2:end));
-        fprintf(fid,'%2d %12g %3d %4d %3d\n',[k data]);
+        fprintf(fid,'%2d %12g %3d %4d %3d %3d\n',[k data]);
     end
     fprintf(fid,'\n');
 end
