@@ -175,6 +175,9 @@ classdef Sequence < handle
             
             % Loop over events adding to library if necessary and creating
             % block event structure.
+            exact_length = 0; % SK: Gradients not ending at zero 
+                              % require that a block ends exactly where
+                              % the non-zero gradient ends.
             for i=1:length(varargin)
                 event = varargin{i};
                 switch event.type
@@ -183,12 +186,12 @@ classdef Sequence < handle
                         % if required.
                         
                         mag = abs(event.signal);
-                        amplitude=max(mag);
+                        amplitude = max(mag);
                         mag = mag/amplitude;
                         phase = angle(event.signal);
-                        phase(phase<0)=phase(phase<0)+2*pi;
-                        phase=phase/(2*pi);
-                        
+                        phase(phase < 0) = phase(phase < 0) + 2*pi;
+                        phase = phase / (2*pi);
+                          
                         magShape = mr.compressShape(mag(:));
                         data = [magShape.num_samples magShape.data];
                         [magId,found] = obj.shapeLibrary.find(data);
@@ -211,9 +214,36 @@ classdef Sequence < handle
                         
                         %obj.blockEvents(index,2)=id;
                         obj.blockEvents{index}(2)=id;
-                        duration=max(duration,length(mag)*obj.rfRasterTime+event.deadTime+event.ringdownTime);
+                        duration = max(duration, length(mag) * ...
+                                   obj.rfRasterTime + ...
+                                   event.deadTime + event.ringdownTime);
                     case 'grad'
-                        channelNum = find(strcmp(event.channel,{'x','y','z'}));
+                        channelNum = find(strcmp(event.channel, ...
+                                                 {'x','y','z'}));
+                        
+                        idx = 2+channelNum;
+                        if event.first > 0 && event.delay > 0
+                            error('If first amplitude of a gradient is nonzero, it must connect to previous block!');
+                        end
+                        if index > 1
+                            prev_id = obj.blockEvents{index-1}(idx);
+                            if prev_id ~= 0;
+                                prev_lib = obj.gradLibrary.get(prev_id);
+                                prev_dat = prev_lib.data;
+                                prev_type = prev_lib.type;
+                                if prev_type == 't'
+                                    if event.first ~= 0
+                                        error('Two consecutive gradients need to have the same amplitude at the connection point');
+                                    end
+                                elseif prev_type == 'g'
+                                    last = prev_dat(5);
+                                    if abs(last - event.first) > eps
+                                        error('Two consecutive gradients need to have the same amplitude at the connection point');
+                                    end
+                                end
+                            end
+                        end
+                        
                         amplitude = max(abs(event.waveform));
                         g = event.waveform./amplitude;
                         shape = mr.compressShape(g);
@@ -222,26 +252,57 @@ classdef Sequence < handle
                         if ~found
                             obj.shapeLibrary.insert(shapeId,data);
                         end
-                        data = [amplitude shapeId];
+                        data = [amplitude shapeId event.delay event.first event.last];
                         [id,found] = obj.gradLibrary.find(data);
                         if ~found
-                            obj.gradLibrary.insert(id,data,'g');
+                            obj.gradLibrary.insert(id, data,'g');
                         end
-                        idx = 2+channelNum;
-                        %obj.blockEvents(index,idx)=id;
-                        obj.blockEvents{index}(idx)=id;
-                        duration=max(duration,length(g)*obj.gradRasterTime);
+                        %obj.blockEvents(index,idx) = id;
+                        obj.blockEvents{index}(idx) = id;
+                        block_length = (length(g)-1)*obj.gradRasterTime;
+                        duration = max(duration, block_length);
+                        if event.last ~= 0
+                            if (exact_length == 0 || exact_length == block_length) && duration == block_length
+                                exact_length = block_length;
+                            else
+                                error('A gradient that doesnt end at zero needs to be the longest gradient in a block.')
+                            end
+                        end                      
                     case 'trap'
                         channelNum = find(strcmp(event.channel,{'x','y','z'}));
-                        data = [event.amplitude event.riseTime event.flatTime event.fallTime];
+                        
+                        idx = 2 + channelNum;
+                        if index > 1
+                            prev_id = obj.blockEvents{index-1}(idx);
+                            if prev_id ~= 0;
+                                prev_lib = obj.gradLibrary.get(prev_id);
+                                prev_dat = prev_lib.data;
+                                prev_type = prev_lib.type;
+                                if prev_type == 't'
+                                    if event.first ~= 0
+                                        error('Two consecutive gradients need to have the same amplitude at the connection point');
+                                    end
+                                elseif prev_type == 'g'
+                                    last = prev_dat(5);
+                                    if abs(last - event.first) > eps
+                                        error('Two consecutive gradients need to have the same amplitude at the connection point');
+                                    end
+                                end
+                            end
+                        end
+                        data = [event.amplitude event.riseTime ...
+                                event.flatTime event.fallTime ...
+                                event.delay];
                         [id,found] = obj.gradLibrary.find(data);
                         if ~found
                             obj.gradLibrary.insert(id,data,'t');
                         end
-                        idx = 2+channelNum;
                         %obj.blockEvents(index,idx)=id;
                         obj.blockEvents{index}(idx)=id;
-                        duration=max(duration,event.riseTime+event.flatTime+event.fallTime);
+                        duration=max(duration,event.delay+event.riseTime+event.flatTime+event.fallTime);
+                        if exact_length ~= 0 && duration > exact_length
+                            error('A gradient that doesnt end at zero needs to be the longest gradient in a block.')
+                        end
                     case 'adc'
                         data = [event.numSamples event.dwell event.delay ...
                             event.freqOffset event.phaseOffset event.deadTime];
@@ -332,17 +393,24 @@ classdef Sequence < handle
                     if strcmp(grad.type,'grad')
                         amplitude = libData(1);
                         shapeId = libData(2);
+                        delay = libData(3);
                         shapeData = obj.shapeLibrary.data(shapeId).array;
                         compressed.num_samples = shapeData(1);
                         compressed.data=shapeData(2:end);
                         g = mr.decompressShape(compressed);
                         grad.waveform = amplitude*g;
-                        grad.t = (1:length(g))'*obj.gradRasterTime;
+                        % SK: This ooks like a bug to me.
+%                         grad.t = (1:length(g))'*obj.gradRasterTime;
+                        grad.t = (0:length(g)-1)'*obj.gradRasterTime;
+                        grad.delay = delay;
+                        grad.first = libData(4);
+                        grad.last = libData(5);
                     else
                         grad.amplitude = libData(1);
                         grad.riseTime = libData(2);
                         grad.flatTime = libData(3);
                         grad.fallTime = libData(4);
+                        grad.delay = libData(5);                        
                         grad.area = grad.amplitude*(grad.flatTime+grad.riseTime/2+grad.fallTime/2);
                         grad.flatArea = grad.amplitude*grad.flatTime;
                     end
@@ -435,11 +503,13 @@ classdef Sequence < handle
                         grad=block.(gradChannels{j});
                         if ~isempty(block.(gradChannels{j}))
                             if strcmp(grad.type,'grad')
-                                t=grad.t;
+                                t=grad.delay + grad.t;
                                 waveform=1e-3*grad.waveform;
                             else
-                                t=cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);
-                                waveform=1e-3*grad.amplitude*[0 1 1 0];
+%                                 t=cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);
+                                t=cumsum([0 grad.delay grad.riseTime grad.flatTime grad.fallTime]);
+%                                 waveform=1e-3*grad.amplitude*[0 1 1 0];
+                                waveform=1e-3*grad.amplitude*[0 0 1 1 0];
                             end
                             plot(tFactor*(t0+t),waveform,'Parent',ax(3+j));
                         end
@@ -492,7 +562,7 @@ classdef Sequence < handle
                             tn=floor(t(end)/obj.gradRasterTime);
                             
                             % it turns out that we need an additional zero-
-                            % padding at the endotherwise interp1() 
+                            % padding at the end otherwise interp1() 
                             % generates NaNs at the end of the shape
                             t=[t t(end)+obj.gradRasterTime];
                             trapform=[trapform 0];

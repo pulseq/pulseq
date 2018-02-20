@@ -25,6 +25,7 @@ classdef EventLibrary < handle
     % See also   mr.Sequence
     %
     % Kelvin Layton <kelvin.layton@uniklinik-freiburg.de>
+    % Stefan Kroboth <stefan.kroboth@uniklinik-freiburg.de>
     
     properties
         keys;
@@ -90,7 +91,7 @@ classdef EventLibrary < handle
             obj.lengths(id)=length(data);
             
             % use map index for faster searches
-            % matlab is extremely limited with regard to advanced contasiners
+            % matlab is extremely limited with regard to advanced containers
             % we therefore are forced to use hashed map and convert data to a
             % string
             %data_string=num2hex(data)';
@@ -101,6 +102,17 @@ classdef EventLibrary < handle
             if nargin>3
                 obj.type(id)=type;
             end
+        end
+        
+        function out = get(obj, id)
+            %get Get element from library by key
+            %
+            % See also find
+            out = struct;
+            out.key = obj.keys(id);
+            out.data = obj.data(id).array;
+            out.length = obj.lengths(id);
+            out.type = obj.type(id);
         end
         
     end
