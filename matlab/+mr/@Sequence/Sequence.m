@@ -53,7 +53,7 @@ classdef Sequence < handle
         function obj = Sequence(varargin)
             obj.version_major = 1;
             obj.version_minor = 1;
-            obj.version_revision = 0;
+            obj.version_revision = 1;
             obj.definitions=containers.Map();
             obj.gradLibrary=mr.EventLibrary();
             obj.shapeLibrary=mr.EventLibrary();
