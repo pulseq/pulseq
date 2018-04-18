@@ -33,6 +33,14 @@ end
 % first gradient event defines channel:
 channel = grads(1).channel;
 
+% find out the general delay of all gradients
+delays = [];
+for ii = 1:length(grads)
+    delays = [delays, grads(ii).delay];
+end
+common_delay = min(delays);
+
+
 waveforms = {};
 max_length = 0;
 for ii = 1:length(grads)
@@ -40,18 +48,19 @@ for ii = 1:length(grads)
     if strcmp(g.type, 'grad')
         waveforms{ii} = g.waveform;
     elseif strcmp(g.type, 'trap')
-        times = [g.delay ...
-                 g.delay + g.riseTime ...
-                 g.delay + g.riseTime + g.flatTime ...
-                 g.delay + g.riseTime + g.flatTime + g.fallTime];
+        times = [g.delay - common_delay ...
+                 g.delay - common_delay + g.riseTime ...
+                 g.delay - common_delay + g.riseTime + g.flatTime ...
+                 g.delay - common_delay + g.riseTime + g.flatTime + g.fallTime];
         amplitudes = [0 g.amplitude g.amplitude 0];
         waveforms{ii} = mr.pts2waveform(times, amplitudes, ...
                                         opt.system.gradRasterTime);
     else
         error('Unknown gradient type.');
     end
-    if g.delay > 0
-        t_delay = 0:opt.system.gradRasterTime:g.delay-opt.system.gradRasterTime;
+    if g.delay - common_delay > 0
+%         t_delay = 0:opt.system.gradRasterTime:g.delay-opt.system.gradRasterTime;
+        t_delay = 0:opt.system.gradRasterTime:g.delay-common_delay-opt.system.gradRasterTime;
         waveforms{ii} = [t_delay waveforms{ii}];
     end
     num_points = length(waveforms{ii});
@@ -71,5 +80,6 @@ end
 % plot(w)
 grad = mr.makeArbitraryGrad(channel, w, opt.system, ...
                             'maxSlew', maxSlew,...
-                            'maxGrad', maxGrad);
+                            'maxGrad', maxGrad,...
+                            'delay', common_delay);
 end
