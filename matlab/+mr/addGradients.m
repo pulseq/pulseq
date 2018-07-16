@@ -76,8 +76,7 @@ for ii = 1:length(grads)
     wt(1:length(waveforms{ii})) = waveforms{ii};
     w = w + wt;
 end
-% figure;
-% plot(w)
+
 grad = mr.makeArbitraryGrad(channel, w, opt.system, ...
                             'maxSlew', maxSlew,...
                             'maxGrad', maxGrad,...

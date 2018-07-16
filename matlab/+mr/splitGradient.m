@@ -40,7 +40,7 @@ if strcmp(grad.type, 'trap')
                                       'amplitudes', amplitudes, ...
                                       'skip_check', true);
     rampup.delay = grad.delay;
-    rampup.t = rampup.t;
+%     rampup.t = rampup.t;
 
 
     % ramp down
@@ -56,8 +56,9 @@ if strcmp(grad.type, 'trap')
     flattop = struct;
     flattop.type = 'grad';
     flattop.channel = ch;
-    flattop.delay = (grad.delay + grad.riseTime + gradRasterTime); 
-    flattop.t = 0:gradRasterTime:(rampdown.delay-2*gradRasterTime-grad.delay-grad.riseTime);
+%     flattop.delay = (grad.delay + grad.riseTime + gradRasterTime); 
+    flattop.delay = (grad.delay + grad.riseTime); 
+    flattop.t = 0:gradRasterTime:(rampdown.delay-1*gradRasterTime-grad.delay-grad.riseTime);
     flattop.waveform = grad.amplitude*ones(size(flattop.t));
     flattop.first = grad.amplitude;
     flattop.last = grad.amplitude;

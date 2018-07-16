@@ -96,7 +96,24 @@ elseif opt.duration>0
         amplitude = opt.area/(riseTime/2 + fallTime/2 + flatTime);
     end
 else
-    error('makeTrapezoid:invalidArguments','Must supply a duration');
+    if isempty(opt.area)
+        error('makeTrapezoid:invalidArguments','Must supply a duration');
+    else
+        %
+        % find the shortest possible duration
+        % first check if the area can be realized as a triangle
+        % if not we calculate a trapezoid
+        riseTime=ceil(sqrt(abs(opt.area)/maxSlew)/opt.system.gradRasterTime)*opt.system.gradRasterTime;
+        amplitude=opt.area/riseTime;
+        tEff=riseTime;
+        if abs(amplitude)>maxGrad 
+            tEff=ceil(abs(opt.area)/maxGrad/opt.system.gradRasterTime)*opt.system.gradRasterTime;
+            amplitude=opt.area/tEff;
+            riseTime=ceil(abs(amplitude)/maxSlew/opt.system.gradRasterTime)*opt.system.gradRasterTime;
+        end
+        flatTime=tEff-riseTime;
+        fallTime=riseTime;        
+    end
 end
 assert(abs(amplitude)<=maxGrad,'makeTrapezoid:invalidAmplitude','Amplitude violation');
 

@@ -11,6 +11,7 @@
 % method.
 seq=mr.Sequence();
 seq.read('../examples/gre.seq');
+%seq.read('/home/zaitsev/range_software/seq_data/external.seq');
 
 %% Access sequence parameters and blocks
 % Parameters defined with in the |[DEFINITIONS]| section of the sequence file

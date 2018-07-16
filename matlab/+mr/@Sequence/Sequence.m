@@ -46,27 +46,29 @@ classdef Sequence < handle
         adcLibrary;     % Library of ADC readouts
         delayLibrary;   % Library of delay events
         shapeLibrary;   % Library of compressed shapes
+        sys;
     end
     
     methods
         
         function obj = Sequence(varargin)
             obj.version_major = 1;
-            obj.version_minor = 1;
-            obj.version_revision = 1;
-            obj.definitions=containers.Map();
-            obj.gradLibrary=mr.EventLibrary();
-            obj.shapeLibrary=mr.EventLibrary();
-            obj.rfLibrary=mr.EventLibrary();
-            obj.adcLibrary=mr.EventLibrary();
-            obj.delayLibrary=mr.EventLibrary();
-            obj.blockEvents={};
+            obj.version_minor = 2;
+            obj.version_revision = 0;
+            obj.definitions = containers.Map();
+            obj.gradLibrary = mr.EventLibrary();
+            obj.shapeLibrary = mr.EventLibrary();
+            obj.rfLibrary = mr.EventLibrary();
+            obj.adcLibrary = mr.EventLibrary();
+            obj.delayLibrary = mr.EventLibrary();
+            obj.blockEvents = {};
             
             if nargin<1
                 sys=mr.opts();
             else
                 sys=varargin{1};
             end
+            obj.sys = sys;
             obj.rfRasterTime = sys.rfRasterTime;
             obj.gradRasterTime = sys.gradRasterTime;
         end
@@ -196,48 +198,50 @@ classdef Sequence < handle
                         data = [magShape.num_samples magShape.data];
                         [magId,found] = obj.shapeLibrary.find(data);
                         if ~found
-                            obj.shapeLibrary.insert(magId,data);
+                            obj.shapeLibrary.insert(magId, data);
                         end
                         
                         phaseShape = mr.compressShape(phase);
                         data = [phaseShape.num_samples phaseShape.data];
                         [phaseId,found] = obj.shapeLibrary.find(data);
                         if ~found
-                            obj.shapeLibrary.insert(phaseId,data);
+                            obj.shapeLibrary.insert(phaseId, data);
                         end
                         
-                        data = [amplitude magId phaseId event.freqOffset event.phaseOffset event.deadTime event.ringdownTime];
-                        [id,found] = obj.rfLibrary.find(data);
+                        data = [amplitude magId phaseId event.delay ...
+                                event.freqOffset event.phaseOffset ...
+                                event.deadTime event.ringdownTime];
+                        [id, found] = obj.rfLibrary.find(data);
                         if ~found
-                            obj.rfLibrary.insert(id,data);
+                            obj.rfLibrary.insert(id, data);
                         end
                         
-                        %obj.blockEvents(index,2)=id;
-                        obj.blockEvents{index}(2)=id;
+                        obj.blockEvents{index}(2) = id;
                         duration = max(duration, length(mag) * ...
                                    obj.rfRasterTime + ...
-                                   event.deadTime + event.ringdownTime);
+                                   event.deadTime + ...
+                                   event.ringdownTime + event.delay);
                     case 'grad'
                         channelNum = find(strcmp(event.channel, ...
-                                                 {'x','y','z'}));
+                                                 {'x', 'y', 'z'}));
                         
                         idx = 2+channelNum;
-                        if event.first > 0 && event.delay > 0
-                            error('If first amplitude of a gradient is nonzero, it must connect to previous block!');
-                        end
+%                         if event.first > 0 && event.delay > 0
+%                             error('If first amplitude of a gradient is nonzero, it must connect to previous block!');
+%                         end
                         if index > 1
                             prev_id = obj.blockEvents{index-1}(idx);
-                            if prev_id ~= 0;
+                            if prev_id ~= 0
                                 prev_lib = obj.gradLibrary.get(prev_id);
                                 prev_dat = prev_lib.data;
                                 prev_type = prev_lib.type;
                                 if prev_type == 't'
-                                    if event.first ~= 0
+                                    if event.first > obj.sys.maxSlew
                                         error('Two consecutive gradients need to have the same amplitude at the connection point');
                                     end
                                 elseif prev_type == 'g'
                                     last = prev_dat(5);
-                                    if abs(last - event.first) > eps
+                                    if abs(last - event.first) > obj.sys.maxSlew
                                         error('Two consecutive gradients need to have the same amplitude at the connection point');
                                     end
                                 end
@@ -259,9 +263,9 @@ classdef Sequence < handle
                         end
                         %obj.blockEvents(index,idx) = id;
                         obj.blockEvents{index}(idx) = id;
-                        block_length = (length(g)-1)*obj.gradRasterTime;
+                        block_length = event.delay + (length(g)-1)*obj.gradRasterTime;
                         duration = max(duration, block_length);
-                        if event.last ~= 0
+                        if abs(event.last) >= obj.sys.maxSlew
                             if (exact_length == 0 || exact_length == block_length) && duration == block_length
                                 exact_length = block_length;
                             else
@@ -279,12 +283,12 @@ classdef Sequence < handle
                                 prev_dat = prev_lib.data;
                                 prev_type = prev_lib.type;
                                 if prev_type == 't'
-                                    if event.first ~= 0
+                                    if event.first > obj.sys.maxSlew
                                         error('Two consecutive gradients need to have the same amplitude at the connection point');
                                     end
                                 elseif prev_type == 'g'
                                     last = prev_dat(5);
-                                    if abs(last - event.first) > eps
+                                    if abs(last - event.first) > obj.sys.maxSlew
                                         error('Two consecutive gradients need to have the same amplitude at the connection point');
                                     end
                                 end
@@ -304,7 +308,9 @@ classdef Sequence < handle
                             error('A gradient that doesnt end at zero needs to be the longest gradient in a block.')
                         end
                     case 'adc'
-                        data = [event.numSamples event.dwell event.delay ...
+%                         data = [event.numSamples event.dwell event.delay ...
+%                             event.freqOffset event.phaseOffset event.deadTime];
+                        data = [event.numSamples event.dwell max(event.delay,event.deadTime) ... % MZ: replaced event.delay+event.deadTime with a max(...) because we allow for overlap of the delay and the dead time
                             event.freqOffset event.phaseOffset event.deadTime];
                         [id,found] = obj.adcLibrary.find(data);
                         if ~found
@@ -326,7 +332,7 @@ classdef Sequence < handle
             end
         end
         
-        function block = getBlock(obj,index)
+        function block = getBlock(obj, index)
             %getBlock Return a block of the sequence.
             %   b=getBlock(obj, index) Return the block specified by the
             %   index.
@@ -336,18 +342,19 @@ classdef Sequence < handle
             %
             %   See also  setBlock, addBlock
             
-            block=struct('rf',{},'gx',{},'gy',{},'gz',{},'adc',{},'delay',{});
-            block(1).rf=[];
+            block=struct('rf', {}, 'gx', {}, 'gy', {}, 'gz', {}, ...
+                         'adc', {}, 'delay', {});
+            block(1).rf = [];
             %eventInd = obj.blockEvents(index,:);
             eventInd = obj.blockEvents{index};
             
-            if eventInd(1)>0
+            if eventInd(1) > 0
                 delay.type = 'delay';
                 delay.delay = obj.delayLibrary.data(eventInd(1)).array;
                 block.delay = delay;
             end
-            if eventInd(2)>0
-                rf.type='rf';
+            if eventInd(2) > 0
+                rf.type = 'rf';
                 libData = obj.rfLibrary.data(eventInd(2)).array;
                 
                 amplitude = libData(1);
@@ -355,36 +362,38 @@ classdef Sequence < handle
                 phaseShape = libData(3);
                 shapeData = obj.shapeLibrary.data(magShape).array;
                 compressed.num_samples = shapeData(1);
-                compressed.data=shapeData(2:end);
+                compressed.data = shapeData(2:end);
                 mag = mr.decompressShape(compressed);
                 shapeData = obj.shapeLibrary.data(phaseShape).array;
                 compressed.num_samples = shapeData(1);
-                compressed.data=shapeData(2:end);
+                compressed.data = shapeData(2:end);
                 phase = mr.decompressShape(compressed);
                 rf.signal = amplitude*mag.*exp(1j*2*pi*phase);
                 rf.t = (1:length(mag))'*obj.rfRasterTime;
                 
-                rf.freqOffset = libData(4);
-                rf.phaseOffset = libData(5);
+                rf.delay = libData(4);
+                rf.freqOffset = libData(5);
+                rf.phaseOffset = libData(6);
+
                 % SK: Is this a hack?
-                if length(libData)<6
-                    libData(end+1)=0;
-                end
-                rf.deadTime = libData(6);
-                % SK: Using the same hack here
                 if length(libData) < 7
                     libData(end+1) = 0;
                 end
-                rf.ringdownTime = libData(7);
+                rf.deadTime = libData(7);
+                % SK: Using the same hack here
+                if length(libData) < 8
+                    libData(end+1) = 0;
+                end
+                rf.ringdownTime = libData(8);
                 
                 block.rf = rf;
             end
-            gradChannels = {'gx','gy','gz'};
-            for i=1:length(gradChannels)
-                if eventInd(2+i)>0
+            gradChannels = {'gx', 'gy', 'gz'};
+            for i = 1:length(gradChannels)
+                if eventInd(2+i) > 0
                     type = obj.gradLibrary.type(eventInd(2+i));
                     libData = obj.gradLibrary.data(eventInd(2+i)).array;
-                    if type=='t'
+                    if type == 't'
                         grad.type = 'trap';
                     else
                         grad.type = 'grad';
@@ -396,7 +405,7 @@ classdef Sequence < handle
                         delay = libData(3);
                         shapeData = obj.shapeLibrary.data(shapeId).array;
                         compressed.num_samples = shapeData(1);
-                        compressed.data=shapeData(2:end);
+                        compressed.data = shapeData(2:end);
                         g = mr.decompressShape(compressed);
                         grad.waveform = amplitude*g;
                         % SK: This ooks like a bug to me.
@@ -411,28 +420,32 @@ classdef Sequence < handle
                         grad.flatTime = libData(3);
                         grad.fallTime = libData(4);
                         grad.delay = libData(5);                        
-                        grad.area = grad.amplitude*(grad.flatTime+grad.riseTime/2+grad.fallTime/2);
+                        grad.area = grad.amplitude*(grad.flatTime + ...
+                                                    grad.riseTime/2 + ...
+                                                    grad.fallTime/2);
                         grad.flatArea = grad.amplitude*grad.flatTime;
                     end
                     
                     block.(gradChannels{i}) = grad;
                 end
             end
-            if eventInd(6)>0
+            if eventInd(6) > 0
                 libData = obj.adcLibrary.data(eventInd(6)).array;
-                if length(libData)<6
-                    libData(end+1)=0;
+                if length(libData) < 6
+                    libData(end+1) = 0;
                 end
-                adc = cell2struct(num2cell(libData),...
-                    {'numSamples','dwell','delay','freqOffset','phaseOffset','deadTime'},2);
-                adc.type='adc';
+                adc = cell2struct(num2cell(libData), ...
+                                  {'numSamples', 'dwell', 'delay', ...
+                                   'freqOffset', 'phaseOffset', ...
+                                   'deadTime'}, 2);
+                adc.type = 'adc';
                 block.adc = adc;
             end
             
         end
         
         
-        function f=plot(obj,varargin)
+        function f = plot(obj, varargin)
             %plot Plot the sequence in a new figure.
             %   plot(seqObj) Plot the sequence
             %
@@ -494,7 +507,7 @@ classdef Sequence < handle
                     end
                     if ~isempty(block.rf)
                         rf=block.rf;
-                        t=rf.t;
+                        t=rf.t + rf.delay;
                         plot(tFactor*(t0+t),abs(rf.signal),'Parent',ax(2));
                         plot(tFactor*(t0+t),angle(rf.signal),'Parent',ax(3));
                     end
@@ -503,7 +516,7 @@ classdef Sequence < handle
                         grad=block.(gradChannels{j});
                         if ~isempty(block.(gradChannels{j}))
                             if strcmp(grad.type,'grad')
-                                t=grad.delay + grad.t;
+                                t=grad.delay + grad.t + (grad.t(2)-grad.t(1))/2;
                                 waveform=1e-3*grad.waveform;
                             else
 %                                 t=cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);
@@ -548,10 +561,10 @@ classdef Sequence < handle
                     grad=block.(gradChannels{j});
                     if ~isempty(block.(gradChannels{j}))
                         if strcmp(grad.type,'grad')
-                            nt_start=round(grad.t(1)/obj.gradRasterTime);
+                            nt_start=round((grad.delay+grad.t(1))/obj.gradRasterTime);
                             waveform=grad.waveform;
                         else
-                            nt_start=0;
+                            nt_start=round(grad.delay/obj.gradRasterTime);
                             if (abs(grad.flatTime)>eps) % interp1 gets confused by triangular gradients
                                 t=cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);
                                 trapform=grad.amplitude*[0 1 1 0];
@@ -559,6 +572,7 @@ classdef Sequence < handle
                                 t=cumsum([0 grad.riseTime grad.fallTime]);
                                 trapform=grad.amplitude*[0 1 0];
                             end
+                            %
                             tn=floor(t(end)/obj.gradRasterTime);
                             
                             % it turns out that we need an additional zero-
@@ -627,7 +641,7 @@ classdef Sequence < handle
         end
         
                 
-        function codes=getBinaryCodes(obj)
+        function codes = getBinaryCodes(obj)
             %getBinaryCodes Return binary codes for section headers in
             %   in a binary sequence file.
             %
@@ -637,15 +651,15 @@ classdef Sequence < handle
             codes.version_major = int64(obj.version_major);
             codes.version_minor = int64(obj.version_minor);
             codes.version_revision = int64(obj.version_revision);
-            prefix = bitshift(int64(hex2dec('FFFFFFFF')),32);
-            codes.section.definitions = bitor(prefix,int64(1));
-            codes.section.blocks      = bitor(prefix,int64(2));
-            codes.section.rf          = bitor(prefix,int64(3));
-            codes.section.gradients   = bitor(prefix,int64(4));
-            codes.section.trapezoids  = bitor(prefix,int64(5));
-            codes.section.adc         = bitor(prefix,int64(6));
-            codes.section.delays      = bitor(prefix,int64(7));
-            codes.section.shapes      = bitor(prefix,int64(8));
+            prefix = bitshift(int64(hex2dec('FFFFFFFF')), 32);
+            codes.section.definitions = bitor(prefix, int64(1));
+            codes.section.blocks      = bitor(prefix, int64(2));
+            codes.section.rf          = bitor(prefix, int64(3));
+            codes.section.gradients   = bitor(prefix, int64(4));
+            codes.section.trapezoids  = bitor(prefix, int64(5));
+            codes.section.adc         = bitor(prefix, int64(6));
+            codes.section.delays      = bitor(prefix, int64(7));
+            codes.section.shapes      = bitor(prefix, int64(8));
         end
     end
 end % classdef

@@ -47,7 +47,8 @@ sliceThickness=5e-3;
 %
 flip=15*pi/180;
 [rf, gz] = mr.makeSincPulse(flip,system,'Duration',4e-3,...
-    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4,...
+    'system', sys);
 
 figure
 plot(rf.t,real(rf.signal))
@@ -76,10 +77,12 @@ gzReph = mr.makeTrapezoid('z',system,'Area',-gz.area/2,'Duration',2e-3);
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
 
 %%% Calculate timing
-delayTE=10e-3 - mr.calcDuration(gxPre) - mr.calcDuration(rf)/2 ...
-    - mr.calcDuration(gx)/2;
-delayTR=20e-3 - mr.calcDuration(gxPre) - mr.calcDuration(rf) ...
-    - mr.calcDuration(gx) - delayTE;
+TE=10e-3;
+TR=20e-3;
+delayTE= ceil((TE - mr.calcDuration(gxPre) - mr.calcDuration(rf)/2 ...
+    - mr.calcDuration(gx)/2)/seq.gradRasterTime)*seq.gradRasterTime;
+delayTR= ceil((TR - mr.calcDuration(gxPre) - mr.calcDuration(rf) ...
+    - mr.calcDuration(gx) - delayTE)/seq.gradRasterTime)*seq.gradRasterTime;
 delay1 = mr.makeDelay(delayTE);
 delay2 = mr.makeDelay(delayTR);
 
