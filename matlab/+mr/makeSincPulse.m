@@ -20,30 +20,31 @@ if isempty(parser)
     parser.FunctionName = 'makeSincPulse';
     
     % RF params
-    addRequired(parser,'flipAngle',@isnumeric);
-    addOptional(parser,'system',mr.opts(),@isstruct);
-    addParamValue(parser,'duration',0,@isnumeric);
-    addParamValue(parser,'freqOffset',0,@isnumeric);
-    addParamValue(parser,'phaseOffset',0,@isnumeric);
-    addParamValue(parser,'timeBwProduct',4,@isnumeric);
-    addParamValue(parser,'apodization',0,@isnumeric);
+    addRequired(parser, 'flipAngle', @isnumeric);
+    addOptional(parser, 'system', mr.opts(), @isstruct);
+    addParamValue(parser, 'duration', 0, @isnumeric);
+    addParamValue(parser, 'freqOffset', 0, @isnumeric);
+    addParamValue(parser, 'phaseOffset', 0, @isnumeric);
+    addParamValue(parser, 'timeBwProduct', 4, @isnumeric);
+    addParamValue(parser, 'apodization', 0, @isnumeric);
     % Slice params
-    addParamValue(parser,'maxGrad',0,@isnumeric);
-    addParamValue(parser,'maxSlew',0,@isnumeric);
-    addParamValue(parser,'sliceThickness',0,@isnumeric);
+    addParamValue(parser, 'maxGrad', 0, @isnumeric);
+    addParamValue(parser, 'maxSlew', 0, @isnumeric);
+    addParamValue(parser, 'sliceThickness', 0, @isnumeric);
+    addParamValue(parser, 'delay', 0, @isnumeric);
 end
-parse(parser,flip,varargin{:});
+parse(parser, flip, varargin{:});
 opt = parser.Results;
 
-BW=opt.timeBwProduct/opt.duration;
-alpha=opt.apodization;
-N=round(opt.duration/1e-6);
+BW = opt.timeBwProduct/opt.duration;
+alpha = opt.apodization;
+N = round(opt.duration/1e-6);
 t = (1:N)*opt.system.rfRasterTime;
 tt = t - opt.duration/2;
 window = (1.0-alpha+alpha*cos(2*pi*tt/opt.duration));
 signal = window.*sinc(BW*tt);
-flip=sum(signal)*opt.system.rfRasterTime*2*pi;
-signal=signal*opt.flipAngle/flip;
+flip = sum(signal)*opt.system.rfRasterTime*2*pi;
+signal = signal*opt.flipAngle/flip;
 
 rf.type = 'rf';
 rf.signal = signal;
@@ -52,52 +53,57 @@ rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = opt.system.rfDeadTime;
 rf.ringdownTime = opt.system.rfRingdownTime;
+rf.delay = opt.delay;
 
-fillTime=0;
-if nargout>1
-    assert(opt.sliceThickness>0,'SliceThickness must be provided');
-    if opt.maxGrad>0
+fillTime = 0;
+if nargout > 1
+    assert(opt.sliceThickness > 0,'SliceThickness must be provided');
+    if opt.maxGrad > 0
         opt.system.maxGrad = opt.maxGrad;
     end
-    if opt.maxSlew>0
+    if opt.maxSlew > 0
         opt.system.maxSlew = opt.maxSlew;
     end
     
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
-    gz = mr.makeTrapezoid('z',opt.system,'flatTime',opt.duration,'flatArea',area);
+    gz = mr.makeTrapezoid('z', opt.system, 'flatTime', opt.duration, ...
+                          'flatArea', area);
+    if rf.deadTime > gz.riseTime
+        gz.delay = round((rf.deadTime - gz.riseTime)/1e-6)*1e-6; % round to microsecond
+    end
     
     % Pad RF pulse with zeros during gradient ramp up
-    fillTime=gz.riseTime;
+    fillTime = gz.riseTime;
     tFill = (1:round(fillTime/1e-6))*1e-6;   % Round to microsecond
     rf.t = [tFill rf.t+tFill(end) ];
-    rf.signal=[zeros(size(tFill)), rf.signal];
+    rf.signal = [zeros(size(tFill)), rf.signal];
 end
 
 % Add dead time to start of pulse, if required
-if fillTime<rf.deadTime
-    fillTime=rf.deadTime-fillTime;
+if fillTime < rf.deadTime
+    fillTime = rf.deadTime-fillTime;
     tFill = (1:round(fillTime/1e-6))*1e-6;   % Round to microsecond
     rf.t = [tFill rf.t+tFill(end) ];
-    rf.signal=[zeros(size(tFill)), rf.signal];
+    rf.signal = [zeros(size(tFill)), rf.signal];
 end
 
-if rf.ringdownTime>0
+if rf.ringdownTime > 0
     tFill = (1:round(rf.ringdownTime/1e-6))*1e-6;  % Round to microsecond
     rf.t = [rf.t rf.t(end)+tFill];
     rf.signal = [rf.signal, zeros(size(tFill))];
 end
     
 
-function y=sinc(x)
+function y = sinc(x)
     % sinc Calculate the sinc function:
     %   sinc(x) = sin(pi*x)/(pi*x)
     %
-    % This is a useful helper function for those without the signal processing
-    % toolbox 
+    % This is a useful helper function for those without the signal 
+    % processing toolbox 
     
-    i=find(x==0);                                                              
-    x(i)= 1;
+    i = find(x == 0);                                                              
+    x(i) = 1;
     y = sin(pi*x)./(pi*x);                                                     
     y(i) = 1;   
 end

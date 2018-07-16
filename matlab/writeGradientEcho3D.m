@@ -6,7 +6,7 @@ Tpre=3e-3;
 riseTime=400e-6;
 Ndummy=50;
 sys=mr.opts('maxGrad',20,'gradUnit','mT/m','riseTime',riseTime,...
-    'RFdeadTime',10e-6,'ADCdeadTime',10e-6);
+            'rfRingdownTime', 30e-6, 'rfDeadTime', 100e-6);
 
 
 % Create non-selective pulse
@@ -24,10 +24,10 @@ areaZ = ((0:Nz-1)-Nz/2)*deltak(3);
 % Calculate timing
 TE=10e-3;
 TR=40e-3;
-delayTE = TE - mr.calcDuration(rf)/2 - mr.calcDuration(gxPre)  ...
-    - mr.calcDuration(gx)/2;
-delayTR = TR - mr.calcDuration(rf) - mr.calcDuration(gxPre) ...
-    - mr.calcDuration(gx) - mr.calcDuration(gxSpoil) - delayTE;
+delayTE = ceil((TE - mr.calcDuration(rf)/2 - mr.calcDuration(gxPre)  ...
+    - mr.calcDuration(gx)/2)/seq.gradRasterTime)*seq.gradRasterTime;
+delayTR = ceil((TR - mr.calcDuration(rf) - mr.calcDuration(gxPre) ...
+    - mr.calcDuration(gx) - mr.calcDuration(gxSpoil) - delayTE)/seq.gradRasterTime)*seq.gradRasterTime;
 
 % Drive magnetization to steady state
 for iY=1:Ndummy

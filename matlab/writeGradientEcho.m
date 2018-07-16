@@ -17,10 +17,12 @@ gzReph = mr.makeTrapezoid('z','Area',-gz.area/2,'Duration',2e-3);
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
 
 % Calculate timing
-delayTE=10e-3 - mr.calcDuration(gxPre) - mr.calcDuration(gz)/2 ...
-    - mr.calcDuration(gx)/2;
-delayTR=1000e-3 - mr.calcDuration(gxPre) - mr.calcDuration(gz) ...
-    - mr.calcDuration(gx) - delayTE;
+TE=10e-3;
+TR=1000e-3;
+delayTE=ceil((TE - mr.calcDuration(gxPre) - mr.calcDuration(gz)/2 ...
+    - mr.calcDuration(gx)/2)/seq.gradRasterTime)*seq.gradRasterTime;
+delayTR=ceil((TR - mr.calcDuration(gxPre) - mr.calcDuration(gz) ...
+    - mr.calcDuration(gx) - delayTE)/seq.gradRasterTime)*seq.gradRasterTime;
 
 % Loop over phase encodes and define sequence blocks
 for i=1:Ny

@@ -3,12 +3,14 @@
 
 \usepackage{tabularx}
 \usepackage{multirow}
+\usepackage{makecell}
 
 \usepackage{graphicx}
 \usepackage{float}
 
 \usepackage{booktabs}
 
+\renewcommand{\cellalign}{tl}
 \usepackage[bookmarks=true,ocgcolorlinks=true,plainpages=false, breaklinks=true, bookmarksopen=true, bookmarksnumbered=true]{hyperref}
 \hypersetup{linkcolor=blue, citecolor=magenta,urlcolor=blue} % electronic
 \hypersetup{colorlinks=true}
@@ -21,7 +23,7 @@
 
 %\def\myversion{1.01 }
 \def\myversionmajor{1}
-\def\myversionminor{1}
+\def\myversionminor{2}
 \def\myversionrevision{0}
 \def\myversion{\myversionmajor.\myversionminor.\myversionrevision }
 %\def\myversion{1.0.2 }
@@ -65,11 +67,12 @@ frame=single
 \vspace{1cm}
 \LARGE{Version \myversion\\}
 \vspace{1cm}
-\large Kelvin Layton\\ Maxim Zaitsev\\
+\large Kelvin Layton\\ Maxim Zaitsev\\ Stefan Kroboth\\
 \vspace{1cm}
 \large University Medical Centre Freiburg \\%
  \verb+kelvin.layton@uniklinik-freiburg.de+\\%
  \verb+maxim.zaitsev@uniklinik-freiburg.de+\\%
+ \verb+stefan.kroboth@uniklinik-freiburg.de+\\%
  \vspace{1cm}
  This file specification is part of the Pulseq project:
  \vspace{0.5cm}
@@ -100,6 +103,7 @@ Version & Date & Description \\
 1.0 & 26 Jun 2014 & Draft specification \\
 1.01 & 11 Jun 2015 & Included draft of binary specification \\
 1.1.0 & 11 Jul 2017 & Changed versioning scheme \\
+1.2.0 & 06 Jul 2018 & \makecell{Events can now be delayed individually; \\ Delay events and other events overlap within blocks} \\
 \bottomrule
 \end{tabular}
 
@@ -111,7 +115,6 @@ The purpose of this file format is to compactly represent a magnetic resonance (
 \item \textbf{Easily parsed:} The format should be easy for a computer program to parse without the need for external libraries.
 \item \textbf{Vendor independent:} The sequence format must not contain definitions specific to a particular hardware manufacturer.
 \item \textbf{Compact:} The sequence must not contain redundant definitions. As such, re-use of existing definitions at different times is inherent in the sequence format.
-%\item \textbf{Simple:} The sequence must be as simple
 \item \textbf{Low-level:} The format should be sufficiently low-level. This allows for maximum flexibility of sequence specifications and does not limit the high-level design tools.
 \end{enumerate}
 
@@ -247,9 +250,9 @@ The block above is the first in the sequence and contains an RF pulse with ID of
 Events are defined in sections, each starting with one the following keywords: \verb.[RF]., \verb.[GRADIENTS]., \verb.[TRAP]., \verb.[ADC]. or \verb.[DELAYS].. Each event is specified on a single line and contains an ID followed by type-specific definition.
 
 \subsubsection{RF}
-The RF section is declared with the \verb.[RF]. keyword. Following this declaration, each RF event is specified by a single line containing six numbers.
+The RF section is declared with the \verb.[RF]. keyword. Following this declaration, each RF event is specified by a single line containing seven numbers.
 \begin{lstlisting}
-<id> <amp> <mag_id> <phase_id> <freq> <phase>
+<id> <amp> <mag_id> <phase_id> <delay> <freq> <phase>
 \end{lstlisting}
 
 The specifiers are
@@ -262,6 +265,7 @@ Tag & Type & Description & Units\\
 \verb.<amp>. & float & Peak amplitude & Hz \\
 \verb.<mag_id>. & integer & Shape ID for magnitude profile & -- \\
 \verb.<phase_id>. & integer & Shape ID for phase profile & --\\
+\verb.<delay>. & integer & Delay before starting the RF pulse & $\rm \mu s$\\
 \verb.<freq>. & float & Frequency offset & Hz \\
 \verb.<phase>. & float & Phase offset & rad \\
 \bottomrule
@@ -271,20 +275,20 @@ Tag & Type & Description & Units\\
 \textbf{Example:}
 \begin{lstlisting}
 [RF]
-  1    2500  1   2       0.000  0.000
+  1    2500  1   2  0  0.000  0.000
 \end{lstlisting}
 \end{minipage}
 
-In the example above, the RF pulse has ID of 1, peak amplitude of 2500Hz. The magnitude and phase profiles are defined with the shapes of ID 1 and 2, respectively. The RF pulse does not have any frequency or phase offset.
+In the example above, the RF pulse has ID of 1, peak amplitude of 2500Hz. The magnitude and phase profiles are defined with the shapes of ID 1 and 2, respectively. The RF pulse does not have any frequency or phase offset or delay.
 
 \subsubsection{Gradients}
-Gradient events are declared in two sections. Arbitrary gradients are in a section declared with the \verb.[GRADIENTS]. keyword. Each line in the section is an arbitrary gradient specified by three numbers,
+Gradient events are declared in two sections. Arbitrary gradients are in a section declared with the \verb.[GRADIENTS]. keyword. Each line in the section is an arbitrary gradient specified by four numbers,
 \begin{lstlisting}
-<id> <amp> <shape_id>
+<id> <amp> <shape_id> <delay>
 \end{lstlisting}
-Trapezoidal gradients are in a section declared with the \verb.[TRAP]. keyword. Each line in the section is a trapezoidal gradients specified by five numbers,
+Trapezoidal gradients are in a section declared with the \verb.[TRAP]. keyword. Each line in the section is a trapezoidal gradients specified by six numbers,
 \begin{lstlisting}
-<id> <amp> <rise> <flat> <fall>
+<id> <amp> <rise> <flat> <fall> <delay>
 \end{lstlisting}
 
 The specifiers are
@@ -299,6 +303,7 @@ Tag & Type & Description & Units\\
 \verb.<rise>. & integer & Rise time of the trapezoid & $\rm \mu s$ \\
 \verb.<flat>. & integer & Flat-top time of the trapezoid & $\rm \mu s$ \\
 \verb.<fall>. & integer & Fall time of the trapezoid & $\rm \mu s$ \\
+\verb.<delay>. & integer & Delay before starting the gradient event & $\rm \mu s$\\
 \bottomrule
 \end{tabularx}
 
@@ -309,14 +314,15 @@ The gradient ID must be unique across both arbitrary and trapezoid gradients. Th
 \textbf{Example:}
 \begin{lstlisting}
 [GRADIENTS]
-  1    159154.9  3
+  1    159154.9  3  0
 [TRAP]
-  2       25000    30  940  30
-  3    20066.89    10  980  10
+  2       25000    30  940  30  100
+  3    20066.89    10  980  10  100
 \end{lstlisting}
 \end{minipage}
 
 The example above contains two gradients: an arbitrary gradient with peak amplitude of approximately 159kHz/m and shape ID 3 and two trapezoid gradients (IDs 2 and 3) with duration 1ms specified by amplitude, rise time, flat-top time and fall time.
+Both gradients have a delay of 100$\rm \mu s$.
 
 \subsubsection{ADC}
 The ADC section is declared with the \verb.[ADC]. keyword. Each line in the section is an ADC event specified by six numbers,
@@ -365,7 +371,7 @@ The specifiers are
 Tag & Type & Description & Units\\
 \midrule
 \verb.<id>. & integer & ID of the delay event & -- \\
-\verb.<delay>. & integer & Delay before starting the execution of the block & $\rm \mu s$ \\
+\verb.<delay>. & integer & Delay which overlaps with other events within a block and therefore defines the minimum duration of a block & $\rm \mu s$ \\
 \bottomrule
 \end{tabularx}
 

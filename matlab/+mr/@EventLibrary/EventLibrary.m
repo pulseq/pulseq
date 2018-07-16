@@ -25,6 +25,7 @@ classdef EventLibrary < handle
     % See also   mr.Sequence
     %
     % Kelvin Layton <kelvin.layton@uniklinik-freiburg.de>
+    % Stefan Kroboth <stefan.kroboth@uniklinik-freiburg.de>
     
     properties
         keys;
@@ -36,14 +37,14 @@ classdef EventLibrary < handle
     
     methods
         function obj = EventLibrary()
-            obj.keys=zeros(1,0);
-            obj.data=struct('array',{});
-            obj.lengths=zeros(1,0);
-            obj.type=char(zeros(1,0));
-            obj.keymap=containers.Map('KeyType', 'char', 'ValueType', 'double'); % unsure if int64 is a good choice
+            obj.keys = zeros(1,0);
+            obj.data = struct('array',{});
+            obj.lengths = zeros(1,0);
+            obj.type = char(zeros(1,0));
+            obj.keymap = containers.Map('KeyType', 'char', 'ValueType', 'double'); % unsure if int64 is a good choice
         end
         
-        function [id, found] = find(obj,data)
+        function [id, found] = find(obj, data)
             %find Lookup a data structure in the given library.
             %   idx=find(lib,data) Return the index of the data in
             %   the library. If the data does not exist in the library then
@@ -63,44 +64,55 @@ classdef EventLibrary < handle
             % matlab is extremely limited with regard to advanced contasiners
             % we therefore are forced to use hashed map and convert data to a
             % string
-            data_string=sprintf('%.6g ', data); % precision can be discussed
+            data_string = sprintf('%.6g ', data); % precision can be discussed
             % containers.Map does not have a proper find function so we use direct
             % access and catch the possible error
             try
-                id=obj.keymap(data_string);
-                found=true;
+                id = obj.keymap(data_string);
+                found = true;
             catch 
                 if isempty(obj.keys)
-                    id=1;
+                    id = 1;
                 else
-                    id=max(obj.keys)+1;
+                    id = max(obj.keys) + 1;
                 end
-                found=false;
+                found = false;
             end
         end
                
         
-        function insert(obj,id,data,type)
+        function insert(obj, id, data, type)
             %insert Add event to library
             % 
             % See also find
             
-            obj.keys(id)=id;
-            obj.data(id).array=data;
-            obj.lengths(id)=length(data);
+            obj.keys(id) = id;
+            obj.data(id).array = data;
+            obj.lengths(id) = length(data);
             
             % use map index for faster searches
-            % matlab is extremely limited with regard to advanced contasiners
+            % matlab is extremely limited with regard to advanced containers
             % we therefore are forced to use hashed map and convert data to a
             % string
             %data_string=num2hex(data)';
             %data_string=data_string(:)';
             data_string=sprintf('%.6g ', data);
-            obj.keymap(data_string)=id;
+            obj.keymap(data_string) = id;
             
             if nargin>3
-                obj.type(id)=type;
+                obj.type(id) = type;
             end
+        end
+        
+        function out = get(obj, id)
+            %get Get element from library by key
+            %
+            % See also find
+            out = struct;
+            out.key = obj.keys(id);
+            out.data = obj.data(id).array;
+            out.length = obj.lengths(id);
+            out.type = obj.type(id);
         end
         
     end
@@ -108,7 +120,7 @@ classdef EventLibrary < handle
     methods(Static)
         % Helper functions for fast searching
         % See find_mat.m
-        [id,found] = find_mat(keys,data,lengths,keymap,newData);
+        [id, found] = find_mat(keys, data, lengths, keymap, newData);
         %[id,found] = find_mex(keys,data,lengths,newData);
     end
     

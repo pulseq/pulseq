@@ -18,10 +18,10 @@ Num_Blocks 3
 3  0  0   0   0   0  1
 
 # Format of RF events:
-# id amplitude mag_id phase_id freq phase
-# ..        Hz   ....     ....   Hz   rad
+# id amplitude mag_id phase_id delay freq phase
+# ..        Hz   ....     ....    us   Hz   rad
 [RF]
-1         2500 1 2 0 0
+1         2500 1 2 0 0 0
 
 # Format of ADC events:
 # id num dwell delay freq phase

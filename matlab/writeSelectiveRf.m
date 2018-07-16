@@ -6,6 +6,11 @@ targetWidth=22.5e-3;    % Diameter of target excitation pattern
 n=8;                    % Number of spiral turns
 T=8e-3;                 % Pulse duration
 
+% Set system limits
+lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
+    'MaxSlew',130,'SlewUnit','T/m/s',...
+    'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6);  
+
 % Define spiral k-space trajectory
 kMax=(2*n)/foe/2;       % Units of 1/m (not rad/m)
 tk=0:seq.gradRasterTime:T-seq.gradRasterTime;
@@ -23,7 +28,7 @@ signal = signal0.*(1 + exp(-1j.*2*pi*5e-2*(kxRf + kyRf)));
 % Add gradient ramps
 [kx,ky,signal]=mr.addRamps({kx,ky},'rf',signal);
 
-rf = mr.makeArbitraryRf(signal,20*pi/180);
+rf = mr.makeArbitraryRf(signal,20*pi/180,'system',lims);
 gxRf = mr.makeArbitraryGrad('x',mr.traj2grad(kx));
 gyRf = mr.makeArbitraryGrad('y',mr.traj2grad(ky));
 
@@ -35,11 +40,14 @@ gxPre = mr.makeTrapezoid('x','Area',-gx.area/2,'Duration',2e-3);
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
 
 % Refocusing pulse and spoiling gradients
-[rf180, gz] = mr.makeBlockPulse(pi,'Duration',1e-3,'SliceThickness',5e-3);
+%[rf180, gz] = mr.makeBlockPulse(pi,'Duration',1e-3,'SliceThickness',5e-3);
+[rf180, gz] = mr.makeSincPulse(pi,'system',lims,'Duration',3e-3,...
+    'SliceThickness',5e-3,'apodization',0.5,'timeBwProduct',4);
+
 gzSpoil = mr.makeTrapezoid('z','Area',gx.area,'Duration',2e-3);
 
 %%% Calculate timing (TE=20ms, TR=500ms)
-delayTE1=20e-3/2 - mr.calcDuration(gzSpoil) - mr.calcDuration(rf180)/2;
+delayTE1=ceil((20e-3/2 - mr.calcDuration(gzSpoil) - mr.calcDuration(rf180)/2)/seq.gradRasterTime)*seq.gradRasterTime;
 delayTE2=delayTE1 - mr.calcDuration(gxPre) - mr.calcDuration(gx)/2;
 delayTR=500e-3 - 20e-3 - mr.calcDuration(rf) - mr.calcDuration(gx)/2;
 
@@ -58,6 +66,7 @@ for i=1:Ny
 end
 
 seq.write('selectiveRf.seq');   % Write to pulseq file
+seq.plot();
 
 return
 
