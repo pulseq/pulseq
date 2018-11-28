@@ -48,7 +48,7 @@ sliceThickness=5e-3;
 flip=15*pi/180;
 [rf, gz] = mr.makeSincPulse(flip,system,'Duration',4e-3,...
     'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4,...
-    'system', sys);
+    'system', system);
 
 figure
 plot(rf.t,real(rf.signal))
