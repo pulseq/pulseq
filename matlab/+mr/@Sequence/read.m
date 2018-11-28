@@ -55,7 +55,7 @@ while true
         case '[GRAD]'
             obj.gradLibrary = readEvents(fid, 1, 'g' ,obj.gradLibrary);
         case '[TRAP]'
-            obj.gradLibrary = readEvents(fid, [1 1e-6 1e-6 1e-6], 't', obj.gradLibrary);
+            obj.gradLibrary = readEvents(fid, [1 1e-6 1e-6 1e-6 1e-6], 't', obj.gradLibrary);
         case '[ADC]'
             obj.adcLibrary = readEvents(fid, [1 1e-9 1e-6 1 1]);
         case '[DELAYS]'
