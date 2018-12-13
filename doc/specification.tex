@@ -24,7 +24,7 @@
 %\def\myversion{1.01 }
 \def\myversionmajor{1}
 \def\myversionminor{2}
-\def\myversionrevision{0}
+\def\myversionrevision{1}
 \def\myversion{\myversionmajor.\myversionminor.\myversionrevision }
 %\def\myversion{1.0.2 }
 
@@ -104,6 +104,7 @@ Version & Date & Description \\
 1.01 & 11 Jun 2015 & Included draft of binary specification \\
 1.1.0 & 11 Jul 2017 & Changed versioning scheme \\
 1.2.0 & 06 Jul 2018 & \makecell{Events can now be delayed individually; \\ Delay events and other events overlap within blocks} \\
+1.2.1 & 13 Dec 2018 & \makecell{Matlab code does not use zero-filling prior to the \\ actual RF shape to account for RF dead time and \\ uses delay instead. Interpreter code also does not \\ attempt to detect RF zero-filling.} \\
 \bottomrule
 \end{tabular}
 

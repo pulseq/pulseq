@@ -59,7 +59,7 @@ end
 if isempty(opt.area) && isempty(opt.flatArea) && isempty(opt.amplitude)
     error('makeTrapezoid:invalidArguments','Must supply either ''area'', ''flatArea'' or ''amplitude''');
 end
-if opt.flatTime>0
+if ~isempty(opt.flatTime) % MZ was: opt.flatTime>0
     if ~isempty(opt.amplitude)
         amplitude = opt.amplitude;
     else

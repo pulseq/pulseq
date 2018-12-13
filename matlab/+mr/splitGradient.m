@@ -1,14 +1,15 @@
 function [grads] = splitGradient(grad, varargin)
-%SplitGradient Splits a trapezoidal Gradient into slew up, flat top and
+%SplitGradient Splits a trapezoidal gradient into slew up, flat top and
 %slew down.
 %
 %   [grads] = splitGradient(grad) 
 %   Returns the individual gradient parts (slew up, flat top and slew down) 
-%   as arbitrary gradient objects. The delays in the individual gradient
-%   events are adapted such that addGradients(...) produces an gradient
-%   equivalent to 'grad'.
+%   as extended trapezoid gradient objects. The delays in the individual 
+%   gradient events are adapted such that addGradients(...) produces an 
+%   gradient equivalent to 'grad'.
 %
-%   See also  Sequence.addBlock  mr.opts  makeTrapezoid
+%   See also  splitGradientAt makeExtendedTrapezoid makeTrapezoid
+%             Sequence.addBlock  mr.opts
 %
 %   Stefan Kroboth <stefan.kroboth@uniklinik-freiburg.de>
 
@@ -24,15 +25,15 @@ parse(parser, grad, varargin{:});
 opt = parser.Results;
 
 gradRasterTime = opt.system.gradRasterTime;
-mr.calcDuration(grad)
 total_length = mr.calcDuration(grad);
 
 if strcmp(grad.type, 'trap')
     ch = grad.channel;
-    grad.riseTime = ceil(grad.riseTime/gradRasterTime)*gradRasterTime;
-    grad.delay    = ceil(grad.delay   /gradRasterTime)*gradRasterTime;
-    grad.flatTime = ceil(grad.flatTime/gradRasterTime)*gradRasterTime;
-    grad.fallTime = ceil(grad.fallTime/gradRasterTime)*gradRasterTime;
+    grad.delay    = round(grad.delay   /gradRasterTime)*gradRasterTime; % MZ: was ceil
+    grad.riseTime = round(grad.riseTime/gradRasterTime)*gradRasterTime; % MZ: was ceil
+    grad.flatTime = round(grad.flatTime/gradRasterTime)*gradRasterTime; % MZ: was ceil
+    grad.fallTime = round(grad.fallTime/gradRasterTime)*gradRasterTime; % MZ: was ceil
+    
     % ramp up
     times = [0, grad.riseTime];
     amplitudes = [0 grad.amplitude];

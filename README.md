@@ -24,11 +24,6 @@ The directories are organized as follows:
 * `src/` - C++ class for reading sequence files
 * `matlab/` - MATLAB code for reading, writing, modifying and visualizing sequence files
 
-## Performance
-Improved performance of the MATLAB toolbox can be obtained by compiling key functions into mex functions. This is **not** necessary to use the toolbox although your code may run substantially faster. In later versions of MATLAB with the *MATLAB Coder* toolbox, this can be done with the following MATLAB script:
-
-	>> compile_mex
-
 ## System requirements
 
 System requirements vary depending on which features one intends to use or modify. In short,

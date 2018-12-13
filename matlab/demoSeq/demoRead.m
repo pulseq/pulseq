@@ -9,9 +9,14 @@
 %% Read a sequence file
 % A sequence can be loaded from the open MR file format using the |read|
 % method.
+% seq_name='trufi.seq'; 
+seq_name='../examples/gre.seq';
 seq=mr.Sequence();
-seq.read('../examples/gre.seq');
-%seq.read('/home/zaitsev/range_software/seq_data/external.seq');
+seq.read(seq_name);
+
+%% sanity check to see if the reading and writing are consistent
+% seq.write('read_test.seq');
+% system(['diff -s -u ' seq_name ' read_test.seq'],'-echo');
 
 %% Access sequence parameters and blocks
 % Parameters defined with in the |[DEFINITIONS]| section of the sequence file
@@ -88,6 +93,11 @@ rf2.signal=signal.*45/360;
 
 b1.rf=rf2;
 seq.setBlock(1,b1);
+
+%% second check to see what we have changed
+% seq.write('read_test2.seq');
+% system(['diff -s -u ' seq_name ' read_test2.seq'],'-echo');
+
 
 %%
 % The amplitude of the first rf pulse is reduced due to the reduced

@@ -50,11 +50,6 @@ enum Event {
 	GX,
 	GY,
 	GZ,
-#ifdef MASTER_SLAVE_FORMAT
-	GA,
-	GB,
-	GC,
-#endif
 	ADC,
 	CTRL,
 	LAST_UNUSED // this entry should be last in the list
@@ -331,14 +326,6 @@ inline std::string SeqBlock::GetTypeString() {
 	if (isArbitraryGradient(0)) type += " ArbX";
 	if (isArbitraryGradient(1)) type += " ArbY";
 	if (isArbitraryGradient(2)) type += " ArbZ";
-#ifdef MASTER_SLAVE_FORMAT
-	if (isTrapGradient(3)) type += " TrapA";
-	if (isTrapGradient(4)) type += " TrapB";
-	if (isTrapGradient(5)) type += " TrapC";
-	if (isArbitraryGradient(3)) type += " ArbA";
-	if (isArbitraryGradient(4)) type += " ArbB";
-	if (isArbitraryGradient(5)) type += " ArbC";
-#endif
 	if (isADC()) type += " ADC";
 	if (isDelay()) type += " Delay";
 	if (isRotation()) type = type + " Rot";

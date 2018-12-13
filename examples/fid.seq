@@ -1,50 +1,115 @@
-# Sequence Blocks
-# Created by JEMRIS 2.8
+# Pulseq sequence file
+# Created by MATLAB mr toolbox
 
-[DEFINITIONS]
-Scan_ID 1
-Num_Blocks 3
-Rot_Matrix 0 -1 -0 1 0 -0 0 0 1
+[VERSION]
+major 1
+minor 2
+revision 1
 
 # Format of blocks:
-##  D RF  GX  GY  GZ ADC
+#  #  D RF  GX  GY  GZ ADC
 [BLOCKS]
-1  0  1   0   0   0  0
-2  1  0   0   0   0  0
-3  0  0   0   0   0  1
+ 1  0  1   0   0   0  0
+ 2  1  0   0   0   0  0
+ 3  2  0   0   0   0  1
+ 4  3  0   0   0   0  0
+ 5  0  1   0   0   0  0
+ 6  1  0   0   0   0  0
+ 7  2  0   0   0   0  1
+ 8  3  0   0   0   0  0
+ 9  0  1   0   0   0  0
+10  1  0   0   0   0  0
+11  2  0   0   0   0  1
+12  3  0   0   0   0  0
+13  0  1   0   0   0  0
+14  1  0   0   0   0  0
+15  2  0   0   0   0  1
+16  3  0   0   0   0  0
+17  0  1   0   0   0  0
+18  1  0   0   0   0  0
+19  2  0   0   0   0  1
+20  3  0   0   0   0  0
+21  0  1   0   0   0  0
+22  1  0   0   0   0  0
+23  2  0   0   0   0  1
+24  3  0   0   0   0  0
+25  0  1   0   0   0  0
+26  1  0   0   0   0  0
+27  2  0   0   0   0  1
+28  3  0   0   0   0  0
+29  0  1   0   0   0  0
+30  1  0   0   0   0  0
+31  2  0   0   0   0  1
+32  3  0   0   0   0  0
+33  0  1   0   0   0  0
+34  1  0   0   0   0  0
+35  2  0   0   0   0  1
+36  3  0   0   0   0  0
+37  0  1   0   0   0  0
+38  1  0   0   0   0  0
+39  2  0   0   0   0  1
+40  3  0   0   0   0  0
+41  0  1   0   0   0  0
+42  1  0   0   0   0  0
+43  2  0   0   0   0  1
+44  3  0   0   0   0  0
+45  0  1   0   0   0  0
+46  1  0   0   0   0  0
+47  2  0   0   0   0  1
+48  3  0   0   0   0  0
+49  0  1   0   0   0  0
+50  1  0   0   0   0  0
+51  2  0   0   0   0  1
+52  3  0   0   0   0  0
+53  0  1   0   0   0  0
+54  1  0   0   0   0  0
+55  2  0   0   0   0  1
+56  3  0   0   0   0  0
+57  0  1   0   0   0  0
+58  1  0   0   0   0  0
+59  2  0   0   0   0  1
+60  3  0   0   0   0  0
+61  0  1   0   0   0  0
+62  1  0   0   0   0  0
+63  2  0   0   0   0  1
+64  3  0   0   0   0  0
 
 # Format of RF events:
-# id amplitude mag_id phase_id freq phase
-# ..        Hz   ....     ....   Hz   rad
+# id amplitude mag_id phase_id delay freq phase
+# ..        Hz   ....     ....    us   Hz   rad
 [RF]
-1         2500 1 2 0 0
+1         2500 1 2 100 0 0
 
 # Format of ADC events:
 # id num dwell delay freq phase
 # ..  ..    ns    us   Hz   rad
 [ADC]
- 1  64  50000   0 0 0
+1 256 12500 20 0 0
 
 # Format of delays:
 # id delay (us)
 [DELAYS]
-1 5000
+1 20000
+2 3240
+3 1000000
 
 # Sequence Shapes
-
 [SHAPES]
 
 shape_id 1
-num_samples 100
+num_samples 130
 1
 0
 0
 97
+-1
+0
+0
+27
 
 shape_id 2
-num_samples 100
+num_samples 130
 0
 0
-98
-
+128
 

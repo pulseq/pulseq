@@ -81,4 +81,10 @@ grad = mr.makeArbitraryGrad(channel, waveform, opt.system, ...
                             'maxSlew', maxSlew,...
                             'maxGrad', maxGrad,...
                             'delay', opt.times(1));
+                        
+% MZ: although makeArbitraryGrad sets the .first and .last for extended 
+% trapezoids we can do it better
+grad.first=opt.amplitudes(1);
+grad.last=opt.amplitudes(end);
+
 end

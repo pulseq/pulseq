@@ -3,6 +3,7 @@ function grad = addGradients(grads, varargin)
 %
 %   [grad] = addGradients(grads, system) 
 %   Returns the superposition of serveral gradients
+%   gradients have to be passed as a cell array e.g. {g1, g2, g3}
 %
 %   See also  Sequence.addBlock  mr.opts  makeTrapezoid
 %
@@ -30,29 +31,50 @@ if opt.maxSlew > 0
     maxSlew = opt.maxSlew;
 end
 
-% first gradient event defines channel:
-channel = grads(1).channel;
+if ~iscell(grads)
+    error('gradients have to be passed as cell array');
+end
 
-% find out the general delay of all gradients
+if length(grads)<2
+    error('cannot add less then two gradients');
+end
+
+% first gradient event defines channel:
+channel = grads{1}.channel;
+
+% find out the general delay of all gradients and other statistics
 delays = [];
+firsts = [];
+lasts = [];
+durs=[];
 for ii = 1:length(grads)
-    delays = [delays, grads(ii).delay];
+    delays = [delays, grads{ii}.delay];
+    firsts = [firsts, grads{ii}.first];
+    lasts = [lasts, grads{ii}.last];
+    durs = [durs, mr.calcDuration(grads{ii})];
 end
 common_delay = min(delays);
-
+total_duration = max(durs);
 
 waveforms = {};
 max_length = 0;
 for ii = 1:length(grads)
-    g = grads(ii);
+    g = grads{ii};
     if strcmp(g.type, 'grad')
         waveforms{ii} = g.waveform;
     elseif strcmp(g.type, 'trap')
-        times = [g.delay - common_delay ...
-                 g.delay - common_delay + g.riseTime ...
-                 g.delay - common_delay + g.riseTime + g.flatTime ...
-                 g.delay - common_delay + g.riseTime + g.flatTime + g.fallTime];
-        amplitudes = [0 g.amplitude g.amplitude 0];
+        if (g.flatTime>0) % triangle or trapezoid
+            times = [g.delay - common_delay ...
+                     g.delay - common_delay + g.riseTime ...
+                     g.delay - common_delay + g.riseTime + g.flatTime ...
+                     g.delay - common_delay + g.riseTime + g.flatTime + g.fallTime];
+            amplitudes = [0 g.amplitude g.amplitude 0];
+        else
+            times = [g.delay - common_delay ...
+                     g.delay - common_delay + g.riseTime ...
+                     g.delay - common_delay + g.riseTime + g.fallTime];
+            amplitudes = [0 g.amplitude 0];
+        end
         waveforms{ii} = mr.pts2waveform(times, amplitudes, ...
                                         opt.system.gradRasterTime);
     else
@@ -81,4 +103,11 @@ grad = mr.makeArbitraryGrad(channel, w, opt.system, ...
                             'maxSlew', maxSlew,...
                             'maxGrad', maxGrad,...
                             'delay', common_delay);
+                       
+% fix the first and the last values
+% first is defined by the sum of firsts with the minimal delay (common_delay)
+% last is defined by the sum of lasts with the maximum duration (total_duration)
+grad.first=sum(firsts(delays==common_delay));
+grad.last=sum(lasts(durs==total_duration));
+
 end

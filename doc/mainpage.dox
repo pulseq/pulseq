@@ -15,12 +15,22 @@ divided into <a href="matlab.html">MATLAB</a> and <a href="annotated.html">C++</
 
 ## Sequence examples
 
-Some source code examples are
+### Matlab
 
--  <a href="matlabWriteGre.html">Create a gradient echo sequence in MATLAB</a>
--  <a href="matlabWriteRf.html">Create a 2D selective RF pulse in MATLAB</a>
--  <a href="matlabRead.html">Load a sequence into MATLAB</a>
--  <a href="examples.html">C++ console parser</a>
+-  <a href="writeGradientEcho.html">Gradient echo sequence</a>
+-  <a href="writeGradientEcho3D.html">3D Gradient echo sequence</a>
+-  <a href="writeEpi.html">EPI sequence</a>
+-  <a href="writeEpiRS.html">EPI sequence with ramp sampling</a>
+-  <a href="writeEpiSpinEcho.html">SE-EPI sequence</a>
+-  <a href="writeHASTE.html">HASTE sequence</a>
+-  <a href="writeRadialGradientEcho.html">Radial Gradient echo sequence</a>
+-  <a href="writeSelectiveRf.html">Create a 2D selective RF pulse</a>
+-  <a href="writeSpiral.html">Spiral sequence</a>
+-  <a href="writeTrufi.html">Trufi sequence</a>
+-  <a href="writeTSE.html">Turbo spin echo sequence</a>
+-  <a href="writeUTE.html">UTE sequence</a>
+-  <a href="writeUTE_rs.html">UTE sequence with ramp sampling</a>
+-  <a href="demoRead.html">Load a sequence into MATLAB</a>
 
 ## Scanner implementations
 
@@ -28,8 +38,8 @@ Currently, *Pulseq* sequences can be executed on the following platforms. Please
 you would like to run open and flexible sequences at your institution.
 
 - Siemens
-- GE
-- Bruker
+- <a href="https://toppemri.github.io">GE</a>
+- <a href="https://github.com/pulseq/bruker_interpreter">Bruker</a>
 
 ## Download source code
 
@@ -95,13 +105,13 @@ Examples
 <div class="directory">
 <table class="directory">
 <tr class="even"><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span><a class="el" href="matlabWriteGre.html">Gradient echo sequence</a></td><td class="desc">Generate a GRE sequence and export for execution.</td></tr>
+<span class="icona"><span class="icon">M</span></span><a class="el" href="writeGradientEcho.html">Gradient echo sequence</a></td><td class="desc">Generate a GRE sequence and export for execution.</td></tr>
 
 <tr><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span>
-<span class="icona"><span class="icon">M</span></span><a class="el" href="matlabWriteRf.html">Arbitrary RF pulses</a></td><td class="desc">Generate sequecne with a 2D RF pulse and export for execution.</td></tr>
+<span class="icona"><span class="icon">M</span></span><a class="el" href="writeSelectiveRf.html">Arbitrary RF pulses</a></td><td class="desc">Generate sequecne with a 2D RF pulse and export for execution.</td></tr>
 
 <tr class="even"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span>
-<span class="icona"><span class="icon">M</span></span><a class="el" href="matlabRead.html">Read sequence</a></td><td class="desc">Read file and visualise the MR sequence.</td></tr>
+<span class="icona"><span class="icon">M</span></span><a class="el" href="demoRead.html">Read sequence</a></td><td class="desc">Read file and visualise the MR sequence.</td></tr>
 
 </table>
 </div><!-- directory -->
@@ -113,7 +123,7 @@ Examples
 <div class="directory">
 <table class="directory">
 <tr class="even"><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span><a class="el" href="SequenceCode.html">Sequence</a></td><td class="desc">MATLAB class for generating, reading and writing MR sequences.</td></tr>
+<span class="icona"><span class="icon">M</span></span><a class="el">Sequence</a></td><td class="desc">MATLAB class for generating, reading and writing MR sequences.</td></tr>
 </table>
 </div><!-- directory -->
 \endhtmlonly
@@ -166,38 +176,3 @@ Examples
 </table>
 </div>
 \endhtmlonly
-
-
-
-
-  */
-
-// *************************** READ EXAMPLE *******************
-/**
-\page matlabRead MATLAB example
-
-\htmlinclude demoRead.html
-  \n
-*/
-
-// *************************** WRITE EXAMPLE 1 *******************
-/**
-\page matlabWriteGre MATLAB example
-
-\htmlinclude demoWriteGre.html
-  \n
-*/
-
-// *************************** WRITE EXAMPLE 2 *******************
-/**
-\page matlabWriteRf MATLAB example
-
-\htmlinclude demoWriteRf.html
-  \n
-*/
-
-// *************************** CLASS *******************
-/**
-  \page SequenceCode MATLAB sequence class
-  \htmlinclude Sequence.html
-  */

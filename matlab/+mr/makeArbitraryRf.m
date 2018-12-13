@@ -12,6 +12,8 @@ function [rf, gz] = makeArbitraryRf(signal,flip,varargin)
 %
 %   See also  Sequence.makeSincPulse, Sequence.addBlock
 
+validPulseUses = {'excitation','refocusing','inversion'};
+
 persistent parser
 if isempty(parser)
     parser = inputParser;
@@ -31,6 +33,8 @@ if isempty(parser)
     addParamValue(parser, 'sliceThickness', 0, @isnumeric);
     % Delay
     addParamValue(parser, 'delay', 0, @isnumeric);
+    % whether it is a refocusing pulse (for k-space calculation)
+    addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
 end
 parse(parser, signal, flip,varargin{:});
 opt = parser.Results;
@@ -49,6 +53,12 @@ rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = opt.system.rfDeadTime;
 rf.ringdownTime = opt.system.rfRingdownTime;
 rf.delay = opt.delay;
+if ~isempty(opt.use)
+    rf.use=opt.use;
+end
+if rf.deadTime > rf.delay
+    rf.delay = rf.deadTime;
+end
 
 if nargout>1
     assert(opt.sliceThickness > 0, 'SliceThickness must be provided');
@@ -70,9 +80,12 @@ if nargout>1
     gz = mr.makeTrapezoid('z', opt.system, 'flatTime', opt.duration, ...
                           'flatArea', area);
     
-    tFill = (1:round(gz.riseTime/1e-6))*1e-6;   % Round to microsecond
-    rf.t = [tFill rf.t+tFill(end) tFill+rf.t(end)+tFill(end)];
-    rf.signal = [zeros(size(tFill)), rf.signal, zeros(size(tFill))];
+    if rf.delay > gz.riseTime
+        gz.delay = ceil((rf.delay - gz.riseTime)/opt.system.gradRasterTime)*opt.system.gradRasterTime; % round-up to gradient raster
+    end
+    if rf.delay < (gz.riseTime+gz.delay)
+        rf.delay = gz.riseTime+gz.delay; % these are on the grad raster already which is coarser 
+    end
 end
 
 if rf.ringdownTime > 0

@@ -17,32 +17,23 @@ try
         
         try
             % Read text file
-            seq.read(file);
+            seq.read(file,'detectRFuse');
         catch
             % Read binary file
             seq.readBinary(file);
         end
         
-        [duration, numBlocks, eventCount]=seq.duration();
-        
+        % actually analyze the sequence
+        report=seq.testReport;
         
         % Open output file for writing
         [outDir,outFile,~]=fileparts(file);
-        if ~isempty(outDir) then
+        if ~isempty(outDir) 
             outDir=[outDir '/'];
         end
         fid=fopen([outDir outFile '.matlab.out'],'w');
         fprintf(fid,'Testing file: %s\n',file);
-        fprintf(fid,'Number of blocks: %d\n',numBlocks);
-        fprintf(fid,'Number of events:\n');
-        fprintf(fid,'   RF:   %6d\n',eventCount(2));
-        fprintf(fid,'   Gx:   %6d\n',eventCount(3));
-        fprintf(fid,'   Gy:   %6d\n',eventCount(4));
-        fprintf(fid,'   Gz:   %6d\n',eventCount(5));
-        fprintf(fid,'   ADC:  %6d\n',eventCount(6));
-        fprintf(fid,'   Delay:%6d\n',eventCount(1));
-        fprintf(fid,'Sequence duration: %.4fs\n',duration);
-        
+        fprintf(fid,'%s', [report{:}]);
         fclose(fid);
     end
 catch e

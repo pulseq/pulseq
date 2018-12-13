@@ -27,7 +27,11 @@ if ~isempty(obj.definitions)
     values = obj.definitions.values;
     for i=1:length(keys)
         fprintf(fid, '%s ', keys{i});
-        fprintf(fid, '%g ', values{i});
+        if (ischar(values{i}))
+            fprintf(fid, '%s ', values{i});
+        else
+            fprintf(fid, '%g ', values{i});
+        end
         fprintf(fid, '\n');
     end
 	fprintf(fid, '\n');
@@ -127,7 +131,7 @@ if ~isempty(obj.shapeLibrary.keys)
         shape_dat = obj.shapeLibrary.data(k).array;
         fprintf(fid, 'shape_id %d\n', k);
         fprintf(fid, 'num_samples %d\n', shape_dat(1));
-        fprintf(fid, '%g\n', shape_dat(2:end));
+        fprintf(fid, '%.9g\n', shape_dat(2:end));
         fprintf(fid, '\n');
     end
 end

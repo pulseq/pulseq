@@ -1,10 +1,23 @@
-Testing file: ../examples/gre.seq
-Number of blocks: 160
+Testing file: gre.seq
+Number of blocks: 640
 Number of events:
-   RF:       32
-   Gx:       64
-   Gy:       32
-   Gz:       64
-   ADC:      32
-   Delay:    64
-Sequence duration: 6.4003s
+   RF:      128
+   Gx:      384
+   Gy:      256
+   Gz:      384
+   ADC:     128
+   Delay:   256
+Sequence duration: 12.800640s
+TE: 0.007390s
+TR: 0.100010s
+Flip angle: 10.00°
+Unique k-space positions (a.k.a. columns, rows, etc): 64
+Unique k-space positions (a.k.a. columns, rows, etc): 64
+Unique k-space positions (a.k.a. columns, rows, etc): 1
+Block timing check passed successfully
+Max. Gradient: 1190700 Hz/m == 27.97 mT/m
+Max. Gradient: 64646 Hz/m == 1.52 mT/m
+Max. Gradient: 1190480 Hz/m == 27.96 mT/m
+Max. Slew Rate: 6.26684e+09 Hz/m/s == 147.19 T/m/s
+Max. Slew Rate: 3.23233e+09 Hz/m/s == 75.92 T/m/s
+Max. Slew Rate: 6.26568e+09 Hz/m/s == 147.16 T/m/s

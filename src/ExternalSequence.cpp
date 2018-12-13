@@ -55,9 +55,6 @@ void ExternalSequence::print_msg(MessageType level, std::ostream& ss) {
 bool ExternalSequence::load(std::string path)
 {
 	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "Reading external sequence files");
-#ifdef MASTER_SLAVE_FORMAT
-	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "Expecting 6-channel file format");
-#endif
 
 	char buffer[MAX_LINE_SIZE];
 	char tmpStr[MAX_LINE_SIZE];
@@ -478,16 +475,6 @@ bool ExternalSequence::load(std::string path)
 
 		memset(events.id, 0, NUM_EVENTS*sizeof(int));
 
-#ifdef MASTER_SLAVE_FORMAT
-		if (10<sscanf(buffer, "%d%d%d%d%d%d%d%d%d%d%d", &blockIdx,
-				&events.id[DELAY],                              // Delay
-				&events.id[RF],                                 // RF
-				&events.id[GX],&events.id[GY],&events.id[GY],   // Linear
-				&events.id[GA],&events.id[GB],&events.id[GC],   // Patloc
-				&events.id[ADC],                                // ADCs
-				&events.id[CTRL]                                // Control
-				)
-#else
 		if (7<sscanf(buffer, "%d%d%d%d%d%d%d%d", &blockIdx,
 				&events.id[DELAY],                              // Delay
 				&events.id[RF],                                 // RF
@@ -495,7 +482,6 @@ bool ExternalSequence::load(std::string path)
 				&events.id[ADC],                                // ADCs
 				&events.id[CTRL]                                // Control
 				)
-#endif
 				) {
 			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode event table\n" << buffer << std::endl );
 			return false;

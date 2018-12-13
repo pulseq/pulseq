@@ -7,8 +7,8 @@ from __future__ import print_function
 import subprocess
 import os
 
-print("Testing matlab code for open MRI format")
-print("=======================================")
+print("Pulseq Test Suite")
+print("=================")
 
 
 def cmp_lines(path_1, path_2):
@@ -26,37 +26,58 @@ def cmp_lines(path_1, path_2):
 
 def main():
     """Main"""
-    sequences = ['fid', 'gre', 'press']
-    binary_sequences = ['gre_binary']
+    sequences = ['fid', 'gre', 'epi_rs']
+    # binary sequences are unsuported now
+    #binary_sequences = ['gre_binary']
+    binary_sequences = []
     base_dir = '../examples/'
     approved_dir = '../examples/approved/'
     ok_flag = True
 
     cell_str = '{'
-    for _, seq in enumerate(sequences):
+    for seq in sequences:
         cell_str += "'" + base_dir + seq + ".seq',"
-    for _, seq in enumerate(binary_sequences):
+    for seq in binary_sequences:
         cell_str += "'" + base_dir + seq + ".bin',"
     cell_str += "}"
 
     # Cleanup previous results
-    for _, seq in enumerate(sequences + binary_sequences):
+    for seq in (sequences + binary_sequences):
         try:
             os.remove(base_dir + seq + '.matlab.out')
         except:
             pass
 
-    fun_cmd = "parsemr({0}); exit;".format(cell_str)
-    matlab_cmd = 'matlab -nodisplay -nosplash -r ' +\
-        '"try; {0}; catch; exit(-1); end"'.format(fun_cmd)
+    # run example sequences
+    matlab_cmd = 'matlab -nodisplay -nosplash -r ' + \
+        '"try; run ' + base_dir + '/run_all; catch; exit(-1); end; exit(0)"' +\
+        ' > /dev/null'
+    print("Exporting test sequences (this may take a while)...")
+    #  print(matlab_cmd)
     subprocess.call(matlab_cmd, shell=True)
 
-    for _, seq in enumerate(sequences + binary_sequences):
+    #  fun_cmd = "parsemr({0}); exit;".format(cell_str)
+    #  matlab_cmd = 'matlab -nodisplay -nosplash -r ' +\
+    #      '"try; {0}; catch; exit(-1); end; exit(0);"'.format(fun_cmd)
+    #  print("Executing")
+    #  print(matlab_cmd)
+    #  subprocess.call(matlab_cmd, shell=True)
+
+    print("Comparing output...")
+    for seq in sequences + binary_sequences:
+        # compare condensed info
         same = cmp_lines(base_dir + seq + '.matlab.out',
                          approved_dir + seq + '.matlab.out')
 
         result = "ok" if same else "not ok"
-        print("Comparing output {0}: {1}".format(seq, result))
+        print("Sequence {0} (condensed): {1}".format(seq, result))
+
+        # compare full .seq files
+        same = cmp_lines(base_dir + seq + '.seq',
+                         approved_dir + seq + '.seq')
+
+        result = "ok" if same else "not ok"
+        print("Sequence {0} (full seq): {1}".format(seq, result))
 
         ok_flag = ok_flag & same
 

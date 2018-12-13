@@ -3,7 +3,7 @@ system = mr.opts('rfRingdownTime', 30e-6, 'rfDeadTime', 100e-6, ...
 
 seq=mr.Sequence(system);              % Create a new sequence object
 Nx=256;
-Nrep=1;
+Nrep=16;
 
 % Create non-selective pulse 
 rf = mr.makeBlockPulse(pi/2,'Duration',0.1e-3, 'system', system);

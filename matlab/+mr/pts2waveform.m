@@ -1,6 +1,6 @@
 function waveform = pts2waveform(times, amplitudes, gradRasterTime)
 
-grd = min(times):gradRasterTime:max(times);
+grd = (round(min(times)/gradRasterTime):round(max(times)/gradRasterTime))*gradRasterTime; % the previous code was clipping the gradient now and then...
 grd = grd(1:end-1);
 waveform = interp1(times, amplitudes, grd + gradRasterTime/2);
 

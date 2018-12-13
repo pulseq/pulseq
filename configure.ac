@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT(pulseq, 1.1.0, kelvin.layton@uniklinik-freiburg.de)
+AC_INIT(pulseq, 1.1.0, maxim.zaitsev@uniklinik-freiburg.de)
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_AUX_DIR(config)
 AM_INIT_AUTOMAKE([foreign])

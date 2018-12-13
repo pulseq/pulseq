@@ -54,7 +54,7 @@ classdef Sequence < handle
         function obj = Sequence(varargin)
             obj.version_major = 1;
             obj.version_minor = 2;
-            obj.version_revision = 0;
+            obj.version_revision = 1;
             obj.definitions = containers.Map();
             obj.gradLibrary = mr.EventLibrary();
             obj.shapeLibrary = mr.EventLibrary();
@@ -75,7 +75,7 @@ classdef Sequence < handle
         
         
         % See read.m
-        read(obj,filename)
+        read(obj,filename,varargin)
         
         % See write.m
         write(obj,filename)
@@ -86,6 +86,9 @@ classdef Sequence < handle
         % See writeBinary.m
         writeBinary(obj,filename);
         
+        
+        % See testReport.m
+        %testReport(obj);
         
         function [duration, numBlocks, eventCount]=duration(obj)
             % duration() 
@@ -101,6 +104,30 @@ classdef Sequence < handle
                 b=obj.getBlock(iB);
                 eventCount = eventCount + (obj.blockEvents{iB}>0);
                 duration=duration+mr.calcDuration(b);
+            end
+        end
+        
+        function [is_ok, errorReport]=checkTiming(obj)
+            % checkTiming() 
+            %     Checks timing of all blocks and objects in the sequence 
+            %     optionally returns the detailed error log as cell array
+            %     of strings 
+            %
+            
+            % Loop over blocks and gather statistics
+            numBlocks = length(obj.blockEvents);
+            is_ok=true;
+            errorReport={};
+            for iB=1:numBlocks
+                b=obj.getBlock(iB);
+                % assemble cell array of events
+                ev={b.rf, b.gx, b.gy, b.gz, b.adc, b.delay};
+                ind=~cellfun(@isempty,ev);
+                [res rep] = mr.checkTiming(obj.sys,ev{ind});
+                is_ok = (is_ok && res); 
+                if ~isempty(rep)
+                    errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' rep '\n' ] };
+                end
             end
         end
         
@@ -147,7 +174,7 @@ classdef Sequence < handle
         
         %TODO: Replacing blocks in the middle of sequence can cause unused
         %events in the libraries. These can be detected and pruned.
-        function setBlock(obj,index,varargin)
+        function setBlock(obj, index, varargin)
             %setBlock Replace sequence block.
             %   setBlock(obj, index, bStruct) Replace block at index with new
             %   block provided as block structure.
@@ -161,26 +188,19 @@ classdef Sequence < handle
             %
             %   See also  getBlock, addBlock
             
-            % Convert block structure to cell array of events
-            varargin=mr.block2events(varargin);
-            %varargin_bak=varargin;
-            %varargin(cellfun(@(C)isempty(C),varargin))=[]; % this costs time but does not seem to do anything
-            %if (~isequal(varargin, varargin_bak)) then
-            %    printf('it does something!');
-            %    varargin_bak
-            %    varargin
-            %end                
+            block_duration = mr.calcDuration(varargin);
             
-            %obj.blockEvents(index,:) = zeros(1,6);
+            % Convert block structure to cell array of events
+            varargin=mr.block2events(varargin);    
+            
             obj.blockEvents{index}=zeros(1,6);
             duration = 0;
             
+            check_g = {};
+            
             % Loop over events adding to library if necessary and creating
             % block event structure.
-            exact_length = 0; % SK: Gradients not ending at zero 
-                              % require that a block ends exactly where
-                              % the non-zero gradient ends.
-            for i=1:length(varargin)
+            for i = 1:length(varargin)
                 event = varargin{i};
                 switch event.type
                     case 'rf'
@@ -189,7 +209,7 @@ classdef Sequence < handle
                         
                         mag = abs(event.signal);
                         amplitude = max(mag);
-                        mag = mag/amplitude;
+                        mag = mag / amplitude;
                         phase = angle(event.signal);
                         phase(phase < 0) = phase(phase < 0) + 2*pi;
                         phase = phase / (2*pi);
@@ -208,9 +228,21 @@ classdef Sequence < handle
                             obj.shapeLibrary.insert(phaseId, data);
                         end
                         
+                        use = 0;
+                        if isfield(event,'use')
+                            switch event.use
+                                case 'excitation'
+                                    use = 1;
+                                case 'refocusing'
+                                    use = 2;
+                                case 'inversion'
+                                    use = 3;
+                            end
+                        end
+                        
                         data = [amplitude magId phaseId event.delay ...
                                 event.freqOffset event.phaseOffset ...
-                                event.deadTime event.ringdownTime];
+                                event.deadTime event.ringdownTime use];
                         [id, found] = obj.rfLibrary.find(data);
                         if ~found
                             obj.rfLibrary.insert(id, data);
@@ -224,29 +256,11 @@ classdef Sequence < handle
                     case 'grad'
                         channelNum = find(strcmp(event.channel, ...
                                                  {'x', 'y', 'z'}));
-                        
-                        idx = 2+channelNum;
-%                         if event.first > 0 && event.delay > 0
-%                             error('If first amplitude of a gradient is nonzero, it must connect to previous block!');
-%                         end
-                        if index > 1
-                            prev_id = obj.blockEvents{index-1}(idx);
-                            if prev_id ~= 0
-                                prev_lib = obj.gradLibrary.get(prev_id);
-                                prev_dat = prev_lib.data;
-                                prev_type = prev_lib.type;
-                                if prev_type == 't'
-                                    if event.first > obj.sys.maxSlew
-                                        error('Two consecutive gradients need to have the same amplitude at the connection point');
-                                    end
-                                elseif prev_type == 'g'
-                                    last = prev_dat(5);
-                                    if abs(last - event.first) > obj.sys.maxSlew
-                                        error('Two consecutive gradients need to have the same amplitude at the connection point');
-                                    end
-                                end
-                            end
-                        end
+                        idx = 2 + channelNum;
+                                        
+                        check_g{channelNum}.idx = idx;
+                        check_g{channelNum}.start = [event.delay+min(event.t), event.first];
+                        check_g{channelNum}.stop  = [event.delay+max(event.t)+obj.sys.gradRasterTime, event.last]; % MZ: we need to add this gradient raster time, otherwise the gradient appears to be one step too short
                         
                         amplitude = max(abs(event.waveform));
                         g = event.waveform./amplitude;
@@ -261,39 +275,22 @@ classdef Sequence < handle
                         if ~found
                             obj.gradLibrary.insert(id, data,'g');
                         end
-                        %obj.blockEvents(index,idx) = id;
                         obj.blockEvents{index}(idx) = id;
-                        block_length = event.delay + (length(g)-1)*obj.gradRasterTime;
-                        duration = max(duration, block_length);
-                        if abs(event.last) >= obj.sys.maxSlew
-                            if (exact_length == 0 || exact_length == block_length) && duration == block_length
-                                exact_length = block_length;
-                            else
-                                error('A gradient that doesnt end at zero needs to be the longest gradient in a block.')
-                            end
-                        end                      
+                        
+                        grad_duration = event.delay + length(g)*obj.gradRasterTime; %MZ: was: (length(g)-1)
+                        duration = max(duration, grad_duration);
+
                     case 'trap'
                         channelNum = find(strcmp(event.channel,{'x','y','z'}));
-                        
                         idx = 2 + channelNum;
-                        if index > 1
-                            prev_id = obj.blockEvents{index-1}(idx);
-                            if prev_id ~= 0;
-                                prev_lib = obj.gradLibrary.get(prev_id);
-                                prev_dat = prev_lib.data;
-                                prev_type = prev_lib.type;
-                                if prev_type == 't'
-                                    if event.first > obj.sys.maxSlew
-                                        error('Two consecutive gradients need to have the same amplitude at the connection point');
-                                    end
-                                elseif prev_type == 'g'
-                                    last = prev_dat(5);
-                                    if abs(last - event.first) > obj.sys.maxSlew
-                                        error('Two consecutive gradients need to have the same amplitude at the connection point');
-                                    end
-                                end
-                            end
-                        end
+                        
+                        check_g{channelNum}.idx = idx;
+                        check_g{channelNum}.start = [0, 0];
+                        check_g{channelNum}.stop  = [event.delay + ...
+                                                     event.riseTime + ...
+                                                     event.fallTime + ...
+                                                     event.flatTime, 0];
+                        
                         data = [event.amplitude event.riseTime ...
                                 event.flatTime event.fallTime ...
                                 event.delay];
@@ -301,12 +298,9 @@ classdef Sequence < handle
                         if ~found
                             obj.gradLibrary.insert(id,data,'t');
                         end
-                        %obj.blockEvents(index,idx)=id;
                         obj.blockEvents{index}(idx)=id;
                         duration=max(duration,event.delay+event.riseTime+event.flatTime+event.fallTime);
-                        if exact_length ~= 0 && duration > exact_length
-                            error('A gradient that doesnt end at zero needs to be the longest gradient in a block.')
-                        end
+
                     case 'adc'
 %                         data = [event.numSamples event.dwell event.delay ...
 %                             event.freqOffset event.phaseOffset event.deadTime];
@@ -316,7 +310,6 @@ classdef Sequence < handle
                         if ~found
                             obj.adcLibrary.insert(id,data);
                         end
-                        %obj.blockEvents(index,6)=id;
                         obj.blockEvents{index}(6)=id;
                         duration=max(duration,event.delay+event.numSamples*event.dwell+event.deadTime);
                     case 'delay'
@@ -325,11 +318,65 @@ classdef Sequence < handle
                         if ~found
                             obj.delayLibrary.insert(id,data);
                         end
-                        %obj.blockEvents(index,1)=id;
                         obj.blockEvents{index}(1)=id;
                         duration=max(duration,event.delay);
                 end
             end
+            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%% PERFORM GRADIENT CHECKS                                 %%%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            
+            % check if connection to the previous block is correct
+%             check_g
+            for cg_temp = check_g
+                cg=cg_temp{1}; % cg_temp is still a cell-array with a single element here...
+                if isempty(cg) 
+                    continue
+                end
+                % check the start 
+                %if event.delay ~= 0 && event.first ~= 0 
+                %if cg.start(1) ~= 0 && cg.start(2) ~= 0 
+                %    error('No delay allowed for gradients which start with a non-zero amplitude.');
+                %end
+        
+                if abs(cg.start(2)) > obj.sys.maxSlew * obj.sys.gradRasterTime % MZ: we only need the following check if the current gradient starts at non-0
+                    if cg.start(1) ~= 0
+                        error('No delay allowed for gradients which start with a non-zero amplitude.');
+                    end
+                    if index > 1
+                        prev_id = obj.blockEvents{index-1}(cg.idx);
+                        if prev_id ~= 0
+                            prev_lib = obj.gradLibrary.get(prev_id);
+                            prev_dat = prev_lib.data;
+                            prev_type = prev_lib.type;
+                            if prev_type == 't'
+                                error('Two consecutive gradients need to have the same amplitude at the connection point');
+                            elseif prev_type == 'g'
+                                last = prev_dat(5);
+                                if abs(last - cg.start(2)) > obj.sys.maxSlew * obj.sys.gradRasterTime
+                                    error('Two consecutive gradients need to have the same amplitude at the connection point');
+                                end
+                            end
+                        end
+                    else                   
+                        error('First gradient in the the first block has to start at 0.');
+                    end
+                end
+                
+                % Check if gradients, which do not end at 0, are as long as the
+                % block itself.
+                if cg.stop(2) > obj.sys.maxSlew * obj.sys.gradRasterTime && abs(cg.stop(1)-block_duration) > 1e-7
+                    error('A gradient that doesnt end at zero needs to be aligned to the block boundary.');
+                end
+            end
+       
+            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%% GRADIENT CHECKS DONE                                    %%%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+            
         end
         
         function block = getBlock(obj, index)
@@ -354,39 +401,53 @@ classdef Sequence < handle
                 block.delay = delay;
             end
             if eventInd(2) > 0
-                rf.type = 'rf';
-                libData = obj.rfLibrary.data(eventInd(2)).array;
+%                 rf.type = 'rf';
+%                 libData = obj.rfLibrary.data(eventInd(2)).array;
+%                 
+%                 amplitude = libData(1);
+%                 magShape = libData(2);
+%                 phaseShape = libData(3);
+%                 shapeData = obj.shapeLibrary.data(magShape).array;
+%                 compressed.num_samples = shapeData(1);
+%                 compressed.data = shapeData(2:end);
+%                 mag = mr.decompressShape(compressed);
+%                 shapeData = obj.shapeLibrary.data(phaseShape).array;
+%                 compressed.num_samples = shapeData(1);
+%                 compressed.data = shapeData(2:end);
+%                 phase = mr.decompressShape(compressed);
+%                 rf.signal = amplitude*mag.*exp(1j*2*pi*phase);
+%                 rf.t = (1:length(mag))'*obj.rfRasterTime;
+%                 
+%                 rf.delay = libData(4);
+%                 rf.freqOffset = libData(5);
+%                 rf.phaseOffset = libData(6);
+% 
+%                 % SK: Is this a hack? (MZ: see below)
+%                 if length(libData) < 7
+%                     libData(7) = 0;
+%                 end
+%                 rf.deadTime = libData(7);
+%                 % SK: Using the same hack here
+%                 if length(libData) < 8
+%                     libData(8) = 0;
+%                 end
+%                 rf.ringdownTime = libData(8);
+%                 
+%                 % MZ: I think this is needed for compatilbility with reading
+%                 % (possibly older) seq-files
+%                 if length(libData) < 9
+%                     libData(9) = 0;
+%                 end
+%                 switch libData(9)
+%                     case 1
+%                         rf.use='excitation';
+%                     case 2
+%                         rf.use='refocusing';
+%                     case 3
+%                         rf.use='inversion';
+%                 end
                 
-                amplitude = libData(1);
-                magShape = libData(2);
-                phaseShape = libData(3);
-                shapeData = obj.shapeLibrary.data(magShape).array;
-                compressed.num_samples = shapeData(1);
-                compressed.data = shapeData(2:end);
-                mag = mr.decompressShape(compressed);
-                shapeData = obj.shapeLibrary.data(phaseShape).array;
-                compressed.num_samples = shapeData(1);
-                compressed.data = shapeData(2:end);
-                phase = mr.decompressShape(compressed);
-                rf.signal = amplitude*mag.*exp(1j*2*pi*phase);
-                rf.t = (1:length(mag))'*obj.rfRasterTime;
-                
-                rf.delay = libData(4);
-                rf.freqOffset = libData(5);
-                rf.phaseOffset = libData(6);
-
-                % SK: Is this a hack?
-                if length(libData) < 7
-                    libData(end+1) = 0;
-                end
-                rf.deadTime = libData(7);
-                % SK: Using the same hack here
-                if length(libData) < 8
-                    libData(end+1) = 0;
-                end
-                rf.ringdownTime = libData(8);
-                
-                block.rf = rf;
+                block.rf = obj.rfFromLibData(obj.rfLibrary.data(eventInd(2)).array);
             end
             gradChannels = {'gx', 'gy', 'gz'};
             for i = 1:length(gradChannels)
@@ -406,14 +467,26 @@ classdef Sequence < handle
                         shapeData = obj.shapeLibrary.data(shapeId).array;
                         compressed.num_samples = shapeData(1);
                         compressed.data = shapeData(2:end);
-                        g = mr.decompressShape(compressed);
+                        try
+                            g = mr.decompressShape(compressed);
+                        catch
+                            fprintf('  mr.decompressShape() failed for shapeId %d\n', shapeId);
+                            error('mr.decompressShape() failed for shapeId %d', shapeId);
+                        end
                         grad.waveform = amplitude*g;
-                        % SK: This ooks like a bug to me.
+                        % SK: This looks like a bug to me.
 %                         grad.t = (1:length(g))'*obj.gradRasterTime;
                         grad.t = (0:length(g)-1)'*obj.gradRasterTime;
                         grad.delay = delay;
-                        grad.first = libData(4);
-                        grad.last = libData(5);
+                        if length(libData)>4
+                            grad.first = libData(4);
+                            grad.last = libData(5);
+                        else
+                            % for the data read from a file we need to
+                            % infer the missing fields here
+                            grad.first = grad.waveform(1); % MZ: eventually we should use extrapolation by 1/2 gradient rasters here
+                            grad.last = grad.waveform(end);
+                        end
                     else
                         grad.amplitude = libData(1);
                         grad.riseTime = libData(2);
@@ -444,6 +517,142 @@ classdef Sequence < handle
             
         end
         
+        function rf = rfFromLibData(obj, libData)                
+            rf.type = 'rf';
+
+            amplitude = libData(1);
+            magShape = libData(2);
+            phaseShape = libData(3);
+            shapeData = obj.shapeLibrary.data(magShape).array;
+            compressed.num_samples = shapeData(1);
+            compressed.data = shapeData(2:end);
+            mag = mr.decompressShape(compressed);
+            shapeData = obj.shapeLibrary.data(phaseShape).array;
+            compressed.num_samples = shapeData(1);
+            compressed.data = shapeData(2:end);
+            phase = mr.decompressShape(compressed);
+            rf.signal = amplitude*mag.*exp(1j*2*pi*phase);
+            rf.t = (1:length(mag))'*obj.rfRasterTime;
+
+            rf.delay = libData(4);
+            rf.freqOffset = libData(5);
+            rf.phaseOffset = libData(6);
+
+            % SK: Is this a hack? (MZ: see below)
+            if length(libData) < 7
+                libData(7) = 0;
+            end
+            rf.deadTime = libData(7);
+            % SK: Using the same hack here
+            if length(libData) < 8
+                libData(8) = 0;
+            end
+            rf.ringdownTime = libData(8);
+
+            % MZ: I think this is needed for compatilbility with reading
+            % (possibly older) seq-files
+            if length(libData) < 9
+                libData(9) = 0;
+            end
+            switch libData(9)
+                case 1
+                    rf.use='excitation';
+                case 2
+                    rf.use='refocusing';
+                case 3
+                    rf.use='inversion';
+            end
+        end
+
+        function [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = calculateKspace(obj, varargin)
+            % calculate the k-space trajectory of the entire pulse sequence
+            %   optional parameter 'trajectory_delay' sets the compensation
+            %   factor to align ADC and gradients in the reconstruction
+            %   Return values: ktraj_adc, ktraj, t_excitation, t_refocusing
+        
+            persistent parser
+            if isempty(parser)
+                parser = inputParser;
+                parser.FunctionName = 'calculateKspace';
+                parser.addParamValue('trajectory_delay',0,@(x)(isnumeric(x)));
+            end
+            parse(parser,varargin{:});
+            opt = parser.Results;
+          
+            % initialise the counters and accumulator objects
+            c_excitation=0;
+            c_refocusing=0;
+            c_adcSamples=0;
+            % loop throught the blocks to prepare preallocations
+            for iB=1:length(obj.blockEvents)
+                block = obj.getBlock(iB);
+                if ~isempty(block.rf)
+                    if (~isfield(block.rf,'use') || ~strcmp(block.rf.use,'refocusing'))
+                        c_excitation=c_excitation+1;
+                    else
+                        c_refocusing=c_refocusing+1;
+                    end
+                end
+                if ~isempty(block.adc)
+                    c_adcSamples=c_adcSamples+block.adc.numSamples;
+                end
+            end
+            
+            %
+            t_excitation=zeros(c_excitation,1);
+            t_refocusing=zeros(c_refocusing,1);
+            ktime=zeros(c_adcSamples,1);
+            current_dur=0;
+            c_excitation=1;
+            c_refocusing=1;
+            kcouter=1;
+            traj_recon_delay=opt.trajectory_delay;  
+            
+            % go through the blocks and collect RF and ADC timing data
+            for iB=1:length(obj.blockEvents)
+                block = obj.getBlock(iB);
+                if ~isempty(block.rf)
+                    rf=block.rf;
+                    t=rf.delay+mr.calcRfCenter(rf);
+                    if (~isfield(block.rf,'use') || ~strcmp(block.rf.use,'refocusing'))
+                        t_excitation(c_excitation) = current_dur+t;
+                        c_excitation=c_excitation+1;
+                    else
+                        t_refocusing(c_refocusing) = current_dur+t;
+                        c_refocusing=c_refocusing+1;
+                    end
+                end
+                if ~isempty(block.adc)
+                    ktime(kcouter:(kcouter-1+block.adc.numSamples)) = (0:(block.adc.numSamples-1))*block.adc.dwell + block.adc.delay + current_dur + traj_recon_delay;
+                    kcouter=kcouter+block.adc.numSamples;
+                end
+                current_dur=current_dur+mr.calcDuration(block);
+            end
+            
+            % now calculate the actual k-space trajectory based on the
+            % gradient waveforms
+            gw=obj.gradient_waveforms();
+            i_excitation=round(t_excitation/obj.gradRasterTime);
+            i_refocusing=round(t_refocusing/obj.gradRasterTime);
+            ktraj=zeros(size(gw));
+            k=[0;0;0];
+            for i=1:size(gw,2);
+                k=k+gw(:,i)*obj.gradRasterTime;
+                ktraj(:,i)=k;
+                if find(i_excitation==i,1)
+                    k=0;
+                    ktraj(:,i)=NaN; % we use NaN-s to mark the excitation point, they interrupt the plots
+                end;
+                if find(i_refocusing==i,1)
+                    k=-k;
+                end;
+            end
+
+            % now calculate the k-space positions at the ADC time points
+            % sample the k-space positions at the ADC time points
+            ktraj_adc=interp1((1:(size(ktraj,2)))*obj.gradRasterTime, ktraj', ktime)';
+            t_adc=ktime; % we now alsor return sampling time points
+        end
         
         function f = plot(obj, varargin)
             %plot Plot the sequence in a new figure.
@@ -507,21 +716,26 @@ classdef Sequence < handle
                     end
                     if ~isempty(block.rf)
                         rf=block.rf;
+                        [tc,ic]=mr.calcRfCenter(rf);
                         t=rf.t + rf.delay;
+                        tc=tc + rf.delay;
                         plot(tFactor*(t0+t),abs(rf.signal),'Parent',ax(2));
-                        plot(tFactor*(t0+t),angle(rf.signal),'Parent',ax(3));
+                        plot(tFactor*(t0+t), angle(rf.signal    *exp(1i*rf.phaseOffset).*exp(1i*2*pi*rf.t    *rf.freqOffset)),...
+                             tFactor*(t0+tc),angle(rf.signal(ic)*exp(1i*rf.phaseOffset).*exp(1i*2*pi*rf.t(ic)*rf.freqOffset)),'xb',...
+                             'Parent',ax(3));
                     end
                     gradChannels={'gx','gy','gz'};
                     for j=1:length(gradChannels)
                         grad=block.(gradChannels{j});
-                        if ~isempty(block.(gradChannels{j}))
+                        if ~isempty(grad)
                             if strcmp(grad.type,'grad')
-                                t=grad.delay + grad.t + (grad.t(2)-grad.t(1))/2;
-                                waveform=1e-3*grad.waveform;
+                                % we extend the shape by adding the first 
+                                % and the last points in an effort of 
+                                % making the display a bit less confusing...
+                                t=grad.delay + [0; grad.t + (grad.t(2)-grad.t(1))/2; grad.t(end) + grad.t(2)-grad.t(1)];
+                                waveform=1e-3* [grad.first; grad.waveform; grad.last];
                             else
-%                                 t=cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);
                                 t=cumsum([0 grad.delay grad.riseTime grad.flatTime grad.fallTime]);
-%                                 waveform=1e-3*grad.amplitude*[0 1 1 0];
                                 waveform=1e-3*grad.amplitude*[0 0 1 1 0];
                             end
                             plot(tFactor*(t0+t),waveform,'Parent',ax(3+j));
@@ -585,7 +799,10 @@ classdef Sequence < handle
                             %fprintf('\n');
                             
                             if abs(grad.amplitude)>eps 
-                                waveform=interp1(t,trapform,obj.gradRasterTime*(0:tn));
+                                % MZ: for consistency we change it to the
+                                % corresponding mr. function
+                                %waveform=interp1(t,trapform,obj.gradRasterTime*(0:tn));
+                                waveform=mr.pts2waveform(t,trapform,obj.gradRasterTime);
                             else
                                 waveform=zeros(1,tn+1);
                             end

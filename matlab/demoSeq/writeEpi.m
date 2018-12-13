@@ -1,7 +1,10 @@
+% this is a demo low-performance EPI sequence
+% which doesn"t use ramp-samping. It is only good for educational purposes
+
 seq=mr.Sequence();              % Create a new sequence object
 fov=220e-3; Nx=64; Ny=64;       % Define FOV and resolution
 thickness=3e-3;                 % slice thinckness
-Nslices=16;
+Nslices=1;
 
 % Set system limits
 lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
@@ -16,13 +19,15 @@ lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
 % Define other gradients and ADC events
 deltak=1/fov;
 kWidth = Nx*deltak;
-readoutTime = 3.2e-4;
-gx = mr.makeTrapezoid('x',lims,'FlatArea',kWidth,'FlatTime',readoutTime);
-adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime);
+dwellTime = 4e-6; % I want it to be divisible by 2
+readoutTime = Nx*dwellTime;
+flatTime=ceil(readoutTime*1e5)*1e-5; % round-up to the gradient raster
+gx = mr.makeTrapezoid('x',lims,'Amplitude',kWidth/readoutTime,'FlatTime',flatTime);
+adc = mr.makeAdc(Nx,'Duration',readoutTime,'Delay',gx.riseTime+flatTime/2-(readoutTime-dwellTime)/2);
 
 % Pre-phasing gradients
 preTime=8e-4;
-gxPre = mr.makeTrapezoid('x',lims,'Area',-gx.area/2-deltak/2,'Duration',preTime);
+gxPre = mr.makeTrapezoid('x',lims,'Area',-gx.area/2,'Duration',preTime); % removed -deltak/2 to aligh the echo between the samples
 gzReph = mr.makeTrapezoid('z',lims,'Area',-gz.area/2,'Duration',preTime);
 gyPre = mr.makeTrapezoid('y',lims,'Area',-Ny/2*deltak,'Duration',preTime);
 
@@ -42,5 +47,18 @@ for s=1:Nslices
     end
 end
 
-seq.write('epi.seq');   % Output sequence for scanner
 seq.plot();             % Plot sequence waveforms
+
+% new single-function call for trajectory calculation
+[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
+
+% plot k-spaces
+time_axis=(1:(size(ktraj,2)))*lims.gradRasterTime;
+figure; plot(time_axis, ktraj'); % plot the entire k-space trajectory
+hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
+figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
+axis('equal'); % enforce aspect ratio for the correct trajectory display
+hold; plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.');
+
+seq.write('epi.seq');   % Output sequence for scanner
+% seq.sound(); % simulate the seq's tone

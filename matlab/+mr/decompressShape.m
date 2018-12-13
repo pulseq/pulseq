@@ -24,6 +24,10 @@ while countPack < length(dataPack)                          % while-Schleife wir
     
     if dataPack(countPack) ~= dataPack(countPack + 1)       % aktueller Zahlenwert im komprimierten Datensatz wird mit 
                                                             % nachfolgendem ~ verglichen, wenn ungleich, dann ...
+%         if abs(countUnpack-round(countUnpack))>eps
+%             fprintf('about to crash: countUnpack=%.09f\n',countUnpack);
+%             error('decompressShape() failed');
+%         end
         w(countUnpack)= dataPack(countPack);                % ...wird die aktueller Zahl an die entsprechende Stelle im
                                                             % unkomprimierten Datensatz geschrieben
         countUnpack= countUnpack + 1;                       % abschließend Erhöhung im komprimierten und
@@ -32,6 +36,11 @@ while countPack < length(dataPack)                          % while-Schleife wir
     else                                                    % wenn die beiden Werte hingegen gleich sind, dann ...
         rep= dataPack(countPack + 2) + 2;                   % rep = Variable, die angibt, wie oft der jeweilige Wert 
                                                             % geschrieben werden muss
+%         if abs(rep-round(rep))>eps
+%             fprintf('\n  about to crash: rep=%.09f\n',rep);
+%             fprintf('  countPack: %d  data: %.09f %.09f %.09f\n', countPack, dataPack(countPack:countPack+2));
+%             error('decompressShape() failed');
+%         end
         w(countUnpack:(countUnpack + rep - 1))= dataPack(countPack);
                                                             % 
         countPack= countPack + 3;

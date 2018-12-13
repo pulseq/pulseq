@@ -28,4 +28,10 @@
 *.asv
 .deps/
 Makefile
-
+autom4te.cache
+doc/*.aux
+doc/*.out
+doc/*.toc
+matlab/*.seq
+*.swp
+aclocal.m4

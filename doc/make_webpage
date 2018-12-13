@@ -1,0 +1,10 @@
+#!/bin/bash
+
+cp -r seqs/* html/
+cp -r recon/* html/
+cp matlab.css html/
+cp specification.pdf html/
+cp images/overview.png html/
+cp images/gre.png html/
+cp images/demoRead_03.png html/
+doxygen doxy.conf.in
