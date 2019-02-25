@@ -35,12 +35,12 @@ axis('equal');
 
 %% Define FOV and resolution and simple off-resonance frequency correction 
 
-fov=256e-3; Nx=128; Ny=Nx; 
+fov=192e-3; Nx=192; Ny=Nx; 
 deltak=1/fov;
 os=2; % oversampling factor (we oversample both in image and k-space)
 offresonance=0; % global off-resonance in Hz
 
-%
+%%
 rawdata = double(twix_obj.image.unsorted());
 rawdata = permute(rawdata, [1,3,2]);
 rawdata = reshape(rawdata, [size(rawdata,1)*size(rawdata,2),size(rawdata,3)]);

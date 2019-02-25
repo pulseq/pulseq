@@ -1,8 +1,9 @@
 seq=mr.Sequence();              % Create a new sequence object
-fov=250e-3; Nx=256; Ny=256;     % Define FOV and resolution
+fov=256e-3; Nx=256; Ny=256;     % Define FOV and resolution
 alpha=10;                       % flip angle
 sliceThickness=3e-3;            % slice
-TE=[7.38 9.84]*1e-3;                % give a vector here to have multiple TEs (e.g. for field mapping)
+%TE=[7.38 9.84]*1e-3;                % give a vector here to have multiple TEs (e.g. for field mapping)
+TE=7.38e-3;
 TR=100e-3;                       % only a single value for now
 
 % more in-depth parameters
@@ -12,6 +13,15 @@ rfSpoilingInc=117;              % RF spoiling increment
 sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
     'MaxSlew', 150, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
+
+% Create fat-sat pulse 
+% (in Siemens interpreter from January 2019 duration is limited to 8.192 ms, and although product EPI uses 10.24 ms, 8 ms seems to be sufficient)
+% B0=2.89; % 1.5 2.89 3.0
+% sat_ppm=-3.45;
+% sat_freq=sat_ppm*1e-6*B0*lims.gamma;
+% rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
+%     'bandwidth',abs(sat_freq),'freqOffset',sat_freq);
+% gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(alpha*pi/180,'Duration',4e-3,...
@@ -42,6 +52,7 @@ rf_inc=0;
 % Loop over phase encodes and define sequence blocks
 for i=1:Ny
     for c=1:length(TE)
+        %seq.addBlock(rf_fs,gz_fs); % fat-sat
         rf.phaseOffset=rf_phase/180*pi;
         adc.phaseOffset=rf_phase/180*pi;
         rf_inc=mod(rf_inc+rfSpoilingInc, 360.0);
@@ -56,21 +67,6 @@ for i=1:Ny
         seq.addBlock(mr.makeDelay(delayTR(c)),gxSpoil,gyPre,gzSpoil)
     end
 end
-
-%% plot sequence and k-space diagrams
-
-seq.plot();
-
-% new single-function call for trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
-
-% plot k-spaces
-time_axis=(1:(size(ktraj,2)))*sys.gradRasterTime;
-figure; plot(time_axis, ktraj'); % plot the entire k-space trajectory
-hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
-figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
-axis('equal'); % enforce aspect ratio for the correct trajectory display
-hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
 %% check whether the timing of the sequence is correct
 [ok, error_report]=seq.checkTiming;
@@ -91,6 +87,21 @@ seq.write('gre.seq')       % Write to pulseq file
 
 %seq.install('siemens');
 return
+
+%% plot sequence and k-space diagrams
+
+seq.plot();
+
+% new single-function call for trajectory calculation
+[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
+
+% plot k-spaces
+time_axis=(1:(size(ktraj,2)))*sys.gradRasterTime;
+figure; plot(time_axis, ktraj'); % plot the entire k-space trajectory
+hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
+figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
+axis('equal'); % enforce aspect ratio for the correct trajectory display
+hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
 

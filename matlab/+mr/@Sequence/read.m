@@ -53,7 +53,10 @@ while true
                 'Unsupported version_major %d', version_major)
             assert(version_minor == obj.version_minor, ...
                 'Unsupported version_minor %d', version_minor)
-            assert(version_revision == obj.version_revision, ...
+            % MZ: I think we should tolerate minot revision changes
+            %assert(version_revision == obj.version_revision, ...
+            %    'Unsupported version_revision %d', version_revision)
+            assert(version_revision <= obj.version_revision, ... % MZ: accept loading older files
                 'Unsupported version_revision %d', version_revision)
             obj.version_major = version_major;
             obj.version_minor = version_minor;
@@ -208,7 +211,8 @@ return
             data = [];
             line = skipComments(fid);   % first sample
             while ischar(line) && ~(isempty(line) || line(1) == '#')
-                data = [data sscanf(line, '%f')];
+                %data = [data sscanf(line, '%f')];
+                data = [data single(sscanf(line, '%f'))]; % C-code uses single precision and we had problems already due to the rounding during reading in of the shapes...
                 line = fgetl(fid);
             end
             line = skipComments(fid);

@@ -5,7 +5,7 @@
 seq=mr.Sequence();         % Create a new sequence object
 fov=250e-3; Nx=64; Ny=64;  % Define FOV and resolution
 thickness=3e-3;            % slice thinckness
-Nslices=3;
+Nslices=1;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delaz calibration
 %ro_os=2;                   % oversampling factor for the read direction (needs to be >1 due to ramp-sampling)
@@ -14,6 +14,15 @@ pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as n
 lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
     'MaxSlew',130,'SlewUnit','T/m/s',...
     'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6);  
+
+% Create fat-sat pulse 
+% (in Siemens interpreter from January 2019 duration is limited to 8.192 ms, and although product EPI uses 10.24 ms, 8 ms seems to be sufficient)
+B0=2.89; % 1.5 2.89 3.0
+sat_ppm=-3.45;
+sat_freq=sat_ppm*1e-6*B0*lims.gamma;
+rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
+    'bandwidth',abs(sat_freq),'freqOffset',sat_freq);
+gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',3e-3,...
@@ -77,13 +86,15 @@ gy_blipdownup.waveform=gy_blipdownup.waveform*pe_enable;
 
 % Pre-phasing gradients
 gxPre = mr.makeTrapezoid('x',lims,'Area',-gx.area/2);
-gyPre = mr.makeTrapezoid('y',lims,'Area',-Ny/2*deltak*pe_enable);
+gyPre = mr.makeTrapezoid('y',lims,'Area',-Ny/2*deltak);
 [gxPre,gyPre,gzReph]=mr.align('right',gxPre,'left',gyPre,gzReph);
-% relax the PE prepahser to educe stimulation
+% relax the PE prepahser to reduce stimulation
 gyPre = mr.makeTrapezoid('y',lims,'Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre,gzReph));
+gyPre.amplitude=gyPre.amplitude*pe_enable;
 
 % Define sequence blocks
 for s=1:Nslices
+    seq.addBlock(rf_fs,gz_fs);
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
     seq.addBlock(rf,gz);
     seq.addBlock(gxPre,gyPre,gzReph);
@@ -99,6 +110,19 @@ for s=1:Nslices
     end
 end
 
+%% check whether the timing of the sequence is correct
+[ok, error_report]=seq.checkTiming;
+
+if (ok)
+    fprintf('Timing check passed successfully\n');
+else
+    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf([error_report{:}]);
+    fprintf('\n');
+end
+
+%% do some visualizations
+
 seq.plot();             % Plot sequence waveforms
 
 % new single-function call for trajectory calculation
@@ -112,7 +136,7 @@ figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
-% prepare the sequence output for the scanner
+%% prepare the sequence output for the scanner
 seq.setDefinition('FOV', [fov fov thickness]*1e3);
 seq.setDefinition('Name', 'epi');
 
@@ -121,3 +145,8 @@ seq.write('epi_rs.seq');
 % seq.install('siemens');
 
 % seq.sound(); % simulate the seq's tone
+
+%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
+
+rep = seq.testReport; 
+fprintf([rep{:}]); % as for January 2019 TR calculation fails for fat-sat

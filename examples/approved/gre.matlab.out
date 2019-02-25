@@ -21,3 +21,5 @@ Max. Gradient: 1190480 Hz/m == 27.96 mT/m
 Max. Slew Rate: 6.26684e+09 Hz/m/s == 147.19 T/m/s
 Max. Slew Rate: 3.23233e+09 Hz/m/s == 75.92 T/m/s
 Max. Slew Rate: 6.26568e+09 Hz/m/s == 147.16 T/m/s
+Max. Absolute Gradient: 1684989 Hz/m == 39.58 mT/m
+Max. Absolute Slew Rate: 9.43292e+09 Hz/m/s == 221.55 T/m/s

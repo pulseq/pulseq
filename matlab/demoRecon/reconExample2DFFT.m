@@ -6,8 +6,8 @@
 
 %scan_ID = 7545;
 %rawDir = '/raid/groupspace/range/rawdata';
-
-%twix_obj = mapVBVD(sprintf('%s/%d/raw.dat', rawDir, scan_ID));
+%data_file_path=sprintf('%s/%d/raw.dat', rawDir, scan_ID);
+%data_file_path='/home/zaitsev/range_software/pulseq/interpreters/siemens/data_example/gre_example.dat';
 
 %% Load the latest file from a dir
 path='../IceNIH_RawSend/'
@@ -20,7 +20,7 @@ data_file_path=[path D(I(end)).name]
 %%
 twix_obj = mapVBVD(data_file_path);
 
-%% Load sequence from the file (optional)
+%% Load sequence from the file (optional if you still have it in memory)
 
 seq_file_path = [data_file_path(1:end-3) 'seq'];
 
@@ -130,12 +130,17 @@ end
 figure;
 imab(angle(images));colormap('jet');
 
-%% Sum of squares combination
-sos=abs(sum(images.^2,ndims(images)).^(1/2));
-sos=sos./max(sos(:));
+%% Image display with optional sum of squares combination
 figure;
-imab(sos);colormap('gray');
-%imwrite(sos, ['img_combined.png'])
+if nCoils>1
+    sos=abs(sum(images.^2,ndims(images)).^(1/2));
+    sos=sos./max(sos(:));    
+    imab(sos);
+    %imwrite(sos, ['img_combined.png']
+else
+    imab(abs(images));
+end
+colormap('gray');
 
 %% reconstruct field map (optional)
 

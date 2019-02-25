@@ -9,8 +9,8 @@ function s=compressShape(w)
 %
 %   See also decompressShape
 
-try
-    s=mr.compressShape_mex(w(:));
-catch e
+% try
+%     s=mr.compressShape_mex(w(:));
+% catch e
     s=mr.compressShape_mat(w(:));
 end

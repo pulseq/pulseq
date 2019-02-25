@@ -18,11 +18,10 @@ if isempty(parser)
         @(x) any(validatestring(x,validUnits)));
     parser.addOptional('toUnit',[],...
         @(x) any(validatestring(x,validUnits)));
+    parser.addParamValue('gamma',42.576e6,@isnumeric); % Hz/T
 end
 parse(parser,in,varargin{:});
 opt = parser.Results;
-
-gamma = 42.576e6;      % Hz/T
 
 % Set default output unit if not given
 if isempty(opt.toUnit)
@@ -39,14 +38,14 @@ switch opt.fromUnit
     case 'Hz/m'
         standard = in;
     case 'mT/m'
-        standard = in*1e-3*gamma;
+        standard = in*1e-3*opt.gamma;
     case 'rad/ms/mm'
         standard = in*1e6/(2*pi);
     % Slew units
     case 'Hz/m/s'
         standard = in;
     case {'mT/m/ms','T/m/s'}
-        standard = in*gamma;
+        standard = in*opt.gamma;
     case 'rad/ms/mm/ms'
         standard = in*1e9/(2*pi);
 end
@@ -57,14 +56,14 @@ switch opt.toUnit
     case 'Hz/m'
         out = standard;
     case 'mT/m'
-        out = 1e3*standard/gamma;
+        out = 1e3*standard/opt.gamma;
     case 'rad/ms/mm'
         out = standard*2*pi*1e-6;
     % Slew units
     case 'Hz/m/s'
         out = standard;
     case {'mT/m/ms','T/m/s'}
-        out = standard/gamma;
+        out = standard/opt.gamma;
     case 'rad/ms/mm/ms'
         out = standard*2*pi*1e-9;
 end

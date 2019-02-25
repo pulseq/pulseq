@@ -9,6 +9,9 @@ function s=compressShape_mat(w)
 %
 %   See also decompressShape
 
+if any(~isfinite(w))
+    error('compressShape() received infinite samples');
+end
 
 % %MZ: old code with implicit quantization
 % data = [w(1); diff(w(:))];
@@ -16,7 +19,7 @@ function s=compressShape_mat(w)
 % vals = data(maskChanges);                     % Elements without repetitions
 
 % MZ: explicit quantization with error correction
-quant_fac=1e-8;
+quant_fac=1e-7; % single precision floating point has ~7.25 decimal places 
 ws=w./quant_fac;
 datq=round([ws(1); diff(ws(:))]);
 qerr=ws(:)-cumsum(datq);

@@ -123,7 +123,7 @@ classdef Sequence < handle
                 % assemble cell array of events
                 ev={b.rf, b.gx, b.gy, b.gz, b.adc, b.delay};
                 ind=~cellfun(@isempty,ev);
-                [res rep] = mr.checkTiming(obj.sys,ev{ind});
+                [res, rep] = mr.checkTiming(obj.sys,ev{ind});
                 is_ok = (is_ok && res); 
                 if ~isempty(rep)
                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' rep '\n' ] };
@@ -263,7 +263,11 @@ classdef Sequence < handle
                         check_g{channelNum}.stop  = [event.delay+max(event.t)+obj.sys.gradRasterTime, event.last]; % MZ: we need to add this gradient raster time, otherwise the gradient appears to be one step too short
                         
                         amplitude = max(abs(event.waveform));
-                        g = event.waveform./amplitude;
+                        if amplitude>0
+                            g = event.waveform./amplitude;
+                        else
+                            g = event.waveform;
+                        end
                         shape = mr.compressShape(g);
                         data = [shape.num_samples shape.data];
                         [shapeId,found] = obj.shapeLibrary.find(data);
@@ -282,6 +286,7 @@ classdef Sequence < handle
 
                     case 'trap'
                         channelNum = find(strcmp(event.channel,{'x','y','z'}));
+                        
                         idx = 2 + channelNum;
                         
                         check_g{channelNum}.idx = idx;

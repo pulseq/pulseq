@@ -2,7 +2,7 @@
 
 seq=mr.Sequence();          % Create a new sequence object
 fov=256e-3; Nx=128; Ny=128;  % Define FOV and resolution
-thickness=3e-3;             % slice thinckness
+sliceThickness=3e-3;             % slice thinckness
 Nslices=1;
 Oversampling=2; % by looking at the periphery of the spiral I would say it needs to be at least 2
 
@@ -11,9 +11,18 @@ lims = mr.opts('MaxGrad',30,'GradUnit','mT/m',...
     'MaxSlew',140,'SlewUnit','T/m/s',...
     'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6, 'adcDeadTime', 10e-6);  
 
+% Create fat-sat pulse 
+% (in Siemens interpreter from January 2019 duration is limited to 8.192 ms, and although product EPI uses 10.24 ms, 8 ms seems to be sufficient)
+B0=2.89; % 1.5 2.89 3.0
+sat_ppm=-3.45;
+sat_freq=sat_ppm*1e-6*B0*lims.gamma;
+rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
+    'bandwidth',abs(sat_freq),'freqOffset',sat_freq);
+gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
+
 % Create 90 degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(pi/2,'system',lims,'Duration',3e-3,...
-    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4);
 
 % define k-space parameters
 deltak=1/fov;
@@ -78,7 +87,7 @@ figure;plot([sor;abs(sor(1,:)+1i*sor(2,:))]');title('slew rate with rough (compo
 spiral_grad_shape=gos;
 % Create 90 degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(pi/2,'system',lims,'Duration',3e-3,...
-    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4);
 gzReph = mr.makeTrapezoid('z',lims,'Area',-gz.area/2);
 
 % calculate ADC
@@ -129,7 +138,8 @@ gy_spoil=mr.makeExtendedTrapezoid('y','times',[0 mr.calcDuration(gz_spoil)],'amp
  
 % Define sequence blocks
 for s=1:Nslices
-    rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
+    seq.addBlock(rf_fs,gz_fs); % fat-sat    
+    rf.freqOffset=gz.amplitude*sliceThickness*(s-1-(Nslices-1)/2);
     seq.addBlock(rf,gz);
     seq.addBlock(gzReph,gx,gy,adc);
     seq.addBlock(gx_spoil,gy_spoil,gz_spoil);

@@ -113,9 +113,15 @@ else
 end
 % check gradient amplitudes and slew rates
 
-gw=obj.gradient_waveforms();
+gw=obj.gradient_waveforms(); % gradient waveform
+gws=(gw(:,2:end)-gw(:,1:end-1))./obj.sys.gradRasterTime; % slew
+% max grad/slew per channel
 ga=max(abs(gw),[],2);
-gs=max(abs(gw(:,2:end)-gw(:,1:end-1)),[],2)./obj.sys.gradRasterTime;
+gs=max(abs(gws),[],2);
+% max absolute value grad/slew -- check for a worst case upon rotation
+ga_abs=max(sum(gw.^2,1).^0.5,[],2);
+gs_abs=max(sum(gws.^2,1).^0.5,[],2);
+
 
 % check timing of blocks and delays (raster alignment)
 [timing_ok, timing_error_report] = obj.checkTiming();
@@ -153,6 +159,9 @@ end
 report = { report{:},...
     sprintf('Max. Gradient: %.0f Hz/m == %.02f mT/m\n', [ga mr.convert(ga,'Hz/m','mT/m')]'),...
     sprintf('Max. Slew Rate: %g Hz/m/s == %.02f T/m/s\n', [gs mr.convert(gs,'Hz/m/s','T/m/s')]') };
+report = { report{:},...
+    sprintf('Max. Absolute Gradient: %.0f Hz/m == %.02f mT/m\n', [ga_abs mr.convert(ga_abs,'Hz/m','mT/m')]'),...
+    sprintf('Max. Absolute Slew Rate: %g Hz/m/s == %.02f T/m/s\n', [gs_abs mr.convert(gs_abs,'Hz/m/s','T/m/s')]') };
 
 end
 
