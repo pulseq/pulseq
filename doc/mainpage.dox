@@ -10,8 +10,8 @@ A central contribution of this project is an **open file format** to compactly
 describe MR sequences suitable for execution on an MRI scanner. The detailed file specification
 can be obtained here: <a href="specification.pdf">`specification.pdf`</a>
 
-The source code provides example implementations of this format. Code documentation is
-divided into <a href="matlab.html">MATLAB</a> and <a href="annotated.html">C++</a> sections. Alternatively, sequences can be programming in <a href="http://www.jemris.org/">JEMRIS</a> using a graphical interface and exported to the Pulseq file format for execution.
+The source code provides example implementations of this format. The code is
+divided into <a href="https://github.com/pulseq/pulseq/tree/master/matlab">MATLAB</a> and <a href="https://github.com/pulseq/pulseq/tree/master/src">C++</a> sections. Alternatively, sequences can be programming in <a href="http://www.jemris.org/">JEMRIS</a> using a graphical interface and exported to the Pulseq file format for execution.
 
 ## Sequence examples
 
@@ -30,7 +30,6 @@ divided into <a href="matlab.html">MATLAB</a> and <a href="annotated.html">C++</
 -  <a href="writeTSE.html">Turbo spin echo sequence</a>
 -  <a href="writeUTE.html">UTE sequence</a>
 -  <a href="writeUTE_rs.html">UTE sequence with ramp sampling</a>
--  <a href="demoRead.html">Load a sequence into MATLAB</a>
 
 ## Scanner implementations
 
@@ -48,131 +47,8 @@ Alternatively, cloning the git repository directly:
 
     git clone git@github.com:pulseq/pulseq.git
 
-Run configure to prepare for building.
 
-    cd pulseq
-    ./configure
-
-Now run `make` to build the executables and/or documentation.
-
-    make
-
-## Sneak peak
-
-The <a href="matlab.html">MATLAB package</a> `mr` provides extended functionality to create and visualize sequences as well as
-reading and writing sequence files.
-~~~~~~~~~~~~~{.matlab}
-% Load a sequence and add a new GX gradient to the end before visualizing.
-seq = mr.Sequence();
-seq.load('gre.seq');
-gx = mr.makeTrapezoid('x','FlatArea',kWidth,'FlatTime',readoutTime);
-seq.addBlock(gx);
-seq.plot();
-~~~~~~~~~~~~~
-
-\htmlonly
-<table class="directory">
-<tr><td><img src="demoRead_03.png"></td><td><img src="gre.png"></td></tr>
-<tr style="font-weight:bold;text-align:center;height:3em">
-<td>Example design and visualization of an MRI sequence in MATLAB</td>
-<td>Data acquired from the MATLAB sequence</td>
-</tr>
-</table>
-\endhtmlonly
-
-
-The C++ class `ExternalSequence` provides functionality to read a pulse sequence file and decompress the sequence blocks. This implementation is ideal for running MR sequences on different hardware platforms. The image above was acquired using the this class and vendor-specific interpreter code.
-~~~~~~~~~~~~~{.cpp}
-// Create sequence object and load file
-ExternalSequence seq;
-seq.load(path);
-
-SeqBlock* block = seq.GetBlock(1);
-bool isRF = block->isRF();
-~~~~~~~~~~~~~
 
 */
 
 
-/**
-\page matlab MATLAB toolbox
-
-A MATLAB interface is provided through the `mr` toolbox. The toolbox contains stand-alone functions for generating common sequence blocks suitable for MRI or spectroscopy such as selective RF pulses, trapezoid gradients and ADC readout events. The `Sequence` class maintains all sequence data in a compressed form and provides methods to read/write sequence files or modify blocks directly. Sequences are executed on real MR hardware using vendor-specific interpreter modules.
-
-Examples
-
-\htmlonly
-<div class="directory">
-<table class="directory">
-<tr class="even"><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span><a class="el" href="writeGradientEcho.html">Gradient echo sequence</a></td><td class="desc">Generate a GRE sequence and export for execution.</td></tr>
-
-<tr><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span>
-<span class="icona"><span class="icon">M</span></span><a class="el" href="writeSelectiveRf.html">Arbitrary RF pulses</a></td><td class="desc">Generate sequecne with a 2D RF pulse and export for execution.</td></tr>
-
-<tr class="even"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span>
-<span class="icona"><span class="icon">M</span></span><a class="el" href="demoRead.html">Read sequence</a></td><td class="desc">Read file and visualise the MR sequence.</td></tr>
-
-</table>
-</div><!-- directory -->
-\endhtmlonly
-
-  Classes
-
-\htmlonly
-<div class="directory">
-<table class="directory">
-<tr class="even"><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span><a class="el">Sequence</a></td><td class="desc">MATLAB class for generating, reading and writing MR sequences.</td></tr>
-</table>
-</div><!-- directory -->
-\endhtmlonly
-
-  Functions
-
-\htmlonly
-<div class="directory">
-<table class="directory">
-<tr class="even"><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span>calcDuration
-</td><td class="desc">Calculate the duration of a block.</td></tr>
-
-<tr class=""><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span>compressShape
-</td><td class="desc">Compress a waveform using a run-length compression scheme.</td></tr>
-
-<tr class="even"><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span>decompressShape
-</td><td class="desc">Decompress a shape to the original waveform.</td></tr>
-
-<tr class=""><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span>makeAdc
-</td><td class="desc">Create an ADC readout event.</td></tr>
-
-<tr class="even"><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span>makeArbitraryGrad
-</td><td class="desc">Create an arbitrary gradient shape.</td></tr>
-
-<tr class=""><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span>makeArbitraryRf
-</td><td class="desc">Create an arbitrary RF pulse.</td></tr>
-
-<tr class="even"><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span>makeDelay
-</td><td class="desc">Create a delay event.</td></tr>
-
-<tr class=""><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span>makeBlockPulse
-</td><td class="desc">Create a constant (block) RF pulse and optionally the slice-select gradient.</td></tr>
-
-<tr class="even"><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span>makeSincPulse
-</td><td class="desc">Create a sinc RF pulse and optionally the slice-select gradient.</td></tr>
-
-<tr class=""><td class="entry"><span style="width:16px;display:inline-block;"></span>
-<span class="icona"><span class="icon">M</span></span>makeTrapezoid
-</td><td class="desc">Create a trapezoid gradient event.</td></tr>
-
-</table>
-</div>
-\endhtmlonly

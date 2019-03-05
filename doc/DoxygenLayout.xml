@@ -3,8 +3,6 @@
   <!-- Navigation index tabs for HTML output -->
   <navindex>
     <tab type="mainpage" visible="yes" title="Home"/>
-    <tab type="user" title="MATLAB" url="@ref matlab">
-    </tab>
     <!-- <tab type="pages" visible="yes" title="pages" intro=""/> -->
     <tab type="modules" visible="yes" title="" intro=""/>
     <tab type="namespaces" visible="yes" title="">
