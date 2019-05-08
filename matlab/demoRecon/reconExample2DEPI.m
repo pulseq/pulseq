@@ -1,28 +1,16 @@
-% very basic and crude non-cartesian recon using griddata()
+% very basic and crude recon for single-shot EPI with ramp-sampling 
 %%
 
-%rawDir = '/raid/groupspace/range/rawdata';
-%addpath('/raid/home/extern/range/code/mapvbvd')
-
-% addpath('~/matlab/external_toolboxes/mapvbvd');
-% addpath('~/matlabs/matlab_new/io/raw_tool');
-% rawDir = '/storage/rawdata';
-
-%% Load data
-
-% scan_ID = 7538;
-% 
-% twix_obj = mapVBVD(sprintf('%s/%d/raw.dat', rawDir, scan_ID));
-% %raw=readSiemensRaw(sprintf('%s/%d/raw.dat', rawDir, scan_ID));
-
 %% Load the latest file from a dir
-%path='/beast/groupspace/range/zaitsev/20180918_FOV_Avanto/'
-path='../IceNIH_RawSend/'
-pattern='*.dat'
+%path='../IceNIH_RawSend/';
+path='~/Dropbox/shared/data/siemens/';
+%path='~/Dropbox/shared/data/siemens/demo_epi/';
+
+pattern='*.dat';
 
 D=dir([path pattern]);
-[~,I]=sort(-[D(:).datenum]);
-data_file_path=[path D(I(1)).name];
+[~,I]=sort([D(:).datenum]);
+data_file_path=[path D(I(end)).name]; % use end-1 to reconstruct the second-last data set, etc.
 %data_file_path=[path '2018-11-05-090537.dat'];
 %%
 twix_obj = mapVBVD(data_file_path);
@@ -50,8 +38,8 @@ end
 fov=256e-3; Nx=64; Ny=64; 
 % it would be a good exercise to detect Nx and Ny from the k-space trajectory :-)
 
-%% if necessary retune the trajectory delay to supress ghosting
-traj_recon_delay=3.88e-6;%-1e-6;%3.90e-6;%-1.03e-6; % adjust this parameter to supress ghosting (negative allowed) (our trio -1.0e-6, prisma +3.9e-6; avanto +3.88)
+%% if necessary retun the trajectory delay to supress ghosting
+traj_recon_delay=0;%3.23e-6;%-1e-6;%3.90e-6;%-1.03e-6; % adjust this parameter to supress ghosting (negative allowed) (our trio -1.0e-6, prisma +3.9e-6; avanto +3.88)
 [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
 ktraj_adc_nodelay=seq.calculateKspace('trajectory_delay', 10e-6);
 
@@ -117,10 +105,8 @@ mphase2=angle(sum(cmplx_diff2(:)));
 mphase=angle(sum([cmplx_diff1(:); cmplx_diff2(:)]));
 
 %%
-%pc_coef=-0.5/25*10;%-0.33;
-%pc_coef=-0.35;
-%pc_coef=0.3;
-pc_coef=mphase1/2/pi;
+pc_coef=0;
+%pc_coef=mphase1/2/pi;
 
 data_pc=data_resampled;
 for c=1:nCoils

@@ -43,18 +43,38 @@ end
 channel = grads{1}.channel;
 
 % find out the general delay of all gradients and other statistics
-delays = [];
+delays = []; % TODO: preallocate instead of grow
 firsts = [];
 lasts = [];
 durs=[];
+is_trap=[];
 for ii = 1:length(grads)
     delays = [delays, grads{ii}.delay];
     firsts = [firsts, grads{ii}.first];
     lasts = [lasts, grads{ii}.last];
     durs = [durs, mr.calcDuration(grads{ii})];
+    is_trap = [is_trap, strcmp(grads{ii}.type,'trap')];
 end
 common_delay = min(delays);
 total_duration = max(durs);
+
+% check if we have a set of traps with the same timing
+if all(is_trap)
+    % now all fields are the same so we can convert cell to a normal array
+    gradsa=cell2mat(grads);
+    if 1==length(unique([gradsa.delay])) && ...
+       1==length(unique([gradsa.riseTime])) && ...
+       1==length(unique([gradsa.flatTime])) && ...
+       1==length(unique([gradsa.fallTime])) 
+        % TADA, all our gradients have the same timing, so we just add
+        % the amplitudes!
+        grad=gradsa(1);
+        grad.amplitude = sum([gradsa.amplitude]);
+        grad.area = sum([gradsa.area]);
+        grad.flatArea = sum([gradsa.flatArea]);
+        return;
+    end    
+end
 
 waveforms = {};
 max_length = 0;

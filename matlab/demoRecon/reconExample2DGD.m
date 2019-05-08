@@ -1,21 +1,13 @@
 %% very basic and crude non-cartesian recon using griddata()
 
-%addpath('/raid/home/extern/range/code/mapvbvd')
-
-%% Load data
-
-%scan_ID = 7546;
-%rawDir = '/raid/groupspace/range/rawdata';
-
-%twix_obj = mapVBVD(sprintf('%s/%d/raw.dat', rawDir, scan_ID));
-
 %% Load the latest file from a dir
-path='../IceNIH_RawSend/'
-pattern='*.dat'
+%path='../IceNIH_RawSend/'
+path='~/Dropbox/shared/data/siemens/';
+pattern='*.dat';
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
-data_file_path=[path D(I(end)).name]
+data_file_path=[path D(I(end)).name]; % use end-1 to reconstruct the second-last data set, etc.
 
 %%
 twix_obj = mapVBVD(data_file_path);
@@ -35,7 +27,7 @@ axis('equal');
 
 %% Define FOV and resolution and simple off-resonance frequency correction 
 
-fov=192e-3; Nx=192; Ny=Nx; 
+fov=256e-3; Nx=128; Ny=Nx; 
 deltak=1/fov;
 os=2; % oversampling factor (we oversample both in image and k-space)
 offresonance=0; % global off-resonance in Hz

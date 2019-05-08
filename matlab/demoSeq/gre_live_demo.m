@@ -4,6 +4,7 @@
 % 2 ... Refocus in phase
 % 3 ... Vary RF phase quasi-randomly
 % 4 ... Make receiver phase follow transmitter phase
+% 5 ... Add dummy scans
 step = 0;
 
 % Create a new sequence object
@@ -16,9 +17,9 @@ Nx = 128;
 Ny = Nx;
 
 % Define sequence parameters
-TE = 10e-3;
-TR = 20e-3;
-alpha=30;
+TE = 8e-3;
+TR = 16e-3;
+alpha=45;
 
 % set system limits
 sys = mr.opts('MaxGrad',25,'GradUnit','mT/m',...
@@ -61,8 +62,13 @@ if step > 0
     delayTR = delayTR - mr.calcDuration(gxPost, gyPost, gzPost);
 end
 
+if step > 4
+    start = -30; % dummy scans
+else
+    start = 1;
+end
 % Loop over phase encodes and define sequence blocks
-for i=1:Ny
+for i=start:Ny
     if step > 2
         % Vary RF phase quasi-randomly
         rand_phase = mod(117*(i^2 + i + 2), 360)*pi/180;
@@ -74,7 +80,11 @@ for i=1:Ny
                                     'phaseOffset', rand_phase);
     end
     seq.addBlock(rf, gz);
-    gyPre = mr.makeTrapezoid('y', 'Area', phaseAreas(i), 'Duration', 2e-3);
+    if (i>0) % negative index -- dummy scans
+        gyPre = mr.makeTrapezoid('y', 'Area', phaseAreas(i), 'Duration', 2e-3);
+    else
+        gyPre = mr.makeTrapezoid('y', 'Area', 0, 'Duration', 2e-3);
+    end
     seq.addBlock(gxPre, gyPre, gzReph);
     seq.addBlock(mr.makeDelay(delayTE));
     if step > 3
@@ -83,7 +93,11 @@ for i=1:Ny
                          'Delay', gx.riseTime,...
                          'phaseOffset', rand_phase);
     end
-    seq.addBlock(gx, adc);
+    if (i>0) % negative index -- dummy scans
+        seq.addBlock(gx, adc);
+    else
+        seq.addBlock(gx);
+    end
     if step > 1
         gyPost = mr.makeTrapezoid('y', 'Area', -gyPre.area, 'Duration', 2e-3);
     end
@@ -94,8 +108,20 @@ for i=1:Ny
     seq.addBlock(mr.makeDelay(delayTR));
 end
 
+% check whether the timing of the sequence is correct
+[ok, error_report]=seq.checkTiming;
+
+if (ok)
+    fprintf('Timing check passed successfully\n');
+else
+    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf([error_report{:}]);
+    fprintf('\n');
+end
+
+% export definitions
 seq.setDefinition('FOV', [fov fov sliceThickness]*1e3);
-seq.setDefinition('Name', 'gre');
+seq.setDefinition('Name', ['DEMO_gre' num2str(step)]);
 
 seq.write(['DEMO_gre' num2str(step) '.seq'])       % Write to pulseq file
 

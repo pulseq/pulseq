@@ -50,22 +50,19 @@ for i=(-Ndummy):Nr
         %
         seq.addBlock(rf,gz);
         phi=delta*(i-1);
-        gpc=gxPre;   gps=gxPre;   gpc.amplitude=gxPre.amplitude*cos(phi);   gps.amplitude=gxPre.amplitude*sin(phi);   gps.channel='y';
-        grc=gx;      grs=gx;      grc.amplitude=gx.amplitude*cos(phi);      grs.amplitude=gx.amplitude*sin(phi);      grs.channel='y';
-        gsc=gxSpoil; gss=gxSpoil; gsc.amplitude=gxSpoil.amplitude*cos(phi); gss.amplitude=gxSpoil.amplitude*sin(phi); gss.channel='y';
-        seq.addBlock(gpc,gps,gzReph);
+        seq.addBlock(mr.rotate('z',phi,gxPre,gzReph));
         seq.addBlock(mr.makeDelay(delayTE(c)));
         if (i>0)
-            seq.addBlock(grc,grs,adc);
+            seq.addBlock(mr.rotate('z',phi,gx,adc));
         else
-            seq.addBlock(grc,grs);
+            seq.addBlock(mr.rotate('z',phi,gx));
         end
-        seq.addBlock(gsc,gss,gzSpoil,mr.makeDelay(delayTR));
+        seq.addBlock(mr.rotate('z',phi,gxSpoil,gzSpoil,mr.makeDelay(delayTR)));
     end
 end
 
 seq.plot();
-
+return;
 %% trajectory calculation
 [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
 

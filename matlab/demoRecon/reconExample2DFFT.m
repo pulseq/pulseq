@@ -1,22 +1,15 @@
 %% Reconstruction of 2D cartesian Pulseq data.
 
-%addpath('/raid/home/extern/range/code/mapvbvd')
-
-%% Load data
-
-%scan_ID = 7545;
-%rawDir = '/raid/groupspace/range/rawdata';
-%data_file_path=sprintf('%s/%d/raw.dat', rawDir, scan_ID);
-%data_file_path='/home/zaitsev/range_software/pulseq/interpreters/siemens/data_example/gre_example.dat';
-
 %% Load the latest file from a dir
-path='../IceNIH_RawSend/'
-pattern='*.dat'
+%path='../../icenih_rawsend/';
+path='~/Dropbox/shared/data/siemens/';
+%path='~/Dropbox/shared/data/siemens/demo_gre/';
+pattern='*.dat';
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
 %
-data_file_path=[path D(I(end)).name]
+data_file_path=[path D(I(end)).name];  % use end-1 to reconstruct the second-last data set, etc.
 %%
 twix_obj = mapVBVD(data_file_path);
 
@@ -127,13 +120,13 @@ for ii = 1:nCoils
 end
 
 % Phase images (possibly channel-by-channel and echo-by-echo)
-figure;
-imab(angle(images));colormap('jet');
+%figure;imab(angle(images));colormap('jet');
+%figure;imab(abs(images));colormap('gray');
 
 %% Image display with optional sum of squares combination
 figure;
 if nCoils>1
-    sos=abs(sum(images.^2,ndims(images)).^(1/2));
+    sos=abs(sum(images.*conj(images),ndims(images))).^(1/2);
     sos=sos./max(sos(:));    
     imab(sos);
     %imwrite(sos, ['img_combined.png']

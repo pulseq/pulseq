@@ -5,10 +5,11 @@ fov=256e-3; Nx=128; Ny=128;  % Define FOV and resolution
 sliceThickness=3e-3;             % slice thinckness
 Nslices=1;
 Oversampling=2; % by looking at the periphery of the spiral I would say it needs to be at least 2
+phi=pi/2; % orientation of the readout e.g. for interleaving
 
 % Set system limits
 lims = mr.opts('MaxGrad',30,'GradUnit','mT/m',...
-    'MaxSlew',140,'SlewUnit','T/m/s',...
+    'MaxSlew',180,'SlewUnit','T/m/s',...
     'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6, 'adcDeadTime', 10e-6);  
 
 % Create fat-sat pulse 
@@ -43,13 +44,13 @@ ka=[real(ka); imag(ka)];
 [ga, sa]=mr.traj2grad(ka);
 
 % limit analysis
-safety_magrin=0.97; % we need that  otherwise we just about violate the slew rate due to the rounding errors
+safety_magrin=0.94; % we need that  otherwise we just about violate the slew rate due to the rounding errors
 dt_gcomp=abs(ga)/(lims.maxGrad*safety_magrin)*lims.gradRasterTime;
 dt_gabs=abs(ga(1,:)+1i*ga(2,:))/(lims.maxGrad*safety_magrin)*lims.gradRasterTime;
 dt_scomp=sqrt(abs(sa)/(lims.maxSlew*safety_magrin))*lims.gradRasterTime;
 dt_sabs=sqrt(abs(sa(1,:)+1i*sa(2,:))/(lims.maxSlew*safety_magrin))*lims.gradRasterTime;
 
-figure;plot([dt_gabs; max(dt_gcomp); dt_sabs; max(dt_scomp)]');
+figure;plot([dt_gabs; max(dt_gcomp); dt_sabs; max(dt_scomp)]');title('time stepping defined by gradient and slew-rate');
 
 dt_smooth=max([dt_gabs;dt_sabs]);
 dt_rough=max([dt_gcomp;dt_scomp]);
@@ -61,7 +62,7 @@ dt_rough0=dt_rough;
 dt_smooth(dt_smooth<dt_min)=dt_min;
 dt_rough(dt_rough<dt_min)=dt_min;
 
-figure;plot([dt_smooth0; dt_smooth; dt_rough0; dt_rough]');
+figure;plot([dt_smooth0; dt_smooth; dt_rough0; dt_rough]');title('combined time stepping');
 
 t_smooth=[0 cumsum(dt_smooth,2)];
 t_rough=[0 cumsum(dt_rough,2)];
@@ -141,11 +142,11 @@ for s=1:Nslices
     seq.addBlock(rf_fs,gz_fs); % fat-sat    
     rf.freqOffset=gz.amplitude*sliceThickness*(s-1-(Nslices-1)/2);
     seq.addBlock(rf,gz);
-    seq.addBlock(gzReph,gx,gy,adc);
-    seq.addBlock(gx_spoil,gy_spoil,gz_spoil);
+    seq.addBlock(mr.rotate('z',phi,gzReph,gx,gy,adc));
+    seq.addBlock(mr.rotate('z',phi,gx_spoil,gy_spoil,gz_spoil));
     %seq.addBlock(gx_combined,gy_combined,gz_combined,adc);
 end
-
+%
 seq.setDefinition('FOV', [fov fov sliceThickness]*1e3);
 seq.setDefinition('Name', 'spiral');
 
