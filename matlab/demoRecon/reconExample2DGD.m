@@ -1,8 +1,12 @@
 %% very basic and crude non-cartesian recon using griddata()
 
 %% Load the latest file from a dir
-%path='../IceNIH_RawSend/'
-path='~/Dropbox/shared/data/siemens/';
+% reconstruct live acquired data
+path='../../data/siemens/';
+% reconstruct previously acquired data (always available)
+% path='../../data/siemens/demo_epi';
+% path='../../data/siemens/demo_gre';
+
 pattern='*.dat';
 
 D=dir([path pattern]);

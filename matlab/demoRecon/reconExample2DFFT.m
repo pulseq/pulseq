@@ -1,9 +1,11 @@
 %% Reconstruction of 2D cartesian Pulseq data.
 
 %% Load the latest file from a dir
-%path='../../icenih_rawsend/';
-path='~/Dropbox/shared/data/siemens/';
-%path='~/Dropbox/shared/data/siemens/demo_gre/';
+% reconstruct live acquired data
+path='../../data/siemens/';
+% reconstruct previously acquired data (always available)
+% path='../../data/siemens/demo_gre';
+
 pattern='*.dat';
 
 D=dir([path pattern]);

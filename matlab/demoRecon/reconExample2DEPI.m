@@ -2,9 +2,10 @@
 %%
 
 %% Load the latest file from a dir
-%path='../IceNIH_RawSend/';
-path='~/Dropbox/shared/data/siemens/';
-%path='~/Dropbox/shared/data/siemens/demo_epi/';
+% reconstruct live acquired data
+path='../../data/siemens/';
+% reconstruct previously acquired data (always available)
+% path='../../data/siemens/demo_epi';
 
 pattern='*.dat';
 
