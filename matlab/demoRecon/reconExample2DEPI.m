@@ -5,9 +5,9 @@
 % reconstruct live acquired data
 path='../../data/siemens/';
 % reconstruct previously acquired data (always available)
-% path='../../data/siemens/demo_epi';
+% path='../../data/siemens/demo_epi/';
 
-pattern='*.dat';
+pattern='/*.dat';
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
