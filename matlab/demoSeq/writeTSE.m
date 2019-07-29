@@ -228,7 +228,7 @@ end
 %% new single-function call for trajectory calculation
 [ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
 
-%% plot k-spaces
+% plot k-spaces
 
 figure; plot(ktraj'); % plot the entire k-space trajectory
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...

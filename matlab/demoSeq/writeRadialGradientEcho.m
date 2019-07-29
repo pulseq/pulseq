@@ -62,6 +62,15 @@ for i=(-Ndummy):Nr
 end
 
 seq.plot();
+
+%
+seq.setDefinition('FOV', [fov fov sliceThickness]);
+seq.setDefinition('Name', 'gre_rad');
+
+seq.write('gre_rad.seq')       % Write to pulseq file
+
+%seq.install('siemens');
+
 return;
 %% trajectory calculation
 [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
@@ -74,10 +83,3 @@ figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
-%
-seq.setDefinition('FOV', [fov fov sliceThickness]*1e3);
-seq.setDefinition('Name', 'gre_rad');
-
-seq.write('gre_rad.seq')       % Write to pulseq file
-
-%seq.install('siemens');

@@ -1,8 +1,13 @@
-function [ is_ok, text_error ] = checkTiming( system, varargin )
+function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
 %checkTiming(sys, objects, ...) 
 %   Function checks whether timing of the specified evets are aligned to
 %   the corresponding raster
 
+    if (isempty(varargin))
+        text_error=['empty or damaged block detected' ];
+        is_ok=false;
+        return;
+    end
     total_dur=mr.calcDuration(varargin{:});
     is_ok=div_check(total_dur,system.gradRasterTime);
     if (is_ok)
@@ -12,6 +17,7 @@ function [ is_ok, text_error ] = checkTiming( system, varargin )
     end
     for i=1:length(varargin)
         e=varargin{i};
+        assert(isstruct(e), 'wrong format of the variable aguments, list of structures is expected');
         ok=true;
         if isfield(e, 'type') && (strcmp(e.type,'adc') || strcmp(e.type,'rf'))
             raster=system.rfRasterTime;
@@ -20,6 +26,16 @@ function [ is_ok, text_error ] = checkTiming( system, varargin )
         end
         if isfield(e, 'delay')
             if ~div_check(e.delay,raster)
+                ok=false;
+            end
+        end
+        if isfield(e, 'duration')
+            if ~div_check(e.duration,raster)
+                ok=false;
+            end
+        end
+        if isfield(e, 'dwell')
+            if e.dwell<raster
                 ok=false;
             end
         end
@@ -39,6 +55,12 @@ function [ is_ok, text_error ] = checkTiming( system, varargin )
             end
             if isfield(e, 'delay')
                 text_error = [text_error 'delay:' num2str(e.delay*1e6) 'us ' ];
+            end
+            if isfield(e, 'duration')
+                text_error = [text_error 'duration:' num2str(e.duration*1e6) 'us ' ];
+            end
+            if isfield(e, 'dwell')
+                text_error = [text_error 'dwell:' num2str(e.dwell*1e9) 'ns ' ];
             end
             if isfield(e, 'type') && strcmp(e.type,'trap')
                 text_error = [text_error 'riseTime:' num2str(e.riseTime*1e6) 'us flatTime:' num2str(e.flatTime*1e6) 'us fallTime:' num2str(e.fallTime*1e6) 'us '];

@@ -38,15 +38,15 @@ if ~isempty(obj.definitions)
 end
 
 fprintf(fid, '# Format of blocks:\n');
-fprintf(fid, '#  #  D RF  GX  GY  GZ ADC\n');
+fprintf(fid, '#  #  D RF  GX  GY  GZ ADC EXT\n');
 fprintf(fid, '[BLOCKS]\n');
 idFormatWidth = length(num2str(length(obj.blockEvents)));
 idFormatStr = ['%' num2str(idFormatWidth) 'd'];
 for i = 1:length(obj.blockEvents)
     %fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d 0\n'],[i obj.blockEvents(i,:)]);
     %fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d 0\n'],[i obj.blockEvents{i}]);
-    fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d\n'], ...
-            [i obj.blockEvents{i}]); % PulSeq standard 1.0 (no control events)
+    fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d %2d\n'], ...
+            [i obj.blockEvents{i}]); 
 end
 fprintf(fid, '\n');
 
@@ -122,6 +122,31 @@ if ~isempty(obj.delayLibrary.keys)
     fprintf(fid, '\n');
 end
 
+if ~isempty(obj.extensionLibrary.keys)
+    fprintf(fid, '# Format of extension lists:\n');
+    fprintf(fid, '# id type ref next_id\n');
+    fprintf(fid, '# next_id of 0 terminates the list\n');
+    fprintf(fid, '# Extension list is followed by extension specifications\n');
+    fprintf(fid, '[EXTENSIONS]\n');
+    keys = obj.extensionLibrary.keys;
+    for k = keys
+        fprintf(fid, '%d %d %d %d\n', ...
+                [k round(obj.extensionLibrary.data(k).array)]);
+    end
+    fprintf(fid, '\n');
+end
+
+if ~isempty(obj.trigLibrary.keys)
+    fprintf(fid, '# Extension specification for digital output and input triggers:\n');
+    fprintf(fid, '# id type channel delay (us) duration (us)\n');
+    fprintf(fid, 'extension TRIGGERS 1\n'); % fixme: extension ID 1 is hardcoded here for triggers
+    keys = obj.trigLibrary.keys;
+    for k = keys
+        fprintf(fid, '%d %d %d %d %d\n', ...
+                [k round(obj.trigLibrary.data(k).array.*[1 1 1e6 1e6])]); 
+    end
+    fprintf(fid, '\n');
+end
 
 if ~isempty(obj.shapeLibrary.keys)
     fprintf(fid, '# Sequence Shapes\n');

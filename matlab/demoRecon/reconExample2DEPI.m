@@ -1,22 +1,21 @@
 % very basic and crude recon for single-shot EPI with ramp-sampling 
-%%
+%
+% needs mapVBVD in the path
 
 %% Load the latest file from a dir
-% reconstruct live acquired data
-path='../../data/siemens/';
-% reconstruct previously acquired data (always available)
-% path='../../data/siemens/demo_epi/';
+path='../IceNIH_RawSend/'; % directory to be scanned for data files
+%path='~/Dropbox/shared/data/siemens/';
+%path='~/Dropbox/shared/data/siemens/demo_epi/';
 
 pattern='/*.dat';
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
 data_file_path=[path D(I(end)).name]; % use end-1 to reconstruct the second-last data set, etc.
-%data_file_path=[path '2018-11-05-090537.dat'];
 %%
 twix_obj = mapVBVD(data_file_path);
 
-%% Load sequence from the file (optional)
+%% Load sequence from file (optional)
 
 seq_file_path = [data_file_path(1:end-3) 'seq'];
 
@@ -30,7 +29,7 @@ axis('equal');
 %% define raw data
 
 if iscell(twix_obj)
-    rawdata = double(twix_obj{2}.image.unsorted());
+    rawdata = double(twix_obj{end}.image.unsorted());
 else
     rawdata = double(twix_obj.image.unsorted());
 end
@@ -39,7 +38,7 @@ end
 fov=256e-3; Nx=64; Ny=64; 
 % it would be a good exercise to detect Nx and Ny from the k-space trajectory :-)
 
-%% if necessary retun the trajectory delay to supress ghosting
+%% if necessary re-tune the trajectory delay to supress ghosting
 traj_recon_delay=0;%3.23e-6;%-1e-6;%3.90e-6;%-1.03e-6; % adjust this parameter to supress ghosting (negative allowed) (our trio -1.0e-6, prisma +3.9e-6; avanto +3.88)
 [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
 ktraj_adc_nodelay=seq.calculateKspace('trajectory_delay', 10e-6);

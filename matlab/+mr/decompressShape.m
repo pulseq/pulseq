@@ -7,49 +7,52 @@ function w = decompressShape(shape)
 %     data - containing the compressed waveform
 %
 %   See also compressShape
-        
 
 dataPack = shape.data;
+dataPackLen = length(dataPack);
 numSamples=shape.num_samples;
 
-w= zeros(1, numSamples) ;                 % eine Matrix wird erstellt, in die später der unkonvertierte Datensatz eingetragen werden kann
-                                                % Dimension der Matrix: (1,Länge des gesamten Datensatzes)
+w= zeros(1, numSamples) ;                 % pre-allocate the result matrix
+                                          % dimensons: (1,length of the data set)
                                        
-%%%% Dekomprimierung
+% decompression starts here
 
-countPack= 1;                                               % Zähler 1: inkrementiert komprimierten Datensatz
-countUnpack= 1;                                             % Zähler 2: inkrementiert unkomprimierten Datensatz      
-while countPack < length(dataPack)                          % while-Schleife wird solange abgearbeitet, bis Zähler 1  
-                                                            % am Ende des dataPack angekommen ist
-    
-    if dataPack(countPack) ~= dataPack(countPack + 1)       % aktueller Zahlenwert im komprimierten Datensatz wird mit 
-                                                            % nachfolgendem ~ verglichen, wenn ungleich, dann ...
-%         if abs(countUnpack-round(countUnpack))>eps
-%             fprintf('about to crash: countUnpack=%.09f\n',countUnpack);
-%             error('decompressShape() failed');
-%         end
-        w(countUnpack)= dataPack(countPack);                % ...wird die aktueller Zahl an die entsprechende Stelle im
-                                                            % unkomprimierten Datensatz geschrieben
-        countUnpack= countUnpack + 1;                       % abschließend Erhöhung im komprimierten und
-        countPack= countPack + 1;                           % im unkomprimierten Datensatz um 1
-    
-    else                                                    % wenn die beiden Werte hingegen gleich sind, dann ...
-        rep= dataPack(countPack + 2) + 2;                   % rep = Variable, die angibt, wie oft der jeweilige Wert 
-                                                            % geschrieben werden muss
-%         if abs(rep-round(rep))>eps
-%             fprintf('\n  about to crash: rep=%.09f\n',rep);
-%             fprintf('  countPack: %d  data: %.09f %.09f %.09f\n', countPack, dataPack(countPack:countPack+2));
-%             error('decompressShape() failed');
-%         end
-        w(countUnpack:(countUnpack + rep - 1))= dataPack(countPack);
-                                                            % 
-        countPack= countPack + 3;
-        countUnpack= countUnpack + rep;
+dataPackDiff = dataPack(2:end) - dataPack(1:end-1);
+
+% when dataPackDiff == 0 the subsequent samples are equal ==> marker for
+% repeats (run-length encoding)
+dataPackMarkers=find(dataPackDiff==0.0);
+
+countPack= 1;                                               % counter 1: points to the current compressed sample
+countUnpack= 1;                                             % counter 2: points to the current uncompressed sample
+
+for i=1:length(dataPackMarkers)
+    nextPack=dataPackMarkers(i); % careful, this index may have "false positives" , e.g. if the value 3 repeats 3 times, then we will have 3 3 3
+    currUnpackSamples=nextPack-countPack;
+    if currUnpackSamples < 0 % this rejects false positives
+        continue;        
+    elseif currUnpackSamples > 0 % do we have an unpacked block to copy?
+        w(countUnpack:(countUnpack+currUnpackSamples-1)) = dataPack(countPack:(nextPack-1));
+        countPack = countPack + currUnpackSamples;
+        countUnpack = countUnpack + currUnpackSamples;
     end
+    % now comes the packed/repeated section
+    rep=dataPack(countPack+2)+2;
+    w(countUnpack:(countUnpack+rep-1))=dataPack(countPack);
+    countPack= countPack + 3;
+    countUnpack= countUnpack + rep;
 end
-if countPack==length(dataPack)                              % Last sample is not a repeat, so include it directly
-    w(countUnpack)=dataPack(countPack);
+
+% samples left?
+if (countPack<dataPackLen)
+    assert(dataPackLen-countPack==numSamples-countUnpack);
+    % copy the rest of the shape, it is unpacked
+    w(countUnpack:end)= dataPack(countPack:end);
 end
 
 w = cumsum(w);
 w=w(:);
+
+% % test the new function against the old slow version
+% w1=mr.decompressShape0(shape);
+% assert(all(w==w1));

@@ -5,16 +5,16 @@ seq=mr.Sequence();              % Create a new sequence object
 fov=250e-3; Nx=256;             % Define FOV and resolution
 alpha=30;                       % flip angle
 sliceThickness=3e-3;            % slice
-TR=10e-3;                       % TR
+TR=2.2e-3;                      % TR
 Nr=321;                         % number of radial spokes
 Ndummy=20;                      % number of dummy scans
 delta= 2* pi / Nr;              % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
 rf_duration=1.0e-3;             % duration of the excitation pulse
-ro_duration=1.6e-3;             % read-out time: controls RO bandwidth and T2-blurring
+ro_duration=0.520e-3;           % read-out time: controls RO bandwidth and T2-blurring
 ro_os=2;                        % oversampling
 minRF_to_ADC_time=70e-6;        % the parameter wich defines TE together with ro_discard
 ro_discard=0;                   % dummy ADC samples to discard (due to ADC filter 
-ro_spoil=2;                     % extend RO to achieve spoiling
+ro_spoil=1;                     % extend RO to achieve spoiling
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
@@ -52,7 +52,8 @@ Nxo=round(ro_os*Nx);
 deltak=1/fov/2;
 ro_area=Nx*deltak;
 gx = mr.makeTrapezoid('x','FlatArea',ro_area,'FlatTime',ro_duration,'system',sys);
-adc = mr.makeAdc(Nxo,'Duration',gx.flatTime,'system',sys);
+adc_dur=floor(gx.flatTime/Nxo*1e7)*1e-7*Nxo; % round down dwell time to 100ns (Siemens ADC raster)
+adc = mr.makeAdc(Nxo,'Duration',adc_dur,'system',sys);
 
 % ro-spoiling
 gx.flatTime=gx.flatTime*ro_spoil;
@@ -65,7 +66,7 @@ TE = ceil((minRF_to_ADC_time + adc.dwell*ro_discard)/seq.gradRasterTime)*seq.gra
 delayTR=ceil((TR - mr.calcDuration(gz) ...
     - mr.calcDuration(gx) - TE)/seq.gradRasterTime)*seq.gradRasterTime;
 
-fprintf('TE= %d us\n', round(TE*1e6));
+fprintf('TE= %d us; delay in TR:= %d us\n', round(TE*1e6), floor(delayTR*1e6));
 
 % set up timing
 gx.delay=mr.calcDuration(gz)+TE;
@@ -96,6 +97,26 @@ end
 
 seq.plot();
 
+%% check whether the timing of the sequence is correct
+[ok, error_report]=seq.checkTiming;
+
+if (ok)
+    fprintf('Timing check passed successfully\n');
+else
+    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf([error_report{:}]);
+    fprintf('\n');
+end
+
+%% export
+seq.setDefinition('FOV', [fov fov sliceThickness]);
+seq.setDefinition('Name', 'ute_rs');
+
+seq.write('ute_rs.seq');       % Write to pulseq file
+
+%seq.install('siemens');
+return
+
 %% plot gradients to check for gaps and optimality of the timing
 gw=seq.gradient_waveforms();
 figure; plot(gw'); % plot the entire gradient shape
@@ -111,10 +132,10 @@ figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
-%
-seq.setDefinition('FOV', [fov fov sliceThickness]*1e3);
-seq.setDefinition('Name', 'ute_rs');
 
-seq.write('ute_rs.seq');       % Write to pulseq file
+%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
 
-%seq.install('siemens');
+rep = seq.testReport;
+fprintf([rep{:}]);
+
+

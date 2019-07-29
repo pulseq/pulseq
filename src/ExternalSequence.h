@@ -5,6 +5,7 @@
 #include <string>
 #include <sstream>
 #include <fstream>
+#include <set>
 #include <map>
 
 #ifndef _EXTERNAL_SEQUENCE_H_
@@ -22,6 +23,16 @@
 
 #ifndef MAX
 #define MAX(a,b) ( (a)>(b) ? (a) : (b) )
+#endif
+
+// Define the path separator depending on the compile target
+// it is different on host and scanner MPCU
+#if defined(VXWORKS) 
+#define PATH_SEPARATOR "/"
+#elif defined (BUILD_PLATFORM_LINUX)
+#define PATH_SEPARATOR "/"
+#else
+#define PATH_SEPARATOR "\\"
 #endif
 
 /**
@@ -51,7 +62,7 @@ enum Event {
 	GY,
 	GZ,
 	ADC,
-	CTRL,
+	EXT,
 	LAST_UNUSED // this entry should be last in the list
 };
 const int NUM_EVENTS=LAST_UNUSED;
@@ -112,22 +123,48 @@ struct ADCEvent
 };
 
 /**
- * @brief Control event
+ * @brief Extension list entry
  *
- * Stores information depending on the control command type:
- *  - **trigger:** type, duration
- *  - **rotation:** rotation matrix
+ * Stores the information aout the extension events in a form of a single-linked list
  */
-struct ControlEvent
+struct ExtensionListEntry
 {
-	enum Type 
-	{
-		TRIGGER = 0,
-		ROTATION
-	};
-	Type type;              /**< @brief Command type: trigger or gradient rotation */
+	int type;      /**< @brief extension type. see ExtType enum for details */
+	int ref;       /**< @brief reference to the actual extension event */
+	int next;      /**< @brief link to the next extension entry in the list. 0 indicates the end of the list */
+};
+
+/**
+ * @brief Known extension types. Extenssions are recognized by their text ID and are mapped to these constants in the code
+ */
+enum ExtType {
+	EXT_LIST=0,
+	EXT_TRIGGER,
+	EXT_ROTATION,
+	EXT_UNKNOWN /* marks the end of the enum, should always be the last */
+};
+
+/**
+ * @brief Trigger event (extension)
+ *
+ * Stores trigger, type, duration
+ */
+struct TriggerEvent
+{
 	long duration;          /**< @brief Duration of trigger event (us) */
-	int triggerType;        /**< @brief Type of trigger (system dependent) */
+	long delay;             /**< @brief Delay prior to the trigger event (us) */
+	int triggerType;        /**< @brief Type of trigger (system dependent). 0: undefined / unused */
+	int triggerChannel;     /**< @brief channel of trigger (system dependent). 0: undefined / unused */
+};
+
+/**
+ * @brief Rotation event (extension)
+ *
+ * Stores rotation matrix
+ */
+struct RotationEvent
+{
+	bool defined;           /**< @brief Indicates whether a rotation object was defined in this block */
 	double rotMatrix[9];    /**< @brief Gradient rotation matrix */
 };
 
@@ -256,9 +293,14 @@ public:
 	ADCEvent& GetADCEvent();
 
 	/**
-	 * @brief Return the control command event
+	 * @brief Return the trigger command event
 	 */
-	ControlEvent& GetControlEvent();
+	TriggerEvent& GetTriggerEvent();
+	
+	/**
+	 * @brief Return the trigger command event
+	 */
+	RotationEvent& GetRotationEvent();
 	
 	/**
 	 * @brief Return a brief string description of the block
@@ -281,7 +323,8 @@ protected:
 	RFEvent rf;                 /**< @brief RF event */
 	GradEvent grad[NUM_GRADS];  /**< @brief gradient events */
 	ADCEvent adc;               /**< @brief ADC event  */
-	ControlEvent control;       /**< @brief control event */
+	TriggerEvent trigger;       /**< @brief trigger event (just one per block) */
+	RotationEvent rotation;     /**< @brief optional rotation event */
 	// Below is only valid once decompressed:
 
 	// RF
@@ -303,8 +346,8 @@ inline bool      SeqBlock::isTrapGradient(int channel) { return ((events[channel
 inline bool      SeqBlock::isArbitraryGradient(int channel) { return ((events[channel+GX]>0) & (grad[channel].shape>0)); }
 inline bool      SeqBlock::isADC() { return (events[ADC]>0); }
 inline bool      SeqBlock::isDelay() { return (events[DELAY]>0); }
-inline bool      SeqBlock::isRotation() { return (events[CTRL]>0 && control.type==ControlEvent::ROTATION); }
-inline bool      SeqBlock::isTrigger() { return (events[CTRL]>0) && control.type==ControlEvent::TRIGGER; }
+inline bool      SeqBlock::isRotation() { return (events[EXT]>0 && rotation.defined); }
+inline bool      SeqBlock::isTrigger() { return (events[EXT]>0) && trigger.triggerType!=0; }
 
 inline long      SeqBlock::GetDelay() { return delay; }
 inline long      SeqBlock::GetDuration() { return duration; }
@@ -314,8 +357,8 @@ inline int       SeqBlock::GetEventIndex(Event type) { return events[type]; }
 inline GradEvent& SeqBlock::GetGradEvent(int channel) { return grad[channel]; }
 inline RFEvent&   SeqBlock::GetRFEvent() { return rf; }
 inline ADCEvent&  SeqBlock::GetADCEvent() { return adc; }
-inline ControlEvent&  SeqBlock::GetControlEvent() { return control; }
-
+inline TriggerEvent&  SeqBlock::GetTriggerEvent() { return trigger; }
+inline RotationEvent&  SeqBlock::GetRotationEvent() { return rotation; }
 
 inline std::string SeqBlock::GetTypeString() {
 	std::string type;
@@ -580,9 +623,13 @@ class ExternalSequence
 	int version_combined;
 
 	std::map<std::string,int> m_fileIndex;     /**< @brief File location of sections, [RF], [ADC] etc */
+	std::set<int> m_fileSections;              /**< @brief File location of sections and EOF additionally */
 
 	// Low level sequence blocks
 	std::vector<EventIDs> m_blocks;            /**< @brief List of sequence blocks */
+
+	// extension list storage
+	//std::vector<ExtensionListEntry> m_extensions; /**< @brief the storage area of the extension list referenced by the enent table */
 
 	// Global user-specified definitions
 	std::map<std::string, std::vector<double> >m_definitions;  /**< @brief Custom definitions provided through [DEFINITIONS] section) */
@@ -591,8 +638,12 @@ class ExternalSequence
 	std::map<int,RFEvent>      m_rfLibrary;       /**< @brief Library of RF events */
 	std::map<int,GradEvent>    m_gradLibrary;     /**< @brief Library of gradient events */
 	std::map<int,ADCEvent>     m_adcLibrary;      /**< @brief Library of ADC readouts */
-	std::map<int,ControlEvent> m_controlLibrary;  /**< @brief Library of control commands */
 	std::map<int,long>         m_delayLibrary;    /**< @brief Library of delays */
+	//std::map<int,ControlEvent> m_controlLibrary;  /**< @brief Library of control commands */
+	std::map<int,ExtensionListEntry> m_extensionLibrary;  /**< @brief Library of extension list entries */
+	std::map<int,std::pair<std::string,int> > m_extensionNameIDs; /**< @brief Map of extension IDs from the file to textIDs and internal known numeric IDs*/
+	std::map<int, TriggerEvent> m_triggerLibrary;   /**< @brief Library of trigger events */
+	std::map<int, RotationEvent> m_rotationLibrary;   /**< @brief Library of rotation events */
 
 	// List of basic shapes (referenced by events)
 	std::map<int,CompressedShape> m_shapeLibrary;    /**< @brief Library of compressed shapes */

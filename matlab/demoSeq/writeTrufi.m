@@ -129,7 +129,7 @@ end
 
 %% prepare export
 
-seq.setDefinition('FOV', [fov*1e3 fov*1e3 thick]);
+seq.setDefinition('FOV', [fov fov thick*1e-3]);
 seq.setDefinition('Name', 'trufi');
 
 seq.write('trufi.seq')       % Write to pulseq file

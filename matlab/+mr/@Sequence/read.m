@@ -31,6 +31,7 @@ obj.shapeLibrary = mr.EventLibrary();
 obj.rfLibrary = mr.EventLibrary();
 obj.adcLibrary = mr.EventLibrary();
 obj.delayLibrary = mr.EventLibrary();
+obj.trigLibrary = mr.EventLibrary();
 
 % Load data from file
 while true
@@ -51,18 +52,30 @@ while true
              version_revision] = readVersion(fid);
             assert(version_major == obj.version_major, ...
                 'Unsupported version_major %d', version_major)
-            assert(version_minor == obj.version_minor, ...
-                'Unsupported version_minor %d', version_minor)
-            % MZ: I think we should tolerate minot revision changes
-            %assert(version_revision == obj.version_revision, ...
-            %    'Unsupported version_revision %d', version_revision)
-            assert(version_revision <= obj.version_revision, ... % MZ: accept loading older files
-                'Unsupported version_revision %d', version_revision)
-            obj.version_major = version_major;
-            obj.version_minor = version_minor;
-            obj.version_revision = version_revision;
+            %
+            if version_major==1 && version_minor==2 && obj.version_major==1 && obj.version_minor==3
+                compatibility_mode_12x_13x=true;
+            else
+                compatibility_mode_12x_13x=false;
+                %
+                assert(version_minor == obj.version_minor, ...
+                    'Unsupported version_minor %d', version_minor)
+                % MZ: I think we should tolerate minor revision changes
+                %assert(version_revision == obj.version_revision, ...
+                %    'Unsupported version_revision %d', version_revision)
+                assert(version_revision <= obj.version_revision, ... % MZ: accept loading older files
+                    'Unsupported version_revision %d', version_revision)
+            end
+            if (~compatibility_mode_12x_13x)
+                obj.version_major = version_major;
+                obj.version_minor = version_minor;
+                obj.version_revision = version_revision;
+            end
         case '[BLOCKS]'
-            obj.blockEvents = readBlocks(fid);
+            if ~exist('version_major')
+                error('Pulseq file has to include [VERSION] section prior to [BLOCKS] section');
+            end
+            obj.blockEvents = readBlocks(fid, compatibility_mode_12x_13x);
         case '[RF]'
             obj.rfLibrary = readEvents(fid, [1 1 1 1e-6 1 1]);
         case '[GRADIENTS]'
@@ -75,6 +88,10 @@ while true
             obj.delayLibrary = readEvents(fid, 1e-6);
         case '[SHAPES]'
             obj.shapeLibrary = readShapes(fid);
+        case '[EXTENSIONS]'
+            obj.extensionLibrary = readEvents(fid, [1 1 1]);
+        case 'extension TRIGGERS 1' % this is not the best style -- we will only be able to load our own generated files...
+            obj.trigLibrary = readEvents(fid, [1 1 1e-6 1e-6]);
         otherwise
             error('Unknown section code: %s', section);
     end
@@ -146,7 +163,7 @@ return
         end
     end
 
-    function eventTable = readBlocks(fid)
+    function eventTable = readBlocks(fid, compatibility_mode_12x_13x)
         %readBlocks Read the [BLOCKS] section of a sequence file.
         %   library=readBlocks(fid) Read blocks from file identifier of an
         %   open MR sequence file and return the event table.
@@ -156,7 +173,11 @@ return
         while ischar(line) && ~(isempty(line) || line(1) == '#')
             blockEvents = sscanf(line, '%f')';
             %eventTable = [eventTable; blockEvents(2:end)];
-            eventTable{blockEvents(1)} = blockEvents(2:end);
+            if (compatibility_mode_12x_13x)
+                eventTable{blockEvents(1)} = [blockEvents(2:end) 0];
+            else
+                eventTable{blockEvents(1)} = blockEvents(2:end);
+            end
             line = fgetl(fid);
         end
     end
@@ -215,7 +236,7 @@ return
                 data = [data single(sscanf(line, '%f'))]; % C-code uses single precision and we had problems already due to the rounding during reading in of the shapes...
                 line = fgetl(fid);
             end
-            line = skipComments(fid);
+            line = skipComments(fid); % MZ: this is actually a bug forcing readShapes to read into the next section --> for nuw we just require [shapes] to be the last one...
             data = [num_samples data];
             shapeLibrary.insert(id, data);
         end

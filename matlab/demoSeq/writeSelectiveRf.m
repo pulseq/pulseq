@@ -74,9 +74,9 @@ return
 %% Write to file
 % The sequence is written to file in compressed form according to the file
 % format specification using the |write| method.
-seq.setDefinition('Scan_ID',2068);
-seq.setDefinition('Recon_Mode',1);
-seq.write('external.seq')
+%seq.setDefinition('Scan_ID',2068);
+%seq.setDefinition('Recon_Mode',1);
+%seq.write('external.seq')
 
 %seq.plot
 

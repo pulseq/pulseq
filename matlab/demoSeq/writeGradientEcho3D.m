@@ -73,4 +73,7 @@ end
 
 % Visualise sequence and output for execution
 seq.plot('TimeRange',[Ndummy+1 Ndummy+3]*TR)
-seq.write('external.seq');
+
+seq.setDefinition('FOV', fov);
+seq.setDefinition('Name', 'gre3d');
+seq.write('gre3d.seq');

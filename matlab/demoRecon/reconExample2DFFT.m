@@ -1,12 +1,14 @@
-%% Reconstruction of 2D cartesian Pulseq data.
+% Reconstruction of 2D Cartesian Pulseq data
+% provides an example on how data reordering can be detected from the MR
+% sequence with almost no additional prior knowledge
+%
+% needs mapVBVD in the path
 
 %% Load the latest file from a dir
-% reconstruct live acquired data
-path='../../data/siemens/';
-% reconstruct previously acquired data (always available)
-% path='../../data/siemens/demo_gre/';
-
-pattern='/*.dat';
+path='../IceNIH_RawSend/'; % directory to be scanned for data files
+%path='~/Dropbox/shared/data/siemens/';
+%path='~/Dropbox/shared/data/siemens/demo_gre/';
+pattern='*.dat';
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
@@ -15,7 +17,7 @@ data_file_path=[path D(I(end)).name];  % use end-1 to reconstruct the second-las
 %%
 twix_obj = mapVBVD(data_file_path);
 
-%% Load sequence from the file (optional if you still have it in memory)
+%% Load sequence from file (optional, you may still have it in memory)
 
 seq_file_path = [data_file_path(1:end-3) 'seq'];
 
@@ -29,7 +31,7 @@ axis('equal');
 %% Analyze the trajectory data (ktraj_adc)
 k_extent=max(abs(ktraj_adc),[],2);
 k_scale=max(k_extent);
-k_threshold=k_scale/10000;
+k_threshold=k_scale/5000;
 
 % detect unused dimensions and delete them
 if any(k_extent<k_threshold)
@@ -72,7 +74,7 @@ end
 
 %% sort in the k-space data
 if iscell(twix_obj)
-    data_unsorted = twix_obj{2}.image.unsorted();
+    data_unsorted = twix_obj{end}.image.unsorted();
 else
     data_unsorted = twix_obj.image.unsorted();
 end
@@ -144,4 +146,31 @@ if size(images,3)==2
     phase_diff_image=angle(sum(cmplx_diff,4));
     figure;
     imab(phase_diff_image);colormap('jet');
+end
+
+%% gif movie export
+
+scale=1.2;
+filename='fftReconMovie';
+fps=5;
+
+if size(images,3)>4
+
+    clm=gray(256);
+    
+    if nCoils>1
+        imex=sos;
+    else
+        imex=abs(images);
+        imex=imex/max(imex(:));
+    end
+    
+    imex=permute(imex(:,end:-1:1,:),[2,1,3]);
+
+    imind=uint8(scale*imex*(size(clm,1)-1)+1);
+    imwrite(imind(:,:,1),clm, [filename, '.gif'],'DelayTime',1/fps,'Loopcount',inf);
+    for i=2:size(imind,3),
+        imwrite(imind(:,:,i),clm, [filename, '.gif'],'DelayTime',1/fps, 'WriteMode','append');
+    end
+
 end

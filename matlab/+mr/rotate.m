@@ -33,6 +33,9 @@ end
 
 for i=1:length(varargin)
     event = varargin{i};
+    if isempty(event)
+        continue;
+    end
     if  (~strcmp(event.type,'grad') && ...
             ~strcmp(event.type,'trap')) || ...
             strcmp(event.channel, axis)%['g' axis]

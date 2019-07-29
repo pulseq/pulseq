@@ -12,16 +12,6 @@ ExternalSequence::PrintFunPtr ExternalSequence::print_fun = &ExternalSequence::d
 const int ExternalSequence::MAX_LINE_SIZE = 256;
 const char ExternalSequence::COMMENT_CHAR = '#';
 
-// Define the path separator depending on the compile target
-// it is different on host and scanner MPCU
-#if defined(VXWORKS) 
-#define PATH_SEPARATOR "/"
-#elif defined (BUILD_PLATFORM_LINUX)
-#define PATH_SEPARATOR "/"
-#else
-#define PATH_SEPARATOR "\\"
-#endif
-
 /***********************************************************/
 ExternalSequence::ExternalSequence()
 {
@@ -100,7 +90,7 @@ bool ExternalSequence::load(std::string path)
 		skipComments(data_file,buffer);			// load up some data and ignore comments & empty lines
 		while (data_file.good() && buffer[0]!='[')
 		{
-			print_msg(DEBUG_MEDIUM_LEVEL, std::ostringstream().flush() << "buffer: \n" << buffer << std::endl );
+			//print_msg(DEBUG_MEDIUM_LEVEL, std::ostringstream().flush() << "buffer: \n" << buffer << std::endl );
 			if (0==strncmp(buffer,"major",5)) {
 				    if (1!=sscanf(buffer+5, "%d", &version_major)) {
 					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode version_major");
@@ -349,30 +339,96 @@ bool ExternalSequence::load(std::string path)
 		}
 	}
 
-	// Read triggers section
+	// Read extensions section
 	// -------------------------------
-	m_controlLibrary.clear();
-	if (m_fileIndex.find("[TRIGGERS]") != m_fileIndex.end()) {
-		data_file.seekg(m_fileIndex["[TRIGGERS]"], std::ios::beg);
-
-		int controlId;
-		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
-			if (buffer[0]=='[' || strlen(buffer)==0) {
-				break;
+	m_extensionLibrary.clear();
+	m_extensionNameIDs.clear();
+	m_triggerLibrary.clear(); // clear also all known extension libraries
+	std::map<std::string,int>::iterator itFI = m_fileIndex.find("[EXTENSIONS]");
+	if ( itFI != m_fileIndex.end()) {
+		data_file.seekg(itFI->second, std::ios::beg);
+		std::set<int>::iterator itSFI = m_fileSections.find(itFI->second);
+		if ( itSFI==m_fileSections.end() ||
+			 (++itSFI)==m_fileSections.end() )
+		{
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed find the end of the section while reading EXTENSIONS");
+			return false;
+		}
+		int sectionEnd = *itSFI;
+		// we first read in the extension list
+		int nID;
+		int nExtensionID=EXT_LIST; // EXT_LIST means we are reading the extension list
+		while ( data_file.tellg()<sectionEnd &&
+			    getline(data_file, buffer, MAX_LINE_SIZE)) 
+		{
+			if (buffer[0]=='#' || buffer[0]=='[' || strlen(buffer)==0) {
+				continue;
 			}
-			ControlEvent event;
-			event.type = ControlEvent::TRIGGER;
-			if (3!=sscanf(buffer, "%d%d%ld", &controlId, &(event.triggerType), &(event.duration))) {
-				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode trigger event\n" << buffer << std::endl );
-				return false;
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "input line: " << buffer);
+			if (0==strncmp(buffer,"extension",9)) {
+				// read new extension ID from the header
+				char szStrID[MAX_LINE_SIZE];
+				int nInternalID=0;
+				int nKnownID=EXT_UNKNOWN;
+				if (2!=sscanf(buffer, "extension %s %d", szStrID, &nInternalID)) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode extension header entry\n" << buffer << std::endl );
+					return false;
+				}
+				// here is the list if extensions we currently recognize
+				if (0==strcmp("TRIGGERS",szStrID))
+					nKnownID=EXT_TRIGGER;
+				else if (0==strcmp("ROTATIONS",szStrID))
+					nKnownID=EXT_ROTATION;
+				if (nKnownID!=EXT_UNKNOWN)
+					m_extensionNameIDs[nInternalID]=std::make_pair<std::string,int>(szStrID,nKnownID);
+				else {
+					print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unknown extension ignored\n" << buffer << std::endl );
+				}
+				nExtensionID=nKnownID;
 			}
-			m_controlLibrary[controlId] = event;
+			else
+			{
+				ExtensionListEntry extEntry;
+				TriggerEvent trigger;
+				RotationEvent rotation;
+				switch (nExtensionID) {
+					case EXT_LIST: 
+						if (4!=sscanf(buffer, "%d%d%d%ld", &nID, &(extEntry.type), &(extEntry.ref), &(extEntry.next))) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode extension list entry\n" << buffer << std::endl );
+							return false;
+						}
+                        print_msg(ERROR_MSG, std::ostringstream().flush() << "decoding extension list entry " << buffer);
+						m_extensionLibrary[nID] = extEntry;
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "nID:" << nID << " type:" << extEntry.type << " ref" << extEntry.ref << " next:" << extEntry.next);
+						break;
+					case EXT_TRIGGER: 
+						if (5!=sscanf(buffer, "%d%d%d%ld%ld", &nID, &(trigger.triggerType), &(trigger.triggerChannel), &(trigger.delay), &(trigger.duration))) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode trigger event\n" << buffer << std::endl );
+							return false;
+						}
+						m_triggerLibrary[nID] = trigger;
+						break;
+					case EXT_ROTATION: 
+						if (10!=sscanf(buffer, "%d%lf%lf%lf%lf%lf%lf%lf%lf%lf", &nID, 
+									&rotation.rotMatrix[0], &rotation.rotMatrix[1], &rotation.rotMatrix[2],
+									&rotation.rotMatrix[3], &rotation.rotMatrix[4], &rotation.rotMatrix[5],
+									&rotation.rotMatrix[6], &rotation.rotMatrix[7], &rotation.rotMatrix[8])) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode rotation event\n" << buffer << std::endl );
+							return false;
+						}
+						rotation.defined=true;
+						m_rotationLibrary[nID] = rotation; 
+						break;
+					case EXT_UNKNOWN:
+						break; // just ignore unknown extensions
+				}
+			}
 		}
 	}
 	
 	// Read gradient rotation section
 	// -------------------------------
-	if (m_fileIndex.find("[ROTATIONS]") != m_fileIndex.end()) {
+	/*if (m_fileIndex.find("[ROTATIONS]") != m_fileIndex.end()) {
 		data_file.seekg(m_fileIndex["[ROTATIONS]"], std::ios::beg);
 
 		int controlId;
@@ -391,7 +447,7 @@ bool ExternalSequence::load(std::string path)
 			}
 			m_controlLibrary[controlId] = event;
 		}
-	}
+	}*/
 	
 	
 	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- EVENTS READ: "
@@ -399,7 +455,7 @@ bool ExternalSequence::load(std::string path)
 		<<" GRAD: " << m_gradLibrary.size()
 		<<" ADC: " << m_adcLibrary.size()
 		<<" DELAY: " << m_delayLibrary.size()
-		<<" CONTROL: " << m_controlLibrary.size());
+		<<" EXTENSIONS: " << m_extensionLibrary.size() + m_triggerLibrary.size() + m_rotationLibrary.size() );
 
 
 	// **********************************************************************************************************************
@@ -475,22 +531,24 @@ bool ExternalSequence::load(std::string path)
 
 		memset(events.id, 0, NUM_EVENTS*sizeof(int));
 
-		if (7<sscanf(buffer, "%d%d%d%d%d%d%d%d", &blockIdx,
+		int ret=sscanf(buffer, "%d%d%d%d%d%d%d%d", &blockIdx,
 				&events.id[DELAY],                              // Delay
 				&events.id[RF],                                 // RF
 				&events.id[GX],&events.id[GY],&events.id[GZ],   // Gradients
 				&events.id[ADC],                                // ADCs
-				&events.id[CTRL]                                // Control
-				)
+				&events.id[EXT]                                 // Extensions
+				);
+		if (7>ret
 				) {
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode event table\n" << buffer << std::endl );
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode event table entry:\n" << buffer << std::endl );
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "***        number of fields read: " << ret << std::endl );
 			return false;
 		}
 
 		if (!checkBlockReferences(events)) {
 			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Block " << blockIdx
 				<< " contains references to undefined events" );
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "***        RF:" << events.id[RF] << " GX:" << events.id[GX] << " GY:" << events.id[GY] << " GZ:" << events.id[GZ] << " ADC:" << events.id[DELAY] << " GX:" << events.id[DELAY] << " CTRL:" << events.id[CTRL]);
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "***        RF:" << events.id[RF] << " GX:" << events.id[GX] << " GY:" << events.id[GY] << " GZ:" << events.id[GZ] << " ADC:" << events.id[DELAY] << " GX:" << events.id[DELAY] << " EXT:" << events.id[EXT]);
 			return false;
 		}
 		// Add event IDs to list of blocks
@@ -536,9 +594,10 @@ void ExternalSequence::buildFileIndex(std::ifstream &fileStream)
 		std::string line = std::string(buffer);
 		if (line[0]=='[' && line[line.length()-1]==']') {
 			m_fileIndex[line] = fileStream.tellg();
-			
+			m_fileSections.insert(fileStream.tellg());			
 		}
 	}
+	m_fileSections.insert(fileStream.tellg()); // add the end-of-file (+1?)
 	fileStream.clear();		// reset EOF flag
 	fileStream.seekg(0, std::ios::beg);
 };
@@ -551,24 +610,74 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 	EventIDs events = m_blocks[index];
 	std::copy(events.id,events.id+NUM_EVENTS,&block->events[0]);
 
+	//ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "GetBlock(" << index << ") : [ " << events.id[0] << " " << events.id[1] << " " << events.id[2] << " " << events.id[3] << " " << events.id[4] << " " << events.id[5] << " " << events.id[6] << "  ]");
+
 	// Set some defaults
 	block->index = index;
 	block->delay = 0;
 	block->adc.numSamples = 0;
+	block->trigger.triggerType=0;
+	block->trigger.triggerChannel=0;
+	block->rotation.defined=false;
 
 	// Set event structures (if applicable) so e.g. gradient type can be determined
 	if (events.id[RF]>0)     block->rf      = m_rfLibrary[events.id[RF]];
 	if (events.id[ADC]>0)    block->adc     = m_adcLibrary[events.id[ADC]];
 	if (events.id[DELAY]>0)  block->delay   = m_delayLibrary[events.id[DELAY]];
-	if (events.id[CTRL]>0)   block->control = m_controlLibrary[events.id[CTRL]];
+	//if (events.id[CTRL]>0)   block->control = m_controlLibrary[events.id[CTRL]];
 	for (unsigned int i=0; i<NUM_GRADS; i++)
 		if (events.id[GX+i]>0) block->grad[i] = m_gradLibrary[events.id[GX+i]];
-
+	// unpack (known) extension objects
+	if (events.id[EXT]>0) {
+		// oh yeah, the current data stuctures seem to be really ugly and slow...
+		int nNextExtID=events.id[EXT];
+		while (nNextExtID) {
+			std::map<int,ExtensionListEntry>::iterator itEL = m_extensionLibrary.find(nNextExtID);
+			if (itEL == m_extensionLibrary.end()) {
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "ERROR: could not find extension list entry " << nNextExtID);
+				//return NULL;
+				break;
+			}
+			// attempt to recognize the extension reference
+			std::map<int,std::pair<std::string,int> >::iterator itEN=m_extensionNameIDs.find(itEL->second.type);
+			if (itEN!=m_extensionNameIDs.end()) {
+				// we have a known extension
+				switch (itEN->second.second) {
+					case EXT_TRIGGER:
+						if (block->trigger.triggerType!=0) {
+							print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: only one trigger per block is supported; error block: " << index );
+						}
+						else {
+							// ok, lets find the trigger in the library
+							block->trigger=m_triggerLibrary[itEL->second.ref]; // do we have to check whether it can be found?
+						}
+						break;
+					case EXT_ROTATION:
+						if (block->rotation.defined) {
+							print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: only one rotation per block is supported; error block: " << index );
+						}
+						else {
+							// ok, lets find the trigger in the library
+							block->rotation=m_rotationLibrary[itEL->second.ref]; // do we have to check whether it can be found?
+						}
+						break;
+					default:
+						print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unimplemented extension type " << itEN->second.first << " in block " << index );
+				}
+			}
+			else
+			{
+				print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unrecognized extension type " << itEL->second.type << " in block " << index );
+			}
+			// update the next pointer
+			nNextExtID=itEL->second.next;
+		}
+	}
 	// Calculate duration of block
 	long duration = 0;
 	if (block->isRF()) {
 		RFEvent &rf = block->GetRFEvent();
-		duration = MAX(duration, (long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
+		duration = MAX(duration, rf.delay+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
 	}
 
 	for (int iC=0; iC<NUM_GRADS; iC++)
@@ -584,8 +693,8 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 		duration = MAX(duration, adc.delay + (adc.numSamples*adc.dwellTime)/1000);
 	}
 	if (block->isTrigger()) {
-		ControlEvent &ctrl = block->GetControlEvent();
-		duration = MAX(duration, ctrl.duration );
+		TriggerEvent &trigger = block->GetTriggerEvent();
+		duration = MAX(duration, trigger.delay+trigger.duration );
 	}
 
 	// handling of delays has changed in revision 1.2.0
@@ -594,6 +703,8 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 	else
 		block->duration = MAX(duration, block->delay);
 
+	//ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "block duration: " << block->duration);
+    
 	return block;
 }
 
@@ -613,7 +724,8 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 		// Decompress the shape for this channel
 		CompressedShape& shape = m_shapeLibrary[block->rf.magShape];
 		waveform.resize(shape.numUncompressedSamples);
-		decompressShape(shape,&waveform[0]);
+		if (!decompressShape(shape,&waveform[0]))
+			return false;
 
 		/*
 		// detect zero-padding 
@@ -652,7 +764,8 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 
 		CompressedShape& shapePhase = m_shapeLibrary[block->rf.phaseShape];
 		waveform.resize(shapePhase.numUncompressedSamples);
-		decompressShape(shapePhase,&waveform[0]);
+		if (!decompressShape(shapePhase,&waveform[0]))
+			return false;
 
 		// Scale phase by 2pi
 		std::transform(waveform.begin(), waveform.end(), waveform.begin(), std::bind1st(std::multiplies<float>(),TWO_PI));
@@ -672,7 +785,8 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 				<< shape.samples.size() << " compressed samples" );
 
 			waveform.resize(shape.numUncompressedSamples);
-			decompressShape(shape,&waveform[0]);
+			if (!decompressShape(shape,&waveform[0]))
+				return false;
 
 			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape uncompressed to "
 				<< shape.numUncompressedSamples << " samples" );
@@ -719,6 +833,13 @@ bool ExternalSequence::decompressShape(CompressedShape& encoded, float *shape)
 		else
 		{
 			int rep = ((int)packed[countPack+1])+2;
+			if (fabs(packed[countPack+1]+2-rep)>1e-6) // MZ: detect format error present in some Pulseq Matlab toolbox versions
+			{
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "ERROR: compressed shape format error detected \n"
+																	 "  packed[countPack-1]=" << packed[countPack-1] << "  packed[countPack]=" << packed[countPack] << std::endl <<
+																	 "  packed[countPack+1]=" << packed[countPack+1] << "  rep=" << rep << "  countPack=" << countPack );
+				return false;
+			}
 			for (int i=countUnpack-1; i<=countUnpack+rep-2; i++)
 				shape[i]= ((float)packed[countPack-1]);
 			countPack += 3;
@@ -748,7 +869,7 @@ bool ExternalSequence::checkBlockReferences(EventIDs& events)
 	error|= (events.id[GZ]>0    && m_gradLibrary.count(events.id[GZ])==0);
 	error|= (events.id[ADC]>0   && m_adcLibrary.count(events.id[ADC])==0);
 	error|= (events.id[DELAY]>0 && m_delayLibrary.count(events.id[DELAY])==0);
-	error|= (events.id[CTRL]>0  && m_controlLibrary.count(events.id[CTRL])==0);
+	//error|= (events.id[CTRL]>0  && m_controlLibrary.count(events.id[CTRL])==0); // TODO: currently all error checking is done in getBlock(); it needs to be done here 
 	
 	return (!error);
 }

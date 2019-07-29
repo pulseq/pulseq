@@ -96,7 +96,7 @@ axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
 %
-seq.setDefinition('FOV', [fov fov sliceThickness]*1e3);
+seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'ute');
 
 seq.write('ute.seq');       % Write to pulseq file

@@ -26,7 +26,7 @@ sys = mr.opts('MaxGrad',25,'GradUnit','mT/m',...
     'MaxSlew',130,'SlewUnit','T/m/s',...
     'rfRingdownTime', 20e-6, 'rfDeadtime', 100e-6);
 
-% Create slice selection alpha-pulse and corresponding gradients
+% Create slice selective alpha-pulse and corresponding gradients
 [rf, gz, gzReph] = mr.makeSincPulse(alpha*pi/180, 'Duration', 4e-3,...
     'SliceThickness', sliceThickness, 'apodization', 0.5,'timeBwProduct', 4, ...
     'system' ,sys);
@@ -71,7 +71,7 @@ for i=start:Ny
     if step > 2
         % Vary RF phase quasi-randomly
         rand_phase = mod(117*(i^2 + i + 2), 360)*pi/180;
-        [rf, gz] = mr.makeSincPulse(20*pi/180, 'Duration', 4e-3,...
+        [rf, gz] = mr.makeSincPulse(alpha*pi/180, 'Duration', 4e-3,...
                                     'SliceThickness', 5e-3, ...
                                     'apodization', 0.5, ...
                                     'timeBwProduct', 4, ...
@@ -119,8 +119,8 @@ else
 end
 
 % export definitions
-seq.setDefinition('FOV', [fov fov sliceThickness]*1e3);
-seq.setDefinition('Name', ['DEMO_gre' num2str(step)]); % if submitting a sequence please write your name to the Name field of the definition section
+seq.setDefinition('FOV', [fov fov sliceThickness]);
+seq.setDefinition('Name', ['DEMO_gre' num2str(step)]);
 
 seq.write(['DEMO_gre' num2str(step) '.seq'])       % Write to pulseq file
 
@@ -144,8 +144,7 @@ figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
-%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
-
+%% very optional step, slow but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
 rep = seq.testReport;
 fprintf([rep{:}]);
 

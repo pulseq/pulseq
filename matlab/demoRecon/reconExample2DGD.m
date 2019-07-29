@@ -1,13 +1,11 @@
-%% very basic and crude non-cartesian recon using griddata()
+% very basic and crude non-Cartesian recon using griddata()
+%
+% needs mapVBVD in the path
 
 %% Load the latest file from a dir
-% reconstruct live acquired data
-path='../../data/siemens/';
-% reconstruct previously acquired data (always available)
-% path='../../data/siemens/demo_epi/';
-% path='../../data/siemens/demo_gre/';
-
-pattern='/*.dat';
+path='../IceNIH_RawSend/'; % directory to be scanned for data files
+%path='~/Dropbox/shared/data/siemens/';
+pattern='*.dat';
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
@@ -16,7 +14,7 @@ data_file_path=[path D(I(end)).name]; % use end-1 to reconstruct the second-last
 %%
 twix_obj = mapVBVD(data_file_path);
 
-%% Load sequence from the file (optional)
+%% Load sequence from file (optional)
 
 seq_file_path = [data_file_path(1:end-3) 'seq'];
 
@@ -37,8 +35,12 @@ os=2; % oversampling factor (we oversample both in image and k-space)
 offresonance=0; % global off-resonance in Hz
 
 %%
-rawdata = double(twix_obj.image.unsorted());
-rawdata = permute(rawdata, [1,3,2]);
+if iscell(twix_obj)
+    data_unsorted = double(twix_obj{end}.image.unsorted());
+else
+    data_unsorted = double(twix_obj.image.unsorted());
+end
+rawdata = permute(data_unsorted, [1,3,2]);
 rawdata = reshape(rawdata, [size(rawdata,1)*size(rawdata,2),size(rawdata,3)]);
 channels=size(rawdata,2);
 

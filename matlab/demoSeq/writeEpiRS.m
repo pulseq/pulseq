@@ -5,7 +5,7 @@
 seq=mr.Sequence();         % Create a new sequence object
 fov=250e-3; Nx=64; Ny=64;  % Define FOV and resolution
 thickness=3e-3;            % slice thinckness
-Nslices=1;
+Nslices=4;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delaz calibration
 %ro_os=2;                   % oversampling factor for the read direction (needs to be >1 due to ramp-sampling)
@@ -27,6 +27,9 @@ gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4);
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',3e-3,...
     'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4);
+
+% define the output trigger to play out with every slice excitatuion
+trig=mr.makeDigitalOutputPulse('osc0','duration', 100e-6); % possible channels: 'osc0','osc1','ext1'
 
 % Define other gradients and ADC events
 deltak=1/fov;
@@ -96,7 +99,7 @@ gyPre.amplitude=gyPre.amplitude*pe_enable;
 for s=1:Nslices
     seq.addBlock(rf_fs,gz_fs);
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
-    seq.addBlock(rf,gz);
+    seq.addBlock(rf,gz,trig);
     seq.addBlock(gxPre,gyPre,gzReph);
     for i=1:Ny
         if i==1
@@ -137,7 +140,7 @@ axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
 %% prepare the sequence output for the scanner
-seq.setDefinition('FOV', [fov fov thickness]*1e3);
+seq.setDefinition('FOV', [fov fov thickness]);
 seq.setDefinition('Name', 'epi');
 
 seq.write('epi_rs.seq'); 

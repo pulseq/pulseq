@@ -147,7 +147,7 @@ for s=1:Nslices
     %seq.addBlock(gx_combined,gy_combined,gz_combined,adc);
 end
 %
-seq.setDefinition('FOV', [fov fov sliceThickness]*1e3);
+seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'spiral');
 
 seq.write('spiral.seq');   % Output sequence for scanner

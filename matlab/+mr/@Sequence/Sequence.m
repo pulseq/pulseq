@@ -29,6 +29,7 @@ classdef Sequence < handle
     % Examples defining an MRI sequence and reading/writing files
     %
     % Kelvin Layton <kelvin.layton@uniklinik-freiburg.de>
+    % Maxim Zaitsev <maxim.zaitsev@uniklinik-freiburg.de>
 
     % Private properties
     %
@@ -36,16 +37,18 @@ classdef Sequence < handle
         version_major;
         version_minor;
         version_revision;
-        rfRasterTime;   % RF raster time (system dependent)
-        gradRasterTime; % Gradient raster time (system dependent)
-        definitions     % Optional sequence definitions
+        rfRasterTime;     % RF raster time (system dependent)
+        gradRasterTime;   % Gradient raster time (system dependent)
+        definitions       % Optional sequence definitions
         
-        blockEvents;    % Event table (references to events)
-        rfLibrary;      % Library of RF events
-        gradLibrary;    % Library of gradient events
-        adcLibrary;     % Library of ADC readouts
-        delayLibrary;   % Library of delay events
-        shapeLibrary;   % Library of compressed shapes
+        blockEvents;      % Event table (references to events)
+        rfLibrary;        % Library of RF events
+        gradLibrary;      % Library of gradient events
+        adcLibrary;       % Library of ADC readouts
+        delayLibrary;     % Library of delay events
+        trigLibrary;      % Library of trigger events ( referenced from the extentions library )
+        extensionLibrary; % Library of extension events. Extension events form single-linked zero-terminated lists
+        shapeLibrary;     % Library of compressed shapes
         sys;
     end
     
@@ -53,14 +56,16 @@ classdef Sequence < handle
         
         function obj = Sequence(varargin)
             obj.version_major = 1;
-            obj.version_minor = 2;
-            obj.version_revision = 1;
+            obj.version_minor = 3; % version minor 3 will now support control events (8th column in the event table)
+            obj.version_revision = 0;
             obj.definitions = containers.Map();
             obj.gradLibrary = mr.EventLibrary();
             obj.shapeLibrary = mr.EventLibrary();
             obj.rfLibrary = mr.EventLibrary();
             obj.adcLibrary = mr.EventLibrary();
             obj.delayLibrary = mr.EventLibrary();
+            obj.trigLibrary = mr.EventLibrary();
+            obj.extensionLibrary = mr.EventLibrary();
             obj.blockEvents = {};
             
             if nargin<1
@@ -111,24 +116,36 @@ classdef Sequence < handle
             % checkTiming() 
             %     Checks timing of all blocks and objects in the sequence 
             %     optionally returns the detailed error log as cell array
-            %     of strings 
+            %     of strings. This function also modifies the sequence
+            %     objectby adding the field "TotalDuration" to sequence
+            %     definitions
             %
             
             % Loop over blocks and gather statistics
             numBlocks = length(obj.blockEvents);
             is_ok=true;
             errorReport={};
+            totalDuration=0;
             for iB=1:numBlocks
                 b=obj.getBlock(iB);
                 % assemble cell array of events
-                ev={b.rf, b.gx, b.gy, b.gz, b.adc, b.delay};
-                ind=~cellfun(@isempty,ev);
-                [res, rep] = mr.checkTiming(obj.sys,ev{ind});
+                %ev={b.rf, b.gx, b.gy, b.gz, b.adc, b.delay, b.ext}; 
+                %ind=~cellfun(@isempty,ev);
+                % the above does not work for ext because it may be
+                % missing from some blocks and may have multiple entries in
+                % others. 
+                ind=~structfun(@isempty,b);
+                fn=fieldnames(b);
+                ev=cellfun(@(f) b.(f), fn(ind), 'UniformOutput', false);
+                [res, rep, dur] = mr.checkTiming(obj.sys,ev{:}); %ev{ind});
                 is_ok = (is_ok && res); 
                 if ~isempty(rep)
                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' rep '\n' ] };
                 end
+                totalDuration = totalDuration+dur;
             end
+            
+            obj.setDefinition('TotalDuration', sprintf('%.9g', totalDuration));
         end
         
         function value=getDefinition(obj,key)
@@ -155,6 +172,12 @@ classdef Sequence < handle
             %   created.
             %
             %   See also getDefinition
+            if strcmp(key,'FOV')
+                % issue a warning if FOV is too large e.g. is in mm
+                if max(val)>1
+                    warning('WARNING: definition FOV uses values exceeding 1m. New Pulseq interpreters expect values in units of meters!\n');
+                end
+            end
             seqObj.definitions(key)=val;
         end
         
@@ -170,6 +193,40 @@ classdef Sequence < handle
             %setBlock(obj,size(obj.blockEvents,1)+1,varargin{:});
             setBlock(obj,length(obj.blockEvents)+1,varargin{:});
             
+        end
+        
+        function flip(obj,axis)
+            %flip Invert all gradinents along the corresponding
+            %   axis/channel. The function acts on all gradient objects 
+            %   already added to the sequence object
+            %
+            channelNum = find(strcmp(axis, ...
+                                                 {'x', 'y', 'z'}));
+            otherChans = find(~strcmp(axis, ...
+                                                 {'x', 'y', 'z'}));
+            % go through all event table entries and list gradient
+            % objects in the library
+            paren = @(x, varargin) x(varargin{:}); % anonymous function to access the array on the fly
+            allGradEvents = paren(vertcat(obj.blockEvents{:}),:,3:5);
+            
+            selectedEvents=unique(allGradEvents(:,channelNum));
+            selectedEvents=selectedEvents(0~=selectedEvents); % elliminate 0
+            otherEvents=unique(allGradEvents(:,otherChans));
+            assert(isempty(intersect(selectedEvents,otherEvents)),'ERROR: the same gradient event is used on multiple axes, rhis is not yet supported by flip()');
+                                    
+            for i = 1:length(selectedEvents)                
+                %type = obj.gradLibrary.type(i);
+                %libData = obj.gradLibrary.data(i).array;
+                %if strcmp(grad.type,'grad')
+                %    amplitude = libData(1);
+                %else
+                %    %grad.amplitude = libData(1);
+                %end
+                % 
+                % based on the above we just patch the first element of the
+                % gradient library data entries
+                obj.gradLibrary.data(selectedEvents(i)).array(1)=-obj.gradLibrary.data(selectedEvents(i)).array(1);
+            end
         end
         
         %TODO: Replacing blocks in the middle of sequence can cause unused
@@ -193,10 +250,11 @@ classdef Sequence < handle
             % Convert block structure to cell array of events
             varargin=mr.block2events(varargin);    
             
-            obj.blockEvents{index}=zeros(1,6);
+            obj.blockEvents{index}=zeros(1,7);
             duration = 0;
             
             check_g = {};
+            extensions = [];
             
             % Loop over events adding to library if necessary and creating
             % block event structure.
@@ -325,7 +383,63 @@ classdef Sequence < handle
                         end
                         obj.blockEvents{index}(1)=id;
                         duration=max(duration,event.delay);
+                    case {'output','trigger'} 
+                        event_type=find(strcmp(event.type,{'output','trigger'}));
+                        if (event_type==1)
+                            event_channel=find(strcmp(event.channel,{'osc0','osc1','ext1'})); % trigger codes supported by the Siemens interpreter as of May 2019
+                        elseif (event_type==2)
+                            event_channel=find(strcmp(event.channel,{'physio1','physio2'})); % trigger codes supported by the Siemens interpreter as of June 2019
+                        else
+                            error('unsupported control event type');
+                        end
+                        data = [event_type event_channel event.delay event.duration];
+                        [id,found] = obj.trigLibrary.find(data);
+                        if ~found
+                            obj.trigLibrary.insert(id,data);
+                        end
+                        %obj.blockEvents{index}(7)=id; % now we just
+                        % collect the list of extension objects and we will
+                        % add it to the event table later
+                        ext=struct('type', 1, 'ref', id);
+                        extensions=[extensions ext];
+                        duration=max(duration,event.delay+event.duration);
                 end
+            end
+            
+            if ~isempty(extensions)
+                % add extensions now... but it's tricky actually
+                % we need to heck whether the exactly the same list if
+                % extensions already exists, otherwise we have to create a
+                % new one... ooops, we have a potential problem with the 
+                % key mapping then... The trick is that we rely on the
+                % sorting of the extension IDs and then we can always find
+                % the last one in the list by setting the reference to the
+                % next to 0 and then proceed with the otehr elements.
+                [~,I]=sort([extensions(:).ref]);
+                extensions=extensions(I);
+                all_found=true;
+                id=0;
+                for i=1:length(extensions)
+                    data=[extensions(i).type extensions(i).ref id];
+                    [id,found] = obj.extensionLibrary.find(data);
+                    all_found = all_found && found;
+                    if ~found
+                        break;
+                    end 
+                end
+                if ~all_found
+                    % add the list
+                    id=0;
+                    for i=1:length(extensions)
+                        data=[extensions(i).type extensions(i).ref id];
+                        [id,found] = obj.extensionLibrary.find(data);
+                        if ~found
+                            obj.extensionLibrary.insert(id,data);
+                        end 
+                    end
+                end
+                % now we add the ID
+                obj.blockEvents{index}(7)=id;
             end
             
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -404,6 +518,40 @@ classdef Sequence < handle
                 delay.type = 'delay';
                 delay.delay = obj.delayLibrary.data(eventInd(1)).array;
                 block.delay = delay;
+            end
+            if eventInd(7) > 0
+                % we have extensions -- triggers for now, may be more to
+                % come in the future, e.g. rotation matrices
+                % we will eventually isolate this into a separate function
+                nextExtID=eventInd(7);
+                while nextExtID~=0 
+                    extData = obj.extensionLibrary.data(nextExtID).array;
+                    % format: extType, extID, nextExtID
+                    if (extData(1)==1) % trigger
+                        trigger_types={'output','trigger'};
+                        data = obj.trigLibrary.data(extData(2)).array;
+                        trig.type = trigger_types{data(1)};
+                        if (data(1)==1)
+                            trigger_channels={'osc0','osc1','ext1'};
+                            trig.channel=trigger_channels{data(2)};
+                        elseif (data(1)==2)
+                            trigger_channels={'physio1','physio2'}; 
+                            trig.channel=trigger_channels{data(2)};;
+                        else
+                            error('unsupported trigger event type');
+                        end
+                        trig.delay = data(3);
+                        trig.duration = data(4);
+                        %block.trig = trig;
+                        % generate extension-specific name
+                        filedName=sprintf('trig%d', extData(2));
+                        block.(filedName)=trig;
+                    else
+                        error('unknown extension ID %d', extData(1));
+                    end
+                    % now update nextExtID
+                    nextExtID=extData(3);
+                end
             end
             if eventInd(2) > 0
 %                 rf.type = 'rf';
@@ -639,24 +787,54 @@ classdef Sequence < handle
             gw=obj.gradient_waveforms();
             i_excitation=round(t_excitation/obj.gradRasterTime);
             i_refocusing=round(t_refocusing/obj.gradRasterTime);
+%             ii_next_excitation=min(length(i_excitation),1);
+%             ii_next_refocusing=min(length(i_refocusing),1);
+%             ktraj=zeros(size(gw));
+%             k=[0;0;0];
+%             % TODO: replace this plain stupid loop with a segment-wise
+%             % integration (with segments defined by the RF pulses)
+%             for i=1:size(gw,2)
+%                 k=k+gw(:,i)*obj.gradRasterTime;
+%                 ktraj(:,i)=k;
+%                 %if find(i_excitation==i,1)
+%                 if ii_next_excitation>0 && i_excitation(ii_next_excitation)==i
+%                     k=0;
+%                     ktraj(:,i)=NaN; % we use NaN-s to mark the excitation point, they interrupt the plots
+%                     ii_next_excitation = min(length(i_excitation),ii_next_excitation+1);
+%                 end
+%                 %if find(i_refocusing==i,1)
+%                 if ii_next_refocusing>0 && i_refocusing(ii_next_refocusing)==i
+%                     k=-k;
+%                     ii_next_refocusing = min(length(i_refocusing),ii_next_refocusing+1);
+%                 end
+%             end
+            i_periods=sort([1; i_excitation+1; i_refocusing+1; size(gw,2)+1]); % we need thise +1 for compatibility with the above code which prooved to be correct
+            ii_next_excitation=min(length(i_excitation),1);
+            ii_next_refocusing=min(length(i_refocusing),1);
             ktraj=zeros(size(gw));
             k=[0;0;0];
-            for i=1:size(gw,2);
-                k=k+gw(:,i)*obj.gradRasterTime;
-                ktraj(:,i)=k;
-                if find(i_excitation==i,1)
-                    k=0;
-                    ktraj(:,i)=NaN; % we use NaN-s to mark the excitation point, they interrupt the plots
-                end;
-                if find(i_refocusing==i,1)
+            for i=1:(length(i_periods)-1)                
+                %k=k+gw(:,i)*obj.gradRasterTime;
+                i_period_end=(i_periods(i+1)-1);
+                % here we use a trick to add current k value to the cumsum()
+                k_period=cumsum([k,gw(:,i_periods(i):i_period_end)*obj.gradRasterTime],2);
+                ktraj(:,i_periods(i):i_period_end)=k_period(:,2:end); % remove the first 'dummy' sample (see the trick above)
+                k=k_period(:,end);
+                if ii_next_excitation>0 && i_excitation(ii_next_excitation)==i_period_end
+                    k(:)=0;
+                    ktraj(:,i_period_end)=NaN; % we use NaN-s to mark the excitation point, they interrupt the plots
+                    ii_next_excitation = min(length(i_excitation),ii_next_excitation+1);
+                end
+                if ii_next_refocusing>0 && i_refocusing(ii_next_refocusing)==i_period_end
                     k=-k;
-                end;
+                    ii_next_refocusing = min(length(i_refocusing),ii_next_refocusing+1);
+                end
             end
 
             % now calculate the k-space positions at the ADC time points
             % sample the k-space positions at the ADC time points
             ktraj_adc=interp1((1:(size(ktraj,2)))*obj.gradRasterTime, ktraj', ktime)';
-            t_adc=ktime; % we now alsor return sampling time points
+            t_adc=ktime; % we now also return the sampling time points
         end
         
         function f = plot(obj, varargin)
