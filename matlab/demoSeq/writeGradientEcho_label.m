@@ -91,11 +91,10 @@ seq.setDefinition('Name', 'gre_lbl');
 seq.write('gre_lbl.seq')       % Write to pulseq file
 
 %seq.install('siemens');
-return
 
 %% plot sequence and k-space diagrams
 
-seq.plot('timeRange', [0 150]*TR, 'TimeDisp', 'ms', 'label', 'lin');
+seq.plot('timeRange', [0 32]*TR, 'TimeDisp', 'ms', 'label', 'lin');
 
 % new single-function call for trajectory calculation
 [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();

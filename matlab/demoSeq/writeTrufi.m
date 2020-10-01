@@ -135,7 +135,6 @@ seq.setDefinition('Name', 'trufi');
 seq.write('trufi.seq')       % Write to pulseq file
 
 %seq.install('siemens');
-return
 
 %% plots and displays
 seq.plot();

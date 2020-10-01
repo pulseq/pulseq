@@ -87,7 +87,6 @@ seq.setDefinition('Name', 'gre');
 seq.write('gre.seq')       % Write to pulseq file
 
 %seq.install('siemens');
-return
 
 %% plot sequence and k-space diagrams
 
