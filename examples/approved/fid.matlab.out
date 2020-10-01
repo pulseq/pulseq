@@ -8,7 +8,7 @@ Number of events:
    ADC:      16
    Delay:    48
 Sequence duration: 16.375520s
-TE: 0.020100s
+TE: 0.020106s
 TR: 1.023470s
 Flip angle: 90.00°
 Unique k-space positions (a.k.a. columns, rows, etc): 1

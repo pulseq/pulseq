@@ -4,7 +4,10 @@
 [VERSION]
 major 1
 minor 3
-revision 0
+revision 1
+
+[DEFINITIONS]
+Name fid 
 
 # Format of blocks:
 #  #  D RF  GX  GY  GZ ADC EXT

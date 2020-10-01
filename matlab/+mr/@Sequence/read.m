@@ -118,7 +118,6 @@ for iB = 1:length(obj.blockEvents)
     b=obj.getBlock(iB);
     block_duration=mr.calcDuration(b);
     obj.blockDurations(iB)=block_duration;
-    obj.gradLength(iB) = block_duration;
     % update the objects by filling in the fields not contained in the
     % pulseq file
     for j=1:length(gradChannels)
