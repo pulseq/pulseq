@@ -44,7 +44,7 @@ for i=1:length(dataPackMarkers)
 end
 
 % samples left?
-if (countPack<dataPackLen)
+if (countPack<=dataPackLen)
     assert(dataPackLen-countPack==numSamples-countUnpack);
     % copy the rest of the shape, it is unpacked
     w(countUnpack:end)= dataPack(countPack:end);

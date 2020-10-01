@@ -65,6 +65,8 @@ for i=1:Ny
     seq.addBlock(mr.makeDelay(delayTR));
 end
 
+seq.setDefinition('Name', 'se_selRF');
+
 seq.write('selectiveRf.seq');   % Write to pulseq file
 seq.plot();
 

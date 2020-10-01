@@ -34,6 +34,7 @@ deltak=1/fov/(1+ro_asymmetry);
 ro_area=Nx*deltak;
 gx = mr.makeTrapezoid('x','FlatArea',ro_area,'FlatTime',ro_duration,'system',sys);
 adc = mr.makeAdc(Nxo,'Duration',gx.flatTime,'Delay',gx.riseTime,'system',sys);
+adc.delay = adc.delay - 0.5*adc.dwell; % compensate for the 0.5 samples shift
 gxPre = mr.makeTrapezoid('x','Area',-(gx.area-ro_area)/2 - ro_area/2*(1-ro_asymmetry),'system',sys);
 
 % gradient spoiling

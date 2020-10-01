@@ -1,43 +1,37 @@
-seq=mr.Sequence();              % Create a new sequence object
-fov=256e-3; Nx=256; Ny=256;     % Define FOV and resolution
-alpha=10;                       % flip angle
-sliceThickness=3e-3;            % slice
-%TE=[7.38 9.84]*1e-3;            % give a vector here to have multiple TEs (e.g. for field mapping)
-TE=4.3e-3;
-TR=10e-3;                       % only a single value for now
+% this is a demo GRE sequence, which uses LABEL extension to produce raw
+% data reconstuctable by the integrated image reconstruction on the scanner
 
-% more in-depth parameters
+seq=mr.Sequence();         % Create a new sequence object
+fov=224e-3; Nx=256; Ny=Nx; % Define FOV and resolution
+alpha=10;                  % flip angle
+thickness=3e-3;            % slice
+Nslices=1;
+TE=4.3e-3;
+TR=10e-3;                       
+
 rfSpoilingInc=117;              % RF spoiling increment
+roDuration=3.2e-3;              % ADC duration
 
 % set system limits
 sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
     'MaxSlew', 150, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
-% Create fat-sat pulse 
-% (in Siemens interpreter from January 2019 duration is limited to 8.192 ms, and although product EPI uses 10.24 ms, 8 ms seems to be sufficient)
-% B0=2.89; % 1.5 2.89 3.0
-% sat_ppm=-3.45;
-% sat_freq=sat_ppm*1e-6*B0*lims.gamma;
-% rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
-%     'bandwidth',abs(sat_freq),'freqOffset',sat_freq);
-% gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
-
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(alpha*pi/180,'Duration',3e-3,...
-    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4,'system',sys);
+    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4,'system',sys);
 
 % Define other gradients and ADC events
 deltak=1/fov;
-gx = mr.makeTrapezoid('x','FlatArea',Nx*deltak,'FlatTime',3.2e-3,'system',sys);
+gx = mr.makeTrapezoid('x','FlatArea',Nx*deltak,'FlatTime',roDuration,'system',sys);
 adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime,'system',sys);
 gxPre = mr.makeTrapezoid('x','Area',-gx.area/2,'Duration',1e-3,'system',sys);
 gzReph = mr.makeTrapezoid('z','Area',-gz.area/2,'Duration',1e-3,'system',sys);
-phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
+phaseAreas = -((0:Ny-1)-Ny/2)*deltak; % phase area should be Kmax for clin=0 and -Kmax for clin=Ny... strange
 
 % gradient spoiling
 gxSpoil=mr.makeTrapezoid('x','Area',2*Nx*deltak,'system',sys);
-gzSpoil=mr.makeTrapezoid('z','Area',4/sliceThickness,'system',sys);
+gzSpoil=mr.makeTrapezoid('z','Area',4/thickness,'system',sys);
 
 % Calculate timing
 delayTE=ceil((TE - mr.calcDuration(gxPre) - gz.fallTime - gz.flatTime/2 ...
@@ -50,10 +44,14 @@ assert(all(delayTR>=mr.calcDuration(gxSpoil,gzSpoil)));
 rf_phase=0;
 rf_inc=0;
 
-% Loop over phase encodes and define sequence blocks
-for i=1:Ny
-    for c=1:length(TE)
-        %seq.addBlock(rf_fs,gz_fs); % fat-sat
+% all LABELS / counters an flags are initialized to 0 in the beginning, so need to define initial 0's  
+% so we will just increment LIN after the ADC event (e.g. during the spoiler)
+
+% loop over slices
+for s=1:Nslices
+    rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
+    % loop over phase encodes and define sequence blocks
+    for i=1:Ny
         rf.phaseOffset=rf_phase/180*pi;
         adc.phaseOffset=rf_phase/180*pi;
         rf_inc=mod(rf_inc+rfSpoilingInc, 360.0);
@@ -62,10 +60,16 @@ for i=1:Ny
         seq.addBlock(rf,gz);
         gyPre = mr.makeTrapezoid('y','Area',phaseAreas(i),'Duration',mr.calcDuration(gxPre),'system',sys);
         seq.addBlock(gxPre,gyPre,gzReph);
-        seq.addBlock(mr.makeDelay(delayTE(c)));
+        seq.addBlock(mr.makeDelay(delayTE));
         seq.addBlock(gx,adc);
         gyPre.amplitude=-gyPre.amplitude;
-        seq.addBlock(mr.makeDelay(delayTR(c)),gxSpoil,gyPre,gzSpoil)
+        spoilBlockContents={mr.makeDelay(delayTR),gxSpoil,gyPre,gzSpoil}; % here we demonstrate the technique to combine variable counter-dependent content into the same block
+        if i~=Ny
+            spoilBlockContents=[spoilBlockContents {mr.makeLabel('INC','LIN', 1)}];
+        else
+            spoilBlockContents=[spoilBlockContents {mr.makeLabel('SET','LIN', 0), mr.makeLabel('INC','SLC', 1)}];
+        end
+        seq.addBlock(spoilBlockContents{:});
     end
 end
 
@@ -81,17 +85,17 @@ else
 end
 
 %% prepare sequence export
-seq.setDefinition('FOV', [fov fov sliceThickness]);
-seq.setDefinition('Name', 'gre');
+seq.setDefinition('FOV', [fov fov thickness*Nslices]);
+seq.setDefinition('Name', 'gre_lbl');
 
-seq.write('gre.seq')       % Write to pulseq file
+seq.write('gre_lbl.seq')       % Write to pulseq file
 
 %seq.install('siemens');
 return
 
 %% plot sequence and k-space diagrams
 
-seq.plot('timeRange', [0 5]*TR);
+seq.plot('timeRange', [0 150]*TR, 'TimeDisp', 'ms', 'label', 'lin');
 
 % new single-function call for trajectory calculation
 [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();

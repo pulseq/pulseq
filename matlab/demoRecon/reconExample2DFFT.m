@@ -7,13 +7,13 @@
 %% Load the latest file from a dir
 path='../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='~/Dropbox/shared/data/siemens/';
-%path='~/Dropbox/shared/data/siemens/demo_gre/';
 pattern='*.dat';
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
 %
 data_file_path=[path D(I(end)).name];  % use end-1 to reconstruct the second-last data set, etc.
+%data_file_path='../interpreters/siemens/data_example/gre_example.dat'
 %%
 twix_obj = mapVBVD(data_file_path);
 
@@ -23,7 +23,7 @@ seq_file_path = [data_file_path(1:end-3) 'seq'];
 
 seq = mr.Sequence();              % Create a new sequence object
 seq.read(seq_file_path,'detectRFuse');
-[ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
+[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
 axis('equal');

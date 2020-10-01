@@ -1,33 +1,32 @@
-# Sequence Blocks
-# Created by JEMRIS 2.8
+# Pulseq sequence file
+# Created by MATLAB mr toolbox
 
 [VERSION]
 major 1
-minor 1
-revision 0
+minor 3
+revision 1
 
 [DEFINITIONS]
-Scan_ID 2
-Num_Blocks 3
+Name fid 
 
 # Format of blocks:
-##  D RF  GX  GY  GZ ADC
+#  #  D RF  GX  GY  GZ ADC EXT
 [BLOCKS]
-1  0  1   0   0   0  0
-2  1  0   0   0   0  0
-3  0  0   0   0   0  1
+1  0  1   0   0   0  0  0
+2  1  0   0   0   0  0  0
+3  0  0   0   0   0  1  0
 
 # Format of RF events:
 # id amplitude mag_id phase_id delay freq phase
 # ..        Hz   ....     ....    us   Hz   rad
 [RF]
-1         2500 1 2 0 0 0
+1         2500 1 2 100 0 0
 
 # Format of ADC events:
 # id num dwell delay freq phase
 # ..  ..    ns    us   Hz   rad
 [ADC]
- 1  64  50000   0 0 0
+1 1024 312500 20 0 0
 
 # Format of delays:
 # id delay (us)
@@ -35,20 +34,22 @@ Num_Blocks 3
 1 5000
 
 # Sequence Shapes
-
 [SHAPES]
 
 shape_id 1
-num_samples 100
+num_samples 120
 1
 0
 0
 97
+-1
+0
+0
+17
 
 shape_id 2
-num_samples 100
+num_samples 120
 0
 0
-98
-
+118
 

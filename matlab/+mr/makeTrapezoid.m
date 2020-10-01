@@ -88,6 +88,9 @@ elseif opt.duration>0
     end
     if isempty(riseTime)
         riseTime = ceil(abs(amplitude)/maxSlew/opt.system.gradRasterTime)*opt.system.gradRasterTime;
+        if(riseTime==0)
+            riseTime=opt.system.gradRasterTime;
+        end
     end
     fallTime = riseTime;
     flatTime = opt.duration-riseTime-fallTime;
@@ -110,12 +113,15 @@ else
             tEff=ceil(abs(opt.area)/maxGrad/opt.system.gradRasterTime)*opt.system.gradRasterTime;
             amplitude=opt.area/tEff;
             riseTime=ceil(abs(amplitude)/maxSlew/opt.system.gradRasterTime)*opt.system.gradRasterTime;
+            if(riseTime==0)
+                riseTime=opt.system.gradRasterTime;
+            end
         end
         flatTime=tEff-riseTime;
         fallTime=riseTime;        
     end
 end
-assert(abs(amplitude)<=maxGrad,'makeTrapezoid:invalidAmplitude','Amplitude violation');
+assert(abs(amplitude)<=maxGrad,'makeTrapezoid:invalidAmplitude',['Amplitude violation (' num2str(round(abs(amplitude)/maxGrad*100)) '%%)']);
 
 grad.type = 'trap';
 grad.channel = opt.channel;

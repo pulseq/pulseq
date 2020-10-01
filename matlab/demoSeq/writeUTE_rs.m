@@ -2,14 +2,14 @@
 % achieves "TE" below 100 us
 
 seq=mr.Sequence();              % Create a new sequence object
-fov=250e-3; Nx=256;             % Define FOV and resolution
-alpha=30;                       % flip angle
-sliceThickness=3e-3;            % slice
-TR=2.2e-3;                      % TR
-Nr=321;                         % number of radial spokes
+fov=256e-3; Nx=256;             % Define FOV and resolution
+alpha=10;                       % flip angle
+sliceThickness=5e-3;            % slice
+TR=20e-3;                      % TR
+Nr=round(Nx*pi/2);                         % number of radial spokes
 Ndummy=20;                      % number of dummy scans
 delta= 2* pi / Nr;              % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
-rf_duration=1.0e-3;             % duration of the excitation pulse
+rf_duration=0.5e-3;             % duration of the excitation pulse
 ro_duration=0.520e-3;           % read-out time: controls RO bandwidth and T2-blurring
 ro_os=2;                        % oversampling
 minRF_to_ADC_time=70e-6;        % the parameter wich defines TE together with ro_discard
@@ -35,6 +35,7 @@ gzt=cumsum([0 gz.riseTime gz.flatTime gz.fallTime]);
 gzas_0=interp1(gzt+gz.delay,gza,rf.t+rf.delay);
 rft_1=[sys.rfRasterTime:sys.rfRasterTime:rf_duration+0.5*gz.fallTime];
 gzas_1=interp1(gzt+gz.delay,gza,rft_1+rf.delay+gz.fallTime*0.5);
+gzas_1(~isfinite(gzas_1))=0; % we are getting a NaN sometimes
 kzs_0=cumsum(gzas_0);
 kzs_1=cumsum(gzas_1);
 kzs_0=kzs_0-max(kzs_0);
@@ -70,7 +71,7 @@ fprintf('TE= %d us; delay in TR:= %d us\n', round(TE*1e6), floor(delayTR*1e6));
 
 % set up timing
 gx.delay=mr.calcDuration(gz)+TE;
-adc.delay=gx.delay-adc.dwell*ro_discard;
+adc.delay=floor((gx.delay-adc.dwell*0.5-adc.dwell*ro_discard)/sys.gradRasterTime)*sys.gradRasterTime; % take into accout 0.5 samples ADC shift
 
 rf_phase=0;
 rf_inc=0;

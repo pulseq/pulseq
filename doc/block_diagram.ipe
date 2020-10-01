@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!DOCTYPE ipe SYSTEM "ipe.dtd">
-<ipe version="70005" creator="Ipe 7.1.4">
-<info created="D:20150420133031" modified="D:20150420135700"/>
+<ipe version="70212" creator="Ipe 7.2.13">
+<info created="D:20150420133031" modified="D:20200925130451"/>
 <ipestyle name="basic">
 <symbol name="arrow/arc(spx)">
 <path stroke="sym-stroke" fill="sym-stroke" pen="sym-pen">
@@ -202,13 +202,13 @@ h
 <dashstyle name="dash dotted" value="[4 2 1 2] 0"/>
 <dashstyle name="dash dot dotted" value="[4 2 1 2 1 2] 0"/>
 <textsize name="large" value="\large"/>
+<textsize name="small" value="\small"/>
+<textsize name="tiny" value="\tiny"/>
 <textsize name="Large" value="\Large"/>
 <textsize name="LARGE" value="\LARGE"/>
 <textsize name="huge" value="\huge"/>
 <textsize name="Huge" value="\Huge"/>
-<textsize name="small" value="\small"/>
 <textsize name="footnote" value="\footnotesize"/>
-<textsize name="tiny" value="\tiny"/>
 <textstyle name="center" begin="\begin{center}" end="\end{center}"/>
 <textstyle name="itemize" begin="\begin{itemize}" end="\end{itemize}"/>
 <textstyle name="item" begin="\begin{itemize}\item{}" end="\end{itemize}"/>
@@ -232,21 +232,21 @@ h
 <page>
 <layer name="alpha"/>
 <view layers="alpha" active="alpha"/>
-<path layer="alpha" matrix="0.909091 0 0 2.75 2.90909 -1428" stroke="black">
+<path layer="alpha" matrix="1.03896 0 0 2.75 -1.24675 -1428" stroke="black">
 32 816 m
 32 800 l
 164 800 l
 164 816 l
 h
 </path>
-<text matrix="1 0 0 1 164 -8" transformations="translations" pos="36 812" stroke="black" type="label" width="116.563" height="8.465" depth="3.49" valign="baseline">\begin{tabular}{rrrrrr}
-1 &amp; 2500 &amp;  1 &amp;  2 &amp;  0 &amp;  0
+<text matrix="1 0 0 1 164 -8" transformations="translations" pos="36 812" stroke="black" type="label" width="143.462" height="8.465" depth="3.49" valign="baseline">\begin{tabular}{rrrrrrr}
+1 &amp; 2500 &amp;  1 &amp;  2 &amp;  100 &amp;  0 &amp;  0
 \end{tabular}</text>
 <text matrix="1 0 0 1 8 -8" transformations="translations" pos="24 832" stroke="black" type="label" width="32.719" height="6.918" depth="0" valign="baseline">\textbf{Blocks}</text>
-<text matrix="1 0 0 1 -12 32" transformations="translations" pos="44 780" stroke="black" type="minipage" width="44" height="20.406" depth="15.46" valign="top">\begin{tabular}{rrrrrrr}
-1 &amp; 0 &amp; 1 &amp; 0 &amp; 0 &amp; 0 &amp; 0\\
-2 &amp; 1 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0\\
-3 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1\\
+<text matrix="1 0 0 1 -12 32" transformations="translations" pos="44 780" stroke="black" type="minipage" width="44" height="20.406" depth="15.46" valign="top">\begin{tabular}{rrrrrrrr}
+1 &amp; 0 &amp; 1 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0\\
+2 &amp; 1 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0\\
+3 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; 1 &amp; 0\\
 \end{tabular}</text>
 <path matrix="1 0 0 1 -1 -1" stroke="orange">
 5.65685 0 0 5.65685 76 808 e
@@ -269,15 +269,15 @@ h
 5.65685 0 0 5.65685 76 808 e
 </path>
 <text matrix="1 0 0 1 152 -52" transformations="translations" pos="24 832" stroke="black" type="label" width="24.768" height="6.926" depth="1.93" valign="baseline">Delay</text>
-<path matrix="1.06061 0 0 0.75 166.061 153" stroke="black">
+<path matrix="1.09457 0 0 0.75 164.974 153" stroke="black">
 32 816 m
 32 800 l
 164 800 l
 164 816 l
 h
 </path>
-<text matrix="1 0 0 1 164 -56" transformations="translations" pos="36 812" stroke="black" type="label" width="134.828" height="8.465" depth="3.49" valign="baseline">\begin{tabular}{rrrrrr}
-1 &amp;  256  &amp; 50000 &amp;  0 &amp; 0 &amp; 0
+<text matrix="1 0 0 1 164 -56" transformations="translations" pos="36 812" stroke="black" type="label" width="149.772" height="8.465" depth="3.49" valign="baseline">\begin{tabular}{rrrrrr}
+1 &amp;  1024  &amp; 312500 &amp; 20 &amp; 0 &amp; 0
 \end{tabular}
 </text>
 <path matrix="1 0 0 1 132.5 -49" stroke="darkred">
@@ -287,7 +287,7 @@ h
 <path matrix="1 0 0 1 66.6 -25" stroke="darkred">
 5.65685 0 0 5.65685 76 808 e
 </path>
-<path matrix="0.909091 0 0 0.75 170.909 201" stroke="black">
+<path matrix="1.09091 0 0 0.75 165.091 201" stroke="black">
 32 816 m
 32 800 l
 164 800 l
@@ -300,8 +300,9 @@ h
 <text matrix="1 0 0 1 196 -16" transformations="translations" pos="24 832" stroke="black" type="label" width="24.994" height="3.468" depth="0.96" valign="baseline">\tiny\em \textrm{amplitude}</text>
 <text matrix="1 0 0 1 228 -16" transformations="translations" pos="24 832" stroke="black" type="label" width="10.477" height="2.153" depth="0.96" valign="baseline">\tiny\em \textrm{mag}</text>
 <text matrix="1 0 0 1 244 -16" transformations="translations" pos="24 832" stroke="black" type="label" width="14.145" height="3.468" depth="0.96" valign="baseline">\tiny\em \textrm{phase}</text>
-<text matrix="1 0 0 1 264 -16" transformations="translations" pos="24 832" stroke="black" type="label" width="9.166" height="3.468" depth="0.96" valign="baseline">\tiny\em \textrm{freq}</text>
-<text matrix="1 0 0 1 280 -16" transformations="translations" pos="24 832" stroke="black" type="label" width="24.341" height="3.468" depth="0.96" valign="baseline">\tiny\em \textrm{ph. offset}</text>
+<text matrix="1 0 0 1 266 -16" transformations="translations" pos="24 832" stroke="black" type="label" width="13.122" height="3.468" depth="0.96" valign="baseline">\tiny\em \textrm{delay}</text>
+<text matrix="1 0 0 1 288 -16" transformations="translations" pos="24 832" stroke="black" type="label" width="9.166" height="3.468" depth="0.96" valign="baseline">\tiny\em \textrm{freq}</text>
+<text matrix="1 0 0 1 304 -16" transformations="translations" pos="24 832" stroke="black" type="label" width="24.341" height="3.468" depth="0.96" valign="baseline">\tiny\em \textrm{ph. offset}</text>
 <text matrix="1 0 0 1 200 -40" transformations="translations" pos="24 832" stroke="black" type="label" width="13.122" height="3.468" depth="0.96" valign="baseline">\tiny\em \textrm{delay}</text>
 <text matrix="1 0 0 1 200 -64" transformations="translations" pos="24 832" stroke="black" type="label" width="11.208" height="2.145" depth="0" valign="baseline">\tiny\em \textrm{num}</text>
 <text matrix="1 0 0 1 232 -64" transformations="translations" pos="24 832" stroke="black" type="label" width="12.975" height="3.459" depth="0" valign="baseline">\tiny\em \textrm{dwell}</text>
@@ -312,7 +313,7 @@ h
 <text matrix="1 0 0 1 324 -8" transformations="translations" pos="24 832" stroke="black" type="label" width="34.753" height="6.926" depth="1.93" valign="baseline">\textbf{Shapes}</text>
 <text matrix="1 0 0 1 304 32" transformations="translations" pos="44 780" stroke="black" type="minipage" width="44" height="38.321" depth="33.41" valign="top">\begin{tabular}{lrrrrrr}
 id &amp; 1\\
-num &amp; 100  \\
+num &amp; 120  \\
 1 \\
 0 \\
 0 \\

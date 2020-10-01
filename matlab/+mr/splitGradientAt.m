@@ -58,7 +58,7 @@ if strcmp(grad.type, 'trap')
     end
     
     % sample at timepoint
-    amp_tp=interp1(times, amplitudes, timepoint, 'linear');
+    amp_tp=interp1(times, amplitudes, timepoint, 'linear'); % MZ: interp1() is not OK here for the corner situation TODO: fixme! (e.g. by restoring the corers as done in waveforms_and_times())
     % split the data
     times1 = [ times(times<timepoint) timepoint ];
     amplitudes1 = [ amplitudes(times<timepoint) amp_tp ];

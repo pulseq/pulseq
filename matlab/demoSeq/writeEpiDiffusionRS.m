@@ -1,21 +1,31 @@
 % this is an experimentaal high-performance EPI sequence
 % which uses split gradients to overlap blips with the readout
 % gradients combined with ramp-samping
+% it further features diffusion weighting using the standard 
+% Stejskal-Tanner scheme
+%
+% IMPORTANT NOTICE: be aware, that this sequence potentially uses very 
+% strong gradient that may overload your scanner!
 
 seq=mr.Sequence();         % Create a new sequence object
-fov=256e-3; Nx=64; Ny=Nx;  % Define FOV and resolution
-thickness=4e-3;            % slice thinckness
+fov=224e-3; Nx=112; Ny=112;  % Define FOV and resolution
+thickness=2e-3;            % slice thinckness
 Nslices=3;
+bFactor=1000; % s/mm^2
+TE=100e-3;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delay calibration
 ro_os=1;                   % oversampling factor (in contrast to the product sequence we don't really need it)
-readoutTime=4.2e-4;        % this controls the readout bandwidth
-partFourierFactor=1;       % partial Fourier factor: 1: full sampling 0: start with ky=0
+readoutTime=6.3e-4;        % this controls the readout bandwidth
+partFourierFactor=0.75;    % partial Fourier factor: 1: full sampling 0: start with ky=0
+
+tRFex=3e-3;
+tRFref=3e-3;
 
 % Set system limits
-lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
-    'MaxSlew',130,'SlewUnit','T/m/s',...
-    'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6);  
+lims = mr.opts('MaxGrad',38,'GradUnit','mT/m',...
+    'MaxSlew',180,'SlewUnit','T/m/s',...
+    'rfRingdownTime', 10e-6, 'rfDeadtime', 100e-6);  
 
 % Create fat-sat pulse 
 B0=2.89; % 1.5 2.89 3.0
@@ -26,8 +36,14 @@ rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
 gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create 90 degree slice selection pulse and gradient
-[rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',3e-3,...
+[rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',tRFex,...
     'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4);
+
+% Create 90 degree slice refocusing pulse and gradients
+[rf180, gz180] = mr.makeSincPulse(pi,'system',lims,'Duration',tRFref,...
+    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4,'PhaseOffset',pi/2,'use','refocusing');
+[~, gzr_t, gzr_a]=mr.makeExtendedTrapezoidArea('z',gz180.amplitude,0,-gzReph.area+0.5*gz180.amplitude*gz180.fallTime,lims);
+gz180n=mr.makeExtendedTrapezoid('z','system',lims,'times',[0 gz180.riseTime gz180.riseTime+gz180.flatTime+gzr_t]+gz180.delay, 'amplitudes', [0 gz180.amplitude gzr_a]);
 
 % define the output trigger to play out with every slice excitatuion
 trig=mr.makeDigitalOutputPulse('osc0','duration', 100e-6); % possible channels: 'osc0','osc1','ext1'
@@ -96,17 +112,52 @@ Ny_meas=Ny_pre+Ny_post;
 % Pre-phasing gradients
 gxPre = mr.makeTrapezoid('x',lims,'Area',-gx.area/2);
 gyPre = mr.makeTrapezoid('y',lims,'Area',Ny_pre*deltak);
-[gxPre,gyPre,gzReph]=mr.align('right',gxPre,'left',gyPre,gzReph);
+[gxPre,gyPre]=mr.align('right',gxPre,'left',gyPre);
 % relax the PE prepahser to reduce stimulation
-gyPre = mr.makeTrapezoid('y',lims,'Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre,gzReph));
+gyPre = mr.makeTrapezoid('y',lims,'Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre));
 gyPre.amplitude=gyPre.amplitude*pe_enable;
+
+% Calculate delay times
+durationToCenter = (Ny_pre+0.5)*mr.calcDuration(gx);
+rfCenterInclDelay=rf.delay + mr.calcRfCenter(rf);
+rf180centerInclDelay=rf180.delay + mr.calcRfCenter(rf180);
+delayTE1=ceil((TE/2 - mr.calcDuration(rf,gz) + rfCenterInclDelay - rf180centerInclDelay)/lims.gradRasterTime)*lims.gradRasterTime;
+delayTE2tmp=ceil((TE/2 - mr.calcDuration(rf180,gz180n) + rf180centerInclDelay - durationToCenter)/lims.gradRasterTime)*lims.gradRasterTime;
+assert(delayTE1>=0);
+%delayTE2=delayTE2tmp+mr.calcDuration(rf180,gz180n);
+gxPre.delay=0;
+gyPre.delay=0;
+delayTE2=delayTE2tmp-mr.calcDuration(gxPre,gyPre);
+[gxPre,gyPre]=mr.align('right',gxPre,'left',gyPre);
+assert(delayTE2>=0);
+
+% diffusion weithting calculation
+% delayTE2 is our window for small_delta
+% delayTE1+delayTE2-delayTE2 is our big delta
+% we anticipate that we will use the maximum gradient amplitude, so we need
+% to shorten delayTE2 by gmax/max_sr to accommodate the ramp down 
+small_delta=delayTE2-ceil(lims.maxGrad/lims.maxSlew/lims.gradRasterTime)*lims.gradRasterTime;
+big_delta=delayTE1+mr.calcDuration(rf180,gz180n);
+% we define bFactCalc function below to eventually calculate time-optimal 
+% gradients. for now we just abuse it with g=1 to give us the coefficient
+g=sqrt(bFactor*1e6/bFactCalc(1,small_delta,big_delta)); % for now it looks too large!
+gr=ceil(g/lims.maxSlew/lims.gradRasterTime)*lims.gradRasterTime;
+gDiff=mr.makeTrapezoid('z','amplitude',g,'riseTime',gr,'flatTime',small_delta-gr,'system',lims);
+assert(mr.calcDuration(gDiff)<=delayTE1);
+assert(mr.calcDuration(gDiff)<=delayTE2);
+
 
 % Define sequence blocks
 for s=1:Nslices
     seq.addBlock(rf_fs,gz_fs);
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
+    rf180.freqOffset=gz180.amplitude*thickness*(s-1-(Nslices-1)/2);
     seq.addBlock(rf,gz,trig);
-    seq.addBlock(gxPre,gyPre,gzReph);
+    seq.addBlock(mr.makeDelay(delayTE1),gDiff);
+    rf180.freqOffset=gz180.amplitude*thickness*(s-1-(Nslices-1)/2);
+    seq.addBlock(rf180,gz180n);
+    seq.addBlock(mr.makeDelay(delayTE2),gDiff);
+    seq.addBlock(gxPre,gyPre);
     for i=1:Ny_meas
         if i==1
             seq.addBlock(gx,gy_blipup,adc); % Read the first line of k-space with a single half-blip at the end
@@ -114,7 +165,7 @@ for s=1:Nslices
             seq.addBlock(gx,gy_blipdown,adc); % Read the last line of k-space with a single half-blip at the beginning
         else
             seq.addBlock(gx,gy_blipdownup,adc); % Read an intermediate line of k-space with a half-blip at the beginning and a half-blip at the end
-        end 
+        end
         gx.amplitude = -gx.amplitude;   % Reverse polarity of read gradient
     end
 end
@@ -134,7 +185,7 @@ end
 
 seq.plot();             % Plot sequence waveforms
 
-% trajectory calculation
+% new single-function call for trajectory calculation
 [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
 
 % plot k-spaces
@@ -144,45 +195,12 @@ hold on; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
 figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold on;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
-%axis off;
-
-return;
-
-%% another manual pretty plot option 
-
-lw=1;
-gw=seq.gradient_waveforms();
-ofs=2.05*max(abs(gw(:)));
-% plot the entire gradient waveforms
-figure; plot(time_axis, gw(3,:)+2*ofs,'Color',[0,0.5,0.3],'LineWidth',lw); 
-hold on; plot(time_axis, gw(2,:)+1*ofs,'r','LineWidth',lw);
-plot(time_axis, gw(1,:),'b','LineWidth',lw);
-t_adc_gr=t_adc+0.5*seq.gradRasterTime; % we have to shift the time axis because it is otherwise adpted to the k-space, which is a one-sided integration of the trajeectory
-gwr_adc=interp1(time_axis,gw(1,:),t_adc_gr);
-plot(t_adc_gr,gwr_adc,'b.','MarkerSize',3*lw); % and sampling points on the kx-axis
-xlim([-0.03*time_axis(end),1.03*time_axis(end)]);
-%axis off;
-
-
-%% new higher-performabce trajectory calculation
-[ktraj_adc1, t_adc1, ktraj1, t_ktraj1, t_excitation1, t_refocusing1] = seq.calculateKspacePP();
-
-% plot k-spaces
-figure; plot(t_ktraj1, ktraj1'); % plot the entire k-space trajectory
-hold on; plot(t_adc1,ktraj_adc1(1,:),'.'); % and sampling points on the kx-axis
-figure; plot(ktraj1(1,:),ktraj1(2,:),'b'); % a 2D plot
-axis('equal'); % enforce aspect ratio for the correct trajectory display
-hold on;plot(ktraj_adc1(1,:),ktraj_adc1(2,:),'r.'); % plot the sampling points
-
-%% compare both
-figure; plot(time_axis, ktraj'); 
-hold on; plot(t_ktraj1, ktraj1','-.');
 
 %% prepare the sequence output for the scanner
-seq.setDefinition('FOV', [fov fov thickness]);
+seq.setDefinition('FOV', [fov fov thickness*Nslices]);
 seq.setDefinition('Name', 'epi');
 
-seq.write('epi_rs.seq'); 
+seq.write('epidiff_rs.seq'); 
 
 % seq.install('siemens');
 
@@ -192,3 +210,17 @@ seq.write('epi_rs.seq');
 
 rep = seq.testReport; 
 fprintf([rep{:}]); % as for January 2019 TR calculation fails for fat-sat
+
+function b=bFactCalc(g, delta, DELTA)
+% see DAVY SINNAEVE Concepts in Magnetic Resonance Part A, Vol. 40A(2) 39–65 (2012) DOI 10.1002/cmr.a
+% b = gamma^2  g^2 delta^2 sigma^2 (DELTA + 2 (kappa - lambda) delta)
+% in pulseq we don't need gamma as our gradinets are Hz/m
+% however, we do need 2pi as diffusion equations are all based on phase
+% for rect gradients: sigma=1 lambda=1/2 kappa=1/3 
+% for trapezoid gradients: TODO
+sigma=1;
+%lambda=1/2;
+%kappa=1/3;
+kappa_minus_lambda=1/3-1/2;
+b= (2*pi * g * delta * sigma)^2 * (DELTA + 2*kappa_minus_lambda*delta);
+end

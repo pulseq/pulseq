@@ -10,7 +10,7 @@ pattern='*.dat';
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
 data_file_path=[path D(I(end)).name]; % use end-1 to reconstruct the second-last data set, etc.
-
+%data_file_path='../interpreters/siemens/data_example/gre_example.dat'
 %%
 twix_obj = mapVBVD(data_file_path);
 

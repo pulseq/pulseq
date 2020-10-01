@@ -79,8 +79,36 @@ classdef EventLibrary < handle
                 found = false;
             end
         end
-               
+                       
+        function update(obj, id, data, type)
+            if length(obj.keys)>=id
+                data_string=sprintf('%.6g ', obj.data(id).array); % see EventLibrary.insert()
+                obj.keymap.remove(data_string);
+            end
+            if nargin>3
+                insert(obj, id, data, type);
+            else
+                insert(obj, id, data)
+            end
+        end
         
+        function update_data(obj, old_data, new_data, type)
+            [id, found] = find(obj, old_data);
+            if found
+                if nargin>3
+                    update(obj, id, new_data, type);
+                else
+                    update(obj, id, new_data)
+                end
+            else
+                if nargin>3
+                    insert(obj, id, data_new, type);
+                else
+                    insert(obj, id, data_new)
+                end
+            end
+        end
+            
         function insert(obj, id, data, type)
             %insert Add event to library
             % 

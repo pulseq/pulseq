@@ -21,5 +21,7 @@ for i=1:Nrep
     seq.addBlock(mr.makeDelay(delayTR))
 end
 
+seq.setDefinition('Name', 'fid');
+
 seq.write('fid.seq');       % Write to pulseq file
 parsemr('fid.seq');

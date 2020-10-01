@@ -34,18 +34,44 @@ else
     rawdata = double(twix_obj.image.unsorted());
 end
 
-%% Define FOV and resolution
-fov=256e-3; Nx=64; Ny=64; 
-% it would be a good exercise to detect Nx and Ny from the k-space trajectory :-)
-
 %% if necessary re-tune the trajectory delay to supress ghosting
 traj_recon_delay=0;%3.23e-6;%-1e-6;%3.90e-6;%-1.03e-6; % adjust this parameter to supress ghosting (negative allowed) (our trio -1.0e-6, prisma +3.9e-6; avanto +3.88)
 [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
-ktraj_adc_nodelay=seq.calculateKspace('trajectory_delay', 10e-6);
+%ktraj_adc_nodelay=seq.calculateKspace('trajectory_delay', 10e-6);
+
+%% automatic detection of the measurement parameters (FOV, matrix size, etc)
+nADC = size(rawdata, 1);
+k_last=ktraj_adc(:,end);
+k_2last=ktraj_adc(:,end-nADC);
+delta_ky=k_last(2)-k_2last(2);
+fov=1/abs(delta_ky);
+Ny_post=round(abs(k_last(2)/delta_ky));
+if k_last(2)>0
+    Ny_pre=round(abs(min(ktraj_adc(2,:))/delta_ky));
+else
+    Ny_pre=round(abs(max(ktraj_adc(2,:))/delta_ky));
+end
+Nx=2*max([Ny_post,Ny_pre]);
+Ny=Nx;
+Ny_sampled=Ny_pre+Ny_post+1;
+% for Ny_sampled=1:Ny 
+%     if abs((ktraj_adc(2,end-nADC*(Ny_sampled-1))-ktraj_adc(2,end-nADC*Ny_sampled))-delta_ky)>1e-6
+%         break;
+%     end
+% end
+
+%% manually (re-)define FOV and resolution
+%fov=256e-3; 
+%Nx=64; Ny=Nx; Ny_sampled=Ny; 
+
+%DWI example:
+%Nx=112; Ny=Nx; Ny_sampled=98; fov=224e-3; 
+
+%SE EPI RS example:
+%Nx=64; Ny=Nx; Ny_sampled=56; fov=250e-3; 
 
 %% classical phase correction / trajectory delay calculation 
 %  here we assume we are dealing with the calibration data
-nADC = size(rawdata, 1);
 data_odd=ifftshift(ifft(ifftshift(rawdata(:,:,1:2:end),1)),1);
 data_even=ifftshift(ifft(ifftshift(rawdata(end:-1:1,:,2:2:end),1)),1);
 cmplx_diff=data_even.*conj(data_odd);
@@ -111,14 +137,14 @@ pc_coef=0;
 data_pc=data_resampled;
 for c=1:nCoils
     for i=1:size(data_resampled,1)
-        data_pc(i,c,:)=squeeze(data_resampled(i,1,:)).*exp(1i*2*pi*pc_coef*mod((1:64)',2));
+        data_pc(i,c,:)=squeeze(data_resampled(i,1,:)).*exp(1i*2*pi*pc_coef*mod((1:size(data_pc,3))',2));
     end
 end
 figure;imagesc(squeeze(angle(data_pc(:,1,:)))');axis('square');
 
 %% reshape for multiple slices or repetitions
-n4 = nAcq / Ny;
-data_pc = reshape(data_pc, [size(data_pc,1),nCoils,Ny,n4]);
+n4 = nAcq / Ny_sampled;
+data_pc = reshape(data_pc, [size(data_pc,1),nCoils,Ny_sampled,n4]);
 
 %% display results
 
@@ -126,11 +152,22 @@ data_pc = reshape(data_pc, [size(data_pc,1),nCoils,Ny,n4]);
 
 data_xky=ifftshift(ifft(ifftshift(data_pc,1)),1);
 
-figure;imagesc(abs(squeeze(data_xky(:,1,:,1)))');axis('square');colormap('gray');
+if Ny_sampled~=Ny
+    data_xky1=zeros(size(data_pc,1),nCoils,Ny,n4);
+    data_xky1(:,:,(1:Ny_sampled)+Ny-Ny_sampled,:)=data_xky;
+    data_xky=data_xky1;
+end
+
+%figure;imagesc(abs(squeeze(data_xky(:,1,:,1)))');axis('square');colormap('gray');
 
 % strictly speaking we have to do an intensity compensation here due to the
 % convolution at the interp1() step, but for now we ignore it...
 
 data_xy=ifftshift(ifft(ifftshift(data_xky,3),[],3),3);
 
-figure;imab(sqrt(squeeze(sum(abs(data_xy(:,:,end:-1:1,:).^2),2))));axis('square');colormap('gray');
+%%
+if delta_ky>0
+    figure;imab(sqrt(squeeze(sum(abs(data_xy(:,:,end:-1:1,:).^2),2))));axis('square');colormap('gray'); 
+else
+    figure;imab(sqrt(squeeze(sum(abs(data_xy(:,:,:,:).^2),2))));axis('square');colormap('gray');
+end

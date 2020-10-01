@@ -5,12 +5,14 @@
 #include <iomanip>		// std::setw etc
 
 #include <algorithm>	// for std::max_element
+#include <functional>	// for std::bind...
 
 #include <math.h>		// fabs etc
 
 ExternalSequence::PrintFunPtr ExternalSequence::print_fun = &ExternalSequence::defaultPrint;
 const int ExternalSequence::MAX_LINE_SIZE = 256;
 const char ExternalSequence::COMMENT_CHAR = '#';
+std::string& str_trim(std::string& str);
 
 /***********************************************************/
 ExternalSequence::ExternalSequence()
@@ -344,6 +346,8 @@ bool ExternalSequence::load(std::string path)
 	m_extensionLibrary.clear();
 	m_extensionNameIDs.clear();
 	m_triggerLibrary.clear(); // clear also all known extension libraries
+	m_labelsetLibrary.clear();
+	m_labelincLibrary.clear();
 	std::map<std::string,int>::iterator itFI = m_fileIndex.find("[EXTENSIONS]");
 	if ( itFI != m_fileIndex.end()) {
 		data_file.seekg(itFI->second, std::ios::beg);
@@ -379,8 +383,12 @@ bool ExternalSequence::load(std::string path)
 					nKnownID=EXT_TRIGGER;
 				else if (0==strcmp("ROTATIONS",szStrID))
 					nKnownID=EXT_ROTATION;
+				else if (0==strcmp("LABELSET",szStrID))
+					nKnownID=EXT_LABELSET;
+				else if (0==strcmp("LABELINC",szStrID))
+					nKnownID=EXT_LABELINC;
 				if (nKnownID!=EXT_UNKNOWN)
-					m_extensionNameIDs[nInternalID]=std::make_pair<std::string,int>(szStrID,nKnownID);
+					m_extensionNameIDs[nInternalID]=std::make_pair(std::string(szStrID),nKnownID);
 				else {
 					print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unknown extension ignored\n" << buffer << std::endl );
 				}
@@ -391,6 +399,10 @@ bool ExternalSequence::load(std::string path)
 				ExtensionListEntry extEntry;
 				TriggerEvent trigger;
 				RotationEvent rotation;
+				int  nVal;					   // read label set/inc values from label set/inc extension
+				int  nRet;                     // conversion result / return value
+				char szLabelID[MAX_LINE_SIZE]; // read labels strings from label set/inc extension
+				LabelEvent	label;			   // write label event
 				switch (nExtensionID) {
 					case EXT_LIST: 
 						if (4!=sscanf(buffer, "%d%d%d%ld", &nID, &(extEntry.type), &(extEntry.ref), &(extEntry.next))) {
@@ -418,6 +430,35 @@ bool ExternalSequence::load(std::string path)
 						}
 						rotation.defined=true;
 						m_rotationLibrary[nID] = rotation; 
+						break;
+					case EXT_LABELSET: 
+						if (3!=sscanf(buffer, "%d%d%s", &nID, &nVal, szLabelID)) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to load labelset event\n" << buffer << std::endl );
+							return false;
+						}
+						nRet = decodeLabel(EXT_LABELSET,nVal,szLabelID,label);
+						if (nRet<0) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelset event\n" << buffer << std::endl );
+							return false;
+						}else if(nRet>0) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** decoding labelset event returned 0\n" << buffer << std::endl );
+						} 
+						m_labelsetLibrary[nID] = label;
+						break;
+					case EXT_LABELINC: 
+						if (3!=sscanf(buffer, "%d%d%s", &nID, &nVal, szLabelID)) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
+							return false;
+						}
+						nRet = decodeLabel(EXT_LABELINC,nVal,szLabelID,label);
+						if (nRet<0) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
+							return false;
+						}else if(nRet>0) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: decoding labelinc event returnd 0\n" << buffer << std::endl );
+						}
+
+						m_labelincLibrary[nID] = label;
 						break;
 					case EXT_UNKNOWN:
 						break; // just ignore unknown extensions
@@ -455,7 +496,7 @@ bool ExternalSequence::load(std::string path)
 		<<" GRAD: " << m_gradLibrary.size()
 		<<" ADC: " << m_adcLibrary.size()
 		<<" DELAY: " << m_delayLibrary.size()
-		<<" EXTENSIONS: " << m_extensionLibrary.size() + m_triggerLibrary.size() + m_rotationLibrary.size() );
+		<<" EXTENSIONS: " << m_extensionLibrary.size() + m_triggerLibrary.size() + m_rotationLibrary.size() + m_labelsetLibrary.size() + m_labelincLibrary.size());
 
 
 	// **********************************************************************************************************************
@@ -483,6 +524,7 @@ bool ExternalSequence::load(std::string path)
 
 		// Read each definition line
 		m_definitions.clear();
+		m_definitions_str.clear();
 		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
@@ -490,12 +532,21 @@ bool ExternalSequence::load(std::string path)
 			std::istringstream ss(buffer);
 			std::string key;
 			ss >> key;
-			double value;
-			std::vector<double> values;
-			while (ss >> value) {
-				values.push_back(value);
+			std::string str_value;
+			if (std::getline(ss,str_value)) {
+				str_value = str_trim(str_value);
+				m_definitions_str[key] = str_value; // old compilers like MSVC6 require such stupid conversions
+				char* tmp_buff= new char[str_value.length()+1];
+				strcpy(tmp_buff,str_value.c_str());
+				std::istringstream ssv(tmp_buff);
+				double value;
+				std::vector<double> values;
+				while (ssv >> value) {
+					values.push_back(value);
+				}
+				delete [] tmp_buff;
+				m_definitions[key] = values;
 			}
-			m_definitions[key] = values;
 		}
 
 		std::ostringstream out;
@@ -619,7 +670,8 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 	block->trigger.triggerType=0;
 	block->trigger.triggerChannel=0;
 	block->rotation.defined=false;
-
+	block->labelset.clear();
+	block->labelinc.clear();
 	// Set event structures (if applicable) so e.g. gradient type can be determined
 	if (events.id[RF]>0)     block->rf      = m_rfLibrary[events.id[RF]];
 	if (events.id[ADC]>0)    block->adc     = m_adcLibrary[events.id[ADC]];
@@ -657,9 +709,19 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 							print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: only one rotation per block is supported; error block: " << index );
 						}
 						else {
-							// ok, lets find the trigger in the library
+							// ok, lets find the rotation in the library
 							block->rotation=m_rotationLibrary[itEL->second.ref]; // do we have to check whether it can be found?
 						}
+						break;
+					case EXT_LABELSET:
+						//do we have to check anything ? //MZ: TODO: check that we find the evet in the library TODO: check for conflicts between set and inc
+							// ok, lets find the labelset in the library
+							block->labelset.push_back(m_labelsetLibrary[itEL->second.ref]); // do we have to check whether it can be found?
+						break;
+					case EXT_LABELINC:
+						//do we have to check anything ? //MZ: TODO: check that we find the evet in the library TODO: check for conflicts between set and inc
+							// ok, lets find the labelinc in the library
+							block->labelinc.push_back(m_labelincLibrary[itEL->second.ref]); // do we have to check whether it can be found?
 						break;
 					default:
 						print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unimplemented extension type " << itEN->second.first << " in block " << index );
@@ -942,3 +1004,110 @@ bool ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE)
 		}
 	}
 }
+
+/***********************************************************/
+// MZ: TODO: replace me with a table and a faster search (std::map)
+int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, LabelEvent& label)
+{
+	//initialize
+	int nKnownID=LABEL_UNKNOWN;
+	int nKnownFG=FLAG_UNKNOWN;
+	//label.defined=false;
+	label.bid=std::make_pair(nKnownFG,false);
+	label.nid=std::make_pair(nKnownID,0);
+
+	if (nKnownID==LABEL_UNKNOWN){		//always true; split it in two pieces to make it faster
+		if (0==strcmp("NAV",szLabelID))
+			nKnownFG=NAV;
+		else if (0==strcmp("REV",szLabelID))
+			nKnownFG=REV;
+		else if (0==strcmp("SMS",szLabelID))
+			nKnownFG=SMS;
+	}
+
+	if (nKnownFG==FLAG_UNKNOWN){
+		if (0==strcmp("SLC",szLabelID))
+			nKnownID=SLC;
+		else if (0==strcmp("SEG",szLabelID))
+			nKnownID=SEG;
+		else if (0==strcmp("REP",szLabelID))
+			nKnownID=REP;
+		else if (0==strcmp("AVG",szLabelID))
+			nKnownID=AVG;
+		else if (0==strcmp("ECO",szLabelID))
+			nKnownID=ECO;
+		else if (0==strcmp("PHS",szLabelID))
+			nKnownID=PHS;
+		else if (0==strcmp("SET",szLabelID))
+			nKnownID=SET;
+		else if (0==strcmp("LIN",szLabelID))
+			nKnownID=LIN;
+		else if (0==strcmp("PAR",szLabelID))
+			nKnownID=PAR;
+	}
+
+	//assemble LabelEvent
+	if (nKnownFG !=FLAG_UNKNOWN){
+		//label.defined=true;
+		label.bid=std::make_pair(nKnownFG,bool(nVal));
+	}else if (nKnownID !=LABEL_UNKNOWN){
+		//label.defined=true;
+		label.nid=std::make_pair(nKnownID,nVal);
+	}
+
+	//here we check if the labels/flags are valid //No boundary check, boundary check moves to prep()
+	if ((LABEL_UNKNOWN==nKnownID && FLAG_UNKNOWN==nKnownFG)){
+		//label.defined=false; // when no label is founded, reset label.defined to false
+		print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unknown label specification\n");
+		return 1;
+	}else if (exttype==EXT_LABELSET){				//here we check if the values are valid
+		if (nKnownID!=LABEL_UNKNOWN){
+			if (nVal<0){
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELSET for int-type MDH Headers is incorrect\n");
+				return -1;
+			}else
+				return 0;
+		}else if (nKnownFG!=FLAG_UNKNOWN){
+			if ((nVal!=0)&&(nVal!=1)){
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELSET for bool-type MDH Headers is incorrect\n");
+				return -1;
+			}else
+				return 0;
+		}else{
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: EXT_LABELSET only support LABEL&&FLAG\n");
+			return -1;					 
+		}
+	}else if (exttype==EXT_LABELINC){
+		if (nKnownID!=LABEL_UNKNOWN){			
+			return 0;				 
+		}else if (nKnownFG!=FLAG_UNKNOWN){				// EXT_LABELINC should NOT be used for bool type MDH Headers
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELINC is NOT for bool-type MDH Headers\n");
+			return -1;
+		}else {
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: EXT_LABELINC only support LABEL&&FLAG\n");
+			return -1;	
+		}		
+	}else{											// No ExtType recognized
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification is NOT recognized\n");
+		return -1;					 
+	}
+}
+
+const std::string& trim_chars = "\t\n\v\f\r ";
+std::string& str_ltrim(std::string& str)
+{
+    str.erase(0, str.find_first_not_of(trim_chars));
+    return str;
+}
+ 
+std::string& str_rtrim(std::string& str)
+{
+    str.erase(str.find_last_not_of(trim_chars) + 1);
+    return str;
+}
+ 
+std::string& str_trim(std::string& str)
+{
+    return str_ltrim(str_rtrim(str));
+}
+

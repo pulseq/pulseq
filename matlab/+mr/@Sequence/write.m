@@ -139,11 +139,40 @@ end
 if ~isempty(obj.trigLibrary.keys)
     fprintf(fid, '# Extension specification for digital output and input triggers:\n');
     fprintf(fid, '# id type channel delay (us) duration (us)\n');
-    fprintf(fid, 'extension TRIGGERS 1\n'); % fixme: extension ID 1 is hardcoded here for triggers
+%     fprintf(fid, 'extension TRIGGERS 1\n'); % fixme: extension ID 1 is hardcoded here for triggers
+    fprintf(fid, ['extension TRIGGERS ',num2str(obj.getExtensionTypeID('TRIGGERS')),'\n']);
+
     keys = obj.trigLibrary.keys;
     for k = keys
         fprintf(fid, '%d %d %d %d %d\n', ...
                 [k round(obj.trigLibrary.data(k).array.*[1 1 1e6 1e6])]); 
+    end
+    fprintf(fid, '\n');
+end
+
+if ~isempty(obj.labelsetLibrary.keys)
+    lbls=mr.getSupportedLabels();
+
+    fprintf(fid, '# Extension specification for setting labels:\n');
+    fprintf(fid, '# id set labelstring\n');
+    tid=obj.getExtensionTypeID('LABELSET');
+    fprintf(fid, ['extension LABELSET ',num2str(tid),'\n']);
+    keys = obj.labelsetLibrary.keys;
+    for k = keys
+            fprintf(fid, '%d %d %s\n', ... 
+                k, obj.labelsetLibrary.data(k).array(1),lbls{obj.labelsetLibrary.data(k).array(2)});
+    end
+    fprintf(fid, '\n');
+
+    fprintf(fid, '# Extension specification for setting labels:\n');
+    fprintf(fid, '# id set labelstring\n');
+    tid=obj.getExtensionTypeID('LABELINC');
+    fprintf(fid, ['extension LABELINC ',num2str(tid),'\n']);
+    lbls=mr.getSupportedLabels();
+    keys = obj.labelincLibrary.keys;
+    for k = keys
+            fprintf(fid, '%d %d %s\n', ... 
+                k, obj.labelincLibrary.data(k).array(1),lbls{obj.labelincLibrary.data(k).array(2)});
     end
     fprintf(fid, '\n');
 end

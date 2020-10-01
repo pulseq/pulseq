@@ -48,8 +48,8 @@ enum MessageType {
 };
 
 // Define the current level of messages to display
-//const MessageType MSG_LEVEL = NORMAL_MSG;
-const MessageType MSG_LEVEL = DEBUG_LOW_LEVEL;
+const MessageType MSG_LEVEL = NORMAL_MSG;
+//const MessageType MSG_LEVEL = DEBUG_MEDIUM_LEVEL;
 
 
 /**
@@ -141,6 +141,8 @@ enum ExtType {
 	EXT_LIST=0,
 	EXT_TRIGGER,
 	EXT_ROTATION,
+	EXT_LABELSET,
+	EXT_LABELINC,
 	EXT_UNKNOWN /* marks the end of the enum, should always be the last */
 };
 
@@ -166,6 +168,58 @@ struct RotationEvent
 {
 	bool defined;           /**< @brief Indicates whether a rotation object was defined in this block */
 	double rotMatrix[9];    /**< @brief Gradient rotation matrix */
+};
+
+/**
+ * @brief all supported labels
+ */
+enum Labels {
+	SLC, 
+	SEG, 
+	REP, 
+	AVG, 
+	ECO, 
+	PHS, 
+	SET, 
+	LIN, 
+	PAR,
+	LABEL_UNKNOWN // this entry should be the last in the list
+};
+const int NUM_LABELS=LABEL_UNKNOWN;
+/**
+ * @brief all supported flags
+ */
+enum Flags{
+	NAV,
+	REV,
+	SMS, 
+	FLAG_UNKNOWN
+};
+const int NUM_FLAGS=FLAG_UNKNOWN;
+
+/**
+ * @brief List of MDH IDs
+ *
+ * Stores IDs that reference MDH headers for MDH_compat member
+ */
+struct DataLabelStorage // MZ: is this the values or the IDs??? // XG: it's values (serial number is the IDs)
+{
+	//bool defined;								/**< @brief indicates whether the MDHIDs member is defined  */
+	std::vector<int> nid;						/**< @brief current/maximum mdhid label */
+	std::vector<bool> bid;						/**< @brief current/maximum mdhid flags */
+};
+
+/**
+ * @brief Label event (extension)
+ *
+ * Stores set/inc MDH headers and the corresponding target NameID (key) 
+ */
+struct LabelEvent
+{
+	//bool defined;					/**< @brief indicates whether a labelset object was defined in this block */
+    // MZ: TODO: check whether it is really meaningfull to store a vector here instead of a single number // XG: make it as a single number now
+	std::pair<int,int > nid;		/**< @brief set/inc value of the target mdhid label */		
+	std::pair<int,bool > bid;		/**< @brief set/unset bool flag of the target mdhid flags */
 };
 
 /**
@@ -311,6 +365,20 @@ public:
 	 * @brief Free the memory associated with decompressed shapes of this block
 	 */
 	void   free();
+
+	/**
+	 * @brief Return the label command event array
+	 */
+	std::vector<LabelEvent>&  GetLabelSetEvents();
+	/**
+	 * @brief Return the label command event array
+	 */
+	std::vector<LabelEvent>&  GetLabelIncEvents();
+	/**
+	 * @brief Return `true` if block has a labelset/labelinc command
+	 */
+	bool     isLabel();
+
 protected:
 	int index;          /**< @brief Index of this block */
 
@@ -325,6 +393,8 @@ protected:
 	ADCEvent adc;               /**< @brief ADC event  */
 	TriggerEvent trigger;       /**< @brief trigger event (just one per block) */
 	RotationEvent rotation;     /**< @brief optional rotation event */
+	std::vector<LabelEvent>	  labelinc;     /**< @brief labelinc event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
+	std::vector<LabelEvent>	  labelset;     /**< @brief labelset event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
 	// Below is only valid once decompressed:
 
 	// RF
@@ -348,7 +418,6 @@ inline bool      SeqBlock::isADC() { return (events[ADC]>0); }
 inline bool      SeqBlock::isDelay() { return (events[DELAY]>0); }
 inline bool      SeqBlock::isRotation() { return (events[EXT]>0 && rotation.defined); }
 inline bool      SeqBlock::isTrigger() { return (events[EXT]>0) && trigger.triggerType!=0; }
-
 inline long      SeqBlock::GetDelay() { return delay; }
 inline long      SeqBlock::GetDuration() { return duration; }
 
@@ -359,6 +428,10 @@ inline RFEvent&   SeqBlock::GetRFEvent() { return rf; }
 inline ADCEvent&  SeqBlock::GetADCEvent() { return adc; }
 inline TriggerEvent&  SeqBlock::GetTriggerEvent() { return trigger; }
 inline RotationEvent&  SeqBlock::GetRotationEvent() { return rotation; }
+
+inline std::vector<LabelEvent>&  SeqBlock::GetLabelSetEvents() { return labelset; }
+inline std::vector<LabelEvent>&  SeqBlock::GetLabelIncEvents() { return labelinc; }
+inline bool		 SeqBlock::isLabel() {return(events[EXT]>0) && !(labelset.empty()&&labelinc.empty()); }
 
 inline std::string SeqBlock::GetTypeString() {
 	std::string type;
@@ -502,6 +575,17 @@ class ExternalSequence
 	std::vector<double> GetDefinition(std::string key);
 
 	/**
+	 * @brief Lookup the custom definition
+	 *
+	 * Search the list of user-specified definitions through the [DEFINITIONS] section.
+	 * If the definition key is not found, an empty string is returned.
+	 *
+	 * @param key  the definition name
+	 * @return definition value as a string (or empty string)
+	 */
+	std::string GetDefinitionStr(std::string key);
+
+	/**
 	 * @brief Return number of sequence blocks
 	 */
 	int  GetNumberOfBlocks(void);
@@ -604,6 +688,16 @@ class ExternalSequence
 	 */
 	void checkRF(SeqBlock& block);
 
+	/**
+	 * @brief Check the IDs contains references to valid labels in the library
+	 *		  Transform order of Labels as in MHDheader
+	 * @param  labels The labels IDs to check
+	 * @return 0 if labels/values references are ok
+	 * @return 1 if labels references are not recognized
+	 * @return -1 if labels/values references are invalid
+	 */
+	int decodeLabel(ExtType, int&, char*, LabelEvent&);
+
 	// *** Static helper function ***
 
 	/**
@@ -632,7 +726,8 @@ class ExternalSequence
 	//std::vector<ExtensionListEntry> m_extensions; /**< @brief the storage area of the extension list referenced by the enent table */
 
 	// Global user-specified definitions
-	std::map<std::string, std::vector<double> >m_definitions;  /**< @brief Custom definitions provided through [DEFINITIONS] section) */
+	std::map<std::string, std::string >m_definitions_str;  /**< @brief Custom definitions provided through [DEFINITIONS] section (stored as strings) */
+	std::map<std::string, std::vector<double> >m_definitions;  /**< @brief Custom definitions provided through [DEFINITIONS] section (converted to doubles) */
 
 	// List of events (referenced by blocks)
 	std::map<int,RFEvent>      m_rfLibrary;       /**< @brief Library of RF events */
@@ -644,7 +739,8 @@ class ExternalSequence
 	std::map<int,std::pair<std::string,int> > m_extensionNameIDs; /**< @brief Map of extension IDs from the file to textIDs and internal known numeric IDs*/
 	std::map<int, TriggerEvent> m_triggerLibrary;   /**< @brief Library of trigger events */
 	std::map<int, RotationEvent> m_rotationLibrary;   /**< @brief Library of rotation events */
-
+	std::map<int, LabelEvent>      m_labelsetLibrary;	/**< @brief Library of labelset events */
+	std::map<int, LabelEvent>	   m_labelincLibrary;	/**< @brief Library of labelinc events */	
 	// List of basic shapes (referenced by events)
 	std::map<int,CompressedShape> m_shapeLibrary;    /**< @brief Library of compressed shapes */
 };
@@ -659,6 +755,13 @@ inline std::vector<double>	ExternalSequence::GetDefinition(std::string key){
 		return m_definitions[key];
 	else
 		return std::vector<double>();
+}
+
+inline std::string	ExternalSequence::GetDefinitionStr(std::string key){
+	if (m_definitions_str.count(key)>0)
+		return m_definitions_str[key];
+	else
+		return std::string();
 }
 
 inline void ExternalSequence::defaultPrint(const std::string &str) { std::cout << str << std::endl; }

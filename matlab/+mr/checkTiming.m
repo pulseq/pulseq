@@ -19,6 +19,11 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
         e=varargin{i};
         assert(isstruct(e), 'wrong format of the variable aguments, list of structures is expected');
         ok=true;
+        if length(e)>1
+            % for now this is only the case for arrays of extensions, but
+            % we actually cannot check extensons anyway...
+            continue;
+        end
         if isfield(e, 'type') && (strcmp(e.type,'adc') || strcmp(e.type,'rf'))
             raster=system.rfRasterTime;
         else

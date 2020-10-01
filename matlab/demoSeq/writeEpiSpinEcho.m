@@ -34,7 +34,7 @@ gy = mr.makeTrapezoid('y',lims,'Area',deltak,'Duration',dur);
 rf180 = mr.makeBlockPulse(pi,lims,'Duration',500e-6,'use','refocusing');
 gzSpoil = mr.makeTrapezoid('z',lims,'Area',gz.area*2,'Duration',3*preTime);
 
-% Calculate delay time
+% Calculate delay time %% MZ: I thisk this is very wrong!
 TE=60e-3;
 durationToCenter = (Nx/2+0.5)*mr.calcDuration(gx) + Ny/2*mr.calcDuration(gy);
 rfCenterInclDelay=rf.delay + mr.calcRfCenter(rf);

@@ -24,6 +24,7 @@ sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
 deltak=1/fov;
 gx = mr.makeTrapezoid('x','FlatArea',Nx*deltak,'FlatTime',6.4e-3,'system',sys);
 adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime,'system',sys);
+adc.delay = adc.delay - 0.5*adc.dwell; % compensate for the 0.5 samples shift
 gxPre = mr.makeTrapezoid('x','Area',-gx.area/2,'Duration',2e-3,'system',sys);
 gzReph = mr.makeTrapezoid('z','Area',-gz.area/2,'Duration',2e-3,'system',sys);
 

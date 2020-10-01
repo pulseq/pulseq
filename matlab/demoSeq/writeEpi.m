@@ -4,7 +4,7 @@
 seq=mr.Sequence();              % Create a new sequence object
 fov=220e-3; Nx=64; Ny=64;       % Define FOV and resolution
 thickness=3e-3;                 % slice thinckness
-Nslices=1;
+Nslices=3;
 
 % Set system limits
 lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...

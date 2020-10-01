@@ -1,7 +1,7 @@
 % this is an experimentaal spiral sequence
 
 seq=mr.Sequence();          % Create a new sequence object
-fov=256e-3; Nx=128; Ny=128;  % Define FOV and resolution
+fov=256e-3; Nx=96; Ny=Nx;  % Define FOV and resolution
 sliceThickness=3e-3;             % slice thinckness
 Nslices=1;
 Oversampling=2; % by looking at the periphery of the spiral I would say it needs to be at least 2
@@ -9,7 +9,7 @@ phi=pi/2; % orientation of the readout e.g. for interleaving
 
 % Set system limits
 lims = mr.opts('MaxGrad',30,'GradUnit','mT/m',...
-    'MaxSlew',180,'SlewUnit','T/m/s',...
+    'MaxSlew',120,'SlewUnit','T/m/s',...
     'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6, 'adcDeadTime', 10e-6);  
 
 % Create fat-sat pulse 
@@ -149,6 +149,7 @@ end
 %
 seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'spiral');
+seq.setDefinition('MaxAdcSegmentLength', adcSamplesPerSegment);
 
 seq.write('spiral.seq');   % Output sequence for scanner
 

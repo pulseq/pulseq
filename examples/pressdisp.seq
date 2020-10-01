@@ -1,5 +1,8 @@
 # Sequence Blocks
 # Created by JEMRIS 2.8
+# WARNING: this file relies on an old Pulse revision and cannot 
+#          be loaded by the current software. 
+#          It is provided here purely for illustrative purposes 
 
 [DEFINITIONS]
 Scan_ID 3

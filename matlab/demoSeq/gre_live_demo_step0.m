@@ -10,7 +10,7 @@ Ny = Nx;
 % Define sequence parameters
 TE = 8e-3;
 TR = 16e-3;
-alpha=45;
+alpha=30;
 
 % set system limits
 sys = mr.opts('MaxGrad',25,'GradUnit','mT/m',...
@@ -52,7 +52,7 @@ if (~ok)
 end
 
 % export definitions
-seq.setDefinition('FOV', [fov fov sliceThickness]*1e3);
+seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'DEMO_gre_step0'); % if submitting a sequence please write your name to the Name field of the definition section
 
 seq.write('DEMO_gre_step0.seq')       % Write to pulseq file

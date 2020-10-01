@@ -77,3 +77,12 @@ seq.plot('TimeRange',[Ndummy+1 Ndummy+3]*TR)
 seq.setDefinition('FOV', fov);
 seq.setDefinition('Name', 'gre3d');
 seq.write('gre3d.seq');
+
+% visualize the 3D k-space (only makes sense for low-res, otherwise one sees nothing)
+if Nx<=32
+    tic;
+    [kfa,ta,kf]=seq.calculateKspacePP();
+    toc
+    figure;plot3(kf(1,:),kf(2,:),kf(3,:));
+    hold on;plot3(kfa(1,:),kfa(2,:),kfa(3,:),'r.');
+end

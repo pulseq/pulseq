@@ -3,14 +3,19 @@
 % gradients combined with ramp-samping
 
 seq=mr.Sequence();         % Create a new sequence object
-fov=256e-3; Nx=64; Ny=Nx;  % Define FOV and resolution
-thickness=4e-3;            % slice thinckness
+fov=250e-3; Nx=64; Ny=64;  % Define FOV and resolution
+thickness=3e-3;            % slice thinckness
 Nslices=3;
+TE=40e-3;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delay calibration
 ro_os=1;                   % oversampling factor (in contrast to the product sequence we don't really need it)
 readoutTime=4.2e-4;        % this controls the readout bandwidth
-partFourierFactor=1;       % partial Fourier factor: 1: full sampling 0: start with ky=0
+partFourierFactor=0.75;    % partial Fourier factor: 1: full sampling 0: start with ky=0
+
+tRFex=2e-3;
+tRFref=2e-3;
+spoilFactor=1.5;             % spoiling gradient around the pi-pulse
 
 % Set system limits
 lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
@@ -26,8 +31,24 @@ rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
 gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create 90 degree slice selection pulse and gradient
-[rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',3e-3,...
+[rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',tRFex,...
     'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4);
+
+% Create 90 degree slice refocusing pulse and gradients
+[rf180, gz180] = mr.makeSincPulse(pi,'system',lims,'Duration',tRFref,...
+    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4,'PhaseOffset',pi/2,'use','refocusing');
+% [~, gzr_t, gzr_a]=mr.makeExtendedTrapezoidArea('z',gz180.amplitude,0,-gzReph.area+0.5*gz180.amplitude*gz180.fallTime,lims);
+% gz180n=mr.makeExtendedTrapezoid('z','system',lims,'times',[0 gz180.riseTime gz180.riseTime+gz180.flatTime+gzr_t]+gz180.delay, 'amplitudes', [0 gz180.amplitude gzr_a]);
+[~, gzr1_t, gzr1_a]=mr.makeExtendedTrapezoidArea('z',0,gz180.amplitude,spoilFactor*gz.area,lims);
+[~, gzr2_t, gzr2_a]=mr.makeExtendedTrapezoidArea('z',gz180.amplitude,0,-gzReph.area+spoilFactor*gz.area,lims);
+if gz180.delay>(gzr1_t(4)-gz180.riseTime)
+    gz180.delay=gz180.delay-(gzr1_t(4)-gz180.riseTime);
+else
+    rf180.delay=rf180.delay+(gzr1_t(4)-gz180.riseTime)-gz180.delay;
+    gz180.delay=0;
+end
+gz180n=mr.makeExtendedTrapezoid('z','system',lims,'times',[gzr1_t gzr1_t(4)+gz180.flatTime+gzr2_t]+gz180.delay, 'amplitudes', [gzr1_a gzr2_a]);
+
 
 % define the output trigger to play out with every slice excitatuion
 trig=mr.makeDigitalOutputPulse('osc0','duration', 100e-6); % possible channels: 'osc0','osc1','ext1'
@@ -96,17 +117,36 @@ Ny_meas=Ny_pre+Ny_post;
 % Pre-phasing gradients
 gxPre = mr.makeTrapezoid('x',lims,'Area',-gx.area/2);
 gyPre = mr.makeTrapezoid('y',lims,'Area',Ny_pre*deltak);
-[gxPre,gyPre,gzReph]=mr.align('right',gxPre,'left',gyPre,gzReph);
+[gxPre,gyPre]=mr.align('right',gxPre,'left',gyPre);
 % relax the PE prepahser to reduce stimulation
-gyPre = mr.makeTrapezoid('y',lims,'Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre,gzReph));
+gyPre = mr.makeTrapezoid('y',lims,'Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre));
 gyPre.amplitude=gyPre.amplitude*pe_enable;
+
+% Calculate delay times
+durationToCenter = (Ny_pre+0.5)*mr.calcDuration(gx);
+rfCenterInclDelay=rf.delay + mr.calcRfCenter(rf);
+rf180centerInclDelay=rf180.delay + mr.calcRfCenter(rf180);
+delayTE1=ceil((TE/2 - mr.calcDuration(rf,gz) + rfCenterInclDelay - rf180centerInclDelay)/lims.gradRasterTime)*lims.gradRasterTime;
+delayTE2=ceil((TE/2 - mr.calcDuration(rf180,gz180n) + rf180centerInclDelay - durationToCenter)/lims.gradRasterTime)*lims.gradRasterTime;
+assert(delayTE1>=0);
+%assert(delayTE2>=0);
+% now we merge slice refocusing, TE delay and pre-phasers into a single
+% block
+delayTE2=delayTE2+mr.calcDuration(rf180,gz180n);
+gxPre.delay=0;
+gxPre.delay=delayTE2-mr.calcDuration(gxPre);
+assert(gxPre.delay>=mr.calcDuration(rf180)); % gxPre may not overlap with the RF
+gyPre.delay=mr.calcDuration(rf180);
+assert(mr.calcDuration(gyPre)<=mr.calcDuration(gxPre)); % gyPre may not shift the timing
 
 % Define sequence blocks
 for s=1:Nslices
     seq.addBlock(rf_fs,gz_fs);
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
+    rf180.freqOffset=gz180.amplitude*thickness*(s-1-(Nslices-1)/2);
     seq.addBlock(rf,gz,trig);
-    seq.addBlock(gxPre,gyPre,gzReph);
+    seq.addBlock(mr.makeDelay(delayTE1));
+    seq.addBlock(rf180,gz180n,mr.makeDelay(delayTE2),gxPre,gyPre);
     for i=1:Ny_meas
         if i==1
             seq.addBlock(gx,gy_blipup,adc); % Read the first line of k-space with a single half-blip at the end
@@ -114,7 +154,7 @@ for s=1:Nslices
             seq.addBlock(gx,gy_blipdown,adc); % Read the last line of k-space with a single half-blip at the beginning
         else
             seq.addBlock(gx,gy_blipdownup,adc); % Read an intermediate line of k-space with a half-blip at the beginning and a half-blip at the end
-        end 
+        end
         gx.amplitude = -gx.amplitude;   % Reverse polarity of read gradient
     end
 end
@@ -144,25 +184,6 @@ hold on; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
 figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold on;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
-%axis off;
-
-return;
-
-%% another manual pretty plot option 
-
-lw=1;
-gw=seq.gradient_waveforms();
-ofs=2.05*max(abs(gw(:)));
-% plot the entire gradient waveforms
-figure; plot(time_axis, gw(3,:)+2*ofs,'Color',[0,0.5,0.3],'LineWidth',lw); 
-hold on; plot(time_axis, gw(2,:)+1*ofs,'r','LineWidth',lw);
-plot(time_axis, gw(1,:),'b','LineWidth',lw);
-t_adc_gr=t_adc+0.5*seq.gradRasterTime; % we have to shift the time axis because it is otherwise adpted to the k-space, which is a one-sided integration of the trajeectory
-gwr_adc=interp1(time_axis,gw(1,:),t_adc_gr);
-plot(t_adc_gr,gwr_adc,'b.','MarkerSize',3*lw); % and sampling points on the kx-axis
-xlim([-0.03*time_axis(end),1.03*time_axis(end)]);
-%axis off;
-
 
 %% new higher-performabce trajectory calculation
 [ktraj_adc1, t_adc1, ktraj1, t_ktraj1, t_excitation1, t_refocusing1] = seq.calculateKspacePP();
@@ -172,17 +193,13 @@ figure; plot(t_ktraj1, ktraj1'); % plot the entire k-space trajectory
 hold on; plot(t_adc1,ktraj_adc1(1,:),'.'); % and sampling points on the kx-axis
 figure; plot(ktraj1(1,:),ktraj1(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
-hold on;plot(ktraj_adc1(1,:),ktraj_adc1(2,:),'r.'); % plot the sampling points
-
-%% compare both
-figure; plot(time_axis, ktraj'); 
-hold on; plot(t_ktraj1, ktraj1','-.');
+hold;plot(ktraj_adc1(1,:),ktraj_adc1(2,:),'r.'); % plot the sampling points
 
 %% prepare the sequence output for the scanner
 seq.setDefinition('FOV', [fov fov thickness]);
 seq.setDefinition('Name', 'epi');
 
-seq.write('epi_rs.seq'); 
+seq.write('epise_rs.seq'); 
 
 % seq.install('siemens');
 

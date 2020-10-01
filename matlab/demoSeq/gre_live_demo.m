@@ -1,6 +1,6 @@
 % step
 % 0 ... Basic sequence
-% 1 ... Add spoiler in read, phase and slice (vary spoiler?)
+% 1 ... Add spoiler in read, phase and slice (vary spoiler - line 49)
 % 2 ... Refocus in phase
 % 3 ... Vary RF phase quasi-randomly
 % 4 ... Make receiver phase follow transmitter phase
@@ -19,7 +19,7 @@ Ny = Nx;
 % Define sequence parameters
 TE = 8e-3;
 TR = 16e-3;
-alpha=45;
+alpha=30;
 
 % set system limits
 sys = mr.opts('MaxGrad',25,'GradUnit','mT/m',...
@@ -46,7 +46,7 @@ delayTR = round((TR - mr.calcDuration(gxPre) - mr.calcDuration(gz) ...
                     - mr.calcDuration(gx) - delayTE)/seq.gradRasterTime)*seq.gradRasterTime;
 
 if step > 0
-    spoilArea=4*gx.area();
+    spoilArea=4*gx.area(); % 4 "looks" good
     % Add spoilers in read, refocus in phase and spoiler in slice
     gxPost = mr.makeTrapezoid('x', 'Area', spoilArea, 'system', sys); % we pass 'system' here to calculate shortest time gradient
     gyPost = mr.makeTrapezoid('y', 'Area', spoilArea, 'system', sys);

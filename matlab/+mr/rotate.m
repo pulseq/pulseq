@@ -143,6 +143,8 @@ function [grad] = scaleGrad(grad, scale)
         grad.flatArea=grad.flatArea*scale;
     else
         grad.waveform=grad.waveform*scale;
+        grad.first=grad.first*scale;
+        grad.last=grad.last*scale;
     end
 end
 

@@ -37,9 +37,9 @@ end
 g=opt.waveform;
 slew=(g(2:end)-g(1:end-1))./opt.system.gradRasterTime;
 if ~isempty(slew)
-    assert(max(abs(slew))<maxSlew,'Slew rate violation (%.0f%%)',max(abs(slew))/maxSlew*100);
+    assert(max(abs(slew))<=maxSlew,'Slew rate violation (%.0f%%)',max(abs(slew))/maxSlew*100);
 end
-assert(max(abs(g))<maxGrad,'Gradient amplitude violation (%.0f%%)',max(abs(g))/maxGrad*100);
+assert(max(abs(g))<=maxGrad,'Gradient amplitude violation (%.0f%%)',max(abs(g))/maxGrad*100);
 
 
 grad.type = 'grad';
@@ -47,7 +47,10 @@ grad.channel = opt.channel;
 grad.waveform = g;
 grad.delay = opt.delay;
 grad.t = (0:length(g)-1)*opt.system.gradRasterTime;
-grad.first = g(1); % MZ: eventually we should use extrapolation by 1/2 gradient rasters here
-grad.last = g(end);
-
+%grad.first = g(1); % MZ: eventually we should use extrapolation by 1/2 gradient rasters here
+%grad.last = g(end);
+% true timing and aux shape data
+grad.tt = ((1:length(g))-0.5)*opt.system.gradRasterTime;
+grad.first = (3*g(1)-g(2))*0.5; % extrapolate by 1/2 gradient rasters
+grad.last = (g(end)*3-g(end-1))*0.5; % extrapolate by 1/2 gradient rasters
 end
