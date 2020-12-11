@@ -166,7 +166,7 @@ classdef Sequence < handle
                 end
             end
             
-            obj.setDefinition('TotalDuration', sprintf('%.9g', totalDuration));
+            obj.setDefinition('TotalDuration', totalDuration);%sprintf('%.9g', totalDuration));
         end
         
         function value=getDefinition(obj,key)
@@ -1181,12 +1181,14 @@ classdef Sequence < handle
                             % but first we have to restore samples on the
                             % edges of the gradient raster intervals
                             % for that we need the first sample
+                            max_abs=max(abs(grad.waveform));
                             odd_step1=[grad.first 2*grad.waveform'];
                             odd_step2=odd_step1.*(mod(1:length(odd_step1),2)*2-1);
                             waveform_odd_rest=(cumsum(odd_step2).*(mod(1:length(odd_step2),2)*2-1))';
-                            assert(abs(waveform_odd_rest(end)-grad.last)<1); % what's the reasonable threshold?
                             waveform_odd_interp=[grad.first; 0.5*(grad.waveform(1:end-1)+grad.waveform(2:end)); grad.last];
-                            waveform_odd_mask=abs(waveform_odd_rest-waveform_odd_interp)<=1; % threshold ???
+                            assert(abs(waveform_odd_rest(end)-grad.last)<=2e-5*max_abs,['last restored point of shaped gradient differs too much from the recorded last, deviation: ' num2str(abs(waveform_odd_rest(end)-grad.last)) 'Hz/m (' num2str(abs(waveform_odd_rest(end)-grad.last)/max_abs*100) '%). Block number: ' num2str(iB)]); % what's the reasonable threshold? 
+                            %figure; plot([0,10e-6+grad.t'],waveform_odd_rest-waveform_odd_interp);
+                            waveform_odd_mask=abs(waveform_odd_rest-waveform_odd_interp)<=eps+2e-5*max_abs; % threshold ???
                             waveform_odd=waveform_odd_interp.*waveform_odd_mask+waveform_odd_rest.*(1-waveform_odd_mask);
                             
                             % combine odd & even

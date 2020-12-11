@@ -39,9 +39,13 @@ if any(diff(opt.times)<=0)
     error('Times must be in ascending order and all times must be distinct.');
 end
 
-if all(opt.amplitudes == 0)
-    error('At least one of the given amplitudes must be non-zero.');
+if abs(round(opt.times(end)/opt.system.gradRasterTime)*opt.system.gradRasterTime-opt.times(end))>eps
+    error('The last time point must be on a gradient raster.');
 end
+
+%if all(opt.amplitudes == 0)
+%    error('At least one of the given amplitudes must be non-zero.');
+%end
 
 if opt.skip_check == false && opt.times(1) > 0 && opt.amplitudes(1) ~= 0
     error('If first amplitude of a gradient is nonzero, it must connect to previous block!');

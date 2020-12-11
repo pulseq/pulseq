@@ -4,7 +4,7 @@
 [VERSION]
 major 1
 minor 3
-revision 1
+revision 0
 
 [DEFINITIONS]
 FOV 250 250 3 
@@ -757,8 +757,8 @@ Name gre
 68       4020.1  10 1980  10   0
 69     -2010.05  10 1980  10   0
 70      2010.05  10 1980  10   0
-71            0  10 1980  10   0
-72           -0  10 1980  10   0
+71            0   0 2000   0   0
+72           -0   0 2000   0   0
 
 # Format of ADC events:
 # id num dwell delay freq phase

@@ -26,10 +26,24 @@ if ~isempty(obj.definitions)
     fwrite(fid, length(keys), 'int64');
     for i = 1:length(keys)
         fwrite(fid, [keys{i} 0]);
-        fwrite(fid, 2, 'int8');
+        %fwrite(fid, 2, 'int8');
         val = values{i};
-        fwrite(fid, length(val), 'int8');
-        fwrite(fid, val, 'float64');
+        if ischar(val) 
+            val=[val char(0)];
+        end
+        fwrite(fid, length(val), 'char');
+        if ischar(val) 
+            fwrite(fid, 'c', 'char');
+            fwrite(fid, val, 'char');
+        elseif isinteger(val)
+            fwrite(fid, 'i', 'char');
+            fwrite(fid, val, 'int32');
+        elseif isfloat(val)
+            fwrite(fid, 'f', 'char');
+            fwrite(fid, val, 'float64');
+        else
+            error(['unknown type of the value type for ' keys{i} ]);
+        end
     end
 end
 
@@ -46,9 +60,10 @@ if ~isempty(obj.rfLibrary.keys)
     for k = keys
         data = obj.rfLibrary.data(k).array;
         fwrite(fid, k, 'int32');
-        fwrite(fid, data(1), 'float64');  % amp
-        fwrite(fid, data(2:3), 'int32');  % mag, phase shape ids
-        fwrite(fid, data(4:5), 'float64');  % freq, phase offsets
+        fwrite(fid, data(1), 'float64');   % amp
+        fwrite(fid, data(2:3), 'int32');   % mag, phase shape ids
+        fwrite(fid, round(data(4)*1e6), 'int32');     % delay
+        fwrite(fid, data(5:6), 'float64'); % freq, phase offsets
     end
 end
 
@@ -61,9 +76,11 @@ if any(arbGradMask)
     fwrite(fid, length(keys(arbGradMask)), 'int64');
     for k = keys(arbGradMask)
         data = obj.gradLibrary.data(k).array;
+        data(3) = round(1e6*data(3));
         fwrite(fid, k, 'int32');
         fwrite(fid, data(1), 'float64');  % amp
         fwrite(fid, data(2), 'int32');    % mag shape id
+        fwrite(fid, data(3), 'int32');    % delay
     end
 end
 
@@ -76,7 +93,7 @@ if any(trapGradMask)
         data(2:end) = round(1e6*data(2:end));
         fwrite(fid, k, 'int32');
         fwrite(fid, data(1), 'float64');  % amp
-        fwrite(fid, data(2:4), 'int64');  % rise, flat, fall
+        fwrite(fid, data(2:5), 'int64');  % rise, flat, fall, delay
     end
 end
 

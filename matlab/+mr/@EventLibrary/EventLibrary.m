@@ -92,21 +92,21 @@ classdef EventLibrary < handle
             end
         end
         
-        function update_data(obj, old_data, new_data, type)
-            [id, found] = find(obj, old_data);
-            if found
+        function update_data(obj, id, old_data, new_data, type)
+            %[id, found] = find(obj, old_data);
+            %if found
                 if nargin>3
                     update(obj, id, new_data, type);
                 else
                     update(obj, id, new_data)
                 end
-            else
-                if nargin>3
-                    insert(obj, id, data_new, type);
-                else
-                    insert(obj, id, data_new)
-                end
-            end
+            %else
+            %    if nargin>3
+            %        insert(obj, id, new_data, type);
+            %    else
+            %        insert(obj, id, new_data)
+            %    end
+            %end
         end
             
         function insert(obj, id, data, type)

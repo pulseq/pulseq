@@ -30,7 +30,7 @@ if ~isempty(obj.definitions)
         if (ischar(values{i}))
             fprintf(fid, '%s ', values{i});
         else
-            fprintf(fid, '%g ', values{i});
+            fprintf(fid, '%.9g ', values{i});
         end
         fprintf(fid, '\n');
     end

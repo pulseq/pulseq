@@ -118,6 +118,8 @@ for iB = 1:length(obj.blockEvents)
     b=obj.getBlock(iB);
     block_duration=mr.calcDuration(b);
     obj.blockDurations(iB)=block_duration;
+    % we also need to keep track of the event IDs because some Pulseq files written by external software may contain repeated entries so searching by content will fail 
+    eventIDs=obj.blockEvents{iB};
     % update the objects by filling in the fields not contained in the
     % pulseq file
     for j=1:length(gradChannels)
@@ -149,8 +151,9 @@ for iB = 1:length(obj.blockEvents)
             % update library object
             amplitude = max(abs(grad.waveform));
             old_data = [amplitude grad.shape_id grad.delay];
-            new_data = [amplitude grad.shape_id grad.delay grad.first grad.last];         
-            update_data(obj.gradLibrary, old_data, new_data,'g');
+            new_data = [amplitude grad.shape_id grad.delay grad.first grad.last];
+            id=eventIDs(j+2);
+            update_data(obj.gradLibrary, id, old_data, new_data,'g');
         else
             gradPrevLast(j)=0;
         end
