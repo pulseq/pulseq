@@ -50,6 +50,7 @@ enum MessageType {
 // Define the current level of messages to display
 const MessageType MSG_LEVEL = NORMAL_MSG;
 //const MessageType MSG_LEVEL = DEBUG_MEDIUM_LEVEL;
+//const MessageType MSG_LEVEL = DEBUG_LOW_LEVEL;
 
 
 /**

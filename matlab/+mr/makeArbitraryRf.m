@@ -63,6 +63,7 @@ end
 if nargout>1
     assert(opt.sliceThickness > 0, 'SliceThickness must be provided');
     assert(opt.bandwidth > 0, 'Bandwidth of pulse must be provided');
+    warning('FIXME: there are some potential issues with the bandwidth and related parameters, double check (e-mail communication)');
     if opt.maxGrad > 0
         opt.system.maxGrad = opt.maxGrad;
     end

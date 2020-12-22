@@ -149,7 +149,7 @@ bool ExternalSequence::load(std::string path)
 			return false;
 		}
 
-		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Reading shape " << shapeId );
+		//print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Reading shape " << shapeId );
 
 		CompressedShape shape;
 		shape.samples.clear();
@@ -165,8 +165,8 @@ bool ExternalSequence::load(std::string path)
 		}
 		shape.numUncompressedSamples=numSamples;
 
-		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape index " << shapeId << " has " << shape.samples.size()
-			<< " compressed and " << shape.numUncompressedSamples << " uncompressed samples" );
+		//print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape index " << shapeId << " has " << shape.samples.size()
+		//	<< " compressed and " << shape.numUncompressedSamples << " uncompressed samples" );
 
 		m_shapeLibrary[shapeId] = shape;
 

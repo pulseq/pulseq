@@ -190,7 +190,7 @@ if detectRFuse
         flipAngleDeg=abs(sum(rf.signal))*rf.t(1)*360; %we use rfex.t(1) in place of opt.system.rfRasterTime
         % fix libData
         if length(libData) < 9
-            if flipAngleDeg <= 90.0
+            if flipAngleDeg < 90.01 % we add 0.01 degree to account for rounding errors which we've experienced for very short RF pulses
                 libData(9) = 0; % or 1 ?
             else
                 libData(9) = 2; % or 1 ?
