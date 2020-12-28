@@ -61,7 +61,7 @@ end
 
 
 %% prepare sequence export
-seq.setDefinition('FOV', [fov fov sliceThickness]*1e3);
+seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'gre');
 
 seq.write('gre.seq')       % Write to pulseq file
