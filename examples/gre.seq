@@ -4,10 +4,10 @@
 [VERSION]
 major 1
 minor 3
-revision 0
+revision 1
 
 [DEFINITIONS]
-FOV 250 250 3 
+FOV 0.25 0.25 0.03 
 Name gre 
 
 # Format of blocks:
