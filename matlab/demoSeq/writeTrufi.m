@@ -7,7 +7,9 @@
 % 40-60 us (rfDeadTime+adcDeadTime) in comparison to the true minimum TR
 
 seq=mr.Sequence();              % Create a new sequence object
-fov=220e-3; Nx=256; Ny=256;     % Define FOV and resolution
+fov=220e-3; Nx=128; Ny=128;     % Define FOV and resolution
+                                % 256x256 matrix works with the same
+                                % parameters but the figures look better so
 
 % set system limits
 % had to slow down ramps and increase adc_duration to avoid stimulation
@@ -94,6 +96,9 @@ seq.addBlock(prepDelay);
 
 % Loop over phase encodes and define sequence blocks
 for i=1:Ny
+    rf.phaseOffset=pi*mod(i,2);
+    adc.phaseOffset=pi*mod(i,2);
+        
     gyPre_2 = mr.makeTrapezoid('y','Area',phaseAreas(i),'Duration',pe_dur,'system',sys); % current PE step
     if i>1
         gyPre_1 = mr.makeTrapezoid('y','Area',-phaseAreas(mod(i+Ny-2,Ny)+1),'Duration',pe_dur,'system',sys); % previous PE step
