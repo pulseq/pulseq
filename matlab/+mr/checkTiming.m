@@ -30,6 +30,9 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
             raster=system.gradRasterTime;
         end
         if isfield(e, 'delay')
+            if e.delay<-eps
+                ok=false;
+            end
             if ~div_check(e.delay,raster)
                 ok=false;
             end
