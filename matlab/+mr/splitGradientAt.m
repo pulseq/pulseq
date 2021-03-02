@@ -89,7 +89,7 @@ elseif strcmp(grad.type, 'grad')
         grad2.delay=grad.delay + grad.t(timeindex);
         grad1.t=grad.t(1:(timeindex-1));
         grad1.waveform=grad.waveform(1:(timeindex-1));
-        grad2.t=grad.t(timeindex:end);
+        grad2.t=grad.t(timeindex:end) - timepoint;
         grad2.waveform=grad.waveform(timeindex:end);
         
         grads = [grad1 grad2];
