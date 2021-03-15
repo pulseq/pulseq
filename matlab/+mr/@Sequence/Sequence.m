@@ -267,7 +267,7 @@ classdef Sequence < handle
         %TODO: Replacing blocks in the middle of sequence can cause unused
         %events in the libraries. These can be detected and pruned.
         function setBlock(obj, index, varargin)
-            %setBlock Replace sequence block.
+            %setBlock Replace or add sequence block.
             %   setBlock(obj, index, bStruct) Replace block at index with new
             %   block provided as block structure.
             %
@@ -280,7 +280,7 @@ classdef Sequence < handle
             %
             %   See also  getBlock, addBlock
             
-            block_duration = mr.calcDuration(varargin);
+            %block_duration = mr.calcDuration(varargin);% don't seem to be needed
             
             % Convert block structure to cell array of events
             varargin=mr.block2events(varargin);    
@@ -548,8 +548,8 @@ classdef Sequence < handle
                 
                 % Check if gradients, which do not end at 0, are as long as the
                 % block itself.
-                assert(abs(duration-block_duration)<eps); % TODO: if this never fails we should remove mr.calcDuration at the beginning
-                if cg.stop(2) > obj.sys.maxSlew * obj.sys.gradRasterTime && abs(cg.stop(1)-block_duration) > 1e-7
+                %assert(abs(duration-block_duration)<eps); % TODO: if this never fails we should remove mr.calcDuration at the beginning
+                if cg.stop(2) > obj.sys.maxSlew * obj.sys.gradRasterTime && abs(cg.stop(1)-duration) > 1e-7
                     error('A gradient that doesnt end at zero needs to be aligned to the block boundary.');
                 end
             end
@@ -560,8 +560,8 @@ classdef Sequence < handle
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
             
-            assert(abs(duration-block_duration)<eps); % TODO: if this never fails we should remove mr.calcDuration at the beginning
-            obj.blockDurations(index)=block_duration;
+            %assert(abs(duration-block_duration)<eps); % TODO: if this never fails we should remove mr.calcDuration at the beginning
+            obj.blockDurations(index)=duration;
         end
         
         function block = getBlock(obj, index)
@@ -948,15 +948,14 @@ classdef Sequence < handle
             %
             %   f=plot(...) Return the new figure handle.
             %
-            validPlotTypes = {'Gradient','Kspace'};
+            
             validTimeUnits = {'s','ms','us'};
             validLabel = mr.getSupportedLabels();
             persistent parser
             if isempty(parser)
                 parser = inputParser;
                 parser.FunctionName = 'plot';
-                parser.addParamValue('type',validPlotTypes{1},...
-                    @(x) any(validatestring(x,validPlotTypes)));
+                parser.addParamValue('showBlocks',false,@(x)isnumeric(x));
                 parser.addParamValue('timeRange',[0 inf],@(x)(isnumeric(x) && length(x)==2));
                 parser.addParamValue('timeDisp',validTimeUnits{1},...
                     @(x) any(validatestring(x,validTimeUnits)));
@@ -1000,6 +999,30 @@ classdef Sequence < handle
                 label_colors_2plot=label_colors_2plot(1:end-1,:);
             end
             
+            % block timings
+            blockEdges=[0 cumsum(obj.blockDurations)];
+            blockEdgesInRange=blockEdges(logical((blockEdges>=opt.timeRange(1)).*(blockEdges<=opt.timeRange(2))));
+            if (opt.timeDisp=='us')
+                for i=1:6
+                    xax=get(ax(i),'XAxis');
+                    xax.ExponentMode='manual';
+                    xax.Exponent=0;
+                end
+            end
+            if opt.showBlocks
+                % show block edges in plots
+                for i=1:6
+                    xax=get(ax(i),'XAxis');
+                    xax.TickValues=tFactor.*blockEdgesInRange;
+                    set(ax(i),'XTickLabelRotation',90);
+                    %xax.MinorTickValues=tFactor.*blockEdgesInRange;
+                    %set(ax(i),'XMinorTick', 'on');
+                    %set(ax(i),'XMinorGrid', 'on');
+                    %set(ax(i),'GridColor',0.8*[1 1 1]); 
+                    %set(ax(i),'MinorGridColor',0.6*[1 1 1]); 
+                    %set(ax(i),'MinorGridLineStyle','-'); 
+                end
+            end            
             %for iB=1:size(obj.blockEvents,1)
             for iB=1:length(obj.blockEvents)
                 block = obj.getBlock(iB);

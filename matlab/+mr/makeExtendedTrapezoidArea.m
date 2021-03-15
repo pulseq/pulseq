@@ -13,7 +13,16 @@ SR=sys.maxSlew*0.99; % otherwise we run into rounding errors during resampling
 
 Tp=0;
 obj1=@(x) (A-testGA(x,0,SR,sys.gradRasterTime,Gs,Ge)).^2;
-[Gp,obj1val,exitf] = fminsearch(obj1,0);
+
+% we seem to need a multistart...
+[Gp(1),obj1val(1),exitf(1)] = fminsearch(obj1,-sys.maxGrad);
+[Gp(2),obj1val(2),exitf(2)] = fminsearch(obj1,0);
+[Gp(3),obj1val(3),exitf(3)] = fminsearch(obj1,sys.maxGrad);
+[~,imin]=min(obj1val);
+Gp=Gp(imin);
+obj1val=obj1val(imin);
+exitf=exitf(imin);
+
 if  obj1val>1e-3 || ... % the search did not converge
     abs(Gp)> sys.maxGrad
     Gp=sys.maxGrad*sign(Gp);
@@ -32,6 +41,8 @@ if  obj1val>1e-3 || ... % the search did not converge
     [Gp,obj3val,exitf] = fminsearch(obj3,Gp);
     assert(obj3val<1e-3); % did the final search converge?
 end
+
+assert(Tp>=0); % this was a nasty error condition when some of the above did not converge
 
 if Tp>0
     times=cumsum([0 Tru Tp Trd]);
@@ -55,6 +66,9 @@ else
 end
 
 grad=mr.makeExtendedTrapezoid(channel,'system',sys,'times',times, 'amplitudes', amplitudes);
+grad.area=testGA1(Gp, Tru, Tp, Trd, 0, 0, Gs, Ge);
+
+assert(abs(grad.area-A)<1e-3);
 
 end
 
@@ -66,7 +80,7 @@ ga=testGA1(Gp, Tru, Tp, Trd, SR, dT, Gs, Ge);
 end
 
 function ga = testGA1(Gp, Tru, Tp, Trd, SR, dT, Gs, Ge)
-ga=0.5*Tru*(Gp+Gs)+Gp*Tp+0.5*(Gp+Ge)*Trd;
+ga=0.5*Tru.*(Gp+Gs)+Gp.*Tp+0.5*(Gp+Ge).*Trd;
 end
 
 % this is the code without rounding

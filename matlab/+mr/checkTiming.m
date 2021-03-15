@@ -1,6 +1,6 @@
 function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
 %checkTiming(sys, objects, ...) 
-%   Function checks whether timing of the specified evets are aligned to
+%   Function checks whether timing of the specified evets is aligned to
 %   the corresponding raster
 
     if (isempty(varargin))
@@ -42,8 +42,8 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
                 ok=false;
             end
         end
-        if isfield(e, 'dwell')
-            if e.dwell<raster
+        if isfield(e, 'dwell') % special case ADC
+            if e.dwell<100e-9 || abs(round(e.dwell/100e-9)*100e-9 - e.dwell)>1e-10 % 100e-9 is system.adcRasterTime in the next version
                 ok=false;
             end
         end

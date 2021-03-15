@@ -9,6 +9,7 @@ function [tc ic]=calcRfCenter(rf)
 %   The main return value is the time point of the center, the optional
 %   return value is the corresponding position in the rf envelope array.
 %    
+
 %     % detect zero-padding
 %     last=length(rf.signal);
 %     for first=1:last
