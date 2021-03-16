@@ -147,6 +147,19 @@ for s=1:Nslices
     %seq.addBlock(gx_combined,gy_combined,gz_combined,adc);
 end
 %
+
+% check whether the timing of the sequence is correct
+[ok, error_report]=seq.checkTiming;
+
+if (ok)
+    fprintf('Timing check passed successfully\n');
+else
+    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf([error_report{:}]);
+    fprintf('\n');
+end
+
+%
 seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'spiral');
 seq.setDefinition('MaxAdcSegmentLength', adcSamplesPerSegment);

@@ -102,7 +102,7 @@ deltak=1/fov;
 kWidth = Nx*deltak;
 
 GRacq = mr.makeTrapezoid('x',system,'FlatArea',kWidth,'FlatTime',readoutTime,'riseTime',dG);
-adc = mr.makeAdc(Nx,'Duration',GRacq.flatTime-40e-6, 'Delay', 20e-6);%,'Delay',GRacq.riseTime);
+adc = mr.makeAdc(Nx,'Duration',GRacq.flatTime-2*system.adcDeadTime, 'Delay', 20e-6);%,'Delay',GRacq.riseTime);
 GRspr = mr.makeTrapezoid('x',system,'area',GRacq.area*fspR,'duration',tSp,'riseTime',dG);
 GRspex = mr.makeTrapezoid('x',system,'area',GRacq.area*(1+fspR),'duration',tSpex,'riseTime',dG);
 
@@ -110,8 +110,6 @@ GRspex = mr.makeTrapezoid('x',system,'area',GRacq.area*(1+fspR),'duration',tSpex
 AGRspr=GRspr.area;%GRacq.area/2*fspR;
 AGRpreph = GRacq.area/2+AGRspr;%GRacq.area*(1+fspR)/2;
 GRpreph = mr.makeTrapezoid('x',system,'Area',AGRpreph,'duration',tSpex,'riseTime',dG);
-
-
 
 %%
 %%% Phase encoding
@@ -230,6 +228,17 @@ for kex=1:nex % MZ: we start at 0 to have one dummy
 end
 
 seq.addBlock(delayEnd);
+
+%% check whether the timing of the sequence is correct
+[ok, error_report]=seq.checkTiming;
+
+if (ok)
+    fprintf('Timing check passed successfully\n');
+else
+    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf([error_report{:}]);
+    fprintf('\n');
+end
 
 %% new single-function call for trajectory calculation
 [ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();

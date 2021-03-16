@@ -2,13 +2,13 @@
 % tricks yet. Achieves TE in the range of 300-400 us
 
 seq=mr.Sequence();              % Create a new sequence object
-fov=250e-3; Nx=256;             % Define FOV and resolution
+fov=250e-3; Nx=250;             % Define FOV and resolution
 alpha=10;                       % flip angle
 sliceThickness=3e-3;            % slice
 TR=10e-3;                       % TR
 Nr=128;                         % number of radial spokes
 delta= 2* pi / Nr;              % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
-ro_duration=2.4e-3;             % read-out time: controls RO bandwidth and T2-blurring
+ro_duration=2.50e-3;             % read-out time: controls RO bandwidth and T2-blurring
 ro_os=2;                        % oversampling
 ro_asymmetry=0.97;              % 0: fully symmetric 1: half-echo
 minRF_to_ADC_time=50e-6;        % the parameter wich defines TE (together with the RO asymmetyry)
@@ -34,7 +34,7 @@ deltak=1/fov/(1+ro_asymmetry);
 ro_area=Nx*deltak;
 gx = mr.makeTrapezoid('x','FlatArea',ro_area,'FlatTime',ro_duration,'system',sys);
 adc = mr.makeAdc(Nxo,'Duration',gx.flatTime,'Delay',gx.riseTime,'system',sys);
-adc.delay = adc.delay - 0.5*adc.dwell; % compensate for the 0.5 samples shift
+%adc.delay = adc.delay - 0.5*adc.dwell; % compensate for the 0.5 samples shift -- NO, it contradicts the timing check!!!
 gxPre = mr.makeTrapezoid('x','Area',-(gx.area-ro_area)/2 - ro_area/2*(1-ro_asymmetry),'system',sys);
 
 % gradient spoiling
@@ -80,6 +80,17 @@ for i=1:Nr
 end
 
 seq.plot();
+
+%% check whether the timing of the sequence is correct
+[ok, error_report]=seq.checkTiming;
+
+if (ok)
+    fprintf('Timing check passed successfully\n');
+else
+    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf([error_report{:}]);
+    fprintf('\n');
+end
 
 %% plot gradients to check for gaps and optimality of the timing
 gw=seq.gradient_waveforms();
