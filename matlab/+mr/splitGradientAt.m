@@ -84,8 +84,8 @@ elseif strcmp(grad.type, 'grad')
     else
         grad1=grad;
         grad2=grad;
-        grad1.last=grad.waveform(timeindex);
-        grad2.first=grad.waveform(timeindex);
+        grad1.last=0.5*(grad.waveform(timeindex-1)+grad.waveform(timeindex)); % todo: restore the waveforms on double raster as in plot()
+        grad2.first=grad1.last;
         grad2.delay=grad.delay + grad.t(timeindex);
         grad1.t=grad.t(1:(timeindex-1));
         grad1.waveform=grad.waveform(1:(timeindex-1));
