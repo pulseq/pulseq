@@ -39,7 +39,7 @@ end
 parse(parser, signal, flip,varargin{:});
 opt = parser.Results;
 
-signal = signal./sum(signal.*opt.system.rfRasterTime)*flip/(2*pi);
+signal = signal./abs(sum(signal.*opt.system.rfRasterTime))*flip/(2*pi);
 
 N=  length(signal);
 duration = N*opt.system.rfRasterTime;
