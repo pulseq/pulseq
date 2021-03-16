@@ -844,8 +844,8 @@ classdef Sequence < handle
             end
             
             %
-            t_excitation=zeros(c_excitation,1);
-            t_refocusing=zeros(c_refocusing,1);
+            t_excitation=zeros(1,c_excitation);
+            t_refocusing=zeros(1,c_refocusing);
             ktime=zeros(c_adcSamples,1);
             current_dur=0;
             c_excitation=1;
@@ -901,7 +901,7 @@ classdef Sequence < handle
 %                     ii_next_refocusing = min(length(i_refocusing),ii_next_refocusing+1);
 %                 end
 %             end
-            i_periods=sort([1; i_excitation+1; i_refocusing+1; size(gw,2)+1]); % we need thise +1 for compatibility with the above code which prooved to be correct
+            i_periods=sort([1, i_excitation+1, i_refocusing+1, size(gw,2)+1]); % we need thise +1 for compatibility with the above code which prooved to be correct
             ii_next_excitation=min(length(i_excitation),1);
             ii_next_refocusing=min(length(i_refocusing),1);
             ktraj=zeros(size(gw));
