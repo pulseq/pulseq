@@ -76,6 +76,8 @@ if isempty(parser)
     addParamValue(parser, 'maxSlew', 0, @isnumeric);
     addParamValue(parser, 'sliceThickness', 0, @isnumeric);
     addParamValue(parser, 'delay', 0, @isnumeric);
+    addParamValue(parser, 'use', 'inversion', @(x) any(validatestring(x,validPulseUses)));
+    addParamValue(parser, 'cmd_prefix', '', @ischar); % an option to set or unset environent variables prior to the python executable call
     %addParamValue(parser, 'dwell', mr.opts().rfRasterTime, @isnumeric);
 end
 
@@ -84,11 +86,11 @@ opt = parser.Results;
 opt.dwell=mr.opts().rfRasterTime; % quickfix/backport for 1.3.x
 
 % find python (probably only works on linux, maybe also mac)
-[status, result]=system('which python');
+[status, result]=system('which python3');
 if status==0
     python=strip(result);
 else
-    [status, result]=system('which python3');
+    [status, result]=system('which python');
     if status==0
         python=strip(result);
     else
@@ -96,17 +98,21 @@ else
     end
 end
 
+if ~isempty(opt.cmd_prefix) && opt.cmd_prefix(end)~=';'
+    opt.cmd_prefix=[opt.cmd_prefix ';'];
+end
+
 Nraw = round(opt.duration/opt.dwell+eps);
 N = floor(Nraw/4)*4; % number of points must be divisible by four -- this is a requirement of the underlying library
 
 switch type
     case 'hypsec'
-        cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.hypsec(' ... % hypsec(n=512, beta=800, mu=4.9, dur=0.012)
+        cmd=[opt.cmd_prefix python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.hypsec(' ... % hypsec(n=512, beta=800, mu=4.9, dur=0.012)
             'n=' num2str(N) ',beta=' num2str(opt.beta) ',' ...
             'mu=' num2str(opt.mu) ',dur=' num2str(opt.duration) ...
             ')\nprint(*pulse[0])\nprint(*pulse[1])'''];
     case 'wurst'
-        cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.wurst(' ... % wurst(n=512, n_fac=40, bw=40000.0, dur=0.002)
+        cmd=[opt.cmd_prefix python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.wurst(' ... % wurst(n=512, n_fac=40, bw=40000.0, dur=0.002)
             'n=' num2str(N) ',n_fac=' num2str(opt.n_fac) ',' ...
             'bw=' num2str(opt.bandwidth) ',dur=' num2str(opt.duration) ...
             ')\nprint(*pulse[0])\nprint(*pulse[1])'''];
@@ -169,7 +175,9 @@ rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = opt.system.rfDeadTime;
 rf.ringdownTime = opt.system.rfRingdownTime;
 rf.delay = opt.delay;
-rf.use='inversion';
+if ~isempty(opt.use)
+    rf.use=opt.use;
+end
 if rf.deadTime > rf.delay
     rf.delay = rf.deadTime;
 end

@@ -58,7 +58,8 @@ if isempty(parser)
     addParamValue(parser, 'delay', 0, @isnumeric);
     %addParamValue(parser, 'dwell', mr.opts().rfRasterTime, @isnumeric);
     % whether it is a refocusing pulse (for k-space calculation)
-    addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
+    addParamValue(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
+    addParamValue(parser, 'cmd_prefix', '', @ischar); % an option to set or unset environent variables prior to the python executable call
 end
 parse(parser, flip, varargin{:});
 opt = parser.Results;
@@ -66,11 +67,11 @@ opt.centerpos=0.5; % fixme
 opt.dwell=mr.opts().rfRasterTime; % quickfix/backport for 1.3.x
 
 % find python (probably only works on linux, maybe also mac)
-[status, result]=system('which python');
+[status, result]=system('which python3');
 if status==0
     python=strip(result);
 else
-    [status, result]=system('which python3');
+    [status, result]=system('which python');
     if status==0
         python=strip(result);
     else
@@ -95,8 +96,12 @@ switch opt.use
         ptype='st';
 end
 
+if ~isempty(opt.cmd_prefix) && opt.cmd_prefix(end)~=';'
+    opt.cmd_prefix=[opt.cmd_prefix ';'];
+end
+
 N = round(opt.duration/opt.dwell);
-cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
+cmd=[opt.cmd_prefix python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
             ',' num2str(opt.timeBwProduct) ',ptype=\''' ptype '\''' ... 
             ',d1=' num2str(opt.passbandRipple) ',d2=' num2str(opt.stopbandRipple) ...
             ')\nprint(*pulse)'''];
