@@ -85,12 +85,17 @@ parse(parser, type, varargin{:});
 opt = parser.Results;
 opt.dwell=mr.opts().rfRasterTime; % quickfix/backport for 1.3.x
 
-% find python (probably only works on linux, maybe also mac)
-[status, result]=system('which python3');
+% find python (only tested on linux)
+if ispc 
+    which_cmd='where'; % windows
+else
+    which_cmd='which'; % linux / mac
+end
+[status, result]=system([which_cmd ' python3']);
 if status==0
     python=strip(result);
-else
-    [status, result]=system('which python');
+else 
+    [status, result]=system([which_cmd ' python']);
     if status==0
         python=strip(result);
     else
