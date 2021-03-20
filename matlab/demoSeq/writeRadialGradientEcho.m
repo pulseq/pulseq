@@ -73,14 +73,26 @@ seq.write('gre_rad.seq')       % Write to pulseq file
 %seq.install('siemens');
 
 return;
-%% trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
+% %% trajectory calculation
+% [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
+% 
+% % plot k-spaces
+% time_axis=(1:(size(ktraj,2)))*sys.gradRasterTime;
+% figure; plot(time_axis, ktraj'); % plot the entire k-space trajectory
+% hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
+% figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
+% axis('equal'); % enforce aspect ratio for the correct trajectory display
+% hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
+
+%% new higher-performabce semi-analytical trajectory calculation
+%[ktraj_adc1, t_adc1, ktraj1, t_ktraj1, t_excitation1, t_refocusing1] = seq.calculateKspacePP();
+[ktraj_adc1, t_adc1, ktraj1, t_ktraj1, t_excitation1, t_refocusing1] = seq.calculateKspacePP('trajectory_delay',[-5 10 0]*1e-6); % play with anisotropic trajectory delays -- zoom in to see the trouble ;-)
 
 % plot k-spaces
-time_axis=(1:(size(ktraj,2)))*sys.gradRasterTime;
-figure; plot(time_axis, ktraj'); % plot the entire k-space trajectory
-hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
-figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
+figure; plot(t_ktraj1, ktraj1'); % plot the entire k-space trajectory
+hold on; plot(t_adc1,ktraj_adc1(1,:),'.'); % and sampling points on the kx-axis
+figure; plot(ktraj1(1,:),ktraj1(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
-hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
+hold on;plot(ktraj_adc1(1,:),ktraj_adc1(2,:),'r.'); % plot the sampling points
+
 

@@ -1163,10 +1163,10 @@ classdef Sequence < handle
             end
         end
                
-        function [wave_pp, t_excitation, t_refocusing, t_adc]=waveforms_and_times(obj)
+        function [wave_data, t_excitation, t_refocusing, t_adc]=waveforms_and_times(obj)
             % waveforms_and_times()
             %   Decompress the entire gradient waveform
-            %   Returns gradient wave forms represented as picewise polynomials
+            %   Returns gradient wave forms 
             %   gradient_axes is typically 3
             %   Additionally returns time points of excitations,
             %   refocusings and ADC sampling points
@@ -1287,17 +1287,24 @@ classdef Sequence < handle
                 end
             end
             
-            % convert wave data to piecewise polynomials              
-            wave_pp=cell(1,length(gradChannels));
+            % trim the output data
             for j=1:length(gradChannels)
-                if (wave_cnt(j)<=0)
-                    continue;
+                if wave_cnt(j)<size(wave_data{j},2)
+                    wave_data{j}(:,(wave_cnt(j)+1):end)=[];
                 end
-                if ~all(isfinite(wave_data{j}(:)))
-                   fprintf('Warning: not all elements of the generated waveform are finite!\n');
-                end
-                wave_pp{j} = interp1(wave_data{j}(1,1:wave_cnt(j)),wave_data{j}(2,1:wave_cnt(j)),'linear','pp');
-            end            
+            end
+            
+%             % convert wave data to piecewise polynomials              
+%             wave_pp=cell(1,length(gradChannels));
+%             for j=1:length(gradChannels)
+%                 if (wave_cnt(j)<=0)
+%                     continue;
+%                 end
+%                 if ~all(isfinite(wave_data{j}(:)))
+%                    fprintf('Warning: not all elements of the generated waveform are finite!\n');
+%                 end
+%                 wave_pp{j} = interp1(wave_data{j}(1,1:wave_cnt(j)),wave_data{j}(2,1:wave_cnt(j)),'linear','pp');
+%             end            
         end
         
         function [ktraj_adc, t_adc, ktraj, t, t_excitation, t_refocusing] = calculateKspacePP(obj, varargin)
@@ -1317,11 +1324,43 @@ classdef Sequence < handle
             parse(parser,varargin{:});
             opt = parser.Results;
             
-            [gw_pp, t_excitation, t_refocusing, t_adc]=obj.waveforms_and_times();
-            t_adc = t_adc + opt.trajectory_delay;
+            total_duration=sum(obj.blockDurations);
+
+            [gw_data, t_excitation, t_refocusing, t_adc]=obj.waveforms_and_times();
+            ng=length(gw_data);
+
+            %t_adc = t_adc + opt.trajectory_delay;
+            % new gradient delay handling
+            if length(opt.trajectory_delay)==1
+                gradient_delays(1:ng)=opt.trajectory_delay;
+            else
+                assert(length(opt.trajectory_delay)==ng); % we need to have the same number of gradient channels
+                gradient_delays=opt.trajectory_delay;
+            end
+                        
+            % convert wave data to piecewise polynomials              
+            gw_pp=cell(1,ng);
+            for j=1:length(gw_data)
+                wave_cnt=size(gw_data{j},2);
+                if (wave_cnt==0)
+                    continue;
+                end
+                gw=gw_data{j};
+                gw(1,:)=gw(1,:)-gradient_delays(j); % (anisotropic) gradient delay support
+                if ~all(isfinite(gw(:)))
+                   fprintf('Warning: not all elements of the generated waveform are finite!\n');
+                end
+                if gw(1,1)>0 && gw(1,end) < total_duration
+                    gw=[ [0;0] gw [total_duration;0] ];
+                elseif gw(1,1)>0 
+                    gw=[ [0;0] gw ];
+                elseif gw(1,end) < total_duration 
+                    gw=[ gw [total_duration;0] ];
+                end
+                gw_pp{j} = interp1(gw(1,:),gw(2,:),'linear','pp');
+            end
             
-            ng=length(gw_pp);
-            % integrate waveforms as pp
+            % integrate waveforms as PPs to produce gadient moments
             gm_pp=cell(1,ng);
             tc = {};
             for i=1:ng
@@ -1346,7 +1385,7 @@ classdef Sequence < handle
             end
             %t = unique([tc{:}, 0, t_excitation-obj.gradRasterTime, t_excitation, t_refocusing, t_adc]);
             % we round to 100ns, otherwise unique() fails...
-            total_duration=sum(obj.blockDurations);
+            
             t = 1e-7*unique(round(1e7*[tc{:}, 0, t_excitation-2*obj.rfRasterTime, t_excitation-obj.rfRasterTime, t_excitation, t_refocusing-obj.rfRasterTime, t_refocusing, t_adc, total_duration]));
             [~,i_excitation]=builtin('_ismemberhelper',1e-7*round(1e7*t_excitation),t);
             [~,i_refocusing]=builtin('_ismemberhelper',1e-7*round(1e7*t_refocusing),t);
