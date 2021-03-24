@@ -10,6 +10,7 @@ cur_dir=pwd;
 cd(bart_path);
 setenv('TOOLBOX_PATH', pwd);
 cd(cur_dir);
+
 %% Load the latest file from a dir
 path='../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='/data/zte_petra/';
@@ -25,7 +26,6 @@ data_file_path=[path D(I(end)).name]; % use end-1 to reconstruct the second-last
 %data_file_path='../interpreters/siemens/data_example/gre_example.dat'
 %data_file_path=[path '2020-11-10-073628.dat'];
 
-
 %% load the raw data file
 twix_obj = mapVBVD(data_file_path);
 
@@ -36,10 +36,13 @@ seq = mr.Sequence();              % Create a new sequence object
 seq.read(seq_file_path,'detectRFuse');
 
 %% calculate k-space trajectory
-traj_recon_delay=0e-6;%1.75e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. It can be calibrated by inverting the spiral revolution dimension and making two images match. for our Prisma and a particular trajectory we found 1.75e-6
+traj_recon_delay=0e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. 
+                       % It can be calibrated by inverting the spiral revolution dimension and making 
+                       % two images match. for our Prisma and a particular trajectory we found 1.75e-6
+                       % it is also possisible to provide a vector of 3 delays (varying per axis)
 
-%[ktraj_adc, t_adc, ktraj, t, t_excitation, t_refocusing]=seq.calculateKspacePP('trajectory_delay', traj_recon_delay);
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
+%[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('trajectory_delay',traj_recon_delay); 
 
 % optionally transform or patch the trajectory
 ktraj_adc(2,:)=-ktraj_adc(2,:); % seems to be needed for the correct orientaton

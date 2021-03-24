@@ -16,11 +16,16 @@ twix_obj = mapVBVD(data_file_path);
 
 seq_file_path = [data_file_path(1:end-3) 'seq'];
 
-traj_recon_delay=0e-6;%1.75e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. It can be calibrated by inverting the spiral revolution dimension and making two images match. for our Prisma and a particular trajectory we found 1.75e-6
+traj_recon_delay=0*1e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. 
+                       % It can be calibrated by inverting the spiral revolution dimension and making 
+                       % two images match. for our Prisma and a particular trajectory we found 1.75e-6
+                       % it is also possisible to provide a vector of 3 delays (varying per axis)
 
 seq = mr.Sequence();              % Create a new sequence object
 seq.read(seq_file_path,'detectRFuse');
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
+%[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('trajectory_delay',traj_recon_delay); 
+
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
 axis('equal');
@@ -43,7 +48,7 @@ rawdata = reshape(rawdata, [size(rawdata,1)*size(rawdata,2),size(rawdata,3)]);
 channels=size(rawdata,2);
 
 for c=1:channels
-    rawdata(:,c) = rawdata(:,c) .* exp(-1i*2*pi*t_adc*offresonance);
+    rawdata(:,c) = rawdata(:,c) .* exp(-1i*2*pi*t_adc'*offresonance);
 end
 
 %% here we expect Nx, Ny, deltak to be set already
