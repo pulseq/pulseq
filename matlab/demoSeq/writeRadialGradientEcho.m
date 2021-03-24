@@ -6,7 +6,7 @@ TE=8e-3;                        % TE; give a vector here to have multiple TEs (e
 TR=100e-3;                      % only a single value for now
 Nr=128;                         % number of radial spokes
 Ndummy=20;                      % number of dummy scans
-delta=pi / Nr;                  % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
+delta= 2*pi / Nr;                  % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
@@ -86,7 +86,7 @@ return;
 
 %% new higher-performabce semi-analytical trajectory calculation
 %[ktraj_adc1, t_adc1, ktraj1, t_ktraj1, t_excitation1, t_refocusing1] = seq.calculateKspacePP();
-[ktraj_adc1, t_adc1, ktraj1, t_ktraj1, t_excitation1, t_refocusing1] = seq.calculateKspacePP('trajectory_delay',[-5 10 0]*1e-6); % play with anisotropic trajectory delays -- zoom in to see the trouble ;-)
+[ktraj_adc1, t_adc1, ktraj1, t_ktraj1, t_excitation1, t_refocusing1] = seq.calculateKspacePP('trajectory_delay',[0 0 0]*1e-6); % play with anisotropic trajectory delays -- zoom in to see the trouble ;-)
 
 % plot k-spaces
 figure; plot(t_ktraj1, ktraj1'); % plot the entire k-space trajectory

@@ -3,7 +3,7 @@ fov=256e-3; Nx=128;             % Define FOV and resolution
 alpha=5;                       % flip angle
 sliceThickness=6e-3;            % slice
 Nr=128;                         % number of radial spokes
-Ndummy=0;                      % number of dummy scans
+Ndummy=16;                      % number of dummy scans
 delta=pi / Nr;                  % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
 ro_dur=640e-6;                  % RO duration
 ro_os=2;                        % readout oversampling
