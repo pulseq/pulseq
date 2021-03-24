@@ -1059,11 +1059,23 @@ classdef Sequence < handle
                     if ~isempty(block.rf)
                         rf=block.rf;
                         [tc,ic]=mr.calcRfCenter(rf);
-                        t=rf.t + rf.delay;
-                        tc=tc + rf.delay;
-                        plot(tFactor*(t0+t),abs(rf.signal),'Parent',ax(2));
-                        plot(tFactor*(t0+t), angle(rf.signal    *exp(1i*rf.phaseOffset).*exp(1i*2*pi*rf.t    *rf.freqOffset)),...
-                             tFactor*(t0+tc),angle(rf.signal(ic)*exp(1i*rf.phaseOffset).*exp(1i*2*pi*rf.t(ic)*rf.freqOffset)),'xb',...
+                        t=rf.t;
+                        rf_signal=rf.signal;
+                        if rf_signal(1)~=0 && rf_signal(end)~=0
+                            rf_signal=[0;rf_signal;0];
+                            t=[t(1);t;t(end)];
+                            ic=ic+1;
+                        elseif rf_signal(1)~=0
+                            rf_signal=[0;rf_signal];
+                            t=[t(1);t];
+                            ic=ic+1;
+                        elseif rf_signal(end)~=0
+                            rf_signal=[rf_signal;0];
+                            t=[t;t(end)];
+                        end
+                        plot(tFactor*(t0+rf.delay+t), abs(rf_signal), 'Parent',ax(2));
+                        plot(tFactor*(t0+rf.delay+t), angle(rf_signal    *exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)),...
+                             tFactor*(t0+rf.delay+tc),angle(rf_signal(ic)*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t(ic)*rf.freqOffset)),'xb',...
                              'Parent',ax(3));
                     end
                     gradChannels={'gx','gy','gz'};
@@ -1537,5 +1549,70 @@ classdef Sequence < handle
             obj.extensionStringIDs{1+length(obj.extensionStringIDs)}=str;
             assert(length(obj.extensionNumericIDs)==length(obj.extensionStringIDs))
         end
+        
+        function ok=install(seq,dest)
+            %install Install sequence on RANGE system.
+            %   install(seq) Install sequence by copying files to Siemens
+            %   host and RANGE controller
+            %
+            %   install(seq,'siemens') Install Siemens files.
+            %   install(seq,'controller') Install RANGE controller files.
+            %
+
+            if nargin < 2
+                dest = 'both';
+            end
+            id = 0;
+            ok = true;
+            if any(strcmpi(dest, {'both', 'siemens', 'siemensNX'}))
+                %id = ID.generateID();
+                %seq.setDefinition('Scan_ID', id);
+                %seq.write('~/seq_data/external.seq')            % Linear system 
+                seq.write('external.seq.tmp')
+                % we assume we are in the internal network but ICE computer
+                % on VB and VE has different IPs
+                ice_ips={'192.168.2.3', '192.168.2.2'};
+                ice_ip=[];
+                for i=1:length(ice_ips)
+                    [status, ~] = system(['ping -q -n -W1 -c1 ' ice_ips{i}]);
+                    if status == 0
+                        ice_ip=ice_ips{i};
+                        break;
+                    end                
+                end
+                if isempty(ice_ip)
+                    error('Scanner not found, sequence install failed.')
+                end
+                pulseq_seq_path='/opt/medcom/MriCustomer/seq/pulseq';
+                if strcmpi(dest,'siemensNX')
+                    pulseq_seq_path='/opt/medcom/MriCustomer/CustomerSeq/pulseq';
+                end
+                [status, ~] = system(['scp -oBatchMode=yes -oStrictHostKeyChecking=no external.seq.tmp root@' ice_ip ':' pulseq_seq_path '/external_tmp.seq']);
+                ok = ok & status == 0;
+                if ok
+                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "chmod a+rw ' pulseq_seq_path '/external_tmp.seq"']);
+                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "rm -f ' pulseq_seq_path '/external.seq"']);
+                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/external.seq"']);
+                end
+            end
+            if any(strcmp(dest, {'both', 'controller'}))
+                seq.writeExternal('~/seq_data/gradients.txt');  % RANGE controller
+                [status, ~] = system('cp ~/seq_data/gradients.txt ~/controller_C/seq_data/');
+                ok = ok & status == 0;
+            end
+
+            if strcmp(dest, 'dropbox')
+                seq.write('external.seq.tmp')
+                [status, ~] = system(['cp external.seq.tmp ~/Dropbox/inbox/maxim/' datestr(datetime, 'yyyymmddHHMMSS') '.seq']);
+                ok = ok & status == 0;
+	    end
+            
+            if ok
+                fprintf('Sequence ID %d installed\n', id)
+            else
+                error('Sequence install failed.')
+            end
+        end
+
     end
 end % classdef
