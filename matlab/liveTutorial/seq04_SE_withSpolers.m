@@ -15,8 +15,8 @@ spA=1000; % spoiler area in 1/m (=Hz/m*s)
 rf_ex = mr.makeBlockPulse(pi/2,'Duration',rfDur, 'system', system); % for this phantom and this coil I had to reduce flip angle to avoid receiver saturation
 rf_ref = mr.makeBlockPulse(pi,'Duration',rfDur, 'system', system, 'use', 'refocusing'); % needed for the proper k-space calculation
     
-% calculate spoiler gradient
-g_sp=mr.makeTrapezoid('z','Area',spA,'system',system);
+% calculate spoiler gradient, let's put it on X axis for now
+g_sp=mr.makeTrapezoid('x','Area',spA,'system',system);
 rf_ref.delay=max(mr.calcDuration(g_sp),rf_ref.delay);
 
 % Define delays and ADC events
