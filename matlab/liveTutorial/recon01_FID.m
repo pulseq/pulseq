@@ -7,7 +7,7 @@ path='../IceNIH_RawSend/'; % directory to be scanned for data files
 pattern='*.dat';
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
-data_file_path=[path D(I(end)).name]; % use end-1 to reconstruct the second-last data set, etc.
+data_file_path=[path D(I(end-0)).name]; % use end-1 to reconstruct the second-last data set, etc.
 
 twix_obj = mapVBVD(data_file_path);
 

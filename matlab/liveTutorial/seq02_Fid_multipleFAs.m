@@ -7,7 +7,7 @@ Nrep=1;
 adcDur=51.2e-3; 
 rfDur=1000e-6; % increased to 1ms
 TR=5000e-3;    % increased to 5s avoid T1 saturation
-TE=30e-3; % the used coil has a very long switching time!
+TE=10e-3; % the used coil has a very long switching time!
 flip_angles=18;
 % todo: change flip_angles to 18 and pi/2 to pi below
 

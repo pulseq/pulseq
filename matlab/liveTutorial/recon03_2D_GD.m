@@ -8,7 +8,7 @@ pattern='*.dat';
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
-data_file_path=[path D(I(end-14)).name]; % use end-1 to reconstruct the second-last data set, etc.
+data_file_path=[path D(I(end-0)).name]; % use end-1 to reconstruct the second-last data set, etc.
 %% load raw data
 twix_obj = mapVBVD(data_file_path);
 

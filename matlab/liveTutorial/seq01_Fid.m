@@ -3,11 +3,11 @@ system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
 
 seq=mr.Sequence(system);              % Create a new sequence object
 Nx=4096;
-Nrep=10;
+Nrep=1;
 adcDur=51.2e-3; 
 rfDur=500e-6;
 TR=5000e-3;
-TE=30e-3; % the used coil has a very long switching time!
+TE=10e-3; % the used coil has a very long switching time!
 % todo1: change flip angle to reduce SNR
 % todo2: change repetitions to increase SNR
 
