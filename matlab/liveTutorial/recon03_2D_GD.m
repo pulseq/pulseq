@@ -8,26 +8,32 @@ pattern='*.dat';
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
-data_file_path=[path D(I(end)).name]; % use end-1 to reconstruct the second-last data set, etc.
-%%
+data_file_path=[path D(I(end-14)).name]; % use end-1 to reconstruct the second-last data set, etc.
+%% load raw data
 twix_obj = mapVBVD(data_file_path);
 
-%% Load sequence from file (optional)
+%% Load sequence from file 
 
-seq_file_path = [data_file_path(1:end-3) 'seq'];
-
-traj_recon_delay=0*1e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. 
+traj_recon_delay=[0.024 1.459 0]*1e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. 
                        % It can be calibrated by inverting the spiral revolution dimension and making 
                        % two images match. for our Prisma and a particular trajectory we found 1.75e-6
                        % it is also possisible to provide a vector of 3 delays (varying per axis)
 
 seq = mr.Sequence();              % Create a new sequence object
+seq_file_path = [data_file_path(1:end-3) 'seq'];
 seq.read(seq_file_path,'detectRFuse');
 %[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('trajectory_delay',traj_recon_delay); 
 
-figure; plot(ktraj(1,:),ktraj(2,:),'b',...
-             ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
+% detect slice dimension
+max_abs_ktraj_adc=max(abs(ktraj_adc'));
+[~, slcDim]=min(max_abs_ktraj_adc);
+encDim=find([1 2 3]~=slcDim);
+
+% figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
+% 
+figure; plot(ktraj(encDim(1),:),ktraj(encDim(2),:),'b',...
+             ktraj_adc(encDim(1),:),ktraj_adc(encDim(2),:),'r.'); % a 2D plot
 axis('equal');
 
 %% Define FOV and resolution and simple off-resonance frequency correction 
@@ -63,7 +69,7 @@ kxx=kxx*deltak/os;
 
 kgd=zeros([size(kxx) channels]);
 for c=1:channels
-    kgd(:,:,c)=griddata(ktraj_adc(1,:),ktraj_adc(2,:),rawdata(:,c),kxx,kyy,'cubic'); % we swap the order ind invert one sign to account for Matlab's strange column/line convention
+    kgd(:,:,c)=griddata(ktraj_adc(encDim(1),:),ktraj_adc(encDim(2),:),rawdata(:,c),kxx,kyy,'cubic'); % we swap the order ind invert one sign to account for Matlab's strange column/line convention
 end
 kgd(isnan(kgd))=0;
 

@@ -3,7 +3,7 @@
 % needs mapVBVD in the path
 
 %% Load the latest file from a dir
-path='~/range_software/pulseq/IceNIH_RawSend/'; % directory to be scanned for data files
+path='../IceNIH_RawSend/'; % directory to be scanned for data files
 pattern='*.dat';
 
 D=dir([path pattern]);
@@ -18,16 +18,10 @@ else
     data_unsorted = double(twix_obj.image.unsorted());
 end
 
-%% Load sequence from file (optional)
-
-seq_file_path = [data_file_path(1:end-3) 'seq'];
-
-% traj_recon_delay=0e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. 
-%                        % It can be calibrated by inverting the spiral revolution dimension and making 
-%                        % two images match. for our Prisma and a particular trajectory we found 1.75e-6
-%                        % it is also possisible to provide a vector of 3 delays (varying per axis)
+%% Load sequence from file 
 
 seq = mr.Sequence();              % Create a new sequence object
+seq_file_path = [data_file_path(1:end-3) 'seq'];
 seq.read(seq_file_path,'detectRFuse');
 % %[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
 % [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('trajectory_delay',traj_recon_delay); 
@@ -42,16 +36,21 @@ adc_len=size(data_unsorted,1);
 n_chan=size(data_unsorted,2); 
 [ktraj_adc_nom,t_adc] = seq.calculateKspacePP('trajectory_delay',0); 
 
+% detect slice dimension
+max_abs_ktraj_adc=max(abs(ktraj_adc_nom'));
+[~, slcDim]=min(max_abs_ktraj_adc);
+encDim=find([1 2 3]~=slcDim);
+
 ktraj_adc_nom = reshape(ktraj_adc_nom, [3, adc_len, size(ktraj_adc_nom,2)/adc_len]);
 
-prg_angle=squeeze(atan2(ktraj_adc_nom(2,2,:)-ktraj_adc_nom(2,1,:),ktraj_adc_nom(1,2,:)-ktraj_adc_nom(1,1,:)));
+prg_angle=squeeze(atan2(ktraj_adc_nom(encDim(2),2,:)-ktraj_adc_nom(encDim(2),1,:),ktraj_adc_nom(encDim(2),2,:)-ktraj_adc_nom(encDim(2),1,:)));
 nproj=length(prg_angle);
 
-i_pureX=find(abs(ktraj_adc_nom(2,1,:))<eps);
-i_pureY=find(abs(ktraj_adc_nom(1,1,:))<eps);
-assert(length(i_pureX)==length(i_pureY)); % the code below assumes this
+i_pure2=find(abs(ktraj_adc_nom(encDim(2),1,:))<eps);
+i_pure1=find(abs(ktraj_adc_nom(encDim(1),1,:))<eps);
+assert(length(i_pure2)==length(i_pure1)); % the code below assumes this
 
-delta180=nproj/length(i_pureX);
+delta180=nproj/length(i_pure2);
 
 %%
 
@@ -66,7 +65,7 @@ figure; imagesc(angle(cmplx_diff_no_channels));
 %% pick the pure X and pure Y differences, plot them and extimate the slope
 
 thresh=0.05;
-cmplx_diff_pure_axes=cmplx_diff_no_channels(:,[i_pureX i_pureY]);
+cmplx_diff_pure_axes=cmplx_diff_no_channels(:,[i_pure2 i_pure1]);
 mpa=max(abs(cmplx_diff_pure_axes));
 for i=1:size(cmplx_diff_pure_axes,2)
     cmplx_diff_pure_axes(abs(cmplx_diff_pure_axes(:,i))<thresh*mpa(i),i)=0;
@@ -75,21 +74,23 @@ end
 % plot
 figure; plot(angle(cmplx_diff_pure_axes(:,[1 3])));
 
-% just get the mean slope of phase
+% just get the mean slope of the phase
 msop=angle(sum(cmplx_diff_pure_axes(2:end,:).*conj(cmplx_diff_pure_axes(1:end-1,:))));
 delays_imageSpace=-msop/2/pi/2*(t_adc(2)-t_adc(1))*adc_len; 
 
 %% test the more accurate function
-delays=calc_delays(data_unsorted, ktraj_adc_nom,i_pureX,i_pureY,t_adc(2)-t_adc(1));
+delays=calc_delays(data_unsorted, ktraj_adc_nom(encDim,:),i_pure2,i_pure1,t_adc(2)-t_adc(1));
 
 % improve iteratively & verify
 n_it=4;
+d=[0 0 0];
 for n=1:n_it
-    ktraj_adc = seq.calculateKspacePP('trajectory_delay',[sum(delays,1) 0]); %([1 3]) 
-    delays = [delays; calc_delays(data_unsorted, ktraj_adc,i_pureX,i_pureY,t_adc(2)-t_adc(1))];
+    d(encDim)=sum(delays,1);
+    ktraj_adc = seq.calculateKspacePP('trajectory_delay',d);
+    delays = [delays; calc_delays(data_unsorted, ktraj_adc(encDim,:),i_pure2,i_pure1,t_adc(2)-t_adc(1))];
 end
-
-fprintf('found delays: [%g %g] us\n', round(sum(delays,1)*1e9)/1e3);
+d(encDim)=sum(delays,1);
+fprintf('found delays: [%g %g %g] us\n', round(d*1e9)/1e3);
 
 %%
 
@@ -121,7 +122,7 @@ function delays=calc_delays(data_unsorted, ktraj_adc,i_pureX,i_pureY,dt)
         cmplx_diff_sel_no_channels(abs(cmplx_diff_sel_no_channels(:,i))<thresh*mpa(i),i)=0;
     end
 
-    % just get the mean slope of phase
+    % just get the mean slope of the phase
     msop1=angle(sum(cmplx_diff_sel_no_channels(2:end,:).*conj(cmplx_diff_sel_no_channels(1:end-1,:))));
     delays=msop1/2/pi/2*dt*adc_len;
 end

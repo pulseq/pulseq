@@ -6,8 +6,8 @@ Nx=4096;
 Nrep=1;
 adcDur=51.2e-3; 
 rfDur=1000e-6;
-TR=160e-3;
-TE=80e-3;
+TR=250e-3;
+TE=60e-3;
 spA=1000; % spoiler area in 1/m (=Hz/m*s)
 % todo: change spoiler area, remove one of spoilers and observe the signal
 
