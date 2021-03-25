@@ -14,7 +14,7 @@ twix_obj = mapVBVD(data_file_path);
 
 %% Load sequence from file 
 
-traj_recon_delay=[0.024 1.459 0]*1e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. 
+traj_recon_delay=[0 0 0]*1e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. 
                        % It can be calibrated by inverting the spiral revolution dimension and making 
                        % two images match. for our Prisma and a particular trajectory we found 1.75e-6
                        % it is also possisible to provide a vector of 3 delays (varying per axis)
