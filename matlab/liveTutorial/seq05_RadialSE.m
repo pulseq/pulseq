@@ -2,17 +2,18 @@ system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
                  'adcDeadTime', 20e-6);
 
 seq=mr.Sequence(system);              % Create a new sequence object
-adcDur=51.2e-3; 
+%adcDur=51.2e-3; 
+adcDur=5.12e-3/2; 
 rfDur1=3e-3;
 rfDur2=1e-3;
-TR=200e-3;
+TR=225e-3;
 TE=60e-3;
 spA=1000; % spoiler area in 1/m (=Hz/m*s)
 
 sliceThickness=3e-3;            % slice
 fov=250e-3; Nx=256;             % Define FOV and resolution
 Nr=256;                         % number of radial spokes
-Ndummy=0;                      % number of dummy scans
+Ndummy=10;                      % number of dummy scans
 delta=2*pi / Nr;                % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
 
 
@@ -27,7 +28,7 @@ gs.channel='x'; % change it to X because we want sagittal orientation
 rf_ref = mr.makeBlockPulse(pi,'Duration',rfDur2, 'system', system, 'use', 'refocusing'); % needed for the proper k-space calculation
     
 % calculate spoiler gradient
-g_sp1=mr.makeTrapezoid('x','Area',spA-gsr.area,'system',system);
+g_sp1=mr.makeTrapezoid('x','Area',spA+gsr.area,'system',system);
 rf_ref.delay=max(mr.calcDuration(g_sp1),rf_ref.delay);
 
 g_sp2=mr.makeTrapezoid('x','Area',spA,'system',system);
@@ -77,6 +78,9 @@ else
     fprintf([error_report{:}]);
     fprintf('\n');
 end
+
+seq.setDefinition('FOV', [sliceThickness*16 fov fov]);
+seq.setDefinition('Name', 'se_rad');
 
 seq.write('se_radial.seq')       % Write to pulseq file
 %seq.install('siemens');    % copy to scanner
