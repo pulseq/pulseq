@@ -82,6 +82,9 @@ Nyo=round(Ny*os);
 Nxs=round((size(igd,1)-Nxo)/2);
 Nys=round((size(igd,2)-Nyo)/2);
 igdc = igd((Nxs+1):(Nxs+Nxo),(Nys+1):(Nys+Nyo),:);
+if slcDim==1
+    igdc=rot90(igdc,-1); % this makes sagittal images look more natural
+end
 figure;imab(abs(igdc));colormap('gray');
 %axis('equal');
 
