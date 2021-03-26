@@ -79,17 +79,19 @@ msop=angle(sum(cmplx_diff_pure_axes(2:end,:).*conj(cmplx_diff_pure_axes(1:end-1,
 delays_imageSpace=-msop/2/pi/2*(t_adc(2)-t_adc(1))*adc_len; 
 
 %% test the more accurate function
-delays=calc_delays(data_unsorted, ktraj_adc_nom(encDim,:),i_pure2,i_pure1,t_adc(2)-t_adc(1));
+delays=[0 0 0];
+delays(encDim)=calc_delays(data_unsorted, ktraj_adc_nom(encDim,:),i_pure2,i_pure1,t_adc(2)-t_adc(1));
 
 % improve iteratively & verify
 n_it=4;
 d=[0 0 0];
 for n=1:n_it
-    d(encDim)=sum(delays,1);
+    d=sum(delays,1);
     ktraj_adc = seq.calculateKspacePP('trajectory_delay',d);
-    delays = [delays; calc_delays(data_unsorted, ktraj_adc(encDim,:),i_pure2,i_pure1,t_adc(2)-t_adc(1))];
+    d(encDim)=calc_delays(data_unsorted, ktraj_adc(encDim,:),i_pure2,i_pure1,t_adc(2)-t_adc(1));
+    delays = [delays; d];
 end
-d(encDim)=sum(delays,1);
+d=sum(delays,1);
 fprintf('found delays: [%g %g %g] us\n', round(d*1e9)/1e3);
 
 %%
@@ -100,15 +102,16 @@ function delays=calc_delays(data_unsorted, ktraj_adc,i_pureX,i_pureY,dt)
     n_sel=length(i_pureX)+length(i_pureY);
     data_selected=data_unsorted(:,:,[i_pureX i_pureY]);
     data_sel_res=zeros(adc_len,n_chan,n_sel);
-    dk=diff(ktraj_adc(1,(i_pureX(1)-1)*adc_len+(1:2)));
+    dk=zeros(1,n_sel);abs(diff(ktraj_adc(1,(i_pureX(1)-1)*adc_len+(1:2))));
     for i=1:n_sel
         if i<=length(i_pureX)
             kr_selected=ktraj_adc(1,(i_pureX(i)-1)*adc_len+(1:adc_len));
         else
             kr_selected=ktraj_adc(2,(i_pureY(i-length(i_pureX))-1)*adc_len+(1:adc_len));
         end
+        dk(i)=diff(kr_selected(1:2));
         for c=1:n_chan
-            data_sel_res(:,c,i)=interp1(kr_selected,data_selected(:,c,i),(-adc_len/2:(adc_len/2-1))*dk,'pchip',0);
+            data_sel_res(:,c,i)=interp1(kr_selected,data_selected(:,c,i),(-adc_len/2:(adc_len/2-1))*abs(dk(i)),'pchip',0);
         end
     end
 
@@ -124,5 +127,5 @@ function delays=calc_delays(data_unsorted, ktraj_adc,i_pureX,i_pureY,dt)
 
     % just get the mean slope of the phase
     msop1=angle(sum(cmplx_diff_sel_no_channels(2:end,:).*conj(cmplx_diff_sel_no_channels(1:end-1,:))));
-    delays=msop1/2/pi/2*dt*adc_len;
+    delays=msop1/2/pi/2*dt*adc_len.*sign(dk(1:2:end)); % we need thins "sign" to account for the direction (positive or negative) of the first projection in each pair
 end
