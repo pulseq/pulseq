@@ -1,4 +1,4 @@
-% run all example sequences
+% run all test sequences
 %
 % Stefan Kroboth <stefan.kroboth@uniklinik-freiburg.de>
 

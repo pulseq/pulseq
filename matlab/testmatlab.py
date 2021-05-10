@@ -30,8 +30,8 @@ def main():
     # binary sequences are unsuported now
     #binary_sequences = ['gre_binary']
     binary_sequences = []
-    base_dir = '../examples/'
-    approved_dir = '../examples/approved/'
+    base_dir = '../test/'
+    approved_dir = '../test/approved/'
     ok_flag = True
 
     cell_str = '{'
@@ -48,7 +48,7 @@ def main():
         except:
             pass
 
-    # run example sequences
+    # run test sequences
     matlab_cmd = 'matlab -nodisplay -nosplash -r ' + \
         '"try; run ' + base_dir + '/run_all; catch; exit(-1); end; exit(0)"' +\
         ' > /dev/null'
