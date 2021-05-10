@@ -1026,7 +1026,7 @@ classdef Sequence < handle
             %for iB=1:size(obj.blockEvents,1)
             for iB=1:length(obj.blockEvents)
                 block = obj.getBlock(iB);
-                isValid = t0>=opt.timeRange(1) && t0<=opt.timeRange(2);
+                isValid = t0+obj.blockDurations(iB)>opt.timeRange(1) && t0<=opt.timeRange(2);
                 if isValid
                     if isfield(block,'label') %current labels, works on the curent or next adc
                         for i=1:length(block.label)
