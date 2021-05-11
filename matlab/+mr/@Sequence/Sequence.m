@@ -148,6 +148,31 @@ classdef Sequence < handle
                 ev=cellfun(@(f) b.(f), fn(ind), 'UniformOutput', false);
                 [res, rep, dur] = mr.checkTiming(obj.sys,ev{:}); %ev{ind});
                 is_ok = (is_ok && res); 
+                % additional manual tests
+                if is_ok 
+                    if ~isempty(b.rf)
+                        if b.rf.delay<obj.sys.rfDeadTime
+                            rep = [rep ' rf.delay:' num2str(b.rf.delay*1e6) 'us <system.rfDeadTime'];
+                            is_ok=false;
+                        end
+                        % in this version of pulseq (1.3.1) we still use RF zeropadding, so the condition below is fullfilled automatically
+                        %if mr.calcDuration(b.rf)+obj.sys.rfRingdownTime>dur
+                        %    rep = [rep ' rf: system.rfRingdownTime violation'];
+                        %    is_ok=false;
+                        %end
+                    end
+                    if ~isempty(b.adc)
+                        if b.adc.delay<obj.sys.adcDeadTime
+                            rep = [rep ' adc.delay<system.adcDeadTime'];
+                            is_ok=false;
+                        end
+                        if mr.calcDuration(b.adc)+obj.sys.adcDeadTime>dur
+                            rep = [rep ' adc: system.adcDeadTime (post-adc) violation'];
+                            is_ok=false;
+                        end
+                    end
+                end
+                % create report
                 if ~isempty(rep)
                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' rep '\n' ] };
                 end
