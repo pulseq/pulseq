@@ -6,7 +6,7 @@ TE=8e-3;                        % TE; give a vector here to have multiple TEs (e
 TR=100e-3;                      % only a single value for now
 Nr=128;                         % number of radial spokes
 Ndummy=20;                      % number of dummy scans
-delta= 2*pi / Nr;                  % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
+delta= pi / Nr;                  % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
