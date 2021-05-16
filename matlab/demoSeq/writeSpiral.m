@@ -166,14 +166,8 @@ seq.setDefinition('MaxAdcSegmentLength', adcSamplesPerSegment);
 
 seq.write('spiral.seq');   % Output sequence for scanner
 
-% % write the k-space trajectory (now 3D and wothout reconSize)
-% save('epi_rs_traj.mat','traj_mat','ktime');%,'reconSize');
-% 
+% the sequence is ready, so let's see what we got 
 seq.plot();             % Plot sequence waveforms
-% figure; plot(traj_mat'); % plot k-space trajectory
-% figure; plot(traj_mat(1,:),traj_mat(2,:),'b'); % a better plot
-% hold;plot(traj_mat(1,:),traj_mat(2,:),'r.');
-% 
 
 % new single-function call for trajectory calculation
 [ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
