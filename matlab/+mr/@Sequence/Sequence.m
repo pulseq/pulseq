@@ -959,9 +959,6 @@ classdef Sequence < handle
             %plot Plot the sequence in a new figure.
             %   plot(seqObj) Plot the sequence
             %
-            %   plot(...,'Type',type) Plot the sequence with gradients
-            %   displayed according to type: 'Gradient' or 'Kspace'.
-            %
             %   plot(...,'TimeRange',[start stop]) Plot the sequence
             %   between the times specified by start and stop.
             %
@@ -970,6 +967,9 @@ classdef Sequence < handle
             %
             %   plot(...,'Label','LIN,REP') Plot label values for ADC events:
             %   in this example for LIN and REP labels; other valid labes are accepted as a comma-separated list.
+            %
+            %   plot(...,'showBlocks',1) Plot grid and tick labels at the
+            %   block boundaries. 
             %
             %   f=plot(...) Return the new figure handle.
             %
@@ -980,7 +980,7 @@ classdef Sequence < handle
             if isempty(parser)
                 parser = inputParser;
                 parser.FunctionName = 'plot';
-                parser.addParamValue('showBlocks',false,@(x)isnumeric(x));
+                parser.addParamValue('showBlocks',false,@(x)(isnumeric(x) || islogical(x)));
                 parser.addParamValue('timeRange',[0 inf],@(x)(isnumeric(x) && length(x)==2));
                 parser.addParamValue('timeDisp',validTimeUnits{1},...
                     @(x) any(validatestring(x,validTimeUnits)));
