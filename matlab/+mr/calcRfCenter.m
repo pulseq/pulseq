@@ -30,7 +30,7 @@ function [tc ic]=calcRfCenter(rf)
     rfmax=max(abs(rf.signal));
     ipeak=find(abs(rf.signal)>=rfmax*0.99999);
     tc=(rf.t(ipeak(1))+rf.t(ipeak(end))  -rf.t(1) )/2; % we need this sstrange "-rf.t(1)" because in v 1.3.1 the time vector starts at "1"
-    tc=round(tc*1e6)*1e-6; % and round to 1us
+    %tc=round(tc*1e6)*1e-6; % and round to 1us
     ic=ipeak(round(end/2));
     
 %     % detect the excitation peak (this code is far from being ideal...)
