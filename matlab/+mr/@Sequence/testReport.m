@@ -18,8 +18,9 @@ flipAnglesDeg=unique(flipAnglesDeg);
 
 [duration, numBlocks, eventCount]=obj.duration();
 
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = obj.calculateKspace();
-
+%[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = obj.calculateKspace();
+% use calculateKspacePP, calculateKspace gives different results for ktraj_adc
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = obj.calculateKspacePP();
 % trajectory calculation will fail for spin-echoes if seq is loaded from a 
 % file for the current file format revision (1.2.0) because we do not store 
 % the use of the RF pulses. Read function has an option 'detectRFuse' which
@@ -28,7 +29,22 @@ flipAnglesDeg=unique(flipAnglesDeg);
 %        
 kabs_adc=sum(ktraj_adc.^2,1).^0.5;
 [kabs_echo, index_echo]=min(kabs_adc);
-t_echo=t_adc(index_echo);
+% check if adc kspace trajectory has elements left and right from index_echo
+% if yes, check if echo peak is between two samples, if it is, take the time between the two samples as echo time
+if (index_echo > 1 && index_echo < length(kabs_adc))
+    abs_left = (sum(((ktraj_adc(:,index_echo-1) + ktraj_adc(:,index_echo))/2).^2,1))^.05;
+    abs_right = (sum(((ktraj_adc(:,index_echo+1) + ktraj_adc(:,index_echo))/2).^2,1))^.05;
+    if (min([kabs_adc(index_echo),abs_left,abs_right]) == kabs_adc(index_echo))
+        t_echo = t_adc(index_echo);
+    elseif (min([kabs_adc(index_echo),abs_left,abs_right]) == abs_left)
+        t_echo = (t_adc(index_echo)+t_adc(index_echo-1))/2;
+    else
+        t_echo = (t_adc(index_echo)+t_adc(index_echo+1))/2;
+    end
+else 
+    t_echo = t_adc(index_echo);
+end
+
 t_ex_tmp=t_excitation(t_excitation<t_echo);
 TE=t_echo-t_ex_tmp(end);
 % TODO detect multiple TEs
