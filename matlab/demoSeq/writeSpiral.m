@@ -146,7 +146,6 @@ for s=1:Nslices
     seq.addBlock(mr.rotate('z',phi,gx_spoil,gy_spoil,gz_spoil));
     %seq.addBlock(gx_combined,gy_combined,gz_combined,adc);
 end
-%
 
 % check whether the timing of the sequence is correct
 [ok, error_report]=seq.checkTiming;
@@ -169,14 +168,13 @@ seq.write('spiral.seq');   % Output sequence for scanner
 % the sequence is ready, so let's see what we got 
 seq.plot();             % Plot sequence waveforms
 
-% new single-function call for trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
+% k-space trajectory calculation
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 
 % plot k-spaces
-
-figure; plot(ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
 figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.');
 
 
-% % seq.install('siemens');
+% seq.install('siemens');

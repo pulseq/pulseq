@@ -61,11 +61,11 @@ seq.write('epi_se.seq');   % Output sequence for scanner
 seq.plot();             % Plot sequence waveforms
 
 %% calculate trajectory 
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
+%[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
 
 %% plot k-spaces
-time_axis=(1:(size(ktraj,2)))*lims.gradRasterTime;
-figure; plot(time_axis, ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
 hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
 
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...

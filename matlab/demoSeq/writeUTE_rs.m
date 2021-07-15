@@ -1,12 +1,17 @@
 % a basic UTE-like sequence
 % achieves "TE" below 100 us
 
-seq=mr.Sequence();              % Create a new sequence object
+% set system limits
+sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
+    'MaxSlew', 120, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 0e-6, ...
+    'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
+
+seq=mr.Sequence(sys);           % Create a new sequence object
 fov=256e-3; Nx=256;             % Define FOV and resolution
 alpha=10;                       % flip angle
 sliceThickness=5e-3;            % slice
-TR=20e-3;                      % TR
-Nr=round(Nx*pi/2);                         % number of radial spokes
+TR=20e-3;                       % TR
+Nr=round(Nx*pi/2);              % number of radial spokes
 Ndummy=20;                      % number of dummy scans
 delta= 2* pi / Nr;              % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
 rf_duration=0.5e-3;             % duration of the excitation pulse
@@ -18,11 +23,6 @@ ro_spoil=1;                     % extend RO to achieve spoiling
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
-
-% set system limits
-sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
-    'MaxSlew', 120, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 0e-6, ...
-    'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 %% Create alpha-degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(alpha*pi/180,'Duration',rf_duration,...
@@ -119,19 +119,21 @@ seq.write('ute_rs.seq');       % Write to pulseq file
 return
 
 %% plot gradients to check for gaps and optimality of the timing
-gw=seq.gradient_waveforms();
-figure; plot(gw'); % plot the entire gradient shape
+gw=seq.waveforms_and_times();
+figure; plot(gw{1}(1,:),gw{1}(2,:),gw{2}(1,:),gw{2}(2,:),gw{3}(1,:),gw{3}(2,:)); % plot the entire gradient shape
 
-%% trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
+%% k-space trajectory calculation
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 
 % plot k-spaces
-time_axis=(1:(size(ktraj,2)))*sys.gradRasterTime;
-figure; plot(time_axis, ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
 hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
+
 figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
-axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
+axis('square'); % enforce aspect ratio for the correct trajectory display
+%axis('equal'); % enforce aspect ratio for the correct trajectory display
+axis('tight'); % enforce aspect ratio for the correct trajectory display
 
 
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  

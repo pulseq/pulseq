@@ -21,9 +21,12 @@ if isempty(parser)
     parser.addParamValue('rfDeadTime',0,@isnumeric);
     parser.addParamValue('rfRingdownTime',0,@isnumeric);
     parser.addParamValue('adcDeadTime',0,@isnumeric);
+    parser.addParamValue('adcRasterTime',100e-9,@isnumeric);
     parser.addParamValue('rfRasterTime',1e-6,@isnumeric);
     parser.addParamValue('gradRasterTime',10e-6,@isnumeric);
+    parser.addParamValue('blockDurationRaster',10e-6,@isnumeric);
     parser.addParamValue('gamma',42.576e6,@isnumeric); % Hz/T
+    parser.addParamValue('B0',1.5,@isnumeric); % T
 end
 parse(parser,varargin{:});
 opt = parser.Results;
@@ -39,7 +42,8 @@ else
     maxSlew = mr.convert(opt.maxSlew,opt.slewUnit,'Hz/m','gamma',opt.gamma);
 end
 if ~isempty(opt.riseTime)
-    maxSlew=[];
+    %maxSlew=[];
+    maxSlew=maxGrad/opt.riseTime;
 end
 
 out.maxGrad = maxGrad;
@@ -48,8 +52,11 @@ out.riseTime = opt.riseTime;
 out.rfDeadTime = opt.rfDeadTime;
 out.rfRingdownTime = opt.rfRingdownTime;
 out.adcDeadTime = opt.adcDeadTime;
+out.adcRasterTime = opt.adcRasterTime;
 out.rfRasterTime = opt.rfRasterTime;
 out.gradRasterTime = opt.gradRasterTime;
+out.blockDurationRaster = opt.blockDurationRaster;
 out.gamma=opt.gamma;
+out.B0=opt.B0;
 
 end

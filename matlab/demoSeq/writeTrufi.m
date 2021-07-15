@@ -6,17 +6,16 @@
 % splitting the sequence into blocks the TR is increased by approximately
 % 40-60 us (rfDeadTime+adcDeadTime) in comparison to the true minimum TR
 
-seq=mr.Sequence();              % Create a new sequence object
-fov=220e-3; Nx=128; Ny=128;     % Define FOV and resolution
-                                % 256x256 matrix works with the same
-                                % parameters but the figures look better so
-
 % set system limits
 % had to slow down ramps and increase adc_duration to avoid stimulation
 sys = mr.opts('MaxGrad',36,'GradUnit','mT/m',...
     'MaxSlew',140,'SlewUnit','T/m/s',...
     'rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
     'adcDeadTime', 20e-6);
+
+seq=mr.Sequence(sys);              % Create a new sequence object
+fov=220e-3; Nx=256; Ny=256;     % Define FOV and resolution
+
 
 % ADC duration (controls TR/TE)
 adc_dur=2560; %us
@@ -39,12 +38,12 @@ adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime,'system',sys);
 gxPre = mr.makeTrapezoid('x','Area',-gx.area/2,'system',sys);
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
 
-% now we have to reschuffle gradients to achieve a half-way optimal timing
+% now we have to reshuffle gradients to achieve a half-way optimal timing
 % new gz will consist of two parts: 
 % 1: slice refocusing from the previous TR followed by slice selection 
 %    including the plato an a small bit of the ramp-down
 % 2: the remainder of the ramp-down and the slice refocusing for the next TR
-gz_parts=mr.splitGradientAt(gz,rf.delay+rf.t(end));
+gz_parts=mr.splitGradientAt(gz,mr.calcDuration(rf));
 gz_parts(1).delay=mr.calcDuration(gzReph);
 gz_1=mr.addGradients({gzReph,gz_parts(1)},'system',sys);
 [rf]=mr.align('right',rf,gz_1);
@@ -56,10 +55,10 @@ gz_2=mr.addGradients({gz_parts(2),gzReph},'system',sys);
 % 1: prephaser followed by a part of the read gradient including the 
 %    beginning of the ramp-down
 % 2: the remainer of the ramp-down and the second "prephaser"
-gx_parts=mr.splitGradientAt(gx,ceil((adc.dwell*adc.numSamples+adc.delay+adc.deadTime)/sys.gradRasterTime)*sys.gradRasterTime);
+gx_parts=mr.splitGradientAt(gx,ceil(mr.calcDuration(adc)/sys.gradRasterTime)*sys.gradRasterTime);
 gx_parts(1).delay=mr.calcDuration(gxPre);
 gx_1=mr.addGradients({gxPre,gx_parts(1)},'system',sys);
-adc.delay=adc.delay+mr.calcDuration(gxPre);
+adc.delay=adc.delay+mr.calcDuration(gxPre); % we cannot use mr.align here because the adc duration maz be not aligneed to the grad raster
 gx_parts(2).delay=0;
 gxPre.delay=mr.calcDuration(gx_parts(2));
 gx_2=mr.addGradients({gx_parts(2),gxPre},'system',sys);
@@ -72,12 +71,9 @@ gxPre.delay=0; % otherwise duration below is misreported
 pe_dur=mr.calcDuration(gx_2);
 
 % adjust delays to align objects
-%if tpr2(end)>tp(end-2)
-%    delay_add=tpr2(end)-tp(end-2);
-%    gz_1.delay=delay_add;
-%    rf.delay=rf.delay+delay_add;
-%end
-gz_1.delay=max(mr.calcDuration(gx_2)-rf.delay,0);
+%gz_1.delay=max(mr.calcDuration(gx_2)-rf.delay,0);
+gz_1.delay=max(mr.calcDuration(gx_2)-rf.delay+rf.ringdownTime,0); % this rf.ringdownTime is needed to center the ADC and the gradient echo in the center of RF-RF period
+
 rf.delay=rf.delay+gz_1.delay;
 
 % finish timing calculation
@@ -106,10 +102,7 @@ for i=1:Ny
     else
         seq.addBlock(rf,gz_1);
     end
-    %seq.addBlock(gxPre,gyPre,gzReph);
-    %seq.addBlock(mr.makeDelay(delayTE));
     seq.addBlock(gx_1,gyPre_2, gz_2,adc);
-    %seq.addBlock(mr.makeDelay(delayTR))
 end
 % finish the x-grad shape 
 seq.addBlock(gx_2);
@@ -119,7 +112,7 @@ seq.addBlock(gx_2);
 assert(TR==(mr.calcDuration(seq.getBlock(4))+mr.calcDuration(seq.getBlock(5))));
 
 fprintf('Sequence ready\n');
-fprintf('TR=%f ms  TE=%f ms\n', TR*1e3, TE*1e3);
+fprintf('TR=%03f ms  TE=%03f ms\n', TR*1e3, TE*1e3);
 
 %% check whether the timing of the sequence is correct
 [ok, error_report]=seq.checkTiming;
@@ -142,20 +135,22 @@ seq.write('trufi.seq')       % Write to pulseq file
 %seq.install('siemens');
 
 %% plots and displays
-seq.plot();
+seq.plot('timeDisp','us');
 
-% plot entire interpolated wave forms -- good for debugging of gaps, jumps,
+%% plot entire interpolated wave forms -- good for debugging of gaps, jumps,
 % etc, but is relatively slow
-gw=seq.gradient_waveforms();
-figure; plot(gw'); % plot the entire k-space trajectory
-
+%gw=seq.gradient_waveforms();
+%figure; plot(gw'); % plot the entire gradient waveform
+gw_data=seq.waveforms_and_times();
+figure; plot(gw_data{1}(1,:),gw_data{1}(2,:),gw_data{2}(1,:),gw_data{2}(2,:),gw_data{3}(1,:),gw_data{3}(2,:)); % plot the entire gradient waveform
 
 %% new single-function call for trajectory calculation -- relatively slow but very helpful
-[ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
+%[ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
 
 % plot k-spaces
 
-figure; plot(ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj,ktraj'); % plot the entire k-space trajectory
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
 

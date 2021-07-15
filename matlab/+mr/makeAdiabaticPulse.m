@@ -54,6 +54,7 @@ function [rf, gz, gzr, delay] = makeAdiabaticPulse(type,varargin)
 
             
 validPulseTypes = {'hypsec','wurst'};
+validPulseUses = mr.getSupportedRfUse();
 
 persistent parser
 if isempty(parser)
@@ -76,26 +77,20 @@ if isempty(parser)
     addParamValue(parser, 'maxSlew', 0, @isnumeric);
     addParamValue(parser, 'sliceThickness', 0, @isnumeric);
     addParamValue(parser, 'delay', 0, @isnumeric);
-    addParamValue(parser, 'use', 'inversion', @(x) any(validatestring(x,validPulseUses)));
-    addParamValue(parser, 'cmd_prefix', '', @ischar); % an option to set or unset environent variables prior to the python executable call
-    %addParamValue(parser, 'dwell', mr.opts().rfRasterTime, @isnumeric);
+    addParamValue(parser, 'dwell', mr.opts().rfRasterTime, @isnumeric);
+    % whether it is a refocusing pulse (for k-space calculation)
+    addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
 end
 
 parse(parser, type, varargin{:});
 opt = parser.Results;
-opt.dwell=mr.opts().rfRasterTime; % quickfix/backport for 1.3.x
 
-% find python (only tested on linux)
-if ispc 
-    which_cmd='where'; % windows
-else
-    which_cmd='which'; % linux / mac
-end
-[status, result]=system([which_cmd ' python3']);
+% find python (probably only works on linux, maybe also mac)
+[status, result]=system('which python');
 if status==0
     python=strip(result);
-else 
-    [status, result]=system([which_cmd ' python']);
+else
+    [status, result]=system('which python3');
     if status==0
         python=strip(result);
     else
@@ -103,21 +98,17 @@ else
     end
 end
 
-if ~isempty(opt.cmd_prefix) && opt.cmd_prefix(end)~=';'
-    opt.cmd_prefix=[opt.cmd_prefix ';'];
-end
-
 Nraw = round(opt.duration/opt.dwell+eps);
 N = floor(Nraw/4)*4; % number of points must be divisible by four -- this is a requirement of the underlying library
 
 switch type
     case 'hypsec'
-        cmd=[opt.cmd_prefix python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.hypsec(' ... % hypsec(n=512, beta=800, mu=4.9, dur=0.012)
+        cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.hypsec(' ... % hypsec(n=512, beta=800, mu=4.9, dur=0.012)
             'n=' num2str(N) ',beta=' num2str(opt.beta) ',' ...
             'mu=' num2str(opt.mu) ',dur=' num2str(opt.duration) ...
             ')\nprint(*pulse[0])\nprint(*pulse[1])'''];
     case 'wurst'
-        cmd=[opt.cmd_prefix python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.wurst(' ... % wurst(n=512, n_fac=40, bw=40000.0, dur=0.002)
+        cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.wurst(' ... % wurst(n=512, n_fac=40, bw=40000.0, dur=0.002)
             'n=' num2str(N) ',n_fac=' num2str(opt.n_fac) ',' ...
             'bw=' num2str(opt.bandwidth) ',dur=' num2str(opt.duration) ...
             ')\nprint(*pulse[0])\nprint(*pulse[1])'''];
@@ -169,12 +160,13 @@ if (N~=Nraw)
 end
 
 %BW = opt.timeBwProduct/opt.duration;
-t = (1:N)*opt.dwell;
+t = ((1:N)-0.5)*opt.dwell;
 %flip = abs(sum(signal))*opt.dwell*2*pi;
 
 rf.type = 'rf';
 rf.signal = signal;
 rf.t = t;
+rf.shape_dur=N*opt.dwell;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = opt.system.rfDeadTime;
@@ -182,6 +174,8 @@ rf.ringdownTime = opt.system.rfRingdownTime;
 rf.delay = opt.delay;
 if ~isempty(opt.use)
     rf.use=opt.use;
+else
+    rf.use='inversion';
 end
 if rf.deadTime > rf.delay
     rf.delay = rf.deadTime;

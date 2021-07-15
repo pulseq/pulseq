@@ -12,7 +12,7 @@ pattern='*.dat';
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
 %
-data_file_path=[path D(I(end)).name];  % use end-1 to reconstruct the second-last data set, etc.
+data_file_path=[path D(I(end-0)).name];  % use end-1 to reconstruct the second-last data set, etc.
 %data_file_path='../interpreters/siemens/data_example/gre_example.dat'
 %%
 twix_obj = mapVBVD(data_file_path);
@@ -23,7 +23,8 @@ seq_file_path = [data_file_path(1:end-3) 'seq'];
 
 seq = mr.Sequence();              % Create a new sequence object
 seq.read(seq_file_path,'detectRFuse');
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
+%[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
 axis('equal');
@@ -49,8 +50,10 @@ dk_all(dk_all-dk_min(:,ones(1,size(dk_all,2)))>k_threshold)=NaN;
 dk_all_cnt=sum(isfinite(dk_all),2);
 dk_all(~isfinite(dk_all))=0;
 dk=sum(dk_all,2)./dk_all_cnt;
+dk(~isfinite(dk))=0;
 [~,k0_ind]=min(sum(ktraj_adc.^2,1));
 kindex=round((ktraj_adc-ktraj_adc(:,k0_ind*ones(1,size(ktraj_adc,2))))./dk(:,ones(1,size(ktraj_adc,2))));
+kindex(~isfinite(kindex))=0;
 kindex_min=min(kindex,[],2);
 kindex_mat=kindex-kindex_min(:,ones(1,size(ktraj_adc,2)))+1;
 kindex_end=max(kindex_mat,[],2);
@@ -103,7 +106,7 @@ else
     data=reshape(data, [size(data,1) size(data,2) 1 size(data,3)]); % we need a dummy images/slices dimension
 end
 
-%figure; imab(data);
+%figure; imab(log(abs(data))); % k-space data
 
 %% Reconstruct coil images
 

@@ -20,11 +20,9 @@ This project is open source under the MIT License. See [LICENSE](LICENSE) for de
 The directories are organized as follows:
 
 * `doc/` - Contains the file specification and HTML source code documentation
+* `examples/` - Contains example sequence files (`*.seq`)
 * `src/` - C++ class for reading sequence files
 * `matlab/` - MATLAB code for reading, writing, modifying and visualizing sequence files
-   * `matlab/demoSeq` - example MATLAB scripts to build basic sequences
-   * `matlab/demoRecon` - example MATLAB data/image reconstruction scripts
-* `test/` - Contains test sequence files (`*.seq`) used during the release process
 
 ## System requirements
 

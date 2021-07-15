@@ -1,4 +1,9 @@
-seq=mr.Sequence();              % Create a new sequence object
+% Set system limits
+lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
+    'MaxSlew',130,'SlewUnit','T/m/s',...
+    'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6);  
+
+seq=mr.Sequence(lims);          % Create a new sequence object
 fov=220e-3; Nx=256; Ny=256;     % Define FOV and resolution
 
 foe=200e-3;             % Field of excitation
@@ -6,10 +11,6 @@ targetWidth=22.5e-3;    % Diameter of target excitation pattern
 n=8;                    % Number of spiral turns
 T=8e-3;                 % Pulse duration
 
-% Set system limits
-lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
-    'MaxSlew',130,'SlewUnit','T/m/s',...
-    'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6);  
 
 % Define spiral k-space trajectory
 kMax=(2*n)/foe/2;       % Units of 1/m (not rad/m)
@@ -51,7 +52,7 @@ delayTE1=ceil((20e-3/2 - mr.calcDuration(gzSpoil) - mr.calcDuration(rf180)/2)/se
 delayTE2=delayTE1 - mr.calcDuration(gxPre) - mr.calcDuration(gx)/2;
 delayTR=500e-3 - 20e-3 - mr.calcDuration(rf) - mr.calcDuration(gx)/2;
 
-% Loop over phase encodes and define sequence blocks
+%% Loop over phase encodes and define sequence blocks
 for i=1:Ny
     seq.addBlock(rf,gxRf,gyRf);
     seq.addBlock(mr.makeDelay(delayTE1));
@@ -65,6 +66,18 @@ for i=1:Ny
     seq.addBlock(mr.makeDelay(delayTR));
 end
 
+%% check whether the timing of the sequence is correct
+[ok, error_report]=seq.checkTiming;
+
+if (ok)
+    fprintf('Timing check passed successfully\n');
+else
+    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf([error_report{:}]);
+    fprintf('\n');
+end
+
+%%
 seq.setDefinition('Name', 'se_selRF');
 
 seq.write('selectiveRf.seq');   % Write to pulseq file

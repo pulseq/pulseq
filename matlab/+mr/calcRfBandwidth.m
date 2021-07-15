@@ -1,6 +1,7 @@
 function [bw,spectrum,w]=calcRfBandwidth(rf, cutoff)
 %calcRfbandwidth Calculate the spectrum of the RF pulse
-%   Returns the bandwidth of the pulse and optionally the spectrum and the
+%   Returns the bandwidth of the pulse (calculated by a simple FFT, e.g. 
+%   pesuming a low-angle approximation) and optionally the spectrum and the
 %   frequency axis. The default for the optional parameter 'cutoff' is 0.5 
 %
 

@@ -1,25 +1,25 @@
 % a very basic UTE-like sequence, without ramp-sampling, ramp-RF and other
 % tricks yet. Achieves TE in the range of 300-400 us
 
-seq=mr.Sequence();              % Create a new sequence object
-fov=250e-3; Nx=250;             % Define FOV and resolution
+% set system limits
+sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
+    'MaxSlew', 100, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
+    'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
+
+seq=mr.Sequence(sys);           % Create a new sequence object
+fov=250e-3; Nx=256;             % Define FOV and resolution
 alpha=10;                       % flip angle
 sliceThickness=3e-3;            % slice
 TR=10e-3;                       % TR
 Nr=128;                         % number of radial spokes
 delta= 2* pi / Nr;              % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
-ro_duration=2.50e-3;             % read-out time: controls RO bandwidth and T2-blurring
+ro_duration=2.56e-3;            % read-out time: controls RO bandwidth and T2-blurring
 ro_os=2;                        % oversampling
-ro_asymmetry=0.97;              % 0: fully symmetric 1: half-echo
+ro_asymmetry=1;                 % 0: fully symmetric 1: half-echo
 minRF_to_ADC_time=50e-6;        % the parameter wich defines TE (together with the RO asymmetyry)
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
-
-% set system limits
-sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
-    'MaxSlew', 100, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
-    'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(alpha*pi/180,'Duration',1e-3,...
@@ -34,8 +34,7 @@ deltak=1/fov/(1+ro_asymmetry);
 ro_area=Nx*deltak;
 gx = mr.makeTrapezoid('x','FlatArea',ro_area,'FlatTime',ro_duration,'system',sys);
 adc = mr.makeAdc(Nxo,'Duration',gx.flatTime,'Delay',gx.riseTime,'system',sys);
-%adc.delay = adc.delay - 0.5*adc.dwell; % compensate for the 0.5 samples shift -- NO, it contradicts the timing check!!!
-gxPre = mr.makeTrapezoid('x','Area',-(gx.area-ro_area)/2 - ro_area/2*(1-ro_asymmetry),'system',sys);
+gxPre = mr.makeTrapezoid('x','Area',-(gx.area-ro_area)/2 -gx.amplitude*adc.dwell/2 - ro_area/2*(1-ro_asymmetry),'system',sys);
 
 % gradient spoiling
 gxSpoil=mr.makeTrapezoid('x','Area',0.2*Nx*deltak,'system',sys);
@@ -79,8 +78,6 @@ for i=1:Nr
     end
 end
 
-seq.plot();
-
 %% check whether the timing of the sequence is correct
 [ok, error_report]=seq.checkTiming;
 
@@ -92,16 +89,18 @@ else
     fprintf('\n');
 end
 
-%% plot gradients to check for gaps and optimality of the timing
-gw=seq.gradient_waveforms();
-figure; plot(gw'); % plot the entire gradient shape
+%%
+seq.plot();
 
-%% trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
+%% plot gradients to check for gaps and optimality of the timing
+gw=seq.waveforms_and_times();
+figure; plot(gw{1}(1,:),gw{1}(2,:),gw{2}(1,:),gw{2}(2,:),gw{3}(1,:),gw{3}(2,:)); % plot the entire gradient shape
+
+%% k-space trajectory calculation
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 
 % plot k-spaces
-time_axis=(1:(size(ktraj,2)))*sys.gradRasterTime;
-figure; plot(time_axis, ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
 hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
 figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display

@@ -175,17 +175,6 @@ end
 seq.plot();             % Plot sequence waveforms
 
 % trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
-
-% plot k-spaces
-time_axis=(1:(size(ktraj,2)))*lims.gradRasterTime;
-figure; plot(time_axis, ktraj'); % plot the entire k-space trajectory
-hold on; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
-figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
-axis('equal'); % enforce aspect ratio for the correct trajectory display
-hold on;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
-
-%% new higher-performabce trajectory calculation
 [ktraj_adc1, t_adc1, ktraj1, t_ktraj1, t_excitation1, t_refocusing1] = seq.calculateKspacePP();
 
 % plot k-spaces
@@ -209,3 +198,4 @@ seq.write('epise_rs.seq');
 
 rep = seq.testReport; 
 fprintf([rep{:}]); % as for January 2019 TR calculation fails for fat-sat
+

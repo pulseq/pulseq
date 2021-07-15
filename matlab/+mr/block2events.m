@@ -36,6 +36,8 @@ if isfield(first, 'rf')
     %c(cellfun(@isempty,c))=[];
     c(cellfun('isempty',c))=[];
     %c=c(~cellfun('isempty',c));
+    
+    %c(cellfun('isnumeric',c))=[]; % remove blockDuration 
 
 elseif iscell(first)
     c = first;

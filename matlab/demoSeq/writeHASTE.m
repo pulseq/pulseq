@@ -47,7 +47,8 @@ TEeff=60e-3;
 k0=round(TEeff/TE);
 PEtype='linear';
 
-readoutTime = 6.4e-3 + 2*system.adcDeadTime;
+samplingTime= 6.4e-3;
+readoutTime = samplingTime + 2*system.adcDeadTime;
 tEx=2.5e-3; 
 tExwd=tEx+system.rfRingdownTime+system.rfDeadTime;
 tRef=2e-3; 
@@ -102,7 +103,7 @@ deltak=1/fov;
 kWidth = Nx*deltak;
 
 GRacq = mr.makeTrapezoid('x',system,'FlatArea',kWidth,'FlatTime',readoutTime,'riseTime',dG);
-adc = mr.makeAdc(Nx,'Duration',GRacq.flatTime-2*system.adcDeadTime, 'Delay', 20e-6);%,'Delay',GRacq.riseTime);
+adc = mr.makeAdc(Nx,'Duration',samplingTime, 'Delay', system.adcDeadTime);%,'Delay',GRacq.riseTime);
 GRspr = mr.makeTrapezoid('x',system,'area',GRacq.area*fspR,'duration',tSp,'riseTime',dG);
 GRspex = mr.makeTrapezoid('x',system,'area',GRacq.area*(1+fspR),'duration',tSpex,'riseTime',dG);
 
@@ -110,6 +111,8 @@ GRspex = mr.makeTrapezoid('x',system,'area',GRacq.area*(1+fspR),'duration',tSpex
 AGRspr=GRspr.area;%GRacq.area/2*fspR;
 AGRpreph = GRacq.area/2+AGRspr;%GRacq.area*(1+fspR)/2;
 GRpreph = mr.makeTrapezoid('x',system,'Area',AGRpreph,'duration',tSpex,'riseTime',dG);
+
+
 
 %%
 %%% Phase encoding
@@ -174,9 +177,9 @@ GR7 = mr.makeExtendedTrapezoid('x','times',GR7times,'amplitudes',GR7amp);
 
 
 % and filltimes
-tex=GS1.t(end)+GS2.t(end)+GS3.t(end);
-tref=GS4.t(end)+GS5.t(end)+GS7.t(end)+readoutTime;
-tend=GS4.t(end)+GS5.t(end);
+tex=GS1.shape_dur+GS2.shape_dur+GS3.shape_dur;
+tref=GS4.shape_dur+GS5.shape_dur+GS7.shape_dur+readoutTime;
+tend=GS4.shape_dur+GS5.shape_dur;
 tETrain=tex+necho*tref+tend;
 TRfill=(TR-Nslices*tETrain)/Nslices;
 % round to gradient raster
@@ -240,12 +243,11 @@ else
     fprintf('\n');
 end
 
-%% new single-function call for trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
+%% k-space trajectory calculation
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 
 %% plot k-spaces
-
-figure; plot(ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
 

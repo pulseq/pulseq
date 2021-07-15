@@ -7,8 +7,13 @@
 % IMPORTANT NOTICE: be aware, that this sequence potentially uses very 
 % strong gradient that may overload your scanner!
 
-seq=mr.Sequence();         % Create a new sequence object
-fov=224e-3; Nx=112; Ny=112;  % Define FOV and resolution
+% Set system limits
+lims = mr.opts('MaxGrad',38,'GradUnit','mT/m',...
+    'MaxSlew',180,'SlewUnit','T/m/s',...
+    'rfRingdownTime', 10e-6, 'rfDeadtime', 100e-6, 'B0', 2.89);  
+
+seq=mr.Sequence(lims);     % Create a new sequence object
+fov=224e-3; Nx=112; Ny=Nx; % Define FOV and resolution
 thickness=2e-3;            % slice thinckness
 Nslices=3;
 bFactor=1000; % s/mm^2
@@ -22,17 +27,11 @@ partFourierFactor=0.75;    % partial Fourier factor: 1: full sampling 0: start w
 tRFex=3e-3;
 tRFref=3e-3;
 
-% Set system limits
-lims = mr.opts('MaxGrad',38,'GradUnit','mT/m',...
-    'MaxSlew',180,'SlewUnit','T/m/s',...
-    'rfRingdownTime', 10e-6, 'rfDeadtime', 100e-6);  
-
 % Create fat-sat pulse 
-B0=2.89; % 1.5 2.89 3.0
 sat_ppm=-3.45;
-sat_freq=sat_ppm*1e-6*B0*lims.gamma;
+sat_freq=sat_ppm*1e-6*lims.B0*lims.gamma;
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
-    'bandwidth',abs(sat_freq),'freqOffset',sat_freq);
+    'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
 gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create 90 degree slice selection pulse and gradient
@@ -185,12 +184,11 @@ end
 
 seq.plot();             % Plot sequence waveforms
 
-% new single-function call for trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
+% trajectory calculation
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos] = seq.calculateKspacePP();
 
 % plot k-spaces
-time_axis=(1:(size(ktraj,2)))*lims.gradRasterTime;
-figure; plot(time_axis, ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
 hold on; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
 figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
@@ -209,8 +207,9 @@ seq.write('epidiff_rs.seq');
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
 
 rep = seq.testReport; 
-fprintf([rep{:}]); % as for January 2019 TR calculation fails for fat-sat
+fprintf([rep{:}]); 
 
+%%
 function b=bFactCalc(g, delta, DELTA)
 % see DAVY SINNAEVE Concepts in Magnetic Resonance Part A, Vol. 40A(2) 39–65 (2012) DOI 10.1002/cmr.a
 % b = gamma^2  g^2 delta^2 sigma^2 (DELTA + 2 (kappa - lambda) delta)

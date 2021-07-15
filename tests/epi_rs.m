@@ -100,7 +100,7 @@ for s=1:Nslices
 end
 
 % prepare the sequence output for the scanner
-seq.setDefinition('FOV', [fov fov thickness]);
+seq.setDefinition('FOV', [fov fov thickness]*1e3);
 seq.setDefinition('Name', 'epi');
 
 seq.write('epi_rs.seq'); 

@@ -9,10 +9,16 @@
 %% Read a sequence file
 % A sequence can be loaded from the open MR file format using the |read|
 % method.
-% seq_name='trufi.seq'; 
-seq_name='../examples/gre.seq';
-seq=mr.Sequence();
-seq.read(seq_name);
+%seq_name='gre.seq'; 
+seq_name='epi_rs.seq';
+%seq_name='trufi.seq'; 
+%seq_name='epi_se.seq';
+%seq_name='../tests/gre.seq';
+%seq_name='../tests/epi_rs.seq';
+
+sys = mr.opts('B0', 2.89); % we need system here if we want 'detectRFuse' to detect fat-sat pulses
+seq=mr.Sequence(sys);
+seq.read(seq_name,'detectRFuse');
 
 %% sanity check to see if the reading and writing are consistent
 % seq.write('read_test.seq');
@@ -22,13 +28,18 @@ seq.read(seq_name);
 % Parameters defined with in the |[DEFINITIONS]| section of the sequence file
 % are accessed with the |getDefinition| method. These are user-specified
 % definitions and do not effect the execution of the sequence.
-scanId=seq.getDefinition('Scan_ID')
+seqName=seq.getDefinition('Name')
+
+%% calculate and display real TE, TR as well as slew rates and gradient amplitudes
+
+rep = seq.testReport; 
+fprintf([rep{:}]); 
 
 %%
 % Sequence blocks are accessed with the |getBlock| method. As shown in the
 % output the first block is a selective excitation block and contains an RF
 % pulse and gradient and on the z-channel.
-b1 = seq.getBlock(1)
+b1=seq.getBlock(1)
 
 %%
 % Further information about each event can be obtained by accessing the
@@ -62,7 +73,7 @@ b4.adc
 % so zooming is consistent. In this example, a simple gradient echo sequence
 % for MRI is displayed.
 seq.plot()
-
+return
 %%
 % The details of individual pulses are not well-represented when the entire
 % sequence is visualised. Interactive zooming is helpful here.

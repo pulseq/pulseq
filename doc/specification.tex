@@ -23,8 +23,8 @@
 
 %\def\myversion{1.01 }
 \def\myversionmajor{1}
-\def\myversionminor{3}
-\def\myversionrevision{1}
+\def\myversionminor{4}
+\def\myversionrevision{0}
 \def\myversion{\myversionmajor.\myversionminor.\myversionrevision }
 %\def\myversion{1.0.2 }
 
@@ -65,7 +65,7 @@ frame=single
 \rule{\textwidth}{5pt}\vskip1cm
 \Huge{Open file format for MR sequences \\}
 \vspace{1cm}
-\LARGE{Version \myversion\\}
+\LARGE{Version \myversion (DRAFT)\\}
 \vspace{1cm}
 \large Maxim Zaitsev\\ Stefan Kroboth\\ Kelvin Layton\\ 
 \vspace{1cm}
@@ -107,9 +107,11 @@ Version & Date & Description \\
 1.1.0 & 11 Jul 2017 & Changed versioning scheme \\
 1.2.0 & 06 Jul 2018 & \makecell{Events can now be delayed individually; \\ Delay events and other events overlap within blocks} \\
 1.2.1 & 13 Dec 2018 & \makecell{Matlab code does not use zero-filling prior to the \\ actual RF shape to account for RF dead time and \\ uses delay instead. Interpreter code also does not \\ attempt to detect RF zero-filling.} \\
-1.3.0 & 02 Jul 2019 & \makecell{Support for generic extensions: \\ added extensions column to the event table, which \\ references the new [extensions] section; \\ added support for one extension: \\ triggers (including two types: input and output)} 
+1.3.0 & 02 Jul 2019 & \makecell{Support for generic extensions: \\ added extensions column to the event table, which \\ references the new [extensions] section; \\ added support for one extension: \\ triggers (including two types: input and output).} 
 \\
-1.3.1 & 25 Sept 2020 & \makecell{Added support for the LABEL extension, updated figures } 
+1.3.1 & 25 Sept 2020 & \makecell{Added support for the LABEL extension, updated figures. } 
+\\
+1.4.0 & 7 Jul 2021 & \makecell{Substantial revisions of the file format: \\ added required definitions; \\ we now explicitly specify sampling and raster alignment conventions; \\ flexible shape timing for arbitrary gradients and RF pulses; \\ explicit block duration; \\ removed [DELAYS]; \\ added uncompressed shape option; \\ added signature section; \\ TODO: update figures and examples. } 
 \\
 \bottomrule
 \end{tabular}
@@ -131,7 +133,7 @@ The first goal of human readability necessitates a text-file format. The file fo
 \subsection{Example}
 
 Before defining the detailed specification, a simple example is presented to demonstrate the main structure of a sequence. Below is a simple FID experiment with RF pulse, delay and ADC readout. 
-\lstinputlisting{../examples/fiddisp.seq}
+\lstinputlisting{../tests/fiddisp.seq}
 
 
 
@@ -151,22 +153,70 @@ The sequence description consists of a three-level hierarchical structure as dem
 \item[Shapes] A shape is a compressed list of samples. The uncompressed samples can describe, for example, the RF pulse shape or an arbitrary gradient shape. The compression scheme is a type of run-length encoding.
 \end{description}
 
+Comments are specified by a line starting with a hash.
+\begin{lstlisting}
+# This is a comment
+\end{lstlisting}
+
+The numeric values are declared exactly as described below with storage defined by the value type. In general, \textbf{integer} types are stored as 64-bit unsigned integers while \textbf{floating-point} numbers are in the 64-bit IEEE 754 floating-point format. Exceptions are \verb.<id>. values, which are 32-bit integers. Shapes are stored as 32-bit short floats.
+
 \subsection{Identification numbers}
 A key idea of the hierarchical sequence structure is the use of ID numbers to refer to objects defined one level below in the hierarchy. For example, blocks contain the ID of one or more event(s). Likewise, events may contain the ID of one or more shape(s). Restrictions are placed on these IDs to ensure consistency:
 \begin{itemize}
 \item IDs must be positive integers.
 \item The ID of each shape must be unique.
 \item The ID of events within a single class must be unique. For example, an RF event and delay event may both use an ID of 1, since the events are of a different class. An exception is the \verb.[GRADIENTS]. and \verb.[TRAP]. events where the union of these sets must contain unique event IDs.
+\item The ID of 0 for a time shape corresponds to the "default", meaning an incremental time sampling with the corresponding time raster.
 \item There are no restrictions on the ordering of IDs, although sequential ordering is often implemented.
 \item There are no restrictions on the first ID of an event class.
 \end{itemize}
 
-\subsection{General}
+\subsection{Version}
 
-Comments are specified by a line starting with a hash.
-\begin{lstlisting}
-# This is a comment
+The versioning scheme is $\langle$major$\rangle$.$\langle$minor$\rangle$.$\langle$revision$\rangle$.
+
+\begin{lstlisting}[escapechar=\%]
+[VERSION]
+major %$\langle$%major%$\rangle$%
+minor %$\langle$%minor%$\rangle$%
+revision %$\langle$%revision%$\rangle$%
 \end{lstlisting}
+
+Providing the version of the standard is vital for sequence execution.
+If this section is not provided, the interpreter sequence may either refuse execution or assume version 1.0.0. It is recommended to reject Pulseq files without \verb.[VERSION]. section.
+
+\textbf{Example:}
+\begin{lstlisting}[escapechar=\%]
+[VERSION]
+major %\myversionmajor%
+minor %\myversionminor%
+revision %\myversionrevision%
+\end{lstlisting}
+
+\subsection{Signature}
+
+The Pulseq file may end with an optional section \verb.[SIGNATURE]. as in the example below:
+
+\begin{lstlisting}[escapechar=\%]
+[SIGNATURE]
+# This is the hash of the Pulseq file, calculated right before 
+# the [SIGNATURE] section was appended to the file
+Type md5
+Hash 237b85c2aa46ba98076359cde263d6ee
+\end{lstlisting}
+
+The signature is generated by hashing the readily exported file with a corresponding algorithm (in this example md5sum) and appending the \verb.[SIGNATURE]. section. The new line character preceding the keyword \verb.[SIGNATURE]. is part of the signature and needs to be stripped away for the signature verification. The \verb.[SIGNATURE]. section must contain two following fields along with any additional information in the format identical to that of \verb.[DEFINITIONS]. (see below). 
+
+\begin{tabularx}{\textwidth}{llX}
+\toprule
+Tag & Type & Description\\
+\midrule
+\verb.Type. & string & ID of the hashing algorithm (e.g. md5, sha1 or sha256) \\
+\verb.Hash. & string & Hash value produced by the hashing function in the hexadecimal format \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Definitions}
 
 The sequence may contain general definitions indicated by the \verb.[DEFINITIONS]. keyword. Each definition is defined on a new line with the following format
 \begin{lstlisting}
@@ -183,61 +233,69 @@ Tag & Type & Description & Units\\
 \bottomrule
 \end{tabularx}
 
+The \verb.<value>. field is separated by a single space or tab character from \verb.<key>. and is terminated at the end of the line. Any (additional) white space at the beginning and at the end of \verb.<value>. is ignored.
+
 \textbf{Example:}
 \begin{lstlisting}
 [DEFINITIONS]
-Scan_ID 237
-FOV 0.150 0.150 0.005
+AdcRasterTime 1e-07 
+BlockDurationRaster 1e-05 
+GradientRasterTime 1e-05 
+RadiofrequencyRasterTime 1e-06 
+FOV 0.256 0.256 0.004 
+Name epi 
 TE 0.005
 TR 0.01
-Num_Blocks 3072
-TotalDuration 12.96
-\end{lstlisting}
-It is important to note that all definitions are optional and do not affect the basic sequence execution. Precise timing is given by the low-level specification of events. The definitions section may be used for user-specific purposes, including attaching metadata or hardware-dependent parameters.
-
-\subsection{Version}
-
-The versioning scheme is $\langle$major$\rangle$.$\langle$minor$\rangle$.$\langle$revision$\rangle$.
-
-\begin{lstlisting}[escapechar=\%]
-[VERSION]
-major %$\langle$%major%$\rangle$%
-minor %$\langle$%minor%$\rangle$%
-revision %$\langle$%revision%$\rangle$%
+TotalDuration 0.04268 
 \end{lstlisting}
 
-Providing the version of the standard is vital for sequence execution.
-If this section is not provided, the interpreter sequence may either refuse execution or assume version 1.0.0.
+Starting from the Pulseq format revision 1.4.0, the following definitions are reserved, some of which are optional, whereas the definitions labeled as \textbf{required} are compulsory.
 
-\textbf{Example:}
-\begin{lstlisting}[escapechar=\%]
-[VERSION]
-major %\myversionmajor%
-minor %\myversionminor%
-revision %\myversionrevision%
-\end{lstlisting}
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+Definition & Description & Status\\
+\midrule
+\verb.GradientRasterTime. & Default raster time (dwell time) of the shaped gradient events, specified in seconds & required \\
+\verb.RadiofrequencyRasterTime. & Default raster time (dwell time) of the radio-frequency pulse shapes, specified in seconds & required \\
+\verb.AdcRasterTime. & The value defining the alignment of the ADC dwell times; ADC dwell time must be integer multiple of the specified AdcRasterTime; AdcRasterTime is specified in seconds & required \\
+\verb.BlockDurationRaster. & The value defining the alignment of the block durations, specified in seconds; the physical block duration must be integer multiple of the specified BlockDurationRaster; Block duration in the \verb.[BLOCKS]. section are specified in the units of BlockDurationRaster  & required\\
+\verb.Name. & Human-readable name of the sequence & optional \\
+\verb.FOV. & Field of view specified in meters in x, y and z directions given as a space-separated list of numbers \\
+\verb.TotalDuration. & Total duration of the sequence is seconds \\
+\bottomrule
+\end{tabularx}
+
+It is important to note that all definitions that are not  \textbf{required} are optional and do not affect the basic sequence execution. Precise timing is given by the low-level specification of events. The definitions section may be used for arbitrary user-specific purposes, including attaching metadata or hardware-dependent parameters.
+
+\subsection{Time raster, temporal alignment and shape sampling conventions}
+
+Accurate timing is essential for NMR and MRI experiments. To guarantee 	
+unambiguous time definition Pulseq operates at discrete time raster. Depending on the particular hardware implementation details different electronic components may have different clock resolutions and correspondingly different raster times. 
+
+For understanding the time raster alignment it is important to differentiate between the \verb.edges. and \verb.centers. of the time raster steps. All blocks and events are aligned to the corresponding \verb.edges. of the time raster. Block duration is required to be multiple of \verb.BlockDurationRaster., therefore each block can only start and end at the \verb.edges. of the block duration raster. Gradient events may only start at time points which are multiple of \verb.GradientRasterTime.; for trapezoid events, ramp times and plateau duration may also only be equal to multiples of \verb.GradientRasterTime.. In contrast to that, any default sampling points (e.g. sampling points of arbitrary-shape gradients) are aligned to the \verb.centers. of the corresponding raster steps. The same convention applies to the default RF shape sampling and ADC sampling points. This means that the time of the n-th point on the RF pulse shape, gradient shape or ADC sampling point can be calculated as $t_n=t_{start} + \Delta t(0.5+n)$. We will eventually add some figures and diagrams to this section to explain this important concept.
+
 
 \subsection{Blocks}
 
-The section containing sequence blocks is declared with the \verb.[BLOCKS]. keyword. Each subsequence line declares a single block specified by a list of six event IDs. An ID of 0 indicated no event.
+The section containing sequence blocks is declared with the \verb.[BLOCKS]. keyword. Each subsequence line declares a single block specified by a duration and a list of six event IDs. An ID of 0 indicated no event.
 \begin{lstlisting}
-<id> <delay> <rf> <gx> <gy> <gz> <adc> <ext>
+<id> <duration> <rf> <gx> <gy> <gz> <adc> <ext>
 \end{lstlisting}
 
 Each tag represents the ID of the corresponding event.
 
-\begin{tabularx}{\textwidth}{llXl}
+\begin{tabularx}{\textwidth}{llX}
 \toprule
-Tag & Type & Description & Units\\
+Tag & Type & Description\\
 \midrule
-\verb.<id>. & integer & ID of the sequence block & -- \\
-\verb.<delay>. & integer & ID of the delay event & -- \\
-\verb.<rf>. & integer & ID of the RF event & -- \\
-\verb.<gx>. & integer & ID of the gradient event on the X channel & --\\
-\verb.<gy>. & integer & ID of the gradient event on the Y channel & -- \\
-\verb.<gz>. & integer & ID of the gradient event on the Z channel & -- \\
-\verb.<adc>. & integer & ID of the ADC event & -- \\
-\verb.<ext>. & integer & ID of the extension table entry & -- \\
+\verb.<id>. & integer & ID of the sequence block \\
+\verb.<duration>. & integer & duration of the current block in units of \verb.BlockDurationRaster. \\
+\verb.<rf>. & integer & ID of the RF event \\
+\verb.<gx>. & integer & ID of the gradient event on the X channel \\
+\verb.<gy>. & integer & ID of the gradient event on the Y channel \\
+\verb.<gz>. & integer & ID of the gradient event on the Z channel \\
+\verb.<adc>. & integer & ID of the ADC event \\
+\verb.<ext>. & integer & ID of the extension table entry \\
 \bottomrule
 \end{tabularx}
 
@@ -247,20 +305,20 @@ The sequence must declare at least one block. Any non-zero number of blocks may 
 \textbf{Example:}
 \begin{lstlisting}
 [BLOCKS]
-   1   0   1   0   0   2    0    0
+   1   319   1   0   0   2    0    0
 \end{lstlisting}
 \end{minipage}
 
-The block above is the first in the sequence and contains an RF pulse with ID of 1 and a z-gradient pulse with ID of 2. The block has no delay, X gradient, Y gradient or ADC events, indicated by zero IDs.
+The block above is the first in the sequence which has a duration of 319*\verb.BlockDurationRaster. and contains an RF pulse with ID of 1 and a z-gradient pulse with ID of 2. The block has no X gradient, Y gradient or ADC events, indicated by zero IDs and also no extension is specified.
 
 \subsection{Events}
 
-Events are defined in sections, each starting with one the following keywords: \verb.[RF]., \verb.[GRADIENTS]., \verb.[TRAP]., \verb.[ADC]. or \verb.[DELAYS].. Each event is specified on a single line and contains an ID followed by type-specific definition.
+Events are defined in sections, each starting with one the following keywords: \verb.[RF]., \verb.[GRADIENTS]., \verb.[TRAP]., \verb.[ADC]. or \verb.[EXTENSIONS].. Each event is specified on a single line and contains an ID followed by type-specific definition.
 
 \subsubsection{RF}
 The RF section is declared with the \verb.[RF]. keyword. Following this declaration, each RF event is specified by a single line containing seven numbers.
 \begin{lstlisting}
-<id> <amp> <mag_id> <phase_id> <delay> <freq> <phase>
+<id> <amp> <mag_id> <phase_id> <time_id> <delay> <freq> <phase>
 \end{lstlisting}
 
 The specifiers are
@@ -273,6 +331,7 @@ Tag & Type & Description & Units\\
 \verb.<amp>. & float & Peak amplitude & Hz \\
 \verb.<mag_id>. & integer & Shape ID for magnitude profile & -- \\
 \verb.<phase_id>. & integer & Shape ID for phase profile & --\\
+\verb.<time_id>. & integer & Shape ID for the time sampling points, specified in the units of \verb.RadiofrequencyRasterTime.; 0 means default time raster & -- \\
 \verb.<delay>. & integer & Delay before starting the RF pulse & $\rm \mu s$\\
 \verb.<freq>. & float & Frequency offset & Hz \\
 \verb.<phase>. & float & Phase offset & rad \\
@@ -283,16 +342,16 @@ Tag & Type & Description & Units\\
 \textbf{Example:}
 \begin{lstlisting}
 [RF]
-  1    2500  1   2  0  0.000  0.000
+  1    2500  1   2  0  0  0.000  0.000
 \end{lstlisting}
 \end{minipage}
 
-In the example above, the RF pulse has ID of 1, peak amplitude of 2500Hz. The magnitude and phase profiles are defined with the shapes of ID 1 and 2, respectively. The RF pulse does not have any frequency or phase offset or delay.
+In the example above, the RF pulse has ID of 1, peak amplitude of 2500Hz. The magnitude and phase profiles are defined with the shapes of ID 1 and 2, respectively. The RF pulse does not have any frequency or phase offset or delay and uses the default time axis sampling with a dwell time of \verb.RadiofrequencyRasterTime..
 
 \subsubsection{Gradients}
 Gradient events are declared in two sections. Arbitrary gradients are in a section declared with the \verb.[GRADIENTS]. keyword. Each line in the section is an arbitrary gradient specified by four numbers,
 \begin{lstlisting}
-<id> <amp> <shape_id> <delay>
+<id> <amp> <shape_id> <time_id> <delay>
 \end{lstlisting}
 Trapezoidal gradients are in a section declared with the \verb.[TRAP]. keyword. Each line in the section is a trapezoidal gradients specified by six numbers,
 \begin{lstlisting}
@@ -308,6 +367,7 @@ Tag & Type & Description & Units\\
 \verb.<id>. & integer & ID of the gradient event & -- \\
 \verb.<amp>. & float & Peak amplitude & Hz/m \\
 \verb.<shape_id>. & integer & Shape ID for arbitrary gradient waveform & -- \\
+\verb.<time_id>. & integer & Shape ID for the time sampling points, specified in the units of \verb.GradientRasterTime.; 0 means default time raster & -- \\
 \verb.<rise>. & integer & Rise time of the trapezoid & $\rm \mu s$ \\
 \verb.<flat>. & integer & Flat-top time of the trapezoid & $\rm \mu s$ \\
 \verb.<fall>. & integer & Fall time of the trapezoid & $\rm \mu s$ \\
@@ -322,14 +382,14 @@ The gradient ID must be unique across both arbitrary and trapezoid gradients. Th
 \textbf{Example:}
 \begin{lstlisting}
 [GRADIENTS]
-  1    159154.9  3  0
+  1    159154.9  3  4  0
 [TRAP]
   2       25000    30  940  30  100
   3    20066.89    10  980  10  100
 \end{lstlisting}
 \end{minipage}
 
-The example above contains two gradients: an arbitrary gradient with peak amplitude of approximately 159kHz/m and shape ID 3 and two trapezoid gradients (IDs 2 and 3) with duration 1ms specified by amplitude, rise time, flat-top time and fall time.
+The example above contains two gradients: an arbitrary gradient with peak amplitude of approximately 159kHz/m and shape ID 3 and time shape ID 4 and two trapezoid gradients (IDs 2 and 3) with duration 1ms specified by amplitude, rise time, flat-top time and fall time.
 Both gradients have a delay of 100$\rm \mu s$.
 
 \subsubsection{ADC}
@@ -363,25 +423,7 @@ The duration of the ADC readout is given by the product of \verb.<num>. and \ver
 \end{lstlisting}
 \end{minipage}
 
-The example above contains an ADC with 512 samples, and dwell time of 5000ns, and no frequency and phase offsets. The frequency and phase offset are used, for example, for RF spoiling or inplane shifting of the FOV.
-
-\subsubsection{Delays}
-The delay section is declared with the \verb.[DELAYS]. keyword. Each line in the section is a delay event specificed by two numbers,
-
-\begin{lstlisting}
-<id> <delay>
-\end{lstlisting}
-
-The specifiers are
-
-\begin{tabularx}{\textwidth}{llXl}
-\toprule
-Tag & Type & Description & Units\\
-\midrule
-\verb.<id>. & integer & ID of the delay event & -- \\
-\verb.<delay>. & integer & Delay which overlaps with other events within a block and therefore defines the minimum duration of a block & $\rm \mu s$ \\
-\bottomrule
-\end{tabularx}
+The example above contains an ADC with 512 samples, and dwell time of 5000ns, and no frequency and phase offsets. The frequency and phase offset are used, for example, for RF spoiling or in-plane shifting of the FOV.
 
 \subsubsection{Extensions}
 Extensions concept allows for implementing additional features without requiring major revisions of the Pulseq format specification. Extensions can be defined in the design tool in a good hope that the particular interpreter will know how to handle it. The interpreter MUST detect unknown extensions and MAY chose to ignore them. It is recommended that the interpreter issues a warning in this case. 
@@ -450,10 +492,9 @@ At the start of the sequence all counters and flags are automatically initialize
 
 In case the same block contains LABELSET, LABELINC and ADC directives the following priorities apply (independent of the order the events were submitted to the block e.g. in the Matlab toolbox): First all LABELSET directives are processed, followed by all LABELINC and only then the values of the counters are captured and passed over to the ADC directive.  
 
-
 \subsection{Shapes}
 
-The shape section is declared with the \verb.[SHAPES]. keyword. Each shape is then declared with a header followed by a list of samples values (one per line). The end of the shape definition is declared with a blank line.
+The shape section is declared with the \verb.[SHAPES]. keyword. Each shape is then declared with a header followed by a list of samples values (one per line). The end of the shape definition is declared with a blank line. Pulseq export software may opt for storing \textbf{uncompressed} shapes, e.g. to avoid rounding errors during compression/decompression or to save space for shapes that cannot be effectively compressed. The reading routines must interpret the shape as \textbf{uncompressed} if the number of samples in the store shape is equal to \verb.Num_Uncompressed.. Therefore the saving routine must save the shape in uncompressed format if the result of compression has the same length as the original shape.
 
 \begin{lstlisting}
 Shape_ID <id>
@@ -475,9 +516,9 @@ Tag & Type & Description & Units\\
 \bottomrule
 \end{tabularx}
 
-The decompressed samples must be in the normalised range [0, 1]. Since the purpose of this section is to define the basic shape of a gradient or RF pulse, the amplitude information is defined in the events section. This allows the same shape to be used with different amplitudes, without repeated definitions.
+When used as amplitude shapes for gradient or RF objects, the decompressed samples must be in the normalised range of [-1, 1] (e.g. the absolute value of the shape must be normalized to the range of [0 1]). Since the purpose of this section is to define the basic shape of a gradient or RF pulse, the amplitude information is defined in the events section. This allows the same shape to be used with different amplitudes, without repeated definitions.
 
-The number of points after decompressing all samples defined in a shape must equal the number declared in \verb.<num>..
+The number of points after decompressing all samples defined in a shape must equal the number declared in \verb.<Num_Uncompressed>..
 
 \subsubsection{Compression}
 
@@ -540,7 +581,7 @@ $\cdots$ &  & $\cdots$  &  & 0 \\
 \end{center}
 
 \section{Binary files}
-The specification described in Section~\ref{sec:specification} can be implemented as a binary file. The same general principles apply with specific modifications outlined here. The basic structure of a binary \emph{pulseq} file is depicted below,
+ \textbf{Binary Pulseq format is not widely accepted and is poorly supported. This section is out-of-date.} The specification described in Section~\ref{sec:specification} can be implemented as a binary file. The same general principles apply with specific modifications outlined here. The basic structure of a binary \emph{pulseq} file is depicted below,
 \texttt{
 \begin{center}
 \begin{tabular}{|c|c|c|c|c|c|c|c|l}
@@ -597,24 +638,6 @@ Section & Section code \\
 \end{tabular}
 \end{center}
 
-\subsection{Section details}
-
-The number of entries in each section is written as an integer directly after the section code.
-
-Unlike the text format, the \verb.[DEFINITIONS]. section is declared with the section code followed by \emph{four} fields per definition
-\begin{lstlisting}
-<key> <type> <num> <value_1> <value_2>...
-\end{lstlisting}
-The \verb.<key>. is a null-terminated ASCII encoded string. \verb.<type>. is an integer code either \verb.1. to denote integer or \verb.2. to denote floating-point. \verb.<num>. is an integer defining the number of values in this definition and \verb.<value_.$n$\verb.>. are the values of given type. The next definition immediately follows otherwise a new section code follows or it is the end of the file.
-
-The \verb.[SHAPES]. section is declared with the appropriate section code followed by
-\begin{lstlisting}
-<id> <num_uncompressed> <num_compressed> <sample_1> <sample_2>...
-\end{lstlisting}
-The \verb.<id>. is an integer shape ID, \verb.<num_uncompressed>. is the number of samples after decompression, \verb.<num_compressed>. is the number of compressed samples for this shape. Following are exactly the specified number of compressed samples stored as floating-point numbers. The next shape begins immediately after the last otherwise a new section code is declared (or end-of-file) to indicate the end of the \verb.[SHAPES]. section.
-
-The remaining sections are declared exactly as in Section~\ref{sec:specification} with storage defined by the value type. In general, \textbf{integer} types are stored as 64-bit unsigned integers while \textbf{floating-point} numbers are in the 64-bit IEEE 754 floating-point format. Exceptions are \verb.<id>. values, which are 32-bit integers; and \verb.<type>. and \verb.<num>. values of the \verb.[DEFINITIONS]. entries, which are 8-bit integers.
-
 \section{Source code}
 This specification is distributed with source code for reading and writing the sequences file format described here. MATLAB code is provided for detailed sequence generation, visualisation, as well as reading and writing sequence files. A C++ class and example program is also provided for reading sequence files. Detailed documentation and latest updates of this code are available here: \url{http://pulseq.github.io/}.
 
@@ -623,15 +646,15 @@ This specification is distributed with source code for reading and writing the s
 
 \subsection{Free induction decay}
 
-\lstinputlisting{../examples/fiddisp.seq}
+\lstinputlisting{../tests/fiddisp.seq}
 
 \subsection{Point-resolved spectroscopy (PRESS)}
 
-\lstinputlisting{../examples/pressdisp.seq}
+\lstinputlisting{../tests/pressdisp.seq}
 
 \subsection{Gradient echo}
 
-\lstinputlisting{../examples/gredisp.seq}
+\lstinputlisting{../tests/gredisp.seq}
 
 
 \end{document}

@@ -9,7 +9,7 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
         return;
     end
     total_dur=mr.calcDuration(varargin{:});
-    is_ok=div_check(total_dur,system.gradRasterTime);
+    is_ok=div_check(total_dur,system.blockDurationRaster);
     if (is_ok)
         text_error=[];
     else
@@ -17,6 +17,9 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
     end
     for i=1:length(varargin)
         e=varargin{i};
+        if isnumeric(e) % special handling for blockDuration
+            continue;
+        end
         assert(isstruct(e), 'wrong format of the variable aguments, list of structures is expected');
         ok=true;
         if length(e)>1
@@ -43,7 +46,7 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
             end
         end
         if isfield(e, 'dwell') % special case ADC
-            if e.dwell<100e-9 || abs(round(e.dwell/100e-9)*100e-9 - e.dwell)>1e-10 % 100e-9 is system.adcRasterTime in the next version
+            if e.dwell<system.adcRasterTime || abs(round(e.dwell/system.adcRasterTime)*system.adcRasterTime - e.dwell)>1e-10
                 ok=false;
             end
         end

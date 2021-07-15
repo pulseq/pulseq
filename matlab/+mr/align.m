@@ -47,7 +47,15 @@ for i=1:length(objects)
         case 2
             objects{i}.delay=(dur - mr.calcDuration(objects{i}))/2; % FIXME check how to handle the existing delay
         case 3
-            objects{i}.delay=dur - mr.calcDuration(objects{i}) + objects{i}.delay;
+            ev=objects{i};
+            ev_dur=mr.calcDuration(ev);
+            %if isfield(ev,'ringdownTime')
+            %    ev_dur=ev_dur+ev.ringdownTime;
+            %end
+            objects{i}.delay=dur - ev_dur + objects{i}.delay;
+            if objects{i}.delay < 0
+                error('aligh() attempts to set a negative delay, probably some RF pulses ignore rfRingdownTime');
+            end
     end
 end
 

@@ -26,6 +26,7 @@ classdef EventLibrary < handle
     %
     % Kelvin Layton <kelvin.layton@uniklinik-freiburg.de>
     % Stefan Kroboth <stefan.kroboth@uniklinik-freiburg.de>
+    % Maxim Zaitsev <maxim.zaitsev@uniklinik-freiburg.de>
     
     properties
         keys;
@@ -41,24 +42,18 @@ classdef EventLibrary < handle
             obj.data = struct('array',{});
             obj.lengths = zeros(1,0);
             obj.type = char(zeros(1,0));
-            obj.keymap = containers.Map('KeyType', 'char', 'ValueType', 'double'); % unsure if int64 is a good choice
+            obj.keymap = containers.Map('KeyType', 'char', 'ValueType', 'double'); 
         end
         
         function [id, found] = find(obj, data)
             %find Lookup a data structure in the given library.
-            %   idx=find(lib,data) Return the index of the data in
+            %   [id,found]=find(lib,data) Return the index of the data in
             %   the library. If the data does not exist in the library then
             %   the index for the next new entry is returned.
             %
             %   The data is a 1xN array with event-specific data.
             %
             %   See also  insert mr.Sequence.addBlock
-            
-            %try
-            %    [id, found] = mr.EventLibrary.find_mex(obj.keys,obj.data,obj.lengths,data);
-            %catch 
-            %    [id, found] = mr.EventLibrary.find_mat(obj.keys,obj.data,obj.lengths,obj.keymap,data);
-            %end
             
             % use map index for faster searches
             % matlab is extremely limited with regard to advanced contasiners
@@ -68,7 +63,7 @@ classdef EventLibrary < handle
             % containers.Map does not have a proper find function so we use direct
             % access and catch the possible error
             try
-                id = obj.keymap(data_string);
+                id = obj.keymap(data_string(1:end-1));
                 found = true;
             catch 
                 if isempty(obj.keys)
@@ -79,11 +74,69 @@ classdef EventLibrary < handle
                 found = false;
             end
         end
-                       
+        
+        function [id, found] = find_or_insert(obj, data, type)
+            %find Lookup a data structure in the given library.
+            %   [id,found]=find_or_insert(lib,data) Return the index of the data in
+            %   the library. If the data does not exist in the library it
+            %   is inserted right away
+            %
+            %   The data is a 1xN array with event-specific data.
+            %
+            %   See also  insert mr.Sequence.addBlock
+            
+            % use map index for faster searches
+            % matlab is extremely limited with regard to advanced contasiners
+            % we therefore are forced to use hashed map and convert data to a
+            % string
+            data_string = sprintf('%.6g ', data); % precision can be discussed
+            % containers.Map does not have a proper find function so we use direct
+            % access and catch the possible error
+            try
+                id = obj.keymap(data_string(1:end-1));
+                found = true;
+            catch 
+                if isempty(obj.keys)
+                    id = 1;
+                else
+                    id = max(obj.keys) + 1;
+                end
+                found = false;
+                % insert
+                obj.keys(id) = id;
+                obj.data(id).array = data;
+                obj.lengths(id) = length(data);
+                obj.keymap(data_string(1:end-1)) = id;
+                if nargin>2
+                    obj.type(id) = type;
+                end
+            end
+        end
+        
+        function insert(obj, id, data, type)
+            %insert Add event to library
+            % 
+            % See also find
+            
+            obj.keys(id) = id;
+            obj.data(id).array = data;
+            obj.lengths(id) = length(data);
+            
+            % use map index for faster searches
+            % matlab is extremely limited with regard to advanced containers
+            % we therefore are forced to use hashed map and convert data to a
+            % string
+            data_string=sprintf('%.6g ', data);
+            obj.keymap(data_string(1:end-1)) = id;
+            if nargin>3
+                obj.type(id) = type;
+            end
+        end
+        
         function update(obj, id, data, type)
             if length(obj.keys)>=id
                 data_string=sprintf('%.6g ', obj.data(id).array); % see EventLibrary.insert()
-                obj.keymap.remove(data_string);
+                obj.keymap.remove(data_string(1:end-1));
             end
             if nargin>3
                 insert(obj, id, data, type);
@@ -109,29 +162,6 @@ classdef EventLibrary < handle
             %end
         end
             
-        function insert(obj, id, data, type)
-            %insert Add event to library
-            % 
-            % See also find
-            
-            obj.keys(id) = id;
-            obj.data(id).array = data;
-            obj.lengths(id) = length(data);
-            
-            % use map index for faster searches
-            % matlab is extremely limited with regard to advanced containers
-            % we therefore are forced to use hashed map and convert data to a
-            % string
-            %data_string=num2hex(data)';
-            %data_string=data_string(:)';
-            data_string=sprintf('%.6g ', data);
-            obj.keymap(data_string) = id;
-            
-            if nargin>3
-                obj.type(id) = type;
-            end
-        end
-        
         function out = get(obj, id)
             %get Get element from library by key
             %
@@ -144,13 +174,6 @@ classdef EventLibrary < handle
         end
         
     end
-    
-    methods(Static)
-        % Helper functions for fast searching
-        % See find_mat.m
-        [id, found] = find_mat(keys, data, lengths, keymap, newData);
-        %[id,found] = find_mex(keys,data,lengths,newData);
-    end
-    
+       
 end
 

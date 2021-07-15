@@ -68,6 +68,9 @@ if ~isempty(opt.flatTime) % MZ was: opt.flatTime>0
     if isempty(riseTime)
         riseTime = abs(amplitude)/maxSlew;
         riseTime = ceil(riseTime/opt.system.gradRasterTime)*opt.system.gradRasterTime;
+        if riseTime==0
+            riseTime=opt.system.gradRasterTime;
+        end
     end
     fallTime = riseTime;
     flatTime = opt.flatTime;

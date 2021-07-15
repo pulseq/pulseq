@@ -46,7 +46,8 @@ TEeff=60e-3;
 k0=round(TEeff/TE);
 PEtype='linear';
 
-readoutTime = 6.4e-3 + 2*system.adcDeadTime;
+samplingTime= 6.4e-3;
+readoutTime = samplingTime + 2*system.adcDeadTime;
 tEx=2.5e-3; 
 tExwd=tEx+system.rfRingdownTime+system.rfDeadTime;
 tRef=2e-3; 
@@ -101,7 +102,7 @@ deltak=1/fov;
 kWidth = Nx*deltak;
 
 GRacq = mr.makeTrapezoid('x',system,'FlatArea',kWidth,'FlatTime',readoutTime,'riseTime',dG);
-adc = mr.makeAdc(Nx,'Duration',GRacq.flatTime-2*system.adcDeadTime, 'Delay', 20e-6);%,'Delay',GRacq.riseTime);
+adc = mr.makeAdc(Nx,'Duration',samplingTime, 'Delay', system.adcDeadTime);%,'Delay',GRacq.riseTime);
 GRspr = mr.makeTrapezoid('x',system,'area',GRacq.area*fspR,'duration',tSp,'riseTime',dG);
 GRspex = mr.makeTrapezoid('x',system,'area',GRacq.area*(1+fspR),'duration',tSpex,'riseTime',dG);
 
@@ -173,9 +174,14 @@ GR7 = mr.makeExtendedTrapezoid('x','times',GR7times,'amplitudes',GR7amp);
 
 
 % and filltimes
-tex=GS1.t(end)+GS2.t(end)+GS3.t(end);
-tref=GS4.t(end)+GS5.t(end)+GS7.t(end)+readoutTime;
-tend=GS4.t(end)+GS5.t(end);
+%tex=GS1.t(end)+GS2.t(end)+GS3.t(end);
+%tref=GS4.t(end)+GS5.t(end)+GS7.t(end)+readoutTime;
+%tend=GS4.t(end)+GS5.t(end);
+tex=mr.calcDuration(GS1)+mr.calcDuration(GS2)+mr.calcDuration(GS3);
+tref=mr.calcDuration(GS4)+mr.calcDuration(GS5)+mr.calcDuration(GS7)+readoutTime;
+tend=mr.calcDuration(GS4)+mr.calcDuration(GS5);
+
+
 tETrain=tex+necho*tref+tend;
 TRfill=(TR-Nslices*tETrain)/Nslices;
 % round to gradient raster
@@ -237,11 +243,12 @@ else
 end
 
 %% new single-function call for trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
+%[ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
 
 % plot k-spaces
 
-figure; plot(ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj,ktraj'); % plot the entire k-space trajectory
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display

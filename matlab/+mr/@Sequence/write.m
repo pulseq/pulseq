@@ -1,4 +1,4 @@
-function write(obj,filename)
+function write_file(obj,filename,create_signature)
 %WRITE Write sequence to file.
 %   WRITE(seqObj, filename) Write the sequence data to the given
 %   filename using the open file format for MR sequences.
@@ -9,6 +9,10 @@ function write(obj,filename)
 %       write(seqObj,'my_sequences/gre.seq')
 %
 % See also  read
+
+if (nargin<3)
+    create_signature=true;
+end
 
 fid=fopen(filename, 'w');
 assert(fid ~= -1, 'Cannot open file: %s', filename);
@@ -38,30 +42,32 @@ if ~isempty(obj.definitions)
 end
 
 fprintf(fid, '# Format of blocks:\n');
-fprintf(fid, '#  #  D RF  GX  GY  GZ ADC EXT\n');
+fprintf(fid, '# NUM DUR RF  GX  GY  GZ  ADC  EXT\n');
 fprintf(fid, '[BLOCKS]\n');
 idFormatWidth = length(num2str(length(obj.blockEvents)));
 idFormatStr = ['%' num2str(idFormatWidth) 'd'];
 for i = 1:length(obj.blockEvents)
     %fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d 0\n'],[i obj.blockEvents(i,:)]);
     %fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d 0\n'],[i obj.blockEvents{i}]);
-    fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d %2d\n'], ...
-            [i obj.blockEvents{i}]); 
+    bd=obj.blockDurations(i)/obj.blockDurationRaster;
+    bdr=round(bd);
+    assert(abs(bdr-bd)<1e-10);
+    fprintf(fid,[idFormatStr ' %3d %3d %3d %3d %3d %2d %2d\n'], ...
+            [i bdr obj.blockEvents{i}(2:end)]); 
 end
 fprintf(fid, '\n');
 
 if ~isempty(obj.rfLibrary.keys)
     fprintf(fid, '# Format of RF events:\n');
-    fprintf(fid, '# id amplitude mag_id phase_id delay freq phase\n');
-    fprintf(fid, '# ..        Hz   ....     ....    us   Hz   rad\n');
+    fprintf(fid, '# id amplitude mag_id phase_id time_shape_id delay freq phase\n');
+    fprintf(fid, '# ..        Hz   ....     ....          ....    us   Hz   rad\n');
     fprintf(fid, '[RF]\n');
     keys = obj.rfLibrary.keys;
     for k = keys
-        libData1 = obj.rfLibrary.data(k).array(1:3);
-        libData2 = obj.rfLibrary.data(k).array(5:6);
-        delay = round(obj.rfLibrary.data(k).array(4)*1e6);
-        fprintf(fid, '%d %12g %d %d %g %g %g\n', [k libData1 delay ...
-                                                  libData2]);
+        libData1 = obj.rfLibrary.data(k).array(1:4);
+        libData2 = obj.rfLibrary.data(k).array(6:7);
+        delay = round(obj.rfLibrary.data(k).array(5)/obj.rfRasterTime)*obj.rfRasterTime*1e6; % a bit of a hack: round the delay
+        fprintf(fid, '%d %12g %d %d %d %g %g %g\n', [k libData1 delay libData2]);
     end
     fprintf(fid, '\n');
 end
@@ -71,14 +77,15 @@ trapGradMask = obj.gradLibrary.type == 't';
 
 if any(arbGradMask)
     fprintf(fid, '# Format of arbitrary gradients:\n');
-    fprintf(fid, '# id amplitude shape_id delay\n');
-    fprintf(fid, '# ..      Hz/m     ....    us\n');
+    fprintf(fid, '#   time_shape_id of 0 means default timing (stepping with grad_raster starting at 1/2 of grad_raster)\n');    
+    fprintf(fid, '# id amplitude amp_shape_id time_shape_id delay\n'); % do we need delay ???
+    fprintf(fid, '# ..      Hz/m       ..         ..          us\n');
     fprintf(fid, '[GRADIENTS]\n');
     keys = obj.gradLibrary.keys;
     for k = keys(arbGradMask)
-        fprintf(fid, '%d %12g %d %d\n', ...
-                [k obj.gradLibrary.data(k).array(1:2) ...
-                 round(obj.gradLibrary.data(k).array(3)*1e6)]);
+        fprintf(fid, '%d %12g %d %d %d\n', ...
+                [k obj.gradLibrary.data(k).array(1:3) ...
+                 round(obj.gradLibrary.data(k).array(4)*1e6)]);
     end
     fprintf(fid, '\n');
 end
@@ -110,17 +117,17 @@ if ~isempty(obj.adcLibrary.keys)
     fprintf(fid, '\n');
 end
 
-if ~isempty(obj.delayLibrary.keys)
-    fprintf(fid, '# Format of delays:\n');
-    fprintf(fid, '# id delay (us)\n');
-    fprintf(fid, '[DELAYS]\n');
-    keys = obj.delayLibrary.keys;
-    for k = keys
-        fprintf(fid, '%d %d\n', ...
-                [k round(1e6*obj.delayLibrary.data(k).array)]);
-    end
-    fprintf(fid, '\n');
-end
+%if ~isempty(obj.delayLibrary.keys)
+%    fprintf(fid, '# Format of delays:\n');
+%    fprintf(fid, '# id delay (us)\n');
+%    fprintf(fid, '[DELAYS]\n');
+%    keys = obj.delayLibrary.keys;
+%    for k = keys
+%        fprintf(fid, '%d %d\n', ...
+%                [k round(1e6*obj.delayLibrary.data(k).array)]);
+%    end
+%    fprintf(fid, '\n');
+%end
 
 if ~isempty(obj.extensionLibrary.keys)
     fprintf(fid, '# Format of extension lists:\n');
@@ -191,4 +198,45 @@ if ~isempty(obj.shapeLibrary.keys)
 end
 
 fclose(fid);
+
+if create_signature
+    % sign the file (this version with re/loading the file is a factor 2 faster than the sprintf() based one that kept a memory-copy of the data written)
+    
+    % re-open and read in the file
+    fid=fopen(filename, 'r');
+    buf=fread(fid);
+    fclose(fid);
+    
+    % calculate the digest
+    md5hash=md5_java(buf);
+    %fprintf('%s\n',md5hash);
+    
+    % store the signature in the object
+    obj.signatureType='md5';
+    obj.signatureFile='text';
+    obj.signatureValue=md5hash;
+    
+    % re-open the file for appending
+    fid=fopen(filename, 'a');
+    fprintf(fid, '\n[SIGNATURE]\n'); % the preceding new line BELONGS to the signature (and needs to be sripped away to recalculate the signature)
+    fprintf(fid, '# This is the hash of the Pulseq file, calculated right before the [SIGNATURE] section was added\n');
+    fprintf(fid, '# It can be reproduced/verified with md5sum if the file trimmed to the position right above [SIGNATURE]\n');
+    fprintf(fid, '# The new line character preceding [SIGNATURE] BELONGS to the signature (and needs to be sripped away for recalculating/verification)\n');
+    fprintf(fid, 'Type md5\n');
+    fprintf(fid, 'Hash %s\n', md5hash);
+    fclose(fid);
+end
+
+end
+
+function out=md5_java(buf) 
+    import java.security.*;
+    import java.math.*;
+    import java.lang.String;
+    
+    md = MessageDigest.getInstance('MD5');
+    hash = md.digest(double(buf));
+    bi = BigInteger(1, hash);
+    
+    out=char(String.format('%032x', bi));
 end

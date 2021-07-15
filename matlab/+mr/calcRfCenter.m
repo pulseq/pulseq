@@ -26,11 +26,10 @@ function [tc ic]=calcRfCenter(rf)
 %     rfmax=max(abs(rf.signal(first:last)));
 %     ipeak=find(abs(rf.signal(first:last))>=rfmax-eps);
 
-    % we detect the excitation peak and if i is a plato we take its center
+    % we detect the excitation peak and if it is a plato we take its center
     rfmax=max(abs(rf.signal));
     ipeak=find(abs(rf.signal)>=rfmax*0.99999);
-    tc=(rf.t(ipeak(1))+rf.t(ipeak(end))  -rf.t(1) )/2; % we need this sstrange "-rf.t(1)" because in v 1.3.1 the time vector starts at "1"
-    tc=round(tc*1e6)*1e-6; % and round to 1us
+    tc=(rf.t(ipeak(1))+rf.t(ipeak(end)))/2;
     ic=ipeak(round(end/2));
     
 %     % detect the excitation peak (this code is far from being ideal...)

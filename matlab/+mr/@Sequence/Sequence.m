@@ -37,8 +37,10 @@ classdef Sequence < handle
         version_major;
         version_minor;
         version_revision;
-        rfRasterTime;     % RF raster time (system dependent)
-        gradRasterTime;   % Gradient raster time (system dependent)
+        rfRasterTime;        % RF raster time (system dependent)
+        gradRasterTime;      % Gradient raster time (system dependent)
+        adcRasterTime;       % minimum unit/increment of the ADC dwell time (system dependent) 
+        blockDurationRaster; % unit/increment of the block duration (system dependent)         
         definitions       % Optional sequence definitions
         
         blockEvents;      % Event table (references to events)
@@ -46,7 +48,6 @@ classdef Sequence < handle
         rfLibrary;        % Library of RF events
         gradLibrary;      % Library of gradient events
         adcLibrary;       % Library of ADC readouts
-        delayLibrary;     % Library of delay events
         trigLibrary;      % Library of trigger events ( referenced from the extentions library )
         labelsetLibrary;  % Library of Label(set) events ( reference from the extensions library )
         labelincLibrary;  % Library of Label(inc) events ( reference from the extensions library )
@@ -54,6 +55,11 @@ classdef Sequence < handle
         shapeLibrary;     % Library of compressed shapes
         extensionStringIDs;  % string IDs of the used extensions (cell array)
         extensionNumericIDs; % numeric IDs of the used extensions (numeric array)
+        
+        signatureType; % type of the hashing function used, currently 'md5'
+        signatureFile; % which data were hashed, currently 'text' or 'bin' (used file format of the save function)
+        signatureValue; % the hash of the exported Pulse sequence
+        
         sys;
     end
     
@@ -61,14 +67,13 @@ classdef Sequence < handle
         
         function obj = Sequence(varargin)
             obj.version_major = 1;
-            obj.version_minor = 3; % version minor 3 will now support control events (8th column in the event table)
-            obj.version_revision = 1;
+            obj.version_minor = 4; % version minor 3 will now support control events (8th column in the event table) mv4 supports/expects timing vectors for arbitrary grads
+            obj.version_revision = 0;
             obj.definitions = containers.Map();
             obj.gradLibrary = mr.EventLibrary();
             obj.shapeLibrary = mr.EventLibrary();
             obj.rfLibrary = mr.EventLibrary();
             obj.adcLibrary = mr.EventLibrary();
-            obj.delayLibrary = mr.EventLibrary();
             obj.trigLibrary = mr.EventLibrary();
             obj.labelsetLibrary = mr.EventLibrary();
             obj.labelincLibrary = mr.EventLibrary();
@@ -85,6 +90,15 @@ classdef Sequence < handle
             obj.sys = sys;
             obj.rfRasterTime = sys.rfRasterTime;
             obj.gradRasterTime = sys.gradRasterTime;
+            obj.adcRasterTime = sys.adcRasterTime;
+            obj.blockDurationRaster = sys.blockDurationRaster;
+            obj.setDefinition('GradientRasterTime', obj.gradRasterTime);
+            obj.setDefinition('RadiofrequencyRasterTime', obj.rfRasterTime);
+            obj.setDefinition('AdcRasterTime', obj.adcRasterTime);
+            obj.setDefinition('BlockDurationRaster', obj.blockDurationRaster);
+            obj.signatureType=''; 
+            obj.signatureFile=''; 
+            obj.signatureValue='';
         end
         
         
@@ -92,7 +106,10 @@ classdef Sequence < handle
         read(obj,filename,varargin)
         
         % See write.m
-        write(obj,filename)
+        write(obj,filename,create_signature)
+        
+        % See write.m
+        write_file(obj,filename)
         
         % See readBinary.m
         readBinary(obj,filename);
@@ -100,6 +117,9 @@ classdef Sequence < handle
         % See writeBinary.m
         writeBinary(obj,filename);
         
+        
+        % See calcPNS.m
+        pns=calcPNS(obj,hardware,doPlots)
         
         % See testReport.m
         %testReport(obj);
@@ -147,41 +167,50 @@ classdef Sequence < handle
                 fn=fieldnames(b);
                 ev=cellfun(@(f) b.(f), fn(ind), 'UniformOutput', false);
                 [res, rep, dur] = mr.checkTiming(obj.sys,ev{:}); %ev{ind});
+                
                 is_ok = (is_ok && res); 
-                % additional manual tests
-                if is_ok 
-                    if ~isempty(b.rf)
-                        if b.rf.delay<obj.sys.rfDeadTime
-                            rep = [rep ' rf.delay:' num2str(b.rf.delay*1e6) 'us <system.rfDeadTime'];
-                            is_ok=false;
-                        end
-                        % in this version of pulseq (1.3.1) we still use RF zeropadding, so the condition below is fullfilled automatically
-                        %if mr.calcDuration(b.rf)+obj.sys.rfRingdownTime>dur
-                        %    rep = [rep ' rf: system.rfRingdownTime violation'];
-                        %    is_ok=false;
-                        %end
+                
+                % check the stored total block duration
+                if abs(dur-obj.blockDurations(iB))>eps
+                    rep = [rep 'inconsistency between the stored block duration and the duration of the block content'];
+                    is_ok = false;
+                    dur=obj.blockDurations(iB);
+                end
+                
+                % check RF dead times
+                if ~isempty(b.rf)
+                    if b.rf.delay-b.rf.deadTime < -eps
+                        rep = [rep 'delay of ' num2str(b.rf.delay*1e6) 'us is smaller than the RF dead time ' num2str(b.rf.deadTime*1e6) 'us'];
+                        is_ok = false;
                     end
-                    if ~isempty(b.adc)
-                        if b.adc.delay<obj.sys.adcDeadTime
-                            rep = [rep ' adc.delay<system.adcDeadTime'];
-                            is_ok=false;
-                        end
-                        if mr.calcDuration(b.adc)+obj.sys.adcDeadTime>dur
-                            rep = [rep ' adc: system.adcDeadTime (post-adc) violation'];
-                            is_ok=false;
-                        end
+                    if b.rf.delay+b.rf.t(end)+b.rf.ringdownTime-dur > eps
+                        rep = [rep 'time between the end of the RF pulse at ' num2str((b.rf.delay+b.rf.t(end))*1e6) ' and the end of the block at ' num2str(dur*1e6) 'us is shorter than rfRingdownTime'];
+                        is_ok = false;
                     end
                 end
-                % create report
+                
+                % check ADC dead times
+                if ~isempty(b.adc) 
+                    if b.adc.delay-obj.sys.adcDeadTime < -eps
+                        rep = [rep ' adc.delay<system.adcDeadTime'];
+                        is_ok=false;
+                    end
+                    if b.adc.delay+b.adc.numSamples*b.adc.dwell+obj.sys.adcDeadTime-dur > eps
+                        rep = [rep ' adc: system.adcDeadTime (post-adc) violation'];
+                        is_ok=false;
+                    end
+                end
+
+                % update report
                 if ~isempty(rep)
                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' rep '\n' ] };
                 end
+                %
                 totalDuration = totalDuration+dur;
             end
             
-            % check whether all gradients in the last block are ramped down
-            % properly
-            if ~isempty(ev) 
+            % check whether all gradients in the last block are ramped down properly
+            if ~isempty(ev) && isstruct(ev)
                 for en=1:length(ev)
                     if length(ev{en})==1 && strcmp(ev{en}.type,'grad') % length(ev{en})==1 excludes arrays of extensions 
                         if ev{en}.last~=0 % must be > sys.slewRate*sys.gradRasterTime
@@ -281,12 +310,192 @@ classdef Sequence < handle
             end
         end
         
-        function flipGradAxis(obj,axis)
+        function flipGradAxis(obj, axis)
             %flipGradAxis Invert all gradinents along the corresponding
             %   axis/channel. The function acts on all gradient objects 
             %   already added to the sequence object
             %
             modGradAxis(obj,axis,-1);
+        end
+        
+        function rf = rfFromLibData(obj, libData, use)                
+            rf.type = 'rf';
+
+            amplitude = libData(1);
+            magShape = libData(2);
+            phaseShape = libData(3);
+            shapeData = obj.shapeLibrary.data(magShape).array;
+            compressed.num_samples = shapeData(1);
+            compressed.data = shapeData(2:end);
+            mag = mr.decompressShape(compressed);
+            shapeData = obj.shapeLibrary.data(phaseShape).array;
+            compressed.num_samples = shapeData(1);
+            compressed.data = shapeData(2:end);
+            phase = mr.decompressShape(compressed);
+            rf.signal = amplitude*mag.*exp(1j*2*pi*phase);
+            timeShape = libData(4);
+            if timeShape>0
+                shapeData = obj.shapeLibrary.data(timeShape).array;
+                compressed.num_samples = shapeData(1);
+                compressed.data = shapeData(2:end);
+                rf.t = mr.decompressShape(compressed)*obj.rfRasterTime;
+                rf.shape_dur=ceil((rf.t(end)-eps)/obj.rfRasterTime)*obj.rfRasterTime;
+            else
+                % generate default time raster on the fly
+                rf.t = ((1:length(rf.signal))-0.5)'*obj.rfRasterTime;
+                rf.shape_dur=length(rf.signal)*obj.rfRasterTime;
+            end
+
+            rf.delay = libData(5);
+            rf.freqOffset = libData(6);
+            rf.phaseOffset = libData(7);
+            
+            rf.deadTime = obj.sys.rfDeadTime;
+            rf.ringdownTime = obj.sys.rfRingdownTime;
+
+%             % SK: Is this a hack? (MZ: see below)
+%             if length(libData) < 8
+%                 libData(8) = 0;
+%             end
+%             rf.deadTime = libData(9);
+%             % SK: Using the same hack here
+%             if length(libData) < 9
+%                 libData(9) = 0;
+%             end
+%             rf.ringdownTime = libData(9);
+
+            if nargin>2
+                switch use
+                    case 'e'
+                        rf.use='excitation';
+                    case 'r'
+                        rf.use='refocusing';
+                    case 'i'
+                        rf.use='inversion';
+                    case 's'
+                        rf.use='saturation';
+                    case 'p'
+                        rf.use='preparation';
+                    otherwise
+                        rf.use='undefined';
+                end
+            else
+                rf.use='undefined';
+            end
+        end
+        
+        function [id shapeIDs]=registerRfEvent(obj, event)
+            % registerRfEvent Add the event to the libraries (object,
+            % shapes, etc and retur the event's ID. This I can be stored in
+            % the object to accelerate addBlock()
+            
+            mag = abs(event.signal);
+            amplitude = max(mag);
+            mag = mag / amplitude;
+            phase = angle(event.signal);
+            phase(phase < 0) = phase(phase < 0) + 2*pi;
+            phase = phase / (2*pi);
+            
+            if isfield(event,'shapeIDs')
+                shapeIDs=event.shapeIDs;
+            else
+                shapeIDs=[0 0 0];
+
+                magShape = mr.compressShape(mag(:));
+                data = [magShape.num_samples magShape.data];
+                shapeIDs(1) = obj.shapeLibrary.find_or_insert(data);
+                
+                phaseShape = mr.compressShape(phase);
+                data = [phaseShape.num_samples phaseShape.data];
+                shapeIDs(2)= obj.shapeLibrary.find_or_insert(data);
+                
+                timeShape = mr.compressShape(event.t/obj.rfRasterTime); % time shape is stored in units of RF raster
+                if length(timeShape.data)==4 && all(timeShape.data == [0.5 1 1 timeShape.num_samples-3]) 
+                    shapeIDs(3)=0;
+                else
+                    data = [timeShape.num_samples timeShape.data];
+                    shapeIDs(3)= obj.shapeLibrary.find_or_insert(data);
+                end
+            end
+
+            use = 'u';
+            if isfield(event,'use')
+                switch event.use
+                    case {'excitation','refocusing','inversion','saturation','preparation'}
+                        use = event.use(1);
+                    otherwise
+                        use = 'u'; % undefined
+                end
+            end
+
+            data = [amplitude shapeIDs(1) shapeIDs(2) shapeIDs(3) ...
+                    event.delay event.freqOffset event.phaseOffset ];%...
+                    %event.deadTime event.ringdownTime];
+            id = obj.rfLibrary.find_or_insert(data,use);
+        end
+        
+        function id=registerGradEvent(obj, event)
+            switch event.type
+                case 'grad'
+                    amplitude = max(abs(event.waveform));
+                    if amplitude>0
+                        [~,~,fnz]=find(event.waveform,1); % find the first non-zero value and make it positive
+                        amplitude=amplitude*sign(fnz);
+                        g = event.waveform./amplitude;
+                    else
+                        g = event.waveform;
+                    end
+                    c_shape = mr.compressShape(g);
+                    s_data = [c_shape.num_samples c_shape.data];
+                    s_id = obj.shapeLibrary.find_or_insert(s_data);
+                    c_time = mr.compressShape(event.tt/obj.gradRasterTime);
+                    if length(c_time.data)==4 && all(c_time.data == [0.5 1 1 c_time.num_samples-3]) 
+                        t_id=0;
+                    else
+                        t_data = [c_time.num_samples c_time.data];
+                        t_id = obj.shapeLibrary.find_or_insert(t_data);
+                    end
+                    data = [amplitude s_id t_id event.delay event.first event.last];
+                case 'trap'
+                    data = [event.amplitude event.riseTime ...
+                            event.flatTime event.fallTime ...
+                            event.delay];
+                otherwise
+                    error('unknown grdient type passed to registerGradEvent()');
+            end
+            id = obj.gradLibrary.find_or_insert(data,event.type(1));
+        end
+        
+        function id=registerAdcEvent(obj, event)
+            data = [event.numSamples event.dwell max(event.delay,event.deadTime) ... % MZ: replaced event.delay+event.deadTime with a max(...) because we allow for overlap of the delay and the dead time
+                event.freqOffset event.phaseOffset event.deadTime];
+            id = obj.adcLibrary.find_or_insert(data);
+        end
+        
+        function id=registerControlEvent(obj, event)
+            event_type=find(strcmp(event.type,{'output','trigger'}));
+            if (event_type==1)
+                event_channel=find(strcmp(event.channel,{'osc0','osc1','ext1'})); % trigger codes supported by the Siemens interpreter as of May 2019
+            elseif (event_type==2)
+                event_channel=find(strcmp(event.channel,{'physio1','physio2'})); % trigger codes supported by the Siemens interpreter as of June 2019
+            else
+                error('unsupported control event type');
+            end
+            data = [event_type event_channel event.delay event.duration];
+            id = obj.trigLibrary.find_or_insert(data);
+        end
+        
+        function id=registerLabelEvent(obj, event)
+            label_id=find(strcmp(event.label,mr.getSupportedLabels()));
+            data=[event.value label_id];
+            switch event.type
+                case 'labelset'
+                    id = obj.labelsetLibrary.find_or_insert(data);
+                case 'labelinc'
+                    id = obj.labelincLibrary.find_or_insert(data);
+                otherwise
+                    error('unknown label type passed to registerLabelEvent()');                    
+            end
         end
         
         %TODO: Replacing blocks in the middle of sequence can cause unused
@@ -322,85 +531,32 @@ classdef Sequence < handle
                 event = varargin{i};
                 switch event.type
                     case 'rf'
-                        % TODO: Interpolate to 1us time grid using event.t
-                        % if required.
-                        
-                        mag = abs(event.signal);
-                        amplitude = max(mag);
-                        mag = mag / amplitude;
-                        phase = angle(event.signal);
-                        phase(phase < 0) = phase(phase < 0) + 2*pi;
-                        phase = phase / (2*pi);
-                          
-                        magShape = mr.compressShape(mag(:));
-                        data = [magShape.num_samples magShape.data];
-                        [magId,found] = obj.shapeLibrary.find(data);
-                        if ~found
-                            obj.shapeLibrary.insert(magId, data);
+                        if isfield(event,'id')
+                            id=event.id;
+                        else
+                            id = obj.registerRfEvent(event);
                         end
-                        
-                        phaseShape = mr.compressShape(phase);
-                        data = [phaseShape.num_samples phaseShape.data];
-                        [phaseId,found] = obj.shapeLibrary.find(data);
-                        if ~found
-                            obj.shapeLibrary.insert(phaseId, data);
-                        end
-                        
-                        use = 0;
-                        if isfield(event,'use')
-                            switch event.use
-                                case 'excitation'
-                                    use = 1;
-                                case 'refocusing'
-                                    use = 2;
-                                case 'inversion'
-                                    use = 3;
-                            end
-                        end
-                        
-                        data = [amplitude magId phaseId event.delay ...
-                                event.freqOffset event.phaseOffset ...
-                                event.deadTime event.ringdownTime use];
-                        [id, found] = obj.rfLibrary.find(data);
-                        if ~found
-                            obj.rfLibrary.insert(id, data);
-                        end
-                        
                         obj.blockEvents{index}(2) = id;
-                        duration = max(duration, length(mag) * ...
-                                   obj.rfRasterTime + ...
-                                   event.delay);
-                                   %event.deadTime + ...
-                                   %event.ringdownTime);
+                        duration = max(duration, event.shape_dur + event.delay + event.ringdownTime);
                     case 'grad'
                         channelNum = find(strcmp(event.channel, ...
                                                  {'x', 'y', 'z'}));
                         idx = 2 + channelNum;
                                         
-                        check_g{channelNum}.idx = idx;
-                        check_g{channelNum}.start = [event.delay+min(event.t), event.first];
-                        check_g{channelNum}.stop  = [event.delay+max(event.t)+obj.sys.gradRasterTime, event.last]; % MZ: we need to add this gradient raster time, otherwise the gradient appears to be one step too short
+                        grad_start = event.delay + floor(event.tt(1)/obj.gradRasterTime+1e-10)*obj.gradRasterTime;
+                        grad_duration = event.delay + ceil(event.tt(end)/obj.gradRasterTime-1e-10)*obj.gradRasterTime;
                         
-                        amplitude = max(abs(event.waveform));
-                        if amplitude>0
-                            g = event.waveform./amplitude;
+                        check_g{channelNum}.idx = idx;
+                        check_g{channelNum}.start = [grad_start, event.first];
+                        check_g{channelNum}.stop  = [grad_duration, event.last]; 
+                        
+
+                        if isfield(event,'id')
+                            id=event.id;
                         else
-                            g = event.waveform;
-                        end
-                        shape = mr.compressShape(g);
-                        data = [shape.num_samples shape.data];
-                        [shapeId,found] = obj.shapeLibrary.find(data);
-                        if ~found
-                            obj.shapeLibrary.insert(shapeId,data);
-                        end
-                        data = [amplitude shapeId event.delay event.first event.last];
-                        [id,found] = obj.gradLibrary.find(data);
-                        if ~found
-                            obj.gradLibrary.insert(id, data,'g');
+                            id = obj.registerGradEvent(event);
                         end
                         obj.blockEvents{index}(idx) = id;
-                        
-                        grad_duration = event.delay + length(g)*obj.gradRasterTime; %MZ: was: (length(g)-1)
                         duration = max(duration, grad_duration);
 
                     case 'trap'
@@ -415,48 +571,37 @@ classdef Sequence < handle
                                                      event.fallTime + ...
                                                      event.flatTime, 0];
                         
-                        data = [event.amplitude event.riseTime ...
-                                event.flatTime event.fallTime ...
-                                event.delay];
-                        [id,found] = obj.gradLibrary.find(data);
-                        if ~found
-                            obj.gradLibrary.insert(id,data,'t');
+                        if isfield(event,'id')
+                            id=event.id;
+                        else
+                            id=obj.registerGradEvent(event);
                         end
                         obj.blockEvents{index}(idx)=id;
                         duration=max(duration,event.delay+event.riseTime+event.flatTime+event.fallTime);
 
                     case 'adc'
-%                         data = [event.numSamples event.dwell event.delay ...
-%                             event.freqOffset event.phaseOffset event.deadTime];
-                        data = [event.numSamples event.dwell max(event.delay,event.deadTime) ... % MZ: replaced event.delay+event.deadTime with a max(...) because we allow for overlap of the delay and the dead time
-                            event.freqOffset event.phaseOffset event.deadTime];
-                        [id,found] = obj.adcLibrary.find(data);
-                        if ~found
-                            obj.adcLibrary.insert(id,data);
+                        if isfield(event,'id')
+                            id=event.id;
+                        else
+                            id=obj.registerAdcEvent(event);
                         end
                         obj.blockEvents{index}(6)=id;
                         duration=max(duration,event.delay+event.numSamples*event.dwell+event.deadTime);
-                    case 'delay'
-                        data = [event.delay];
-                        [id,found] = obj.delayLibrary.find(data);
-                        if ~found
-                            obj.delayLibrary.insert(id,data);
-                        end
-                        obj.blockEvents{index}(1)=id;
+                    case 'delay' 
+                        %if isfield(event,'id')
+                        %    id=event.id;
+                        %else
+                        %    id = obj.registerDelayEvent(event);
+                        %end
+                        %obj.blockEvents{index}(1)=id;
+                        % delay is not a true event any more so we account
+                        % for the duration but do not add anything
                         duration=max(duration,event.delay);
                     case {'output','trigger'} 
-                        event_type=find(strcmp(event.type,{'output','trigger'}));
-                        if (event_type==1)
-                            event_channel=find(strcmp(event.channel,{'osc0','osc1','ext1'})); % trigger codes supported by the Siemens interpreter as of May 2019
-                        elseif (event_type==2)
-                            event_channel=find(strcmp(event.channel,{'physio1','physio2'})); % trigger codes supported by the Siemens interpreter as of June 2019
+                        if isfield(event,'id')
+                            id=event.id;
                         else
-                            error('unsupported control event type');
-                        end
-                        data = [event_type event_channel event.delay event.duration];
-                        [id,found] = obj.trigLibrary.find(data);
-                        if ~found
-                            obj.trigLibrary.insert(id,data);
+                            id=obj.registerControlEvent(event);
                         end
                         %obj.blockEvents{index}(7)=id; % now we just
                         % collect the list of extension objects and we will
@@ -465,31 +610,23 @@ classdef Sequence < handle
                         ext=struct('type', obj.getExtensionTypeID('TRIGGERS'), 'ref', id);
                         extensions=[extensions ext];
                         duration=max(duration,event.delay+event.duration);
-                    case 'labelset'
-                        label_id=find(strcmp(event.label,mr.getSupportedLabels()));
-                        data=[event.value label_id];
-                        [id,found] = obj.labelsetLibrary.find(data);
-                        if ~found
-                            obj.labelsetLibrary.insert(id,data);
+                    case {'labelset','labelinc'}
+                        if isfield(event,'id')
+                            id=event.id;
+                        else
+                            id=obj.registerLabelEvent(event);
                         end
+% %                         label_id=find(strcmp(event.label,mr.getSupportedLabels()));
+% %                         data=[event.value label_id];
+% %                         [id,found] = obj.labelsetLibrary.find(data);
+% %                         if ~found
+% %                             obj.labelsetLibrary.insert(id,data);
+% %                         end
                         
                         % collect the list of extension objects and we will
                         % add it to the event table later
                         %ext=struct('type', 2, 'ref', id);
-                        ext=struct('type', obj.getExtensionTypeID('LABELSET'), 'ref', id);
-                        extensions=[extensions ext];
-                    case 'labelinc'
-                        label_id=find(strcmp(event.label,mr.getSupportedLabels()));
-                        data=[event.value label_id];
-                        [id,found] = obj.labelincLibrary.find(data);
-                        if ~found
-                            obj.labelincLibrary.insert(id,data);
-                        end
-                        
-                        % collect the list of extension objects and we will
-                        % add it to the event table later
-                        %ext=struct('type', 2, 'ref', id);
-                        ext=struct('type', obj.getExtensionTypeID('LABELINC'), 'ref', id);
+                        ext=struct('type', obj.getExtensionTypeID(upper(event.type)), 'ref', id);
                         extensions=[extensions ext];
                 end
             end
@@ -560,7 +697,7 @@ classdef Sequence < handle
                             if prev_type == 't'
                                 error('Two consecutive gradients need to have the same amplitude at the connection point');
                             elseif prev_type == 'g'
-                                last = prev_dat(5);
+                                last = prev_dat(6); % '6' means last
                                 if abs(last - cg.start(2)) > obj.sys.maxSlew * obj.sys.gradRasterTime
                                     error('Two consecutive gradients need to have the same amplitude at the connection point');
                                 end
@@ -575,7 +712,7 @@ classdef Sequence < handle
                 % block itself.
                 %assert(abs(duration-block_duration)<eps); % TODO: if this never fails we should remove mr.calcDuration at the beginning
                 if cg.stop(2) > obj.sys.maxSlew * obj.sys.gradRasterTime && abs(cg.stop(1)-duration) > 1e-7
-                    error('A gradient that doesnt end at zero needs to be aligned to the block boundary.');
+                    error('A gradient that doesn''t end at zero needs to be aligned to the block boundary.');
                 end
             end
        
@@ -599,18 +736,11 @@ classdef Sequence < handle
             %
             %   See also  setBlock, addBlock
             
-            block=struct('rf', {}, 'gx', {}, 'gy', {}, 'gz', {}, ...
-                         'adc', {}, 'delay', {} ... 
-                         );
+            block=struct('blockDuration', 0, 'rf', {}, 'gx', {}, 'gy', {}, 'gz', {}, 'adc', {} );
+
             block(1).rf = [];
-            %eventInd = obj.blockEvents(index,:);
             eventInd = obj.blockEvents{index};
             
-            if eventInd(1) > 0
-                delay.type = 'delay';
-                delay.delay = obj.delayLibrary.data(eventInd(1)).array;
-                block.delay = delay;
-            end
             if eventInd(7) > 0
                 % we have extensions -- triggers, labels, etc
                 % we will eventually isolate this into a separate function
@@ -664,54 +794,12 @@ classdef Sequence < handle
                     nextExtID=extData(3);
                 end
             end
-            if eventInd(2) > 0
-%                 rf.type = 'rf';
-%                 libData = obj.rfLibrary.data(eventInd(2)).array;
-%                 
-%                 amplitude = libData(1);
-%                 magShape = libData(2);
-%                 phaseShape = libData(3);
-%                 shapeData = obj.shapeLibrary.data(magShape).array;
-%                 compressed.num_samples = shapeData(1);
-%                 compressed.data = shapeData(2:end);
-%                 mag = mr.decompressShape(compressed);
-%                 shapeData = obj.shapeLibrary.data(phaseShape).array;
-%                 compressed.num_samples = shapeData(1);
-%                 compressed.data = shapeData(2:end);
-%                 phase = mr.decompressShape(compressed);
-%                 rf.signal = amplitude*mag.*exp(1j*2*pi*phase);
-%                 rf.t = (1:length(mag))'*obj.rfRasterTime;
-%                 
-%                 rf.delay = libData(4);
-%                 rf.freqOffset = libData(5);
-%                 rf.phaseOffset = libData(6);
-% 
-%                 % SK: Is this a hack? (MZ: see below)
-%                 if length(libData) < 7
-%                     libData(7) = 0;
-%                 end
-%                 rf.deadTime = libData(7);
-%                 % SK: Using the same hack here
-%                 if length(libData) < 8
-%                     libData(8) = 0;
-%                 end
-%                 rf.ringdownTime = libData(8);
-%                 
-%                 % MZ: I think this is needed for compatilbility with reading
-%                 % (possibly older) seq-files
-%                 if length(libData) < 9
-%                     libData(9) = 0;
-%                 end
-%                 switch libData(9)
-%                     case 1
-%                         rf.use='excitation';
-%                     case 2
-%                         rf.use='refocusing';
-%                     case 3
-%                         rf.use='inversion';
-%                 end
-                
-                block.rf = obj.rfFromLibData(obj.rfLibrary.data(eventInd(2)).array);
+            if eventInd(2) > 0 
+                if length(obj.rfLibrary.type)>=eventInd(2)
+                    block.rf = obj.rfFromLibData(obj.rfLibrary.data(eventInd(2)).array,obj.rfLibrary.type(eventInd(2)));
+                else
+                    block.rf = obj.rfFromLibData(obj.rfLibrary.data(eventInd(2)).array); % undefined type/use
+                end
             end
             gradChannels = {'gx', 'gy', 'gz'};
             for i = 1:length(gradChannels)
@@ -727,7 +815,8 @@ classdef Sequence < handle
                     if strcmp(grad.type,'grad')
                         amplitude = libData(1);
                         shapeId = libData(2);
-                        delay = libData(3);
+                        timeId = libData(3);
+                        delay = libData(4);
                         shapeData = obj.shapeLibrary.data(shapeId).array;
                         compressed.num_samples = shapeData(1);
                         compressed.data = shapeData(2:end);
@@ -740,13 +829,30 @@ classdef Sequence < handle
                         grad.waveform = amplitude*g;
                         % SK: This looks like a bug to me.
 %                         grad.t = (1:length(g))'*obj.gradRasterTime;
-                        grad.t = (0:length(g)-1)'*obj.gradRasterTime;
-                        grad.tt = ((1:length(g))-0.5)'*obj.gradRasterTime; % TODO: evetually we may remove these true-times
+                        if (timeId==0)
+                            grad.tt = ((1:length(g))-0.5)'*obj.gradRasterTime; % TODO: evetually we may remove these true-times
+                            t_end=length(g)*obj.gradRasterTime;
+                            %grad.t = (0:length(g)-1)'*obj.gradRasterTime;
+                        else
+                            tShapeData = obj.shapeLibrary.data(timeId).array;
+                            compressed.num_samples = tShapeData(1);
+                            compressed.data = tShapeData(2:end);
+                            try
+                                grad.tt = mr.decompressShape(compressed)*obj.gradRasterTime;
+                            catch
+                                fprintf('  mr.decompressShape() failed for shapeId %d\n', shapeId);
+                                error('mr.decompressShape() failed for shapeId %d', shapeId);
+                            end
+                            assert(length(grad.waveform) == length(grad.tt));
+                            t_end=grad.tt(end);                            
+                        end
                         grad.shape_id=shapeId; % needed for the second pass of read()
+                        grad.time_id=timeId; % needed for the second pass of read()
                         grad.delay = delay;
-                        if length(libData)>4
-                            grad.first = libData(4);
-                            grad.last = libData(5);
+                        grad.shape_dur = t_end;
+                        if length(libData)>5
+                            grad.first = libData(5);
+                            grad.last = libData(6);
                         else
 %			    assert(false); % this should never happen, as now we recover the correct first/last values during reading
 %                             % for the data read from a file we need to
@@ -784,57 +890,18 @@ classdef Sequence < handle
                 adc.type = 'adc';
                 block.adc = adc;
             end
-            
-        end
-        
-        function rf = rfFromLibData(obj, libData)                
-            rf.type = 'rf';
-
-            amplitude = libData(1);
-            magShape = libData(2);
-            phaseShape = libData(3);
-            shapeData = obj.shapeLibrary.data(magShape).array;
-            compressed.num_samples = shapeData(1);
-            compressed.data = shapeData(2:end);
-            mag = mr.decompressShape(compressed);
-            shapeData = obj.shapeLibrary.data(phaseShape).array;
-            compressed.num_samples = shapeData(1);
-            compressed.data = shapeData(2:end);
-            phase = mr.decompressShape(compressed);
-            rf.signal = amplitude*mag.*exp(1j*2*pi*phase);
-            rf.t = (1:length(mag))'*obj.rfRasterTime;
-
-            rf.delay = libData(4);
-            rf.freqOffset = libData(5);
-            rf.phaseOffset = libData(6);
-
-            % SK: Is this a hack? (MZ: see below)
-            if length(libData) < 7
-                libData(7) = 0;
-            end
-            rf.deadTime = libData(7);
-            % SK: Using the same hack here
-            if length(libData) < 8
-                libData(8) = 0;
-            end
-            rf.ringdownTime = libData(8);
-
-            % MZ: I think this is needed for compatilbility with reading
-            % (possibly older) seq-files
-            if length(libData) < 9
-                libData(9) = 0;
-            end
-            switch libData(9)
-                case 1
-                    rf.use='excitation';
-                case 2
-                    rf.use='refocusing';
-                case 3
-                    rf.use='inversion';
-            end
+            block.blockDuration=obj.blockDurations(index);
+%             % now that delays in v1.4 and later Pulseq revisions are not
+%             % stored, we need to see whether we need a delay to explain the
+%             % current block duration
+%             if (mr.calcDuration(block)~=obj.blockDurations(index))
+%                 tmpDelay.type = 'delay';
+%                 tmpDelay.delay = obj.blockDurations(index);
+%                 block.delay = tmpDelay;
+%             end
         end
 
-        function [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = calculateKspace(obj, varargin)
+        function [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = calculateKspaceUnfunc(obj, varargin)
             % calculate the k-space trajectory of the entire pulse sequence
             %   optional parameter 'trajectory_delay' sets the compensation
             %   factor to align ADC and gradients in the reconstruction
@@ -857,9 +924,9 @@ classdef Sequence < handle
             for iB=1:length(obj.blockEvents)
                 block = obj.getBlock(iB);
                 if ~isempty(block.rf)
-                    if (~isfield(block.rf,'use') || ~strcmp(block.rf.use,'refocusing'))
+                    if (~isfield(block.rf,'use') || strcmp(block.rf.use,'excitation') || strcmp(block.rf.use,'undefined'))
                         c_excitation=c_excitation+1;
-                    else
+                    elseif strcmp(block.rf.use,'refocusing')
                         c_refocusing=c_refocusing+1;
                     end
                 end
@@ -869,8 +936,8 @@ classdef Sequence < handle
             end
             
             %
-            t_excitation=zeros(1,c_excitation);
-            t_refocusing=zeros(1,c_refocusing);
+            t_excitation=zeros(c_excitation,1);
+            t_refocusing=zeros(c_refocusing,1);
             ktime=zeros(c_adcSamples,1);
             current_dur=0;
             c_excitation=1;
@@ -884,10 +951,10 @@ classdef Sequence < handle
                 if ~isempty(block.rf)
                     rf=block.rf;
                     t=rf.delay+mr.calcRfCenter(rf);
-                    if (~isfield(block.rf,'use') || ~strcmp(block.rf.use,'refocusing'))
+                    if (~isfield(block.rf,'use') || strcmp(block.rf.use,'excitation') || strcmp(block.rf.use,'undefined'))
                         t_excitation(c_excitation) = current_dur+t;
                         c_excitation=c_excitation+1;
-                    else
+                    elseif strcmp(block.rf.use,'refocusing')
                         t_refocusing(c_refocusing) = current_dur+t;
                         c_refocusing=c_refocusing+1;
                     end
@@ -926,7 +993,7 @@ classdef Sequence < handle
 %                     ii_next_refocusing = min(length(i_refocusing),ii_next_refocusing+1);
 %                 end
 %             end
-            i_periods=sort([1, i_excitation+1, i_refocusing+1, size(gw,2)+1]); % we need thise +1 for compatibility with the above code which prooved to be correct
+            i_periods=sort([1; i_excitation+1; i_refocusing+1; size(gw,2)+1]); % we need thise +1 for compatibility with the above code which prooved to be correct
             ii_next_excitation=min(length(i_excitation),1);
             ii_next_refocusing=min(length(i_refocusing),1);
             ktraj=zeros(size(gw));
@@ -966,14 +1033,14 @@ classdef Sequence < handle
             %   's', 'ms' or 'us'.
             %
             %   plot(...,'Label','LIN,REP') Plot label values for ADC events:
-            %   in this example for LIN and REP labels; other valid labes are accepted as a comma-separated list.
+            %   in this example for LIN and REP labels; other valid labes are 
+            %   accepted as a comma-separated list.
             %
             %   plot(...,'showBlocks',1) Plot grid and tick labels at the
-            %   block boundaries. 
+            %   block boundaries. Accebts a numeric or a boolean parameter.
             %
             %   f=plot(...) Return the new figure handle.
             %
-            
             validTimeUnits = {'s','ms','us'};
             validLabel = mr.getSupportedLabels();
             persistent parser
@@ -1085,22 +1152,19 @@ classdef Sequence < handle
                         rf=block.rf;
                         [tc,ic]=mr.calcRfCenter(rf);
                         t=rf.t;
-                        rf_signal=rf.signal;
-                        if rf_signal(1)~=0 && rf_signal(end)~=0
-                            rf_signal=[0;rf_signal;0];
-                            t=[t(1);t;t(end)];
+                        s=rf.signal;
+                        if abs(s(1))~=0 % fix strangely looking phase / amplitude in the beginning
+                            s=[0; s];
+                            t=[t(1); t];
                             ic=ic+1;
-                        elseif rf_signal(1)~=0
-                            rf_signal=[0;rf_signal];
-                            t=[t(1);t];
-                            ic=ic+1;
-                        elseif rf_signal(end)~=0
-                            rf_signal=[rf_signal;0];
-                            t=[t;t(end)];
                         end
-                        plot(tFactor*(t0+rf.delay+t), abs(rf_signal), 'Parent',ax(2));
-                        plot(tFactor*(t0+rf.delay+t), angle(rf_signal    *exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)),...
-                             tFactor*(t0+rf.delay+tc),angle(rf_signal(ic)*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t(ic)*rf.freqOffset)),'xb',...
+                        if abs(s(end))~=0 % fix strangely looking phase / amplitude in the beginning
+                            s=[s; 0];
+                            t=[t; t(end)];
+                        end
+                        plot(tFactor*(t0+t+rf.delay),  abs(s),'Parent',ax(2));
+                        plot(tFactor*(t0+t+rf.delay),  angle(s    *exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)),...
+                             tFactor*(t0+tc+rf.delay), angle(s(ic)*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t(ic)*rf.freqOffset)),'xb',...
                              'Parent',ax(3));
                     end
                     gradChannels={'gx','gy','gz'};
@@ -1111,7 +1175,8 @@ classdef Sequence < handle
                                 % we extend the shape by adding the first 
                                 % and the last points in an effort of 
                                 % making the display a bit less confusing...
-                                t=grad.delay + [0; grad.t + (grad.t(2)-grad.t(1))/2; grad.t(end) + grad.t(2)-grad.t(1)];
+                                %t=grad.delay + [0; grad.t + (grad.t(2)-grad.t(1))/2; grad.t(end) + grad.t(2)-grad.t(1)];
+                                t= grad.delay+[0; grad.tt; grad.shape_dur];
                                 waveform=1e-3* [grad.first; grad.waveform; grad.last];
                             else
                                 t=cumsum([0 grad.delay grad.riseTime grad.flatTime grad.fallTime]);
@@ -1132,7 +1197,7 @@ classdef Sequence < handle
             setAxesZoomMotion(h,ax(1),'horizontal');
         end
         
-        function grad_waveforms=gradient_waveforms(obj)
+        function grad_waveforms=gradient_waveforms1(obj) % currently disfunctional (feature_ExtTrap)
             % gradient_waveforms()
             %   Decompress the entire gradient waveform
             %   Returns an array of gradient_axes x timepoints
@@ -1154,7 +1219,8 @@ classdef Sequence < handle
                     grad=block.(gradChannels{j});
                     if ~isempty(block.(gradChannels{j}))
                         if strcmp(grad.type,'grad')
-                            nt_start=round((grad.delay+grad.t(1))/obj.gradRasterTime);
+                            %nt_start=round((grad.delay+grad.t(1))/obj.gradRasterTime);
+                            nt_start=round((grad.delay)/obj.gradRasterTime);
                             waveform=grad.waveform;
                         else
                             nt_start=round(grad.delay/obj.gradRasterTime);
@@ -1200,16 +1266,29 @@ classdef Sequence < handle
             end
         end
                
-        function [wave_data, t_excitation, t_refocusing, t_adc]=waveforms_and_times(obj)
+        function [wave_data, tfp_excitation, tfp_refocusing, t_adc, fp_adc]=waveforms_and_times(obj, appendRF)
             % waveforms_and_times()
             %   Decompress the entire gradient waveform
-            %   Returns gradient wave forms 
-            %   gradient_axes is typically 3
-            %   Additionally returns time points of excitations,
-            %   refocusings and ADC sampling points
+            %   Returns gradient wave forms as a cell array with
+            %   gradient_axes (typically 3) dimension; each cell bontains
+            %   timepoints and the correspndig gradient amplitude values.
+            %   Additional return values are time points of excitations,
+            %   refocusings and ADC sampling points.
+            %   If the optionl parameter 'appendRF' is set to true the RF 
+            %   wave shapes are appended after the gradients
+            %   Optional output parameters: tfp_excitation contains time
+            %   moments, frequency and phase offsets of the excitation RF
+            %   pulses (similar for tfp_refocusing); t_adc contains times 
+            %   of all ADC sample points; fp_adc contains frequency and
+            %   phase offsets of each ADC object (not sample).
+            %   TODO: return RF frequency offsets and RF waveforms and t_preparing (once its available)
+            
+            if nargin < 2
+                appendRF=false;
+            end
              
             grad_channels=3;
-            gradChannels={'gx','gy','gz'};
+            gradChannels={'gx','gy','gz'}; % FIXME: this is not OK for matrix gradient systems
             
             t0=0;
             t0_n=0;
@@ -1217,65 +1296,79 @@ classdef Sequence < handle
             numBlocks=length(obj.blockEvents);
 
             % collect the shape pieces into a cell array
-            grad_pieces=cell(length(gradChannels),numBlocks);
-            shaped_flags=boolean(zeros(length(gradChannels),numBlocks));
+            if appendRF
+                shape_channels=length(gradChannels)+1; % the last "channel" is RF
+            else
+                shape_channels=length(gradChannels);
+            end
+            shape_pieces=cell(shape_channels,numBlocks); 
             % also collect RF and ADC timing data
             % t_excitation t_refocusing t_adc
-            t_excitation=[];
-            t_refocusing=[];
+            tfp_excitation=[];
+            tfp_refocusing=[];
             t_adc=[];
+            fp_adc=[];
             %block_durations=zeros(1,numBlocks);
             curr_dur=0;
-            out_len=zeros(1,length(gradChannels));
+            out_len=zeros(1,shape_channels); % the last "channel" is RF
             for iB=1:numBlocks
                 block = obj.getBlock(iB);
-                %block_durations(iB)=mr.calcDuration(block);
                 for j=1:length(gradChannels)
                     grad=block.(gradChannels{j});
                     if ~isempty(block.(gradChannels{j}))
                         if strcmp(grad.type,'grad')
-                            % restore & recompress shape: if we had a
-                            % trapezoid converted to shape we have to find
-                            % the "corners" and we can eliminate internal
-                            % samples on the straight segments
-                            % but first we have to restore samples on the
-                            % edges of the gradient raster intervals
-                            % for that we need the first sample
-                            max_abs=max(abs(grad.waveform));
-                            odd_step1=[grad.first 2*grad.waveform'];
-                            odd_step2=odd_step1.*(mod(1:length(odd_step1),2)*2-1);
-                            waveform_odd_rest=(cumsum(odd_step2).*(mod(1:length(odd_step2),2)*2-1))';
-                            waveform_odd_interp=[grad.first; 0.5*(grad.waveform(1:end-1)+grad.waveform(2:end)); grad.last];
-                            assert(abs(waveform_odd_rest(end)-grad.last)<=2e-5*max_abs,['last restored point of shaped gradient differs too much from the recorded last, deviation: ' num2str(abs(waveform_odd_rest(end)-grad.last)) 'Hz/m (' num2str(abs(waveform_odd_rest(end)-grad.last)/max_abs*100) '%). Block number: ' num2str(iB)]); % what's the reasonable threshold? 
-                            %figure; plot([0,10e-6+grad.t'],waveform_odd_rest-waveform_odd_interp);
-                            waveform_odd_mask=abs(waveform_odd_rest-waveform_odd_interp)<=eps+2e-5*max_abs; % threshold ???
-                            waveform_odd=waveform_odd_interp.*waveform_odd_mask+waveform_odd_rest.*(1-waveform_odd_mask);
-                            
-                            % combine odd & even
-                            comb=[ 0 grad.waveform' ; waveform_odd' ];
-                            waveform_os=comb(2:end)';
-                            
-                            tt_odd=(0:(length(waveform_odd_rest)-1))*obj.gradRasterTime;
-                            tt_os=(0:(length(waveform_os)-1))*obj.gradRasterTime*0.5;
-                            
-                            waveform_even_reint=0.5*(waveform_odd_rest(1:end-1)+waveform_odd_rest(2:end));
-                            
-                            maskChanges = abs([1; diff(waveform_os,2); 1])>1e-8;   % TRUE if values change
-                            waveform_chg = waveform_os(maskChanges);                     % Elements without repetitions
-                            tt_chg=tt_os(maskChanges);
-                            %figure;plot(grad.tt,grad.waveform);hold on; plot(tt_chg,waveform_chg); plot(tt_chg,waveform_chg,'o');
-                            tgc=[tt_chg; waveform_chg'];
-                            out_len(j)=size(tgc,2);
-                            grad_pieces{j,iB}=curr_dur+grad.delay+tgc;
+                            % check if we have an extended trapezoid or an arbitrary gradient on a regular raster
+                            tt_rast=grad.tt/obj.gradRasterTime+0.5;
+                            if all(abs(tt_rast-(1:length(tt_rast)))<eps)
+                                % arbitrary gradient
+                                %
+                                % restore & recompress shape: if we had a
+                                % trapezoid converted to shape we have to find
+                                % the "corners" and we can eliminate internal
+                                % samples on the straight segments
+                                % but first we have to restore samples on the
+                                % edges of the gradient raster intervals
+                                % for that we need the first sample
+                                max_abs=max(abs(grad.waveform));
+                                odd_step1=[grad.first 2*grad.waveform'];
+                                odd_step2=odd_step1.*(mod(1:length(odd_step1),2)*2-1);
+                                waveform_odd_rest=(cumsum(odd_step2).*(mod(1:length(odd_step2),2)*2-1))';
+                                waveform_odd_interp=[grad.first; 0.5*(grad.waveform(1:end-1)+grad.waveform(2:end)); grad.last];
+                                assert(abs(waveform_odd_rest(end)-grad.last)<=2e-5*max_abs,['last restored point of shaped gradient differs too much from the recorded last, deviation: ' num2str(abs(waveform_odd_rest(end)-grad.last)) 'Hz/m (' num2str(abs(waveform_odd_rest(end)-grad.last)/max_abs*100) '%). Block number: ' num2str(iB)]); % what's the reasonable threshold? 
+                                %figure; plot([0,10e-6+grad.t'],waveform_odd_rest-waveform_odd_interp);
+                                waveform_odd_mask=abs(waveform_odd_rest-waveform_odd_interp)<=eps+2e-5*max_abs; % threshold ???
+                                waveform_odd=waveform_odd_interp.*waveform_odd_mask+waveform_odd_rest.*(1-waveform_odd_mask);
+
+                                % combine odd & even
+                                comb=[ 0 grad.waveform' ; waveform_odd' ];
+                                waveform_os=comb(2:end)';
+
+                                tt_odd=(0:(length(waveform_odd_rest)-1))*obj.gradRasterTime;
+                                tt_os=(0:(length(waveform_os)-1))*obj.gradRasterTime*0.5;
+
+                                waveform_even_reint=0.5*(waveform_odd_rest(1:end-1)+waveform_odd_rest(2:end));
+
+                                maskChanges = abs([1; diff(waveform_os,2); 1])>1e-8;   % TRUE if values change
+                                waveform_chg = waveform_os(maskChanges);                     % Elements without repetitions
+                                tt_chg=tt_os(maskChanges);
+                                %figure;plot(grad.tt,grad.waveform);hold on; plot(tt_chg,waveform_chg); plot(tt_chg,waveform_chg,'o');
+                                tgc=[tt_chg; waveform_chg'];
+                                out_len(j)=size(tgc,2);
+                                shape_pieces{j,iB}=curr_dur+grad.delay+tgc;
+                            else
+                                % extended trapezoid (the easy case!)
+                                out_len(j)=out_len(j)+length(grad.tt);
+                                shape_pieces{j,iB}=[curr_dur+grad.delay+grad.tt'; grad.waveform'];
+                            end
                         else
                             if (abs(grad.flatTime)>eps) % interp1 gets confused by triangular gradients (repeating sample)
                                 out_len(j)=out_len(j)+4;
-                                grad_pieces{j,iB}=[
+                                shape_pieces{j,iB}=[
                                     curr_dur+grad.delay+cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);...
                                     grad.amplitude*[0 1 1 0]];
                             else
                                 out_len(j)=out_len(j)+3;
-                                grad_pieces{j,iB}=[
+                                shape_pieces{j,iB}=[
                                     curr_dur+grad.delay+cumsum([0 grad.riseTime grad.fallTime]);...
                                     grad.amplitude*[0 1 0]];
                             end
@@ -1285,30 +1378,45 @@ classdef Sequence < handle
                 if ~isempty(block.rf)
                     rf=block.rf;
                     t=rf.delay+mr.calcRfCenter(rf);
-                    if (~isfield(block.rf,'use') || ~strcmp(block.rf.use,'refocusing'))
-                        t_excitation(end+1) = curr_dur+t;
-                    else
-                        t_refocusing(end+1) = curr_dur+t;
+                    if (~isfield(block.rf,'use') || strcmp(block.rf.use,'excitation') || strcmp(block.rf.use,'undefined'))
+                        tfp_excitation(:,end+1) = [curr_dur+t; block.rf.freqOffset; block.rf.phaseOffset];
+                    elseif strcmp(block.rf.use,'refocusing')
+                        tfp_refocusing(:,end+1) = [curr_dur+t; block.rf.freqOffset; block.rf.phaseOffset];
+                    end
+                    if appendRF
+                        pre=[];
+                        post=[];
+                        if abs(rf.signal(1))>0
+                            pre=[curr_dur+rf.delay+rf.t(1)-eps;0];
+                        end
+                        if abs(rf.signal(end))>0
+                            post=[curr_dur+rf.delay+rf.t(end)+eps;0];
+                        end
+%                         pre=[curr_dur+rf.delay+rf.t(1)-eps;NaN];
+%                         post=[curr_dur+rf.delay+rf.t(end)+eps;NaN];
+                        out_len(end)=out_len(j)+length(rf.t)+size(pre,2)+size(post,2);
+                        shape_pieces{end,iB}=[pre [curr_dur+rf.delay+rf.t'; rf.signal'] post];
                     end
                 end
                 if ~isempty(block.adc)
                     t_adc((end+1):(end+block.adc.numSamples)) = ((0:(block.adc.numSamples-1))+0.5)... % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
                         *block.adc.dwell + block.adc.delay + curr_dur;
+                    fp_adc(:,end+1) = [block.adc.freqOffset; block.adc.phaseOffset];
                 end
                 curr_dur=curr_dur+obj.blockDurations(iB);%mr.calcDuration(block);
             end
             
             % collect wave data
-            wave_data=cell(1,length(gradChannels));
-            for j=1:length(gradChannels)
+            wave_data=cell(1,shape_channels);
+            for j=1:length(shape_channels)
                 wave_data{j}=zeros(2,out_len(j));
             end
-            wave_cnt=zeros(1,length(gradChannels));
+            wave_cnt=zeros(1,shape_channels);
             curr_dur=0;
             for iB=1:numBlocks
-                for j=1:length(gradChannels)
-                    if ~isempty(grad_pieces{j,iB})
-                        wave_data_local=grad_pieces{j,iB};
+                for j=1:shape_channels
+                    if ~isempty(shape_pieces{j,iB})
+                        wave_data_local=shape_pieces{j,iB};
                         len=size(wave_data_local,2);
                         if wave_cnt(j)==0 || wave_data{j}(1,wave_cnt(j))~=wave_data_local(1,1)
                             wave_data{j}(:,wave_cnt(j)+(1:len))=wave_data_local;
@@ -1317,15 +1425,15 @@ classdef Sequence < handle
                             wave_data{j}(:,wave_cnt(j)+(1:len-1))=wave_data_local(:,2:end);
                             wave_cnt(j)=wave_cnt(j)+len-1;
                         end
-%                         if wave_cnt(j)~=length(unique(wave_data{j}(1,1:wave_cnt(j))))
-%                             fprintf('Warning: not all elements of the generated time vector are unique!\n');
-%                         end
+                        if wave_cnt(j)~=length(unique(wave_data{j}(1,1:wave_cnt(j))))
+                            fprintf('Warning: not all elements of the generated time vector are unique!\n');
+                        end
                     end
                 end
             end
             
             % trim the output data
-            for j=1:length(gradChannels)
+            for j=1:shape_channels
                 if wave_cnt(j)<size(wave_data{j},2)
                     wave_data{j}(:,(wave_cnt(j)+1):end)=[];
                 end
@@ -1344,29 +1452,29 @@ classdef Sequence < handle
 %             end            
         end
         
-        function [ktraj_adc, t_adc, ktraj, t, t_excitation, t_refocusing] = calculateKspacePP(obj, varargin)
+        function [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos] = calculateKspacePP(obj, varargin)
             % calculate the k-space trajectory of the entire pulse sequence
 	    %   using piecewise-polynomial gradient wave representation 
 	    %   which is much faster for simple shapes and large delays
             %   optional parameter 'trajectory_delay' sets the compensation
             %   factor to align ADC and gradients in the reconstruction
-            %   Return values: ktraj_adc, ktraj, t_excitation, t_refocusing
+            %   Return values: ktraj_adc, t_adc, ktraj, t_ktraj,
+            %   t_excitation, t_refocusing, slicepos
         
             persistent parser
             if isempty(parser)
                 parser = inputParser;
-                parser.FunctionName = 'calculateKspace';
+                parser.FunctionName = 'calculateKspacePP';
                 parser.addParamValue('trajectory_delay',0,@(x)(isnumeric(x)));
             end
             parse(parser,varargin{:});
             opt = parser.Results;
             
             total_duration=sum(obj.blockDurations);
-
-            [gw_data, t_excitation, t_refocusing, t_adc]=obj.waveforms_and_times();
+            
+            [gw_data, tfp_excitation, tfp_refocusing, t_adc]=obj.waveforms_and_times();
+            
             ng=length(gw_data);
-
-            %t_adc = t_adc + opt.trajectory_delay;
             % new gradient delay handling
             if length(opt.trajectory_delay)==1
                 gradient_delays(1:ng)=opt.trajectory_delay;
@@ -1387,15 +1495,30 @@ classdef Sequence < handle
                 if ~all(isfinite(gw(:)))
                    fprintf('Warning: not all elements of the generated waveform are finite!\n');
                 end
+                teps=1e-12; % eps is too small and may go lost due to rounding errors (e.g. total_duration+eps==total_duration)
                 if gw(1,1)>0 && gw(1,end) < total_duration
-                    gw=[ [0;0] gw [total_duration;0] ];
+                    gw=[ [-teps gw(1,1)-teps;0 0] gw [gw(1,end)+teps total_duration+teps;0 0] ]; % we need these "eps" terms to avoid integration errors over extended periods of time
                 elseif gw(1,1)>0 
-                    gw=[ [0;0] gw ];
+                    gw=[ [-teps gw(1,1)-teps;0 0] gw ]; % we need these "eps" terms to avoid integration errors over extended periods of time
                 elseif gw(1,end) < total_duration 
-                    gw=[ gw [total_duration;0] ];
+                    gw=[ gw [gw(1,end)+teps total_duration+teps;0 0] ]; % we need these "eps" terms to avoid integration errors over extended periods of time
                 end
                 gw_pp{j} = interp1(gw(1,:),gw(2,:),'linear','pp');
             end
+            
+            % calculate slice positions. for now we entirely rely on the
+            % excitation -- ignoring complicated interleaved refocused sequences
+            slicepos=zeros(length(gw_data),size(tfp_excitation,2)); % position in x,y,z;
+            for j=1:length(gw_data)
+                slicepos(j,:)=ppval(gw_pp{j},tfp_excitation(1,:)).*tfp_excitation(2,:);
+            end
+            t_slicepos=tfp_excitation(1,:);
+            
+            %t_adc = t_adc + opt.trajectory_delay;
+            % this was wrong because it dod not shift RF events (which are
+            % intrinsically well-synchronized) and did not allow for
+            % anisotropic delays for different gradient axes. For the new
+            % implementation see "gradient_delays" vector above 
             
             % integrate waveforms as PPs to produce gadient moments
             gm_pp=cell(1,ng);
@@ -1406,6 +1529,7 @@ classdef Sequence < handle
                 end
                 gm_pp{i}=fnint(gw_pp{i});
                 tc{end+1}=gm_pp{i}.breaks;
+                % "sample" ramps for display purposes otherwise piecewise-linear diplay (plot) fails (looks stupid)
                 ii=find(abs(gm_pp{i}.coefs(:,1))>eps);
                 if ~isempty(ii)
                     tca=cell(1,length(ii));
@@ -1414,20 +1538,28 @@ classdef Sequence < handle
                     end
                     tc{end+1}=[tca{:}];
                 end
-%                 for j=1:gm_pp{i}.pieces
-%                     if(abs(gm_pp{i}.coefs(j,1))>eps)
-%                         tc{end+1}=(floor(gm_pp{i}.breaks(j)/obj.gradRasterTime):ceil(gm_pp{i}.breaks(j+1)/obj.gradRasterTime))*obj.gradRasterTime;
-%                     end
-%                 end
             end
             %t = unique([tc{:}, 0, t_excitation-obj.gradRasterTime, t_excitation, t_refocusing, t_adc]);
             % we round to 100ns, otherwise unique() fails...
             
-            t = 1e-7*unique(round(1e7*[tc{:}, 0, t_excitation-2*obj.rfRasterTime, t_excitation-obj.rfRasterTime, t_excitation, t_refocusing-obj.rfRasterTime, t_refocusing, t_adc, total_duration]));
-            [~,i_excitation]=builtin('_ismemberhelper',1e-7*round(1e7*t_excitation),t);
-            [~,i_refocusing]=builtin('_ismemberhelper',1e-7*round(1e7*t_refocusing),t);
-            [~,i_adc]=builtin('_ismemberhelper',1e-7*round(1e7*t_adc),t);
-            i_periods=unique([1, i_excitation, i_refocusing, length(t)]);
+            if isempty(tfp_excitation)
+                t_excitation=[];
+            else
+                t_excitation=tfp_excitation(1,:);
+            end
+            if isempty(tfp_refocusing)
+                t_refocusing=[];
+            else
+                t_refocusing=tfp_refocusing(1,:);
+            end
+            
+            tacc=1e-9; % temporal accuracy
+            taccinv=1/tacc;
+            t_ktraj = tacc*unique(round(taccinv*[tc{:}, 0, t_excitation-2*obj.rfRasterTime, t_excitation-obj.rfRasterTime, t_excitation, t_refocusing-obj.rfRasterTime, t_refocusing, t_adc, total_duration]));
+            [~,i_excitation]=builtin('_ismemberhelper',tacc*round(taccinv*t_excitation),t_ktraj);
+            [~,i_refocusing]=builtin('_ismemberhelper',tacc*round(taccinv*t_refocusing),t_ktraj);
+            [~,i_adc]=builtin('_ismemberhelper',tacc*round(taccinv*t_adc),t_ktraj);
+            i_periods=unique([1, i_excitation, i_refocusing, length(t_ktraj)]);
             if ~isempty(i_excitation)
                 ii_next_excitation=1;
             else
@@ -1438,16 +1570,16 @@ classdef Sequence < handle
             else
                 ii_next_refocusing=0;
             end            
-            ktraj=zeros(3, length(t));
+            ktraj=zeros(3, length(t_ktraj));
             for i=1:ng
                 if isempty(gw_pp{i})
                     continue;
                 end
                 %[~,it]=builtin('_ismemberhelper',[gm_pp{i}.breaks(1),gm_pp{i}.breaks(end)],t);
                 %ktraj(i,it(1):it(2))=ppval(gm_pp{i},t(it(1):it(2)));
-                it=find(t>=1e-7*round(1e7*gm_pp{i}.breaks(1)) & t<=1e-7*round(1e7*gm_pp{i}.breaks(end)));
-                ktraj(i,it)=ppval(gm_pp{i},t(it));
-                if t(it(end))<t(end)
+                it=find(t_ktraj>=tacc*round(taccinv*gm_pp{i}.breaks(1)) & t_ktraj<=tacc*round(taccinv*gm_pp{i}.breaks(end)));
+                ktraj(i,it)=ppval(gm_pp{i},t_ktraj(it));
+                if t_ktraj(it(end))<t_ktraj(end)
                     ktraj(i,(it(end)+1):end)=ktraj(i,it(end));
                 end
             end
@@ -1457,6 +1589,9 @@ classdef Sequence < handle
                 i_period=i_periods(i);
                 i_period_end=i_periods(i+1);
                 if ii_next_excitation>0 && i_excitation(ii_next_excitation)==i_period
+                    if abs(t_ktraj(i_period)-t_excitation(ii_next_excitation))>1e-12
+                        warning('abs(t_ktraj(i_period)-t_excitation(ii_next_excitation))<1e-12 failed for ii_next_excitation=%d error=%g', ii_next_excitation, t_ktraj(i_period)-t_excitation(ii_next_excitation));
+                    end
                     dk=-ktraj(:,i_period);
                     if (i_period>1)
                         ktraj(:,i_period-1)=NaN; % we use NaN-s to mark the excitation point, they interrupt the plots
@@ -1475,6 +1610,15 @@ classdef Sequence < handle
             end
             ktraj(:,i_period_end)=ktraj(:,i_period_end)+dk;
             ktraj_adc=ktraj(:,i_adc);
+            % add first and last slicepos
+            if t_slicepos(1)>0
+                t_slicepos=[0 t_slicepos];
+                slicepos=[ zeros(length(gw_data),1) slicepos ];
+            end
+            if t_slicepos(end)<t_ktraj(end)
+                t_slicepos=[t_slicepos t_ktraj(end)];
+                slicepos=[ slicepos slicepos(:,end)];
+            end
         end
         
         function sound_data=sound(obj)
@@ -1482,16 +1626,20 @@ classdef Sequence < handle
             %   "play out" the sequence through the system speaker
             %
             
-            grad_waveforms=obj.gradient_waveforms();
-            grad_wavelen=size(grad_waveforms,2);
+            gw_data=obj.waveforms_and_times();
+            total_duration=sum(obj.blockDurations);
             
             sample_rate=44100; %Hz
             dwell_time=1/sample_rate;
-            sound_length=floor((grad_wavelen-1)*obj.gradRasterTime/dwell_time)+1;
+            sound_length=floor(total_duration/dwell_time)+1;
             
             sound_data(2,sound_length)=0; %preallocate
-            sound_data(1,:)=interp1((0:(grad_wavelen-1))*obj.gradRasterTime,grad_waveforms(1,:)+0.5*grad_waveforms(3,:),(0:(sound_length-1))*dwell_time);
-            sound_data(2,:)=interp1((0:(grad_wavelen-1))*obj.gradRasterTime,grad_waveforms(2,:)+0.5*grad_waveforms(3,:),(0:(sound_length-1))*dwell_time);
+            %sound_data(1,:)=interp1((0:(grad_wavelen-1))*obj.gradRasterTime,grad_waveforms(1,:)+0.5*grad_waveforms(3,:),(0:(sound_length-1))*dwell_time);
+            sound_data(1,:)=interp1(gw_data{1}(1,:),gw_data{1}(2,:),(0:(sound_length-1))*dwell_time,'linear',0) + ...
+                            interp1(gw_data{3}(1,:),gw_data{3}(2,:),(0:(sound_length-1))*dwell_time,'linear',0)*0.5;
+            %sound_data(2,:)=interp1((0:(grad_wavelen-1))*obj.gradRasterTime,grad_waveforms(2,:)+0.5*grad_waveforms(3,:),(0:(sound_length-1))*dwell_time);
+            sound_data(1,:)=interp1(gw_data{2}(1,:),gw_data{2}(2,:),(0:(sound_length-1))*dwell_time,'linear',0) + ...
+                            interp1(gw_data{3}(1,:),gw_data{3}(2,:),(0:(sound_length-1))*dwell_time,'linear',0)*0.5;
             
             % filter like we did it in the gradient music project
             %b = fir1(40, 10000/sample_rate);
@@ -1514,6 +1662,58 @@ classdef Sequence < handle
             sound([zeros(2,sample_rate/2) sound_data zeros(2,sample_rate/2)], sample_rate); 
         end
         
+        function ok=install(seq,dest)
+            %install Install sequence on RANGE system.
+            %   install(seq) Install sequence by copying files to Siemens
+            %   host and RANGE controller
+            %
+            %   install(seq,'siemens') Install Siemens Numaris4 files.
+            %   install(seq,'siemensNX') Install Siemens NumarisX files.
+            %
+
+            ok = true;
+            if any(strcmpi(dest, {'both', 'siemens', 'siemensNX'}))
+                seq.write('external.seq.tmp')
+                % we assume we are in the internal network but ICE computer
+                % on VB and VE has different IPs
+                ice_ips={'192.168.2.3', '192.168.2.2'};
+                ice_ip=[];
+                for i=1:length(ice_ips)
+                    [status, ~] = system(['ping -q -n -W1 -c1 ' ice_ips{i}]);
+                    if status == 0
+                        ice_ip=ice_ips{i};
+                        break;
+                    end                
+                end
+                if isempty(ice_ip)
+                    error('Scanner not found, sequence install failed.')
+                end
+                pulseq_seq_path='/opt/medcom/MriCustomer/seq/pulseq';
+                if strcmpi(dest,'siemensNX')
+                    pulseq_seq_path='/opt/medcom/MriCustomer/CustomerSeq/pulseq';
+                end
+                [status, ~] = system(['scp -oBatchMode=yes -oStrictHostKeyChecking=no external.seq.tmp root@' ice_ip ':' pulseq_seq_path '/external_tmp.seq']);
+                ok = ok & status == 0;
+                if ok
+                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "chmod a+rw ' pulseq_seq_path '/external_tmp.seq"']);
+                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "rm -f ' pulseq_seq_path '/external.seq"']);
+                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/external.seq"']);
+                end
+            end
+            
+            
+            if strcmp(dest, 'dropbox')
+                seq.write('external.seq.tmp')
+                [status, ~] = system(['cp external.seq.tmp ~/Dropbox/inbox/maxim/' datestr(datetime, 'yyyymmddHHMMSS') '.seq']);
+                ok = ok & status == 0;
+	        end
+            
+            if ok
+                fprintf('Sequence installed\n')
+            else
+                error('Sequence install failed.')
+            end
+        end
                 
         function codes = getBinaryCodes(obj)
             %getBinaryCodes Return binary codes for section headers in
@@ -1574,70 +1774,5 @@ classdef Sequence < handle
             obj.extensionStringIDs{1+length(obj.extensionStringIDs)}=str;
             assert(length(obj.extensionNumericIDs)==length(obj.extensionStringIDs))
         end
-        
-        function ok=install(seq,dest)
-            %install Install sequence on RANGE system.
-            %   install(seq) Install sequence by copying files to Siemens
-            %   host and RANGE controller
-            %
-            %   install(seq,'siemens') Install Siemens files.
-            %   install(seq,'controller') Install RANGE controller files.
-            %
-
-            if nargin < 2
-                dest = 'both';
-            end
-            id = 0;
-            ok = true;
-            if any(strcmpi(dest, {'both', 'siemens', 'siemensNX'}))
-                %id = ID.generateID();
-                %seq.setDefinition('Scan_ID', id);
-                %seq.write('~/seq_data/external.seq')            % Linear system 
-                seq.write('external.seq.tmp')
-                % we assume we are in the internal network but ICE computer
-                % on VB and VE has different IPs
-                ice_ips={'192.168.2.3', '192.168.2.2'};
-                ice_ip=[];
-                for i=1:length(ice_ips)
-                    [status, ~] = system(['ping -q -n -W1 -c1 ' ice_ips{i}]);
-                    if status == 0
-                        ice_ip=ice_ips{i};
-                        break;
-                    end                
-                end
-                if isempty(ice_ip)
-                    error('Scanner not found, sequence install failed.')
-                end
-                pulseq_seq_path='/opt/medcom/MriCustomer/seq/pulseq';
-                if strcmpi(dest,'siemensNX')
-                    pulseq_seq_path='/opt/medcom/MriCustomer/CustomerSeq/pulseq';
-                end
-                [status, ~] = system(['scp -oBatchMode=yes -oStrictHostKeyChecking=no external.seq.tmp root@' ice_ip ':' pulseq_seq_path '/external_tmp.seq']);
-                ok = ok & status == 0;
-                if ok
-                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "chmod a+rw ' pulseq_seq_path '/external_tmp.seq"']);
-                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "rm -f ' pulseq_seq_path '/external.seq"']);
-                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/external.seq"']);
-                end
-            end
-            if any(strcmp(dest, {'both', 'controller'}))
-                seq.writeExternal('~/seq_data/gradients.txt');  % RANGE controller
-                [status, ~] = system('cp ~/seq_data/gradients.txt ~/controller_C/seq_data/');
-                ok = ok & status == 0;
-            end
-
-            if strcmp(dest, 'dropbox')
-                seq.write('external.seq.tmp')
-                [status, ~] = system(['cp external.seq.tmp ~/Dropbox/inbox/maxim/' datestr(datetime, 'yyyymmddHHMMSS') '.seq']);
-                ok = ok & status == 0;
-	    end
-            
-            if ok
-                fprintf('Sequence ID %d installed\n', id)
-            else
-                error('Sequence install failed.')
-            end
-        end
-
     end
 end % classdef

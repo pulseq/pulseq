@@ -1,4 +1,4 @@
-function w = decompressShape(shape)
+function w = decompressShape(shape, forceDecompression)
 %decompressShape Decompress a gradient or pulse shape.
 %   w=decompressShape(shape) Decompress the shape compressed with a run-length
 %   compression scheme on the derivative. The given shape is structure with
@@ -8,9 +8,20 @@ function w = decompressShape(shape)
 %
 %   See also compressShape
 
+
 dataPack = shape.data;
 dataPackLen = length(dataPack);
 numSamples=shape.num_samples;
+
+if nargin<2
+    forceDecompression=false;
+end
+
+if ~forceDecompression && numSamples==dataPackLen
+    % uncompressed shape
+    w=dataPack';
+    return;
+end
 
 w= zeros(1, numSamples) ;                 % pre-allocate the result matrix
                                           % dimensons: (1,length of the data set)
