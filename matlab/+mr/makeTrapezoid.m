@@ -36,6 +36,7 @@ if isempty(parser)
     parser.addParamValue('maxGrad',0,@isnumeric);
     parser.addParamValue('maxSlew',0,@isnumeric);
     parser.addParamValue('riseTime',0,@isnumeric);
+    parser.addParamValue('fallTime',0,@isnumeric);
     parser.addParamValue('delay',0,@isnumeric);
     
 end
@@ -43,8 +44,10 @@ parse(parser,channel,varargin{:});
 opt = parser.Results;
 
 maxSlew=opt.system.maxSlew;
-riseTime=opt.system.riseTime;
+%riseTime=opt.system.riseTime;
 maxGrad=opt.system.maxGrad;
+fallTime = [];
+riseTime = [];
 
 if opt.maxGrad>0
     maxGrad=opt.maxGrad;
@@ -55,6 +58,13 @@ end
 if opt.riseTime>0
     riseTime=opt.riseTime;
 end
+if opt.fallTime>0
+    if isempty(riseTime)
+        error('makeTrapezoid:invalidArguments','Must always supply ''riseTime'' if ''fallTime'' is specified explicitly.');
+    end
+    fallTime=opt.fallTime;
+end
+
 
 if isempty(opt.area) && isempty(opt.flatArea) && isempty(opt.amplitude)
     error('makeTrapezoid:invalidArguments','Must supply either ''area'', ''flatArea'' or ''amplitude''');
@@ -72,7 +82,9 @@ if ~isempty(opt.flatTime) % MZ was: opt.flatTime>0
             riseTime=opt.system.gradRasterTime;
         end
     end
-    fallTime = riseTime;
+    if isempty(fallTime)
+        fallTime = riseTime;
+    end
     flatTime = opt.flatTime;
 elseif opt.duration>0
     if ~isempty(opt.amplitude)
@@ -95,7 +107,9 @@ elseif opt.duration>0
             riseTime=opt.system.gradRasterTime;
         end
     end
-    fallTime = riseTime;
+    if isempty(fallTime)
+        fallTime = riseTime;
+    end
     flatTime = opt.duration-riseTime-fallTime;
     if isempty(opt.amplitude)
         % Adjust amplitude (after rounding) to achieve given area
@@ -103,7 +117,7 @@ elseif opt.duration>0
     end
 else
     if isempty(opt.area)
-        error('makeTrapezoid:invalidArguments','Must supply a duration');
+        error('makeTrapezoid:invalidArguments','Must supply area or duration');
     else
         %
         % find the shortest possible duration

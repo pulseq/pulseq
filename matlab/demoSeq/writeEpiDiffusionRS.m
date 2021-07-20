@@ -196,7 +196,7 @@ hold on;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
 %% prepare the sequence output for the scanner
 seq.setDefinition('FOV', [fov fov thickness*Nslices]);
-seq.setDefinition('Name', 'epi');
+seq.setDefinition('Name', 'epi-diff');
 
 seq.write('epidiff_rs.seq'); 
 

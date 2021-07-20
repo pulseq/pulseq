@@ -119,7 +119,7 @@ classdef Sequence < handle
         
         
         % See calcPNS.m
-        pns=calcPNS(obj,hardware,doPlots)
+        [ok, pns_norm, pns_comp, t_axis]=calcPNS(obj,hardware,doPlots)
         
         % See testReport.m
         %testReport(obj);
