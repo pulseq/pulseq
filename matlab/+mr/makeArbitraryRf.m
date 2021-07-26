@@ -33,12 +33,16 @@ if isempty(parser)
     addParamValue(parser, 'sliceThickness', 0, @isnumeric);
     % Delay
     addParamValue(parser, 'delay', 0, @isnumeric);
-    addParamValue(parser, 'dwell', mr.opts().rfRasterTime, @isnumeric);
+    addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
     addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
 end
 parse(parser, signal, flip,varargin{:});
 opt = parser.Results;
+
+if opt.dwell==0
+    opt.dwell=opt.system.rfRasterTime;
+end
 
 signal = signal./abs(sum(signal.*opt.dwell))*flip/(2*pi);
 

@@ -56,13 +56,17 @@ if isempty(parser)
     addParamValue(parser, 'maxSlew', 0, @isnumeric);
     addParamValue(parser, 'sliceThickness', 0, @isnumeric);
     addParamValue(parser, 'delay', 0, @isnumeric);
-    addParamValue(parser, 'dwell', mr.opts().rfRasterTime, @isnumeric);
+    addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
     addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
 end
 parse(parser, flip, varargin{:});
 opt = parser.Results;
 opt.centerpos=0.5; % fixme
+
+if opt.dwell==0
+    opt.dwell=opt.system.rfRasterTime;
+end
 
 % find python (probably only works on linux, maybe also mac)
 [status, result]=system('which python');
