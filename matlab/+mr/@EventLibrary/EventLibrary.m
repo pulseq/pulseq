@@ -33,7 +33,9 @@ classdef EventLibrary < handle
         data;
         lengths;
         type;
-        keymap;
+        keymap;        
+        next_free_id;
+        %id_hit_count;
     end
     
     methods
@@ -43,6 +45,8 @@ classdef EventLibrary < handle
             obj.lengths = zeros(1,0);
             obj.type = char(zeros(1,0));
             obj.keymap = containers.Map('KeyType', 'char', 'ValueType', 'double'); 
+            obj.next_free_id = 1;
+            %obj.id_hit_count=[];
         end
         
         function [id, found] = find(obj, data)
@@ -56,7 +60,7 @@ classdef EventLibrary < handle
             %   See also  insert mr.Sequence.addBlock
             
             % use map index for faster searches
-            % matlab is extremely limited with regard to advanced contasiners
+            % matlab is extremely limited with regard to advanced containers
             % we therefore are forced to use hashed map and convert data to a
             % string
             data_string = sprintf('%.6g ', data); % precision can be discussed
@@ -65,12 +69,9 @@ classdef EventLibrary < handle
             try
                 id = obj.keymap(data_string(1:end-1));
                 found = true;
+                %obj.id_hit_count(id)=obj.id_hit_count(id)+1;
             catch 
-                if isempty(obj.keys)
-                    id = 1;
-                else
-                    id = max(obj.keys) + 1;
-                end
+                id = obj.next_free_id;
                 found = false;
             end
         end
@@ -95,32 +96,38 @@ classdef EventLibrary < handle
             try
                 id = obj.keymap(data_string(1:end-1));
                 found = true;
+                %obj.id_hit_count(id)=obj.id_hit_count(id)+1;
             catch 
-                if isempty(obj.keys)
-                    id = 1;
-                else
-                    id = max(obj.keys) + 1;
-                end
+                id = obj.next_free_id;
                 found = false;
                 % insert
                 obj.keys(id) = id;
                 obj.data(id).array = data;
                 obj.lengths(id) = length(data);
-                obj.keymap(data_string(1:end-1)) = id;
                 if nargin>2
                     obj.type(id) = type;
                 end
+                obj.keymap(data_string(1:end-1)) = id;
+                %obj.id_hit_count(id)=0;
+                obj.next_free_id=id+1; % update next_free_id
             end
         end
         
-        function insert(obj, id, data, type)
+        function id=insert(obj, id, data, type)
             %insert Add event to library
             % 
             % See also find
             
+            if id==0 % get the next free ID
+                id = obj.next_free_id;
+            end
+            
             obj.keys(id) = id;
             obj.data(id).array = data;
             obj.lengths(id) = length(data);
+            if nargin>3
+                obj.type(id) = type;
+            end
             
             % use map index for faster searches
             % matlab is extremely limited with regard to advanced containers
@@ -128,8 +135,9 @@ classdef EventLibrary < handle
             % string
             data_string=sprintf('%.6g ', data);
             obj.keymap(data_string(1:end-1)) = id;
-            if nargin>3
-                obj.type(id) = type;
+            %obj.id_hit_count(id)=0;
+            if id>=obj.next_free_id
+                obj.next_free_id=id+1; % update next_free_id
             end
         end
         

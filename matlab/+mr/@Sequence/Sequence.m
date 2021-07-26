@@ -395,6 +395,7 @@ classdef Sequence < handle
             phase = angle(event.signal);
             phase(phase < 0) = phase(phase < 0) + 2*pi;
             phase = phase / (2*pi);
+            may_exist=true;
             
             if isfield(event,'shapeIDs')
                 shapeIDs=event.shapeIDs;
@@ -403,18 +404,21 @@ classdef Sequence < handle
 
                 magShape = mr.compressShape(mag(:));
                 data = [magShape.num_samples magShape.data];
-                shapeIDs(1) = obj.shapeLibrary.find_or_insert(data);
+                [shapeIDs(1),found] = obj.shapeLibrary.find_or_insert(data);
+                may_exist=may_exist & found;
                 
                 phaseShape = mr.compressShape(phase);
                 data = [phaseShape.num_samples phaseShape.data];
-                shapeIDs(2)= obj.shapeLibrary.find_or_insert(data);
+                [shapeIDs(2),found] = obj.shapeLibrary.find_or_insert(data);
+                may_exist=may_exist & found;
                 
                 timeShape = mr.compressShape(event.t/obj.rfRasterTime); % time shape is stored in units of RF raster
                 if length(timeShape.data)==4 && all(timeShape.data == [0.5 1 1 timeShape.num_samples-3]) 
                     shapeIDs(3)=0;
                 else
                     data = [timeShape.num_samples timeShape.data];
-                    shapeIDs(3)= obj.shapeLibrary.find_or_insert(data);
+                    [shapeIDs(3),found] = obj.shapeLibrary.find_or_insert(data);
+                    may_exist=may_exist & found;
                 end
             end
 
@@ -431,10 +435,15 @@ classdef Sequence < handle
             data = [amplitude shapeIDs(1) shapeIDs(2) shapeIDs(3) ...
                     event.delay event.freqOffset event.phaseOffset ];%...
                     %event.deadTime event.ringdownTime];
-            id = obj.rfLibrary.find_or_insert(data,use);
+            if may_exist
+                id = obj.rfLibrary.find_or_insert(data,use);
+            else
+                id = obj.rfLibrary.insert(0,data,use);
+            end
         end
         
         function id=registerGradEvent(obj, event)
+            may_exist=true;
             switch event.type
                 case 'grad'
                     amplitude = max(abs(event.waveform));
@@ -447,13 +456,15 @@ classdef Sequence < handle
                     end
                     c_shape = mr.compressShape(g);
                     s_data = [c_shape.num_samples c_shape.data];
-                    s_id = obj.shapeLibrary.find_or_insert(s_data);
+                    [s_id,found] = obj.shapeLibrary.find_or_insert(s_data);
+                    may_exist=may_exist & found;
                     c_time = mr.compressShape(event.tt/obj.gradRasterTime);
                     if length(c_time.data)==4 && all(c_time.data == [0.5 1 1 c_time.num_samples-3]) 
                         t_id=0;
                     else
                         t_data = [c_time.num_samples c_time.data];
-                        t_id = obj.shapeLibrary.find_or_insert(t_data);
+                        [t_id,found] = obj.shapeLibrary.find_or_insert(t_data);
+                        may_exist=may_exist & found;
                     end
                     data = [amplitude s_id t_id event.delay event.first event.last];
                 case 'trap'
@@ -463,7 +474,11 @@ classdef Sequence < handle
                 otherwise
                     error('unknown grdient type passed to registerGradEvent()');
             end
-            id = obj.gradLibrary.find_or_insert(data,event.type(1));
+            if may_exist
+                id = obj.gradLibrary.find_or_insert(data,event.type(1));
+            else
+                id = obj.gradLibrary.insert(0,data,event.type(1));
+            end
         end
         
         function id=registerAdcEvent(obj, event)
@@ -1510,8 +1525,9 @@ classdef Sequence < handle
             % excitation -- ignoring complicated interleaved refocused sequences
             slicepos=zeros(length(gw_data),size(tfp_excitation,2)); % position in x,y,z;
             for j=1:length(gw_data)
-                slicepos(j,:)=ppval(gw_pp{j},tfp_excitation(1,:)).*tfp_excitation(2,:);
+                slicepos(j,:)=tfp_excitation(2,:)./ppval(gw_pp{j},tfp_excitation(1,:));
             end
+            slicepos(~isfinite(slicepos))=0; % reset undefined to 0 (or is NaN better?)
             t_slicepos=tfp_excitation(1,:);
             
             %t_adc = t_adc + opt.trajectory_delay;
@@ -1553,12 +1569,18 @@ classdef Sequence < handle
                 t_refocusing=tfp_refocusing(1,:);
             end
             
-            tacc=1e-9; % temporal accuracy
+            tacc=1e-10; % temporal accuracy
             taccinv=1/tacc;
             t_ktraj = tacc*unique(round(taccinv*[tc{:}, 0, t_excitation-2*obj.rfRasterTime, t_excitation-obj.rfRasterTime, t_excitation, t_refocusing-obj.rfRasterTime, t_refocusing, t_adc, total_duration]));
-            [~,i_excitation]=builtin('_ismemberhelper',tacc*round(taccinv*t_excitation),t_ktraj);
-            [~,i_refocusing]=builtin('_ismemberhelper',tacc*round(taccinv*t_refocusing),t_ktraj);
-            [~,i_adc]=builtin('_ismemberhelper',tacc*round(taccinv*t_adc),t_ktraj);
+            % % the "proper" matlab's function ismember() is slow and returns a bool array, but builtin('_ismemberhelper'...) is not compatible accross versions (known not to work on the windows 2021a version)
+            %[~,i_excitation]=builtin('_ismemberhelper',tacc*round(taccinv*t_excitation),t_ktraj);
+            %[~,i_refocusing]=builtin('_ismemberhelper',tacc*round(taccinv*t_refocusing),t_ktraj);
+            %[~,i_adc]=builtin('_ismemberhelper',tacc*round(taccinv*t_adc),t_ktraj);
+            % this is nother undocumented solution, see https://undocumentedmatlab.com/blog_old/ismembc-undocumented-helper-function
+            i_excitation=ismembc2(tacc*round(taccinv*t_excitation),t_ktraj);
+            i_refocusing=ismembc2(tacc*round(taccinv*t_refocusing),t_ktraj);
+            i_adc=ismembc2(tacc*round(taccinv*t_adc),t_ktraj);
+            %
             i_periods=unique([1, i_excitation, i_refocusing, length(t_ktraj)]);
             if ~isempty(i_excitation)
                 ii_next_excitation=1;
@@ -1589,8 +1611,8 @@ classdef Sequence < handle
                 i_period=i_periods(i);
                 i_period_end=i_periods(i+1);
                 if ii_next_excitation>0 && i_excitation(ii_next_excitation)==i_period
-                    if abs(t_ktraj(i_period)-t_excitation(ii_next_excitation))>1e-12
-                        warning('abs(t_ktraj(i_period)-t_excitation(ii_next_excitation))<1e-12 failed for ii_next_excitation=%d error=%g', ii_next_excitation, t_ktraj(i_period)-t_excitation(ii_next_excitation));
+                    if abs(t_ktraj(i_period)-t_excitation(ii_next_excitation))>tacc
+                        warning('abs(t_ktraj(i_period)-t_excitation(ii_next_excitation))<%g failed for ii_next_excitation=%d error=%g', tacc, ii_next_excitation, t_ktraj(i_period)-t_excitation(ii_next_excitation));
                     end
                     dk=-ktraj(:,i_period);
                     if (i_period>1)
@@ -1610,15 +1632,15 @@ classdef Sequence < handle
             end
             ktraj(:,i_period_end)=ktraj(:,i_period_end)+dk;
             ktraj_adc=ktraj(:,i_adc);
-            % add first and last slicepos
-            if t_slicepos(1)>0
-                t_slicepos=[0 t_slicepos];
-                slicepos=[ zeros(length(gw_data),1) slicepos ];
-            end
-            if t_slicepos(end)<t_ktraj(end)
-                t_slicepos=[t_slicepos t_ktraj(end)];
-                slicepos=[ slicepos slicepos(:,end)];
-            end
+%             % add first and last slicepos
+%             if t_slicepos(1)>0
+%                 t_slicepos=[0 t_slicepos];
+%                 slicepos=[ zeros(length(gw_data),1) slicepos ];
+%             end
+%             if t_slicepos(end)<t_ktraj(end)
+%                 t_slicepos=[t_slicepos t_ktraj(end)];
+%                 slicepos=[ slicepos slicepos(:,end)];
+%             end
         end
         
         function sound_data=sound(obj)
@@ -1662,7 +1684,7 @@ classdef Sequence < handle
             sound([zeros(2,sample_rate/2) sound_data zeros(2,sample_rate/2)], sample_rate); 
         end
         
-        function ok=install(seq,dest)
+        function ok=install(seq,dest,name)
             %install Install sequence on RANGE system.
             %   install(seq) Install sequence by copying files to Siemens
             %   host and RANGE controller
@@ -1670,6 +1692,18 @@ classdef Sequence < handle
             %   install(seq,'siemens') Install Siemens Numaris4 files.
             %   install(seq,'siemensNX') Install Siemens NumarisX files.
             %
+            
+            if nargin<3
+                name='external';
+            end
+
+            if ispc 
+                % windows
+                ping_command='ping -w 1000 -n 1';
+            elseif isunix || ismac
+                % unix-like
+                ping_command='ping -q -n -W1 -c1';
+            end
 
             ok = true;
             if any(strcmpi(dest, {'both', 'siemens', 'siemensNX'}))
@@ -1679,7 +1713,7 @@ classdef Sequence < handle
                 ice_ips={'192.168.2.3', '192.168.2.2'};
                 ice_ip=[];
                 for i=1:length(ice_ips)
-                    [status, ~] = system(['ping -q -n -W1 -c1 ' ice_ips{i}]);
+                    [status, ~] = system([ping_command ' ' ice_ips{i}]);
                     if status == 0
                         ice_ip=ice_ips{i};
                         break;
@@ -1696,7 +1730,7 @@ classdef Sequence < handle
                 ok = ok & status == 0;
                 if ok
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "chmod a+rw ' pulseq_seq_path '/external_tmp.seq"']);
-                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "rm -f ' pulseq_seq_path '/external.seq"']);
+                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "rm -f ' pulseq_seq_path '/' name '.seq"']);
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/external.seq"']);
                 end
             end
