@@ -1,4 +1,4 @@
-function [grads] = splitGradientAt(grad, timepoint, varargin)
+function [varargout] = splitGradientAt(grad, timepoint, varargin)
 %SplitGradient Splits a trapezoidal gradient into two extended trapezoids
 %(currently shaped gradients) defined by the cut line.
 %
@@ -43,7 +43,7 @@ if strcmp(grad.type, 'grad')
         % arbitrary gradient -- the most trivial conversion
         % if timepoint is out of range we have nothing to do
         if timeindex == 1 || timeindex >= length(grad.t)
-            grads = grad;
+            varargout{1} = grad;
         else
             grad1=grad;
             grad2=grad;
@@ -55,7 +55,12 @@ if strcmp(grad.type, 'grad')
             grad2.tt=grad.tt(timeindex:end) - timepoint;
             grad2.waveform=grad.waveform(timeindex:end);
 
-            grads = [grad1 grad2];
+            if nargout==1
+                varargout{1} = [grad1 grad2];
+            else
+                varargout{1} = grad1;
+                varargout{2} = grad2;
+            end
         end
         return; % early return
     else
@@ -109,6 +114,12 @@ grad2 = mr.makeExtendedTrapezoid(ch, opt.system, 'times', times2,...
                                   'skip_check', true); 
 grad2.delay = timepoint;
 
-grads = [grad1 grad2];
+%grads = [grad1 grad2];
+if nargout==1
+    varargout{1} = [grad1 grad2];
+else
+    varargout{1} = grad1;
+    varargout{2} = grad2;
+end
 
 end

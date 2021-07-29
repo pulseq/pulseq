@@ -64,7 +64,7 @@ if isempty(parser)
     % RF params
     addRequired(parser, 'type', @(x) any(validatestring(x,validPulseTypes)));
     addOptional(parser, 'system', mr.opts(), @isstruct);
-    addParamValue(parser, 'duration', 1e-3, @isnumeric);
+    addParamValue(parser, 'duration', 10e-3, @isnumeric);
     addParamValue(parser, 'freqOffset', 0, @isnumeric);
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
     addParamValue(parser, 'beta', 800, @isnumeric);

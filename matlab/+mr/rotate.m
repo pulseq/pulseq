@@ -68,8 +68,8 @@ max_mag=0; % measure of the relevant amplitude
 for i=1:length(irotate1)
     g=va{irotate1(i)};
     max_mag=max(max_mag, getGradAbsMag(g));
-    rotated1{i}=scaleGrad(g,cos(angle));
-    g=scaleGrad(g,sin(angle));
+    rotated1{i}=mr.scaleGrad(g,cos(angle));
+    g=mr.scaleGrad(g,sin(angle));
     g.channel=axes2rot{2};
     rotated2{i}=g;
 end
@@ -77,8 +77,8 @@ o=length(irotate1);
 for i=1:length(irotate2)
     g=va{irotate2(i)};
     max_mag=max(max_mag, getGradAbsMag(g));
-    rotated2{i+o}=scaleGrad(g,cos(angle));
-    g=scaleGrad(g,-sin(angle));
+    rotated2{i+o}=mr.scaleGrad(g,cos(angle));
+    g=mr.scaleGrad(g,-sin(angle));
     g.channel=axes2rot{1};
     rotated1{i+o}=g;
 end
@@ -141,18 +141,6 @@ end
 
 end
 
-
-function [grad] = scaleGrad(grad, scale)
-    if strcmp(grad.type,'trap')
-        grad.amplitude=grad.amplitude*scale;
-        grad.area=grad.area*scale;
-        grad.flatArea=grad.flatArea*scale;
-    else
-        grad.waveform=grad.waveform*scale;
-        grad.first=grad.first*scale;
-        grad.last=grad.last*scale;
-    end
-end
 
 function [out] = getGradAbsMag(grad)
     if strcmp(grad.type,'trap')

@@ -1,6 +1,11 @@
-seq=mr.Sequence();              % Create a new sequence object
+% set system limits (slew rate 130 and max_grad 30 work on Prisma)
+sys = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
+    'MaxSlew', 130, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 10e-6, ...
+    'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
+
+seq=mr.Sequence(sys);           % Create a new sequence object
 fov=256e-3; Nx=128;             % Define FOV and resolution
-alpha=5;                       % flip angle
+alpha=5;                        % flip angle
 sliceThickness=6e-3;            % slice
 Nr=128;                         % number of radial spokes
 Ndummy=10;                      % number of dummy scans
@@ -15,11 +20,6 @@ sl_spoil=2;                     % spoil area compared to the slice thickness
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
-
-% set system limits (slew rate 130 and max_grad 30 work on Prisma)
-sys = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
-    'MaxSlew', 130, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 10e-6, ...
-    'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(alpha*pi/180,'Duration',400e-6,...

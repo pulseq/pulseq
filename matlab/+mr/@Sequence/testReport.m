@@ -169,25 +169,26 @@ else
 end
 % check gradient amplitudes and slew rates
 
-%gw=obj.gradient_waveforms(); % gradient waveform
-gw_data=obj.waveforms_and_times();
+% gradient waveform
+gw_data=obj.waveforms_and_times(); % FIXME: avoid this second call for generating gradient shapes (1st one was inside of the k-space calculation routine)
 gws=cell(size(gw_data));
 ga=zeros(length(gw_data),1);
 gs=zeros(length(gw_data),1);
-% to calculate max absolute gradients and slew rates we have to plaz
+% to calculate max absolute gradients and slew rates we have to play
 % tricks... we namely have to interpolate the data to the common time axis
 dim1ind = @(x, n) x(n,:);
 common_time=unique(dim1ind([gw_data{:}],1));
 gw_ct=zeros(length(gw_data),length(common_time));
 gs_ct=zeros(length(gw_data),length(common_time)-1);
 for gc=1:length(gw_data)
-    gws=(gw_data{gc}(2,2:end)-gw_data{gc}(2,1:end-1))./(gw_data{gc}(1,2:end)-gw_data{gc}(1,1:end-1)); % slew
+    gws{gc}=(gw_data{gc}(2,2:end)-gw_data{gc}(2,1:end-1))./(gw_data{gc}(1,2:end)-gw_data{gc}(1,1:end-1)); % slew
     % interpolate to the common time
     gw_ct(gc,:)=interp1(gw_data{gc}(1,:),gw_data{gc}(2,:),common_time,'linear',0);
     gs_ct(gc,:)=(gw_ct(gc,2:end)-gw_ct(gc,1:end-1))./(common_time(2:end)-common_time(1:end-1));
     % max grad/slew per channel
     ga(gc)=max(abs(gw_data{gc}(2,:)));
-    gs(gc)=max(abs(gws));
+    gs(gc)=max(abs(gws{gc}));
+    % TODO: calculate grad RMS values (this is an interesting task in the piece-wise-linear domain)
 end
 
 %figure; plot(common_time, gw_ct');

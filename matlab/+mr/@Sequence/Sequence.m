@@ -1525,7 +1525,11 @@ classdef Sequence < handle
             % excitation -- ignoring complicated interleaved refocused sequences
             slicepos=zeros(length(gw_data),size(tfp_excitation,2)); % position in x,y,z;
             for j=1:length(gw_data)
-                slicepos(j,:)=tfp_excitation(2,:)./ppval(gw_pp{j},tfp_excitation(1,:));
+                if isempty(gw_pp{j})
+                    slicepos(j,:)=NaN;
+                else
+                    slicepos(j,:)=tfp_excitation(2,:)./ppval(gw_pp{j},tfp_excitation(1,:));
+                end
             end
             slicepos(~isfinite(slicepos))=0; % reset undefined to 0 (or is NaN better?)
             t_slicepos=tfp_excitation(1,:);
@@ -1731,7 +1735,7 @@ classdef Sequence < handle
                 if ok
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "chmod a+rw ' pulseq_seq_path '/external_tmp.seq"']);
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "rm -f ' pulseq_seq_path '/' name '.seq"']);
-                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/external.seq"']);
+                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/' name '.seq"']);
                 end
             end
             
@@ -1743,7 +1747,7 @@ classdef Sequence < handle
 	        end
             
             if ok
-                fprintf('Sequence installed\n')
+                fprintf('Sequence installed as %s.seq\n',name)
             else
                 error('Sequence install failed.')
             end
