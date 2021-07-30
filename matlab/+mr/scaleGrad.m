@@ -9,5 +9,8 @@ function [grad] = scaleGrad(grad, scale)
         grad.first=grad.first*scale;
         grad.last=grad.last*scale;
     end
+    if isfield(grad,'id')
+        grad = rmfield(grad,'id'); 
+    end
 end
 

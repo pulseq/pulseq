@@ -31,11 +31,11 @@ rf180 = mr.makeAdiabaticPulse('hypsec',sys,'Duration',10.24e-3,'dwell',1e-5);
 
 % Define other gradients and ADC events
 deltak=1./fov;
-gro = mr.makeTrapezoid(ax.d1,'Amplitude',N(ax.n1)*deltak(ax.n1)/ro_dur,'FlatTime',ceil((ro_dur+sys.adcDeadTime)/sys.gradRasterTime)*sys.gradRasterTime,'system',sys);
+gro = mr.makeTrapezoid(ax.d1,'Amplitude',N(ax.n1)*deltak(ax.n1)/ro_dur,'FlatTime',ceil(ro_dur/sys.gradRasterTime)*sys.gradRasterTime,'system',sys);
 adc = mr.makeAdc(N(ax.n1)*ro_os,'Duration',ro_dur,'Delay',gro.riseTime,'system',sys);
 groPre = mr.makeTrapezoid(ax.d1,'Area',-gro.amplitude*(adc.dwell*(adc.numSamples/2+0.5)+0.5*gro.riseTime),'system',sys); % the first 0.5 is necessary to acount for the Siemens sampling in the center of the dwell periods
-gpe1 = mr.makeTrapezoid(ax.d2,'Area',-deltak(ax.n2)*(N(ax.n2)/2),'system',sys); % maximum PE1 gradient
-gpe2 = mr.makeTrapezoid(ax.d3,'Area',-deltak(ax.n3)*(N(ax.n3)/2),'system',sys); % maximum PE2 gradient
+gpe1 = mr.makeTrapezoid(ax.d2,'Area',deltak(ax.n2)*(N(ax.n2)/2),'system',sys); % maximum PE1 gradient
+gpe2 = mr.makeTrapezoid(ax.d3,'Area',deltak(ax.n3)*(N(ax.n3)/2),'system',sys); % maximum PE2 gradient
 gslSp = mr.makeTrapezoid(ax.d3,'Area',max(deltak.*N)*4,'Duration',10e-3,'system',sys); % spoil with 4x cycles per voxel
 % we cut the RO gradient into two parts for the optimal spoiler timing
 [gro1,groSp]=mr.splitGradientAt(gro,gro.riseTime+gro.flatTime);
@@ -45,13 +45,15 @@ if ro_spoil>0
 end
 % calculate timing of the fast loop 
 % we will have two blocks in the inner loop:
-% 1: spoilers/rewinders + RF 
-% 2: prewinder,phase neconding + readout 
-rf.delay=mr.calcDuration(groSp,gpe1,gpe2);
-[groPre]=mr.align('right',groPre,gpe1,gpe2); % suboptimal, TODO: fixme
+% 1: RF 
+% 2: prewinder,phase enconding + readout + spoilers/rewinders
+[groPre]=mr.align('right',groPre,mr.makeDelay(mr.calcDuration(gpe1,gpe2)-gro.riseTime));
 gro1.delay=mr.calcDuration(groPre);
+groSp.delay=mr.calcDuration(gro1);
 adc.delay=gro1.delay+gro.riseTime;
-gro1=mr.addGradients({gro1,groPre},'system',sys);
+gro1=mr.addGradients({gro1,groPre,groSp},'system',sys);
+gpe1c=mr.addGradients({gpe1,mr.makeTrapezoid(ax.d2,'Area',-gpe1.area,'duration',groSp.shape_dur,'delay',groSp.delay,'system',sys)});
+gpe2c=mr.addGradients({gpe2,mr.makeTrapezoid(ax.d3,'Area',-gpe2.area,'duration',groSp.shape_dur,'delay',groSp.delay,'system',sys)});
 TRinner=mr.calcDuration(rf)+mr.calcDuration(gro1); % we'll need it for the TI delay
 % peSteps -- control reordering
 pe1Steps=((0:N(ax.n2)-1)-N(ax.n2)/2)/N(ax.n2)*2;
@@ -61,8 +63,9 @@ TIdelay=round((TI-(find(pe1Steps==0)-1)*TRinner-(mr.calcDuration(rf180)-mr.calcR
 TRoutDelay=TRout-TRinner*N(ax.n2)-TIdelay-mr.calcDuration(rf180);
 % pre-register objects that do not change while looping
 gslSp.id=seq.registerGradEvent(gslSp);
-groSp.id=seq.registerGradEvent(groSp);
 gro1.id=seq.registerGradEvent(gro1);
+[~, gpe1c.shapeIDs]=seq.registerGradEvent(gpe1c);
+[~, gpe2c.shapeIDs]=seq.registerGradEvent(gpe2c);
 [~, rf.shapeIDs]=seq.registerRfEvent(rf); % the phase of the RF object will change, therefore we only per-register the shapes 
 [rf180.id, rf180.shapeIDs]=seq.registerRfEvent(rf180); % 
 % start the sequence
@@ -72,24 +75,18 @@ for j=1:N(ax.n3)
     rf_phase=0;
     rf_inc=0;
     % pre-register the PE gradients that repeat in the inner loop
-    gpe2je=mr.scaleGrad(gpe2,pe2Steps(j));
-    gpe2je.id=seq.registerGradEvent(gpe2je);
-    gpe2jr=mr.scaleGrad(gpe2,-pe2Steps(j));
-    gpe2jr.id=seq.registerGradEvent(gpe2jr);
+    gpe2cj=mr.scaleGrad(gpe2c,pe2Steps(j));
+    gpe2cj.id=seq.registerGradEvent(gpe2cj);
     for i=1:N(ax.n2)
         rf.phaseOffset=rf_phase/180*pi;
         adc.phaseOffset=rf_phase/180*pi;
         rf_inc=mod(rf_inc+rfSpoilingInc, 360.0);
         rf_phase=mod(rf_phase+rf_inc, 360.0);
         %
-        if (i==1)
-            seq.addBlock(rf);
-        else
-            seq.addBlock(rf,groSp,mr.scaleGrad(gpe1,-pe1Steps(i-1)),gpe2jr);
-        end
-        seq.addBlock(adc,gro1,mr.scaleGrad(gpe1,pe1Steps(i)),gpe2je);
+        seq.addBlock(rf);
+        seq.addBlock(adc,gro1,mr.scaleGrad(gpe1c,pe1Steps(i)),gpe2cj);
     end
-    seq.addBlock(groSp,mr.makeDelay(TRoutDelay));
+    seq.addBlock(mr.makeDelay(TRoutDelay));
 end
 fprintf('Sequence ready\n');
 

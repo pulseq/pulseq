@@ -442,7 +442,7 @@ classdef Sequence < handle
             end
         end
         
-        function id=registerGradEvent(obj, event)
+        function [id,shapeIDs]=registerGradEvent(obj, event)
             may_exist=true;
             switch event.type
                 case 'grad'
@@ -450,23 +450,29 @@ classdef Sequence < handle
                     if amplitude>0
                         [~,~,fnz]=find(event.waveform,1); % find the first non-zero value and make it positive
                         amplitude=amplitude*sign(fnz);
-                        g = event.waveform./amplitude;
-                    else
-                        g = event.waveform;
                     end
-                    c_shape = mr.compressShape(g);
-                    s_data = [c_shape.num_samples c_shape.data];
-                    [s_id,found] = obj.shapeLibrary.find_or_insert(s_data);
-                    may_exist=may_exist & found;
-                    c_time = mr.compressShape(event.tt/obj.gradRasterTime);
-                    if length(c_time.data)==4 && all(c_time.data == [0.5 1 1 c_time.num_samples-3]) 
-                        t_id=0;
+                    if isfield(event,'shapeIDs')
+                        shapeIDs=event.shapeIDs;
                     else
-                        t_data = [c_time.num_samples c_time.data];
-                        [t_id,found] = obj.shapeLibrary.find_or_insert(t_data);
+                        shapeIDs=[0 0];
+                        % fill the shape IDs
+                        if amplitude~=0
+                            g = event.waveform./amplitude;
+                        else
+                            g = event.waveform;
+                        end
+                        c_shape = mr.compressShape(g);
+                        s_data = [c_shape.num_samples c_shape.data];
+                        [shapeIDs(1),found] = obj.shapeLibrary.find_or_insert(s_data);
                         may_exist=may_exist & found;
+                        c_time = mr.compressShape(event.tt/obj.gradRasterTime);
+                        if ~(length(c_time.data)==4 && all(c_time.data == [0.5 1 1 c_time.num_samples-3])) 
+                            t_data = [c_time.num_samples c_time.data];
+                            [shapeIDs(2),found] = obj.shapeLibrary.find_or_insert(t_data);
+                            may_exist=may_exist & found;
+                        end
                     end
-                    data = [amplitude s_id t_id event.delay event.first event.last];
+                    data = [amplitude shapeIDs event.delay event.first event.last];
                 case 'trap'
                     data = [event.amplitude event.riseTime ...
                             event.flatTime event.fallTime ...
@@ -930,6 +936,10 @@ classdef Sequence < handle
             end
             parse(parser,varargin{:});
             opt = parser.Results;
+            
+            if any(abs(opt.trajectory_delay)>100e-6)
+                warning('trajectory delay of (%s) us is suspiciously high',num2str(opt.trajectory_delay*1e6));
+            end
           
             % initialise the counters and accumulator objects
             c_excitation=0;
@@ -1485,6 +1495,10 @@ classdef Sequence < handle
             parse(parser,varargin{:});
             opt = parser.Results;
             
+            if any(abs(opt.trajectory_delay)>100e-6)
+                warning('trajectory delay of (%s) us is suspiciously high',num2str(opt.trajectory_delay*1e6));
+            end
+                      
             total_duration=sum(obj.blockDurations);
             
             [gw_data, tfp_excitation, tfp_refocusing, t_adc]=obj.waveforms_and_times();
@@ -1500,7 +1514,7 @@ classdef Sequence < handle
                         
             % convert wave data to piecewise polynomials              
             gw_pp=cell(1,ng);
-            for j=1:length(gw_data)
+            for j=1:ng
                 wave_cnt=size(gw_data{j},2);
                 if (wave_cnt==0)
                     continue;
