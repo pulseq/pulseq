@@ -654,7 +654,7 @@ classdef Sequence < handle
             
             if ~isempty(extensions)
                 % add extensions now... but it's tricky actually
-                % we need to heck whether the exactly the same list if
+                % we need to check whether the exactly the same list if
                 % extensions already exists, otherwise we have to create a
                 % new one... ooops, we have a potential problem with the 
                 % key mapping then... The trick is that we rely on the

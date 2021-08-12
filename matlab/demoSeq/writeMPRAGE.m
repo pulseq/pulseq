@@ -4,22 +4,26 @@ sys = mr.opts('MaxGrad', 24, 'GradUnit', 'mT/m', ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 seq=mr.Sequence(sys);           % Create a new sequence object
-fov=[192 240 256]*1e-3;         % Define FOV and resolution
-N = [192 240 256];               % matrix sizes
+%fov=[192 240 256]*1e-3;         % Define FOV and resolution
+%N = [192 240 256]/4;               % matrix sizes
+fov=[256 192 240]*1e-3;         % Define FOV and resolution
+N = [256 192 240]/4;               % matrix sizes
 alpha=7;                        % flip angle
 %ro_dur=5120e-6;                 % RO duration
 ro_dur=5017.6e-6; % BW=200Hz/pix
 ro_os=2;                        % readout oversampling
 ro_spoil=3;                     % additional k-max excursion for RO spoiling
-TI=1.1;
-TRout=2.5;
+TI=0.3;%1.1;
+TRout=0.7;%2.5;
 % TE & TR in the inner loop are as short as possible derived from the above parameters and the system specs
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
 rfLen=100e-6;
 ax=struct; % encoding axes
-ax.d1='z'; % the fastest dimension (readout)
-ax.d2='y'; % the second-fast dimension (the inner pe loop)
+%ax.d1='z'; % the fastest dimension (readout)
+%ax.d2='y'; % the second-fast dimension (the inner pe loop)
+ax.d1='x'; % the fastest dimension (readout)
+ax.d2='z'; % the second-fast dimension (the inner pe loop)
 ax.d3=setdiff('xyz',[ax.d1 ax.d2]); % automatically set the slowest dimension
 ax.n1=strfind('xyz',ax.d1);
 ax.n2=strfind('xyz',ax.d2);
@@ -59,13 +63,23 @@ pe2Steps=((0:N(ax.n3)-1)-N(ax.n3)/2)/N(ax.n3)*2;
 % TI calc
 TIdelay=round((TI-(find(pe1Steps==0)-1)*TRinner-(mr.calcDuration(rf180)-mr.calcRfCenter(rf180)-rf180.delay)-rf.delay-mr.calcRfCenter(rf))/sys.blockDurationRaster)*sys.blockDurationRaster;
 TRoutDelay=TRout-TRinner*N(ax.n2)-TIdelay-mr.calcDuration(rf180);
+
+% all LABELS / counters an flags are automatically initialized to 0 in the beginning, no need to define initial 0's  
+% so we will just increment LIN after the ADC event (e.g. during the spoiler)
+lblIncLin=mr.makeLabel('INC','LIN', 1);
+lblIncPar=mr.makeLabel('INC','PAR', 1);
+lblResetPar=mr.makeLabel('SET','PAR', 0);
+
 % pre-register objects that do not change while looping
 gslSp.id=seq.registerGradEvent(gslSp);
 groSp.id=seq.registerGradEvent(groSp);
 gro1.id=seq.registerGradEvent(gro1);
 [~, rf.shapeIDs]=seq.registerRfEvent(rf); % the phase of the RF object will change, therefore we only per-register the shapes 
 [rf180.id, rf180.shapeIDs]=seq.registerRfEvent(rf180); % 
+lblIncPar.id=seq.registerLabelEvent(lblIncPar);
+
 % start the sequence
+tic;
 for j=1:N(ax.n3)
     seq.addBlock(rf180);
     seq.addBlock(mr.makeDelay(TIdelay),gslSp);
@@ -85,13 +99,13 @@ for j=1:N(ax.n3)
         if (i==1)
             seq.addBlock(rf);
         else
-            seq.addBlock(rf,groSp,mr.scaleGrad(gpe1,-pe1Steps(i-1)),gpe2jr);
+            seq.addBlock(rf,groSp,mr.scaleGrad(gpe1,-pe1Steps(i-1)),gpe2jr,lblIncPar);
         end
         seq.addBlock(adc,gro1,mr.scaleGrad(gpe1,pe1Steps(i)),gpe2je);
     end
-    seq.addBlock(groSp,mr.makeDelay(TRoutDelay));
+    seq.addBlock(groSp,mr.makeDelay(TRoutDelay),lblResetPar,lblIncLin);
 end
-fprintf('Sequence ready\n');
+fprintf('Sequence ready (blocks generation took %g seconds)\n', toc);
 
 %% check whether the timing of the sequence is correct
 [ok, error_report]=seq.checkTiming;
@@ -105,7 +119,7 @@ else
 end
 
 %% plot, etc
-seq.plot('TimeRange',[0 TRout*2]);
+seq.plot('TimeRange',[0 TRout*2], 'label', 'par');
 
 %%
 seq.setDefinition('FOV', fov);
