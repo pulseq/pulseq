@@ -1,7 +1,13 @@
 % this is a demo GRE sequence, which uses LABEL extension to produce raw
 % data reconstuctable by the integrated image reconstruction on the scanner
 
-seq=mr.Sequence();         % Create a new sequence object
+% set system limits
+sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
+    'MaxSlew', 150, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
+    'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
+
+seq=mr.Sequence(sys);         % Create a new sequence object
+
 fov=224e-3; Nx=256; Ny=Nx; % Define FOV and resolution
 alpha=10;                  % flip angle
 thickness=3e-3;            % slice
@@ -12,10 +18,6 @@ TR=10e-3;
 rfSpoilingInc=117;              % RF spoiling increment
 roDuration=3.2e-3;              % ADC duration
 
-% set system limits
-sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
-    'MaxSlew', 150, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
-    'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(alpha*pi/180,'Duration',3e-3,...
@@ -44,7 +46,7 @@ assert(all(delayTR>=mr.calcDuration(gxSpoil,gzSpoil)));
 rf_phase=0;
 rf_inc=0;
 
-% all LABELS / counters an flags are initialized to 0 in the beginning, so need to define initial 0's  
+% all LABELS / counters an flags are automatically initialized to 0 in the beginning, no need to define initial 0's  
 % so we will just increment LIN after the ADC event (e.g. during the spoiler)
 
 % loop over slices
