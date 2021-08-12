@@ -277,12 +277,12 @@ For understanding the time raster alignment it is important to differentiate bet
 
 \subsection{Blocks}
 
-The section containing sequence blocks is declared with the \verb.[BLOCKS]. keyword. Each subsequence line declares a single block specified by a duration and a list of six event IDs. An ID of 0 indicated no event.
+The section containing sequence blocks is declared with the \verb.[BLOCKS]. keyword. Each subsequence line declares a single block specified by a duration and a list of six event IDs. An ID of 0 indicates no event.
 \begin{lstlisting}
 <id> <duration> <rf> <gx> <gy> <gz> <adc> <ext>
 \end{lstlisting}
 
-Each tag represents the ID of the corresponding event.
+Each non-zero value among the six tags represents the ID of the corresponding event.
 
 \begin{tabularx}{\textwidth}{llX}
 \toprule
@@ -300,7 +300,7 @@ Tag & Type & Description\\
 \end{tabularx}
 
 \begin{minipage}{\textwidth}
-The sequence must declare at least one block. Any non-zero number of blocks may be defined. The blocks are executed sequentially. The duration of each block is defined by the longest event comprising this block. X, Y and Z refer to physical scanner gradient channels. Block duration may be zero, e.g. for blocks containing only extension events with zero durations such as data labels. 
+The sequence must declare at least one block. Any non-zero number of blocks may be defined. The blocks are executed sequentially. The duration of each block is defined explicitly by the second field of the block description. No event comprising this block is allowed to last longer than the specified block duration. The interpreters must to throw an error, should they detect such condition. X, Y and Z refer to physical scanner gradient channels. Block duration may be zero, e.g. for blocks containing only extension events with zero durations such as data labels. A block with nonzero duration containing no nonzero event IDs is a delay block. Interpreters must gracefully ignore delay blocks of 0 duration. \\
 
 \textbf{Example:}
 \begin{lstlisting}
