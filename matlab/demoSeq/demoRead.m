@@ -63,7 +63,7 @@ b2 = seq.getBlock(2);
 b3 = seq.getBlock(3);
 b4 = seq.getBlock(4);
 b2.gx
-b3.delay
+%b3.delay
 b4.adc
 
 

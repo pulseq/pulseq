@@ -1,5 +1,5 @@
 function [rf, gz, gzr, delay] = makeAdiabaticPulse(type,varargin)
-%makeAdiabaticPulse: make an aiabatic inversion pulse
+%makeAdiabaticPulse make an aiabatic inversion pulse
 %     a wrapper to a python function(see below). See supported params below
 %     in the 'parser' section. Currently it will probably only work on
 %     Linux. On my system I could install the required Python library by

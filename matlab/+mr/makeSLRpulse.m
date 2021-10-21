@@ -1,5 +1,5 @@
 function [rf, gz, gzr, delay] = makeSLRpulse(flip,varargin)
-%makeSLRpulse: make an SLR pulse
+%makeSLRpulse make an SLR pulse
 %     a wrapper to a python function(see below). See supported params below
 %     in the 'parser' section. Currently it will probably only work on
 %     Linux. On my system I could install the required Python library by
@@ -19,9 +19,8 @@ function [rf, gz, gzr, delay] = makeSLRpulse(flip,varargin)
 %             'max' (maxphase using factored pm), 'ls' (least squares).
 %         d1 (float): passband ripple level in :math:'M_0^{-1}'.
 %         d2 (float): stopband ripple level in :math:'M_0^{-1}'.
-%         cancel_alpha_phs (bool): For 'ex' pulses, absorb the alpha phase
-%             profile from beta's profile, so they cancel for a flatter
-%             total phase
+%         filterType (str): filter type to use, e.g. sinc (ms),
+%         least-squares (ls), etc. Refer to sigpy.rf documentation. 
 %     
 %     Returns:
 %         rf (array): designed RF pulse.
@@ -49,6 +48,7 @@ if isempty(parser)
     addParamValue(parser, 'timeBwProduct', 4, @isnumeric);
     addParamValue(parser, 'passbandRipple', 0.01, @isnumeric);
     addParamValue(parser, 'stopbandRipple', 0.01, @isnumeric);
+    addParamValue(parser, 'filterType', 'mt', @isstr);
     %addParamValue(parser, 'apodization', 0, @isnumeric);
     %addParamValue(parser, 'centerpos', 0.5, @isnumeric);
     % Slice params
@@ -58,7 +58,7 @@ if isempty(parser)
     addParamValue(parser, 'delay', 0, @isnumeric);
     addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
-    addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
+    addOptional(parser, 'use', 'excitation', @(x) any(validatestring(x,validPulseUses)));
 end
 parse(parser, flip, varargin{:});
 opt = parser.Results;
@@ -81,12 +81,15 @@ else
     end
 end
 
+add_opt='';
+
 switch opt.use
     case 'excitation'
         if opt.flipAngle <= pi/6
             ptype='st';
         else
             ptype='ex';
+            %add_opt=',cancel_alpha_phs=True';
         end
     case 'refocusing'
         ptype='se';
@@ -102,8 +105,8 @@ N = round(opt.duration/opt.dwell);
 cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
             ',' num2str(opt.timeBwProduct) ',ptype=\''' ptype '\''' ... 
             ',d1=' num2str(opt.passbandRipple) ',d2=' num2str(opt.stopbandRipple) ...
-            ')\nprint(*pulse)'''];
-
+            ',ftype=\''' opt.filterType '\''' add_opt ')\nprint(*pulse)'''];
+%fprintf('cmd=%s\n',cmd);
 [status, result]=system(cmd);
 
 if status~=0

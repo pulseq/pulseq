@@ -1433,7 +1433,7 @@ classdef Sequence < handle
             
             % collect wave data
             wave_data=cell(1,shape_channels);
-            for j=1:length(shape_channels)
+            for j=1:shape_channels
                 wave_data{j}=zeros(2,out_len(j));
             end
             wave_cnt=zeros(1,shape_channels);
@@ -1479,10 +1479,12 @@ classdef Sequence < handle
         
         function [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos] = calculateKspacePP(obj, varargin)
             % calculate the k-space trajectory of the entire pulse sequence
-	    %   using piecewise-polynomial gradient wave representation 
-	    %   which is much faster for simple shapes and large delays
+	        %   using piecewise-polynomial gradient wave representation 
+	        %   which is much faster for simple shapes and large delays
             %   optional parameter 'trajectory_delay' sets the compensation
             %   factor to align ADC and gradients in the reconstruction
+            %   optional parameter 'gradient_offset' allows to simulate 
+            %   background gradients or verifz spin-echo conditions
             %   Return values: ktraj_adc, t_adc, ktraj, t_ktraj,
             %   t_excitation, t_refocusing, slicepos
         
@@ -1491,6 +1493,7 @@ classdef Sequence < handle
                 parser = inputParser;
                 parser.FunctionName = 'calculateKspacePP';
                 parser.addParamValue('trajectory_delay',0,@(x)(isnumeric(x)));
+                parser.addParamValue('gradient_offset',0,@(x)(isnumeric(x)));
             end
             parse(parser,varargin{:});
             opt = parser.Results;
@@ -1504,23 +1507,38 @@ classdef Sequence < handle
             [gw_data, tfp_excitation, tfp_refocusing, t_adc]=obj.waveforms_and_times();
             
             ng=length(gw_data);
-            % new gradient delay handling
+            % gradient delay handling
             if length(opt.trajectory_delay)==1
                 gradient_delays(1:ng)=opt.trajectory_delay;
             else
                 assert(length(opt.trajectory_delay)==ng); % we need to have the same number of gradient channels
                 gradient_delays=opt.trajectory_delay;
             end
+            % gradient offset handling
+            if length(opt.gradient_offset)==1
+                gradient_offset(1:ng)=opt.gradient_offset;
+            else
+                assert(length(opt.gradient_offset)==ng); % we need to have the same number of gradient channels
+                gradient_offset=opt.gradient_offset;
+            end
                         
             % convert wave data to piecewise polynomials              
             gw_pp=cell(1,ng);
             for j=1:ng
                 wave_cnt=size(gw_data{j},2);
-                if (wave_cnt==0)
-                    continue;
+                if wave_cnt==0 
+                    if abs(gradient_offset(j))<=eps % gradient offset support, part 1
+                        continue;
+                    else
+                        gw=[0,total_duration; 0, 0];
+                    end
+                else
+                    gw=gw_data{j};
                 end
-                gw=gw_data{j};
-                gw(1,:)=gw(1,:)-gradient_delays(j); % (anisotropic) gradient delay support
+                % now gw contains the wave form for the current axis
+                if abs(gradient_delays(j))>eps 
+                    gw(1,:)=gw(1,:)-gradient_delays(j); % (anisotropic) gradient delay support
+                end
                 if ~all(isfinite(gw(:)))
                    fprintf('Warning: not all elements of the generated waveform are finite!\n');
                 end
@@ -1531,6 +1549,10 @@ classdef Sequence < handle
                     gw=[ [-teps gw(1,1)-teps;0 0] gw ]; % we need these "eps" terms to avoid integration errors over extended periods of time
                 elseif gw(1,end) < total_duration 
                     gw=[ gw [gw(1,end)+teps total_duration+teps;0 0] ]; % we need these "eps" terms to avoid integration errors over extended periods of time
+                end
+                %
+                if abs(gradient_offset(j))>eps 
+                    gw(2,:)=gw(2,:)+gradient_offset(j); % gradient offset support, part 2
                 end
                 gw_pp{j} = interp1(gw(1,:),gw(2,:),'linear','pp');
             end
@@ -1728,14 +1750,18 @@ classdef Sequence < handle
                 seq.write('external.seq.tmp')
                 % we assume we are in the internal network but ICE computer
                 % on VB and VE has different IPs
-                ice_ips={'192.168.2.3', '192.168.2.2'};
-                ice_ip=[];
-                for i=1:length(ice_ips)
-                    [status, ~] = system([ping_command ' ' ice_ips{i}]);
-                    if status == 0
-                        ice_ip=ice_ips{i};
-                        break;
-                    end                
+                if ~strcmpi(dest, 'siemensNX')
+                    ice_ips={'192.168.2.3', '192.168.2.2'};
+                    ice_ip=[];
+                    for i=1:length(ice_ips)
+                        [status, ~] = system([ping_command ' ' ice_ips{i}]);
+                        if status == 0
+                            ice_ip=ice_ips{i};
+                            break;
+                        end                
+                    end
+                else
+                    ice_ip='192.168.2.2';
                 end
                 if isempty(ice_ip)
                     error('Scanner not found, sequence install failed.')

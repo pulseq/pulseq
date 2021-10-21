@@ -196,6 +196,7 @@ enum Flags{
 	NAV,
 	REV,
 	SMS, 
+	PMC, 
 	FLAG_UNKNOWN
 };
 const int NUM_FLAGS=FLAG_UNKNOWN;
@@ -668,6 +669,16 @@ class ExternalSequence
 	 * @return true if successful
 	 */
 	bool decodeExtTrapGradInBlock(SeqBlock *block);
+
+	/**
+	 * @brief Return `true` if block has a gradient which starts at a non-zero value on given channel (only possible for arbitrary or ExtTrap gradients)
+	 */
+	bool isGradientInBlockStartAtNonZero(SeqBlock *block, int channel);
+
+	/**
+	 * @brief Return `true` if block has no gradients which start at a non-zero value on any channel (only possible for arbitrary or ExtTrap gradients)
+	 */
+	bool isAllGradientsInBlockStartAtZero(SeqBlock *block);
 
 	bool isSigned();
 	std::string getSignature();

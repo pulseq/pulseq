@@ -18,7 +18,7 @@ pattern='*.seq';
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
-seq_file_path = [path D(I(end)).name]; % use end-1 to reconstruct the second-last data set, etc.
+seq_file_path = [path D(I(end-0)).name]; % use end-1 to reconstruct the second-last data set, etc.
 
 %% alternatively just provide the path to the .seq file
 
@@ -49,15 +49,15 @@ catch
     fprintf(['falling back to `' data_file_path '´ ...\n']);
     twix_obj = mapVBVD(data_file_path);
     if iscell(twix_obj)
-        data_unsorted = double(twix_obj{end}.image.unsorted());
+        data_unsorted = twix_obj{end}.image.unsorted();
     else
-        data_unsorted = double(twix_obj.image.unsorted());
+        data_unsorted = twix_obj.image.unsorted();
     end
     clear twix_obj
 end
 
 %% calculate k-space trajectory
-traj_recon_delay=0e-6;%1.75e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. It can be calibrated by inverting the spiral revolution dimension and making two images match. for our Prisma and a particular trajectory we found 1.75e-6
+traj_recon_delay=0*1e-6;%1.75e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. It can be calibrated by inverting the spiral revolution dimension and making two images match. for our Prisma and a particular trajectory we found 1.75e-6
 samples_to_mask=0; % each ADC may contain damaged samples in the begining
 fprintf('calculating k-space trajectory ...');
 
@@ -77,11 +77,10 @@ drawnow;
 fov=seq.getDefinition('FOV');
 if isempty(fov)
     fov=[256 256 256]; % default FOV 
-    fprintf('WARNING: no FOV defined in the pulseq file, assuming FOV of %g x %g x %g m, matrix siye will be wrong if these are incorrect\n', fov);
+    fprintf('WARNING: no FOV defined in the pulseq file, assuming FOV of %g x %g x %g m, matrix size will be wrong if these are incorrect\n', fov);
 end
-% BART expects the trajectory in units of 1/FOV, Pulseq's trajectory is in inverse meters, need to rescale
-for i=1:3, ktraj_adc(i,:)=ktraj_adc(i,:)*fov(i); end
 
+%fov=fov*1.5;
 %% raw data preparation
 
 adc_len=size(data_unsorted,1);
@@ -91,7 +90,8 @@ readouts=size(data_unsorted,3);
 %% average repetitions 
 na=numel(data_unsorted)/channels/numel(t_adc); 
 if (na>1)
-    data_unsorted=reshape(sum(reshape(data_unsorted,[adc_len,readouts/na,na,channels]),3),[adc_len,readouts/na,channels]);
+    fprintf('averaging over %d acquisitions ...\n',na);
+    data_unsorted=reshape(sum(reshape(data_unsorted,[adc_len,channels,readouts/na,na]),4),[adc_len,channels,readouts/na]);
     readouts=readouts/na;
 end
 
@@ -132,10 +132,25 @@ if strcmp('petra',seq.getDefinition('Name'))
     figure; plot(ktraj_adc(2,kyz_plane),ktraj_adc(3,kyz_plane),'r.'); axis equal;title('Kyz plane');
     %figure; plot3(kspace(kxz_plane,1),kspace(kxz_plane,2),kspace(kxz_plane,3),'r.'); axis equal;
     drawnow;
+elseif strcmp('ute_rs',seq.getDefinition('Name'))
+    % average every 2nd spoke because of the half-rf excitation
+    ktraj_adc=reshape(ktraj_adc,[3,adc_len,readouts]);
+    ktraj_adc=ktraj_adc(:,:,1:2:end-1);
+    %rawdata=rawdata(:,1:2:end-1,:);
+    rawdata=rawdata(:,1:2:end-1,:)+rawdata(:,2:2:end,:);
+    readouts=readouts/2;
+    ktraj_adc=reshape(ktraj_adc,[3,adc_len*readouts]);
+    % make it 2D
+    ktraj_adc(3,:)=0;
+    % reshape raw data to 4D (1 samples 1 channels) as BART needs it
+    rawdata=reshape(rawdata,[1 adc_len*readouts 1 channels]);
 else
     % just a general reshape to 4D (1 samples 1 channels) as BART needs it
     rawdata = reshape(rawdata, [1 adc_len*readouts 1 channels]); 
 end
+
+%% BART expects the trajectory in units of 1/FOV, Pulseq's trajectory is in inverse meters, need to rescale
+for i=1:3, ktraj_adc(i,:)=ktraj_adc(i,:)*fov(i); end
 
 %% detect and clean-up 2D trajectory
 kmax=max(abs(ktraj_adc'));

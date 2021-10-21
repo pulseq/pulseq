@@ -4,30 +4,35 @@ sys = mr.opts('MaxGrad', 24, 'GradUnit', 'mT/m', ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 seq=mr.Sequence(sys);           % Create a new sequence object
-%fov=[192 240 256]*1e-3;         % Define FOV and resolution
-%N = [192 240 256]/4;               % matrix sizes
-fov=[256 192 240]*1e-3;         % Define FOV and resolution
-N = [256 192 240]/4;               % matrix sizes
 alpha=7;                        % flip angle
 %ro_dur=5120e-6;                 % RO duration
 ro_dur=5017.6e-6; % BW=200Hz/pix
-ro_os=2;                        % readout oversampling
+ro_os=1;                        % readout oversampling
 ro_spoil=3;                     % additional k-max excursion for RO spoiling
-TI=0.3;%1.1;
-TRout=0.7;%2.5;
+TI=1.1;
+TRout=2.5;
 % TE & TR in the inner loop are as short as possible derived from the above parameters and the system specs
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
 rfLen=100e-6;
 ax=struct; % encoding axes
-%ax.d1='z'; % the fastest dimension (readout)
-%ax.d2='y'; % the second-fast dimension (the inner pe loop)
-ax.d1='x'; % the fastest dimension (readout)
-ax.d2='z'; % the second-fast dimension (the inner pe loop)
+% sagittal fov options % remember to enable OrientationMapping SAG in setDefinition section below
+fov=[192 240 256]*1e-3;         % Define FOV and resolution
+N = [192 240 256];              % matrix sizes
+ax.d1='z'; % the fastest dimension (readout)
+ax.d2='x'; % the second-fast dimension (the inner pe loop)
+%transversal fov options 
+%fov=[256 192 240]*1e-3;         % Define FOV and resolution
+%N = [256 192 240];               % matrix sizes
+%ax.d1='x'; % the fastest dimension (readout)
+%ax.d2='z'; % the second-fast dimension (the inner pe loop)
+
 ax.d3=setdiff('xyz',[ax.d1 ax.d2]); % automatically set the slowest dimension
 ax.n1=strfind('xyz',ax.d1);
 ax.n2=strfind('xyz',ax.d2);
 ax.n3=strfind('xyz',ax.d3);
+
+%%
 
 % Create alpha-degree hard pulse and gradient
 rf = mr.makeBlockPulse(alpha*pi/180,sys,'Duration',rfLen);
@@ -74,7 +79,7 @@ lblResetPar=mr.makeLabel('SET','PAR', 0);
 gslSp.id=seq.registerGradEvent(gslSp);
 groSp.id=seq.registerGradEvent(groSp);
 gro1.id=seq.registerGradEvent(gro1);
-[~, rf.shapeIDs]=seq.registerRfEvent(rf); % the phase of the RF object will change, therefore we only per-register the shapes 
+[~, rf.shapeIDs]=seq.registerRfEvent(rf); % the phase of the RF object will change, therefore we only pre-register the shapes 
 [rf180.id, rf180.shapeIDs]=seq.registerRfEvent(rf180); % 
 lblIncPar.id=seq.registerLabelEvent(lblIncPar);
 
@@ -124,6 +129,7 @@ seq.plot('TimeRange',[0 TRout*2], 'label', 'par');
 %%
 seq.setDefinition('FOV', fov);
 seq.setDefinition('Name', 'mprage');
+seq.setDefinition('OrientationMapping', 'SAG'); % only when programming in saggital orientation
 
 seq.write('mprage.seq')       % Write to pulseq file
 %seq.install('siemens');

@@ -12,7 +12,7 @@ sys = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
 seq=mr.Sequence(sys);      % Create a new sequence object
 fov=256e-3; Nx=64; Ny=Nx;  % Define FOV and resolution
 thickness=4e-3;            % slice thinckness
-Nslices=7;
+Nslices=1;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delay calibration
 ro_os=1;                   % oversampling factor (in contrast to the product sequence we don't really need it)
@@ -25,7 +25,6 @@ sat_freq=sat_ppm*1e-6*sys.B0*sys.gamma;
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,'dwell',10e-6,...
     'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
 gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
-
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',2e-3,...
     'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4);

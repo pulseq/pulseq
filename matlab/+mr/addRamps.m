@@ -1,6 +1,5 @@
 function varargout=addRamps(k,varargin)
-%addRamps Add segment to kspace trajectory to ramp to and from the given 
-%   trajectory.
+%addRamps Add segments to the trajectory to ramp to and from the given trajectory.
 %   kout=addRamps(k) Add a segment to k so kout travels from 0 to k(1) and
 %   a segment so kout goes from k(end) back to 0 without violating the
 %   gradient and slew constraints. 

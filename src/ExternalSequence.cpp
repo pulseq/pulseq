@@ -64,7 +64,7 @@ bool ExternalSequence::load(std::string path)
 	m_fileIndex.clear();
 	m_fileSections.clear();
 	m_gradLibrary.clear();
-	m_labelincLibrary.begin();
+	m_labelincLibrary.clear();
 	m_labelsetLibrary.clear();
 	m_rfLibrary.clear();
 	m_rotationLibrary.clear();
@@ -560,17 +560,30 @@ bool ExternalSequence::load(std::string path)
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
 			}
-			std::istringstream ss(buffer);
+			// this was not compatible vit Numaris4 VB line (MSVC6)
+			/*std::istringstream ss(buffer);
 			while(retgl==gl_truncated) { // if the line was truncated read in the rest of it into the stream/buffer
 				retgl=getline(data_file, buffer, MAX_LINE_SIZE);
-				ss.str(ss.str()+buffer);
+				ss.str(ss.str()+buffer); 
+			}*/
+			// stupid compatible code
+			std::string stmp(buffer);
+			while(retgl==gl_truncated) { // if the line was truncated read in the rest of it into the temporary string
+				retgl=getline(data_file, buffer, MAX_LINE_SIZE);
+				stmp+=buffer;
 			}
+			char* tmp_buff= new char[stmp.length()+1]; // old compilers like MSVC6 require such stupid conversions
+			strcpy(tmp_buff,stmp.c_str());
+			std::istringstream ss(tmp_buff);
+			delete [] tmp_buff;
+			// end of stupid compatible code
 			std::string key;
 			ss >> key;
 			std::string str_value;
 			if (std::getline(ss,str_value)) {
 				str_value = str_trim(str_value);
-				m_definitions_str[key] = str_value; // old compilers like MSVC6 require such stupid conversions
+				m_definitions_str[key] = str_value; 
+				// old compilers like MSVC6 require such stupid conversions
 				char* tmp_buff= new char[str_value.length()+1];
 				strcpy(tmp_buff,str_value.c_str());
 				std::istringstream ssv(tmp_buff);
@@ -1283,6 +1296,8 @@ int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, L
 			nKnownFG=REV;
 		else if (0==strcmp("SMS",szLabelID))
 			nKnownFG=SMS;
+		else if (0==strcmp("PMC",szLabelID))
+			nKnownFG=PMC;
 	}
 
 	if (nKnownFG==FLAG_UNKNOWN){
@@ -1351,6 +1366,33 @@ int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, L
 		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification is NOT recognized\n");
 		return -1;					 
 	}
+}
+
+bool ExternalSequence::isGradientInBlockStartAtNonZero(SeqBlock *block, int channel) {
+	if (!block->isExtTrapGradient(channel) && !block->isArbitraryGradient(channel)) {
+		//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isGradientInBlockStartAtNonZero() returns FALSE because there is no arb grad in channel " << channel);
+		return false;
+	}
+	// only Arbitrary or ExtTrap gradients reach here
+	if (block->grad[channel].delay>0) {
+		//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isGradientInBlockStartAtNonZero() returns FALSE because there is delay in channel " << channel);
+		return false;
+	}
+	if (!block->gradWaveforms[channel].empty()) { 
+		//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isGradientInBlockStartAtNonZero() uses decompressed shape and returns " << (fabs(block->gradWaveforms[channel].front())>0));
+		return fabs(block->gradWaveforms[channel].front())>0;
+	}
+	// we could decode the block's shapes at this point, but we can also just look up the first sample of the compressed shape
+	//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isGradientInBlockStartAtNonZero() uses compressed shape and returns " << (fabs(m_shapeLibrary[block->grad[channel].waveShape].samples.front())>0));
+	return fabs(m_shapeLibrary[block->grad[channel].waveShape].samples.front())>0;
+}
+
+bool ExternalSequence::isAllGradientsInBlockStartAtZero(SeqBlock *block) {
+	for (int i=0; i<NUM_GRADS; ++i)
+		if (isGradientInBlockStartAtNonZero(block,i))
+			return false;
+	//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isAllGradientsStartAtZero() returns TRUE");
+	return true;
 }
 
 const std::string& trim_chars = "\t\n\v\f\r ";

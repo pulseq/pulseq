@@ -50,6 +50,10 @@ if opt.dwell==0
     opt.dwell=opt.system.rfRasterTime;
 end
 
+if opt.duration<=0
+    error('rf pulse duration must be positive');
+end
+
 BW = opt.timeBwProduct/opt.duration;
 alpha = opt.apodization;
 N = round(opt.duration/opt.dwell);

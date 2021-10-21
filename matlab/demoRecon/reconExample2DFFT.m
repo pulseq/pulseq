@@ -2,34 +2,61 @@
 % provides an example on how data reordering can be detected from the MR
 % sequence with almost no additional prior knowledge
 %
-% needs mapVBVD in the path
+% it loads Matlab .mat files with the rawdata in the format 
+%     adclen x channels x readouts
+% if Matlab .mat file not available it attempt to load Siemens .dat (which needs mapVBVD in the path)
+% but first it seeks the accompanying .seq file with the same name to interpret
+%     the data
 
-%% Load the latest file from a dir
+%% Load the latest file from the specified directory
 path='../IceNIH_RawSend/'; % directory to be scanned for data files
-%path='~/Dropbox/shared/data/siemens/';
-pattern='*.dat';
+%path='/data/Dropbox/ismrm2021pulseq_liveDemo/dataLive/Vienna_7T_Siemens'; % directory to be scanned for data files
 
-D=dir([path pattern]);
+pattern='*.seq';
+D=dir([path filesep pattern]);
 [~,I]=sort([D(:).datenum]);
-%
-data_file_path=[path D(I(end-0)).name];  % use end-1 to reconstruct the second-last data set, etc.
-%data_file_path='../interpreters/siemens/data_example/gre_example.dat'
-%%
-twix_obj = mapVBVD(data_file_path);
+seq_file_path=[path filesep D(I(end-0)).name]; % use end-1 to reconstruct the second-last data set, etc...
+                                                % or replace I(end-0) with I(1) to process the first dataset, I(2) for the second, etc...
+%seq_file_path='../interpreters/siemens/data_example/gre_example.seq'
 
-%% Load sequence from file (optional, you may still have it in memory)
+% keep basic filename without the extension
+[p,n,e] = fileparts(seq_file_path);
+basic_file_path=fullfile(p,n);
 
-seq_file_path = [data_file_path(1:end-3) 'seq'];
+% try loading Matlab data
+data_file_path=[basic_file_path '.mat'];
+if isfile(data_file_path)
+    fprintf(['loading `' data_file_path '´ ...\n']);
+    data_unsorted = load(data_file_path);
+    if isstruct(data_unsorted)
+        fn=fieldnames(data_unsorted);
+        assert(length(fn)==1); % we only expect a single variable
+        data_unsorted=data_unsorted.(fn{1});
+    end
+else
+    % revert to Siemens .dat file
+    data_file_path=[basic_file_path '.dat'];
+    fprintf(['loading `' data_file_path '´ ...\n']);
+    twix_obj = mapVBVD(data_file_path);
+    if iscell(twix_obj)
+        data_unsorted = twix_obj{end}.image.unsorted();
+    else
+        data_unsorted = twix_obj.image.unsorted();
+    end
+end
+[adc_len,channels,readouts]=size(data_unsorted);
 
+%% Load sequence from file 
+fprintf(['loading `' seq_file_path '´ ...\n']);
 seq = mr.Sequence();              % Create a new sequence object
 seq.read(seq_file_path,'detectRFuse');
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
-%[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
-axis('equal');
+axis('equal'); title('2D k-space trajectory');
 
 %% Analyze the trajectory data (ktraj_adc)
+fprintf('analyzing the k-space trajectory ...\n');
 k_extent=max(abs(ktraj_adc),[],2);
 k_scale=max(k_extent);
 k_threshold=k_scale/5000;
@@ -75,20 +102,12 @@ if (max(repeat(:))>0)
 end
 %figure; plot(kindex(1,:),kindex(2,:),'.-');
 
-%% sort in the k-space data
-if iscell(twix_obj)
-    data_unsorted = twix_obj{end}.image.unsorted();
-else
-    data_unsorted = twix_obj.image.unsorted();
-end
-
+%% sort the k-space data into the data matrix
 % the incoming data order is [kx coils acquisitions]
 data_coils_last = permute(data_unsorted, [1, 3, 2]);
-nCoils = size(data_coils_last, 3);
+data_coils_last = reshape(data_coils_last, [adc_len*readouts, channels]);
 
-data_coils_last=reshape(data_coils_last, [size(data_coils_last,1)*size(data_coils_last,2), nCoils]);
-
-data=zeros([kindex_end' nCoils]);
+data=zeros([kindex_end' channels]);
 if (size(kindex,1)==3)
     for i=1:size(kindex,2)
         data(kindex_mat(1,i),kindex_mat(2,i),kindex_mat(3,i),:)=data_coils_last(i,:);
@@ -106,19 +125,15 @@ else
     data=reshape(data, [size(data,1) size(data,2) 1 size(data,3)]); % we need a dummy images/slices dimension
 end
 
-%figure; imab(log(abs(data))); % k-space data
+%figure; imab(log(abs(data))); title('k-space data');
 
 %% Reconstruct coil images
 
 images = zeros(size(data));
 %figure;
 
-for ii = 1:nCoils
-    %images(:,:,:,ii) = fliplr(rot90(fftshift(fft2(fftshift(data(:,:,:,ii))))));
-    images(:,:,:,ii) = fftshift(fft2(fftshift(data(end:-1:1,:,:,ii))));
-    %subplot(2,2,ii);
-    %imshow(abs(images(:,:,ii)), []);
-    %title(['RF Coil ' num2str(ii)]);
+for ii = 1:channels
+    images(:,:,:,ii) = fftshift(fft2(fftshift(data(:,:,:,ii)))); % 1.4.0 does not need read inversion 
     %for ni = 1:nImages
         %tmp = abs(images(:,:,ni,ii));
         %tmp = tmp./max(tmp(:));
@@ -132,15 +147,16 @@ end
 
 %% Image display with optional sum of squares combination
 figure;
-if nCoils>1
+if channels>1
     sos=abs(sum(images.*conj(images),ndims(images))).^(1/2);
     sos=sos./max(sos(:));    
-    imab(sos);
+    imab(sos); title('reconstructed image(s), sum-of-squares');
     %imwrite(sos, ['img_combined.png']
 else
-    imab(abs(images));
+    imab(abs(images)); title('reconstructed image(s)');
 end
 colormap('gray');
+saveas(gcf,[basic_file_path '_image_2dfft'],'png');
 
 %% reconstruct field map (optional)
 
@@ -161,7 +177,7 @@ if size(images,3)>4
 
     clm=gray(256);
     
-    if nCoils>1
+    if channels>1
         imex=sos;
     else
         imex=abs(images);
