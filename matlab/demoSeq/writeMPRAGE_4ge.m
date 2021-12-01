@@ -47,7 +47,7 @@ end
 % we will have two blocks in the inner loop:
 % 1: RF 
 % 2: prewinder,phase enconding + readout + spoilers/rewinders
-[groPre]=mr.align('right',groPre,mr.makeDelay(mr.calcDuration(gpe1,gpe2)-gro.riseTime));
+[groPre,~]=mr.align('right',groPre,mr.makeDelay(mr.calcDuration(gpe1,gpe2)-gro.riseTime));
 gro1.delay=mr.calcDuration(groPre);
 groSp.delay=mr.calcDuration(gro1);
 adc.delay=gro1.delay+gro.riseTime;

@@ -57,7 +57,7 @@ end
 % 1: spoilers/rewinders + RF 
 % 2: prewinder,phase neconding + readout 
 rf.delay=mr.calcDuration(groSp,gpe1,gpe2);
-[groPre]=mr.align('right',groPre,gpe1,gpe2); % suboptimal, TODO: fixme
+[groPre,~,~]=mr.align('right',groPre,gpe1,gpe2); % suboptimal, TODO: fixme
 gro1.delay=mr.calcDuration(groPre);
 adc.delay=gro1.delay+gro.riseTime;
 gro1=mr.addGradients({gro1,groPre},'system',sys);

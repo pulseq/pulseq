@@ -96,11 +96,7 @@ adc.delay=round((gx.riseTime+gx.flatTime/2-time_to_center)*1e6)*1e-6; % we adjus
 
 % split the blip into two halves and produnce a combined synthetic gradient
 gy_parts = mr.splitGradientAt(gy, blip_dur/2, lims);
-%gy_blipup=gy_parts(1);
-%gy_blipdown=gy_parts(2);
-%gy_blipup.delay=gx.riseTime+gx.flatTime+gx.fallTime-blip_dur/2;
-%gy_blipdown.delay=0;
-[gy_blipup, gy_blipdown]=mr.align('right',gy_parts(1),'left',gy_parts(2),gx);
+[gy_blipup, gy_blipdown, ~]=mr.align('right',gy_parts(1),'left',gy_parts(2),gx);
 gy_blipdownup=mr.addGradients({gy_blipdown, gy_blipup}, lims);
 
 % pe_enable support

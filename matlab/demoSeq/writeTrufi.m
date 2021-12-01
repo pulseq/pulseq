@@ -46,7 +46,7 @@ phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
 gz_parts=mr.splitGradientAt(gz,mr.calcDuration(rf));
 gz_parts(1).delay=mr.calcDuration(gzReph);
 gz_1=mr.addGradients({gzReph,gz_parts(1)},'system',sys);
-[rf]=mr.align('right',rf,gz_1);
+[rf,~]=mr.align('right',rf,gz_1);
 gz_parts(2).delay=0;
 gzReph.delay=mr.calcDuration(gz_parts(2));
 gz_2=mr.addGradients({gz_parts(2),gzReph},'system',sys);
@@ -143,16 +143,17 @@ seq.plot('timeDisp','us');
 %figure; plot(gw'); % plot the entire gradient waveform
 gw_data=seq.waveforms_and_times();
 figure; plot(gw_data{1}(1,:),gw_data{1}(2,:),gw_data{2}(1,:),gw_data{2}(2,:),gw_data{3}(1,:),gw_data{3}(2,:)); % plot the entire gradient waveform
+title('gradient waveforms');
 
-%% new single-function call for trajectory calculation -- relatively slow but very helpful
+%% trajectory calculation 
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
-%[ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
 
 % plot k-spaces
 
-figure; plot(t_ktraj,ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj,ktraj'); title('k-space components as functions of time'); % plot the entire k-space trajectory
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
+title('2D k-space');
 
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
 

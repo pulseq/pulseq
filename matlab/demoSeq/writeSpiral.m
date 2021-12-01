@@ -172,9 +172,8 @@ seq.plot();             % Plot sequence waveforms
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 
 % plot k-spaces
-figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj, ktraj'); title('k-space components as functions of time'); % plot the entire k-space trajectory
 figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
-hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.');
-
+hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); title('2D k-space');
 
 % seq.install('siemens');

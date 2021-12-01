@@ -49,6 +49,7 @@ rf_inc=0;
 % all LABELS / counters an flags are automatically initialized to 0 in the beginning, no need to define initial 0's  
 % so we will just increment LIN after the ADC event (e.g. during the spoiler)
 
+seq.addBlock(mr.makeLabel('SET','REV', 1)); % left-right swap fix (needed for 1.4.0)
 % loop over slices
 for s=1:Nslices
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
@@ -93,6 +94,7 @@ seq.setDefinition('Name', 'gre_lbl');
 seq.write('gre_lbl.seq')       % Write to pulseq file
 
 %seq.install('siemens');
+%return
 
 %% plot sequence and k-space diagrams
 
@@ -104,9 +106,11 @@ seq.plot('timeRange', [0 32]*TR, 'TimeDisp', 'ms', 'label', 'lin');
 % plot k-spaces
 figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
 hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
+title('k-space components as functions of time');
 figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
+title('2D k-space');
 
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
 

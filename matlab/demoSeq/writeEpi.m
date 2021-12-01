@@ -1,6 +1,6 @@
-% this is a demo low-performance EPI sequence
-% which doesn"t use ramp-samping. It is only good for educational purposes
-
+% this is a demo low-performance EPI sequence;
+% it doesn't use ramp-samping and is only good for educational purposes.
+%
 seq=mr.Sequence();              % Create a new sequence object
 fov=220e-3; Nx=64; Ny=64;       % Define FOV and resolution
 thickness=3e-3;                 % slice thinckness

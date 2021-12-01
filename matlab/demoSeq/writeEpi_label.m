@@ -1,6 +1,8 @@
-% this is a demo low-performance EPI sequence
-% which doesn"t use ramp-samping. It is only good for educational purposes
-%
+% this is a demo low-performance EPI sequence;
+% it doesn't use ramp-samping and is only good for educational purposes.
+% in addition, it demonstrated how LABEL extension can be used to set data
+% header values, which can be used either in combination with integrated
+% image reconstruction or to guide the off-line reconstruction tools
 % 
 seq=mr.Sequence();              % Create a new sequence object
 fov=220e-3; Nx=96; Ny=Nx;       % Define FOV and resolution

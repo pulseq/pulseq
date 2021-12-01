@@ -242,16 +242,15 @@ else
     fprintf('\n');
 end
 
-%% new single-function call for trajectory calculation
+%% k-space trajectory calculation
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
-%[ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
 
 % plot k-spaces
-
-figure; plot(t_ktraj,ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj,ktraj'); title('k-space components as functions of time'); % plot the entire k-space trajectory
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
+title('2D k-space');
 
 
 %% Write to file

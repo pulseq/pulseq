@@ -12,13 +12,25 @@ rf = mr.makeBlockPulse(pi/2,'Duration',0.1e-3, 'system', system);
 adc = mr.makeAdc(Nx,'Duration',3.2e-3, 'system', system,'delay',system.adcDeadTime);
 delayTE=20e-3;
 delayTR=1000e-3;
-
+rf.delay=5e-3;
+adc.delay=5e-3;
 % Loop over repetitions and define sequence blocks
 for i=1:Nrep
-    seq.addBlock(rf);
-    seq.addBlock(mr.makeDelay(delayTE));
-    seq.addBlock(adc,mr.makeDelay(mr.calcDuration(adc)));
-    seq.addBlock(mr.makeDelay(delayTR))
+    %seq.addBlock(rf);
+    seq.addBlock(rf,mr.makeDelay(delayTE));
+    seq.addBlock(adc,mr.makeDelay(mr.calcDuration(adc)),mr.makeDelay(delayTR));
+    %seq.addBlock(mr.makeDelay(delayTR))
 end
 
+% check whether the timing of the sequence is correct
+[ok, error_report]=seq.checkTiming;
+
+if (ok)
+    fprintf('Timing check passed successfully\n');
+else
+    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf([error_report{:}]);
+    fprintf('\n');
+end
+seq.setDefinition('Name', 'fid');
 seq.write('fid.seq')       % Write to pulseq file

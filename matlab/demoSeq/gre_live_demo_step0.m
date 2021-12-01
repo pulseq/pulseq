@@ -53,9 +53,9 @@ end
 
 % export definitions
 seq.setDefinition('FOV', [fov fov sliceThickness]);
-seq.setDefinition('Name', 'DEMO_gre_step0'); % if submitting a sequence please write your name to the Name field of the definition section
+seq.setDefinition('Name', 'DEMO_gre0'); % if submitting a sequence please write your name to the Name field of the definition section
 
-seq.write('DEMO_gre_step0.seq')       % Write to pulseq file
+seq.write('DEMO_grep0.seq')       % Write to pulseq file
 
 seq.plot('timeRange', [0 2*TR])
 

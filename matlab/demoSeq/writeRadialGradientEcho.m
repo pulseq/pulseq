@@ -1,19 +1,19 @@
 seq=mr.Sequence();              % Create a new sequence object
-fov=250e-3; Nx=256;             % Define FOV and resolution
+fov=260e-3; Nx=320;             % Define FOV and resolution
 alpha=10;                       % flip angle
 sliceThickness=3e-3;            % slice
 TE=8e-3;                        % TE; give a vector here to have multiple TEs (e.g. for field mapping)
-TR=100e-3;                      % only a single value for now
-Nr=128;                         % number of radial spokes
+TR=20e-3;                       % only a single value for now
+Nr=256;                         % number of radial spokes
 Ndummy=20;                      % number of dummy scans
-delta=pi / Nr;                  % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
+delta= pi / Nr;                 % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
 
 % set system limits
 sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
-    'MaxSlew', 80, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
+    'MaxSlew', 120, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 % Create alpha-degree slice selection pulse and gradient
@@ -22,9 +22,8 @@ sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
 
 % Define other gradients and ADC events
 deltak=1/fov;
-gx = mr.makeTrapezoid('x','FlatArea',Nx*deltak,'FlatTime',6.4e-3,'system',sys);
+gx = mr.makeTrapezoid('x','FlatArea',Nx*deltak,'FlatTime',6.4e-3/5,'system',sys);
 adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime,'system',sys);
-adc.delay = adc.delay; 
 gxPre = mr.makeTrapezoid('x','Area',-gx.area/2-deltak/2,'Duration',2e-3,'system',sys);
 gzReph = mr.makeTrapezoid('z','Area',-gz.area/2,'Duration',2e-3,'system',sys);
 

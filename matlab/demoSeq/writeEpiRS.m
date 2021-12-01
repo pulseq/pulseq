@@ -12,7 +12,7 @@ sys = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
 seq=mr.Sequence(sys);      % Create a new sequence object
 fov=256e-3; Nx=64; Ny=Nx;  % Define FOV and resolution
 thickness=4e-3;            % slice thinckness
-Nslices=1;
+Nslices=5;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delay calibration
 ro_os=1;                   % oversampling factor (in contrast to the product sequence we don't really need it)
@@ -27,7 +27,7 @@ rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,'dwell',10e-6,
 gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',2e-3,...
-    'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4);
+    'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'use','excitation');
 
 % define the output trigger to play out with every slice excitatuion
 trig=mr.makeDigitalOutputPulse('osc0','duration', 100e-6); % possible channels: 'osc0','osc1','ext1'
@@ -73,13 +73,9 @@ adc.delay=round((gx.riseTime+gx.flatTime/2-time_to_center)*1e6)*1e-6; % we adjus
 
 % FOV positioning requires alignment to grad. raster... -> TODO
 
-% split the blip into two halves and produnce a combined synthetic gradient
+% split the blip into two halves and produce a combined synthetic gradient
 gy_parts = mr.splitGradientAt(gy, blip_dur/2, sys);
-%gy_blipup=gy_parts(1);
-%gy_blipdown=gy_parts(2);
-%gy_blipup.delay=gx.riseTime+gx.flatTime+gx.fallTime-blip_dur/2;
-%gy_blipdown.delay=0;
-[gy_blipup, gy_blipdown]=mr.align('right',gy_parts(1),'left',gy_parts(2),gx);
+[gy_blipup, gy_blipdown,~]=mr.align('right',gy_parts(1),'left',gy_parts(2),gx);
 gy_blipdownup=mr.addGradients({gy_blipdown, gy_blipup}, sys);
 
 % pe_enable support
@@ -144,7 +140,6 @@ xlim(3*[-rf_bw rf_bw]);
 
 % trajectory calculation
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos] = seq.calculateKspacePP();
-%[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
 
 % plot k-spaces
 figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
@@ -157,7 +152,7 @@ axis('equal'); % enforce aspect ratio for the correct trajectory display
 title('k-space trajectory (k_x/k_y)');
 
 figure; plot(t_slicepos, slicepos, '*');
-title('slice position (vector components) as a function or fime');
+title('slice position (vector components) as a function or time');
 %axis off;
 
 return;

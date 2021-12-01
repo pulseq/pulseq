@@ -3,19 +3,20 @@
 
 % set system limits
 sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
-    'MaxSlew', 120, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 0e-6, ...
+    'MaxSlew', 170, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 0e-6, ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 seq=mr.Sequence(sys);           % Create a new sequence object
-fov=256e-3; Nx=256;             % Define FOV and resolution
+fov=240e-3; Nx=240;             % Define FOV and resolution
 alpha=10;                       % flip angle
 sliceThickness=5e-3;            % slice
 TR=20e-3;                       % TR
-Nr=round(Nx*pi/2);              % number of radial spokes
+%Nr=round(Nx*pi/2);              % number of radial spokes
+Nr=Nx*2;              % number of radial spokes
 Ndummy=20;                      % number of dummy scans
 delta= 2* pi / Nr;              % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
 rf_duration=0.5e-3;             % duration of the excitation pulse
-ro_duration=0.520e-3;           % read-out time: controls RO bandwidth and T2-blurring
+ro_duration=0.720e-3;           % read-out time: controls RO bandwidth and T2-blurring
 ro_os=2;                        % oversampling
 minRF_to_ADC_time=70e-6;        % the parameter wich defines TE together with ro_discard
 ro_discard=0;                   % dummy ADC samples to discard (due to ADC filter 
@@ -121,6 +122,7 @@ return
 %% plot gradients to check for gaps and optimality of the timing
 gw=seq.waveforms_and_times();
 figure; plot(gw{1}(1,:),gw{1}(2,:),gw{2}(1,:),gw{2}(2,:),gw{3}(1,:),gw{3}(2,:)); % plot the entire gradient shape
+title('gradient waveforms');
 
 %% k-space trajectory calculation
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
@@ -128,13 +130,14 @@ figure; plot(gw{1}(1,:),gw{1}(2,:),gw{2}(1,:),gw{2}(2,:),gw{3}(1,:),gw{3}(2,:));
 % plot k-spaces
 figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
 hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
-
+title('k-space components as functions of time');
+ 
 figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 axis('square'); % enforce aspect ratio for the correct trajectory display
 %axis('equal'); % enforce aspect ratio for the correct trajectory display
 axis('tight'); % enforce aspect ratio for the correct trajectory display
-
+title('2D k-space');
 
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
 

@@ -1,16 +1,16 @@
 % set system limits (slew rate 130 and max_grad 30 work on Prisma)
-sys = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
-    'MaxSlew', 130, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 10e-6, ...
+sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
+    'MaxSlew', 120, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 10e-6, ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 seq=mr.Sequence(sys);           % Create a new sequence object
-fov=256e-3; Nx=128;             % Define FOV and resolution
+fov=240e-3; Nx=240;             % Define FOV and resolution
 alpha=5;                        % flip angle
 sliceThickness=6e-3;            % slice
-Nr=128;                         % number of radial spokes
+Nr=256;                         % number of radial spokes
 Ndummy=10;                      % number of dummy scans
-delta=pi / Nr;                  % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
-ro_dur=512e-6;                  % RO duration
+delta= pi / Nr;                 % angular increment; try golden angle pi*(3-5^0.5) or 0.5 of it
+ro_dur=1200e-6;                 % RO duration
 ro_os=2;                        % readout oversampling
 ro_spoil=0.5;                   % additional k-max excursion for RO spoiling
 sl_spoil=2;                     % spoil area compared to the slice thickness
@@ -33,7 +33,7 @@ gx = mr.makeTrapezoid('x','Amplitude',Nx*deltak/ro_dur,'FlatTime',ceil(ro_dur/sy
 adc = mr.makeAdc(Nx*ro_os,'Duration',ro_dur,'Delay',gx.riseTime,'system',sys);
 gxPre = mr.makeTrapezoid('x','Area',-gx.amplitude*(ro_dur/Nx/ro_os*(Nx*ro_os/2-0.5)+0.5*gx.riseTime),'system',sys); % 0.5 is necessary to acount for the Siemens sampling in the center of the dwell periods
 %
-gxPre=mr.align('right', gxPre, 'right', gzComb);
+[gxPre,~]=mr.align('right', gxPre, 'right', gzComb);
 addDelay=mr.calcDuration(rf)-gxPre.delay;
 if addDelay>0
     gxPre.delay = gxPre.delay+ceil(addDelay/sys.gradRasterTime)*sys.gradRasterTime;

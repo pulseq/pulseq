@@ -1,6 +1,6 @@
-% this is an experimentaal high-performance EPI sequence
-% which uses split gradients to overlap blips with the readout
-% gradients combined with ramp-samping
+% this is an diffusion/weighted EPI based on the experimentaal high-
+% performance EPI sequence which uses split gradients to overlap blips with
+% the readout gradients combined with ramp-samping
 % it further features diffusion weighting using the standard 
 % Stejskal-Tanner scheme
 %
@@ -88,13 +88,9 @@ adc.delay=round((gx.riseTime+gx.flatTime/2-time_to_center)*1e6)*1e-6; % we adjus
 
 % FOV positioning requires alignment to grad. raster... -> TODO
 
-% split the blip into two halves and produnce a combined synthetic gradient
+% split the blip into two halves and produce a combined synthetic gradient
 gy_parts = mr.splitGradientAt(gy, blip_dur/2, lims);
-%gy_blipup=gy_parts(1);
-%gy_blipdown=gy_parts(2);
-%gy_blipup.delay=gx.riseTime+gx.flatTime+gx.fallTime-blip_dur/2;
-%gy_blipdown.delay=0;
-[gy_blipup, gy_blipdown]=mr.align('right',gy_parts(1),'left',gy_parts(2),gx);
+[gy_blipup, gy_blipdown,~]=mr.align('right',gy_parts(1),'left',gy_parts(2),gx);
 gy_blipdownup=mr.addGradients({gy_blipdown, gy_blipup}, lims);
 
 % pe_enable support
