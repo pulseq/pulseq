@@ -59,6 +59,16 @@ for i=1:length(objects)
     end
 end
 
-varargout=objects;
+if nargout==length(objects)
+    varargout=objects;
+elseif nargout==1
+    varargout={objects};
+elseif nargout<length(objects)
+    warning('not all objects can be assigned to the output argiments; we recommend using ~ to discard output arguments explicitly.');
+    nout=min(nargout,length(objects));
+    varargout=objects(1:nout);
+else
+    error(['the number of output arguments (' num2str(nargout) ') exceeds the number of sequence objects (' num2str(length(objects)) ') passed to the function.']);
+end
 
 end
