@@ -1,4 +1,4 @@
-function write_file(obj,filename,create_signature)
+function write(obj,filename,create_signature)
 %WRITE Write sequence to file.
 %   WRITE(seqObj, filename) Write the sequence data to the given
 %   filename using the open file format for MR sequences.
@@ -51,7 +51,7 @@ for i = 1:length(obj.blockEvents)
     %fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d 0\n'],[i obj.blockEvents{i}]);
     bd=obj.blockDurations(i)/obj.blockDurationRaster;
     bdr=round(bd);
-    assert(abs(bdr-bd)<1e-10);
+    assert(abs(bdr-bd)<1e-6); % this may still trigger false alarms for very long delays due to the limited accuracy of the double 
     fprintf(fid,[idFormatStr ' %3d %3d %3d %3d %3d %2d %2d\n'], ...
             [i bdr obj.blockEvents{i}(2:end)]); 
 end
