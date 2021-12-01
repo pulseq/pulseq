@@ -73,6 +73,9 @@ if ~isempty(opt.flatTime) % MZ was: opt.flatTime>0
     if ~isempty(opt.amplitude)
         amplitude = opt.amplitude;
     else
+        if isempty(opt.flatArea)
+            error('makeTrapezoid:invalidArguments','When ''flatTime'' is provided either ''flatArea'' or ''amplitude'' must be provided as well; you may consider providing ''duration'', ''area'' and optionally ramp times instead.');
+        end
         amplitude = opt.flatArea/opt.flatTime;
     end
     if isempty(riseTime)
