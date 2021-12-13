@@ -12,10 +12,12 @@
 path='../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='/data/Dropbox/ismrm2021pulseq_liveDemo/dataLive/Vienna_7T_Siemens'; % directory to be scanned for data files
 
+if path(end)~=filesep, path=[path filesep]; end
+
 pattern='*.seq';
-D=dir([path filesep pattern]);
+D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
-seq_file_path=[path filesep D(I(end-0)).name]; % use end-1 to reconstruct the second-last data set, etc...
+seq_file_path=[path D(I(end-0)).name]; % use end-1 to reconstruct the second-last data set, etc...
                                                 % or replace I(end-0) with I(1) to process the first dataset, I(2) for the second, etc...
 %seq_file_path='../interpreters/siemens/data_example/gre_example.seq'
 
@@ -43,6 +45,11 @@ else
     else
         data_unsorted = twix_obj.image.unsorted();
     end
+    seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant;
+    if length(seqHash_twix)==32
+        fprintf(['raw data contain pulseq-file signature ' seqHash_twix '\n']);
+    end
+
 end
 [adc_len,channels,readouts]=size(data_unsorted);
 
@@ -125,6 +132,10 @@ else
     data=reshape(data, [size(data,1) size(data,2) 1 size(data,3)]); % we need a dummy images/slices dimension
 end
 
+% account for the matlab's strange convention with data dimensions
+data=flip(data,1); % left-right orientation, works on TRIO
+data=flip(data,2);
+
 %figure; imab(log(abs(data))); title('k-space data');
 
 %% Reconstruct coil images
@@ -133,12 +144,7 @@ images = zeros(size(data));
 %figure;
 
 for ii = 1:channels
-    images(:,:,:,ii) = fftshift(fft2(fftshift(data(:,:,:,ii)))); % 1.4.0 does not need read inversion 
-    %for ni = 1:nImages
-        %tmp = abs(images(:,:,ni,ii));
-        %tmp = tmp./max(tmp(:));
-        %imwrite(tmp, ['img_coil_' num2str(ii) '.png'])
-    %end
+    images(:,:,:,ii) = ifftshift(ifft2(ifftshift(data(:,:,:,ii)))); % 1.4.0 does not need read inversion 
 end
 
 % Phase images (possibly channel-by-channel and echo-by-echo)
@@ -160,11 +166,12 @@ saveas(gcf,[basic_file_path '_image_2dfft'],'png');
 
 %% reconstruct field map (optional)
 
-if size(images,3)==2
+if size(images,3)>=2
     cmplx_diff=images(:,:,2,:).*conj(images(:,:,1,:));
     phase_diff_image=angle(sum(cmplx_diff,4));
     figure;
     imab(phase_diff_image);colormap('jet');
+    title('phase difference(s) echo2-echo1');
 end
 
 %% gif movie export

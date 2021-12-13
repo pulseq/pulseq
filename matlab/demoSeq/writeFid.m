@@ -1,4 +1,4 @@
-system = mr.opts('rfRingdownTime', 30e-6, 'rfDeadTime', 100e-6, ...
+system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
                  'adcDeadTime', 20e-6);
 
 seq=mr.Sequence(system);              % Create a new sequence object
@@ -11,15 +11,14 @@ rf = mr.makeBlockPulse(pi/2,'Duration',0.1e-3, 'system', system);
 % Define delays and ADC events
 adc = mr.makeAdc(Nx,'Duration',3.2e-3, 'system', system,'delay',system.adcDeadTime);
 delayTE=20e-3;
-delayTR=1000e-3;
-rf.delay=5e-3;
-adc.delay=5e-3;
+delayTR=5000e-3;
+%
+assert(delayTE>=mr.calcDuration(rf));
+assert(delayTR>=mr.calcDuration(adc));
 % Loop over repetitions and define sequence blocks
 for i=1:Nrep
-    %seq.addBlock(rf);
     seq.addBlock(rf,mr.makeDelay(delayTE));
-    seq.addBlock(adc,mr.makeDelay(mr.calcDuration(adc)),mr.makeDelay(delayTR));
-    %seq.addBlock(mr.makeDelay(delayTR))
+    seq.addBlock(adc,mr.makeDelay(delayTR));
 end
 
 % check whether the timing of the sequence is correct

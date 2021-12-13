@@ -8,12 +8,14 @@ path='../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='~/Downloads/2021-07-12-090810/';
 pattern='*.seq';
 
+if path(end)~=filesep, path(end+1)=filesep; end
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
-seq_file_path = [path D(I(end-1)).name]; % use end-1 to reconstruct the second-last data set, etc.
+seq_file_path = [path D(I(end-0)).name]; % use end-1 to reconstruct the second-last data set, etc.
 
 %% alternatively just provide the path to the .seq file
-%data_file_path='../interpreters/siemens/data_example/gre_example.seq'
+%seq_file_path='../interpreters/siemens/data_example/gre_example.seq'
+%seq_file_path='/data/20211025-AMR/data/2021-10-26-093137.seq';
 
 %% Load sequence from the file with the same name as the raw data
 fprintf(['loading `' seq_file_path '´ ...\n']);
@@ -43,20 +45,26 @@ catch
     else
         data_unsorted = double(twix_obj.image.unsorted());
     end
+    seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant;
+    if length(seqHash_twix)==32
+        fprintf(['raw data contain pulseq-file signature ' seqHash_twix '\n']);
+    end
     clear twix_obj
 end
 
 %% calculate k-space trajectory
 %[3.5 4 0] % for AMR 2D-UTE
-traj_recon_delay=0*1e-6;%1.75e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. It can be calibrated by inverting the spiral revolution dimension and making two images match. for our Prisma and a particular trajectory we found 1.75e-6
+traj_recon_delay=0*1e-6;% [0.527 -1.367 0]; % adjust this parameter to potentially improve resolution & geometric accuracy. It can be calibrated by inverting the spiral revolution dimension and making two images match. for our Prisma and a particular trajectory we found 1.75e-6
+grad_offsets=[0 0 0];
 
 seq = mr.Sequence();              % Create a new sequence object
 seq.read(seq_file_path,'detectRFuse');
 %[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
-[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('trajectory_delay', traj_recon_delay);
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('trajectory_delay', traj_recon_delay, 'gradient_offset', grad_offsets);
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
-axis('equal'); drawnow;
+axis('equal'); 
+title('2D k-space trajectory'); drawnow;
 
 %% Define FOV and resolution and simple off-resonance frequency correction 
 
@@ -123,17 +131,22 @@ kym=round(os*os*Ny/2);
 
 [kyy,kxx] = meshgrid(-kxm:(kxm-1), -kym:(kym-1));
 kyy=-kyy*deltak/os; % we swap the order and invert one sign to account for Matlab's strange column/line convention
-kxx=kxx*deltak/os;
+kxx=-kxx*deltak/os; % this is needed to match Localizer images on TRIO
 
 kgd=zeros([size(kxx) Ns channels]);
+d1=1; d2=size(rawdata,1);
+%d1=320*64+1; d2=320*192;
+%d1=1; d2=320*128;
+%d1=320*128+1; d2=320*256;
 for s=1:Ns
     for c=1:channels
-        kgd(:,:,s,c)=griddata(ktraj_adc(1,:),ktraj_adc(2,:),rawdata(:,s,c),kxx,kyy,'cubic'); 
+        kgd(:,:,s,c)=griddata(ktraj_adc(1,d1:d2),ktraj_adc(2,d1:d2),rawdata(d1:d2,s,c),kxx,kyy,'cubic'); 
     end
 end
 kgd(isnan(kgd))=0;
 
 figure;imagesc(log(abs(kgd(:,:,1,1))));axis('square');
+title('2D k-space data, ch1 as log(abs())');
 
 igd=ifftshift(ifft2(ifftshift(kgd)));
 
@@ -141,20 +154,18 @@ Nxo=round(Nx*os);
 Nyo=round(Ny*os);
 Nxs=round((size(igd,1)-Nxo)/2);
 Nys=round((size(igd,2)-Nyo)/2);
-igdc = igd((Nxs+1):(Nxs+Nxo),(Nys+1):(Nys+Nyo),:,:);
-figure;imab(abs(igdc));colormap('gray');
-%axis('equal');
+images = igd((Nxs+1):(Nxs+Nxo),(Nys+1):(Nys+Nyo),:,:);
 
-%% Sum of squares combination
-sos=sum(abs(igdc.^2),ndims(igdc)).^(1/2);
-sos=sos./max(sos(:));
-figure;imab(sos);colormap('gray');
-%imwrite(sos, ['img_combined.png'])
-
-% %%
-% %ie=rot90(im3D(1:end-10,1:end-10,end/2));
-% ie=rot90(sos);
-% figure;imab(ie);colormap('gray');
-% %imwrite(rot90(ie./max(ie(:))),[path '../phantom_ute_artifacts.png']);
-%%
+%% Image display with optional sum of squares combination
+figure;
+if channels>1
+    sos=abs(sum(images.*conj(images),ndims(images))).^(1/2);
+    sos=sos./max(sos(:));    
+    imab(sos); title('reconstructed image(s), sum-of-squares');
+    %imwrite(sos, ['img_combined.png']
+else
+    imab(abs(images)); title('reconstructed image(s)');
+end
+colormap('gray');
+saveas(gcf,[basic_file_path '_image_2d_gridding'],'png');
 

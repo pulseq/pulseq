@@ -136,6 +136,10 @@ gyPre.delay=mr.calcDuration(rf180);
 assert(mr.calcDuration(gyPre)<=mr.calcDuration(gxPre)); % gyPre may not shift the timing
 
 % Define sequence blocks
+
+%seq.addBlock(mr.makeDelay(1)); % older scanners like Trio may need this
+                                % dummy delay to keep up with timing
+
 for s=1:Nslices
     seq.addBlock(rf_fs,gz_fs);
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);

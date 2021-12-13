@@ -98,6 +98,8 @@ gyPre = mr.makeTrapezoid('y',sys,'Area',gyPre.area,'Duration',mr.calcDuration(gx
 gyPre.amplitude=gyPre.amplitude*pe_enable;
 
 % Define sequence blocks
+%seq.addBlock(mr.makeDelay(1)); % older scanners like Trio may need this
+                                % dummy delay to keep up with timing
 for s=1:Nslices
     seq.addBlock(rf_fs,gz_fs);
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);

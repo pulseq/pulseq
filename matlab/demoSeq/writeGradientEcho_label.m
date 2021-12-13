@@ -9,7 +9,7 @@ sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
 seq=mr.Sequence(sys);         % Create a new sequence object
 
 fov=224e-3; Nx=256; Ny=Nx; % Define FOV and resolution
-alpha=10;                  % flip angle
+alpha=7;                  % flip angle
 thickness=3e-3;            % slice
 Nslices=1;
 TE=4.3e-3;
@@ -50,6 +50,10 @@ rf_inc=0;
 % so we will just increment LIN after the ADC event (e.g. during the spoiler)
 
 seq.addBlock(mr.makeLabel('SET','REV', 1)); % left-right swap fix (needed for 1.4.0)
+
+%seq.addBlock(mr.makeDelay(1)); % older scanners like Trio may need this
+                                % dummy delay to keep up with timing
+
 % loop over slices
 for s=1:Nslices
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);

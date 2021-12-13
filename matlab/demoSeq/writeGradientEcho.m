@@ -1,15 +1,15 @@
 % set system limits
 sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
-    'MaxSlew', 150, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
-    'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
+    'MaxSlew', 150, 'SlewUnit', 'T/m/s', ... 
+    'rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 seq=mr.Sequence(sys);           % Create a new sequence object
 fov=256e-3; Nx=256; Ny=256;     % Define FOV and resolution
 alpha=10;                       % flip angle
 sliceThickness=3e-3;            % slice
-%TE=[7.38 9.84]*1e-3;            % give a vector here to have multiple TEs (e.g. for field mapping)
-TE=4.3e-3;
-TR=10e-3;                       % only a single value for now
+TR=12e-3;                       % repetition time TR
+TE=5e-3;                        % echo time TE  
+%TE=[7.38 9.84]*1e-3;            % alternatively give a vector here to have multiple TEs (e.g. for field mapping)
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment

@@ -14,7 +14,11 @@ cd(cur_dir);
 path='../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='/data/zte_petra/';
 %path='~/Dropbox/shared/data/siemens/';
+%path='~/20211025-AMR/data';
+
 pattern='*.seq';
+
+if path(end)~=filesep, path=[path filesep]; end
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
@@ -52,6 +56,10 @@ catch
         data_unsorted = twix_obj{end}.image.unsorted();
     else
         data_unsorted = twix_obj.image.unsorted();
+    end
+    seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant;
+    if length(seqHash_twix)==32
+        fprintf(['raw data contain pulseq-file signature ' seqHash_twix '\n']);
     end
     clear twix_obj
 end
@@ -92,6 +100,8 @@ na=numel(data_unsorted)/channels/numel(t_adc);
 if (na>1)
     fprintf('averaging over %d acquisitions ...\n',na);
     data_unsorted=reshape(sum(reshape(data_unsorted,[adc_len,channels,readouts/na,na]),4),[adc_len,channels,readouts/na]);
+    %data_unsorted=reshape(data_unsorted,[adc_len,channels,readouts/na,na]);
+    %data_unsorted=reshape(data_unsorted(:,:,:,1),[adc_len,channels,readouts/na]);
     readouts=readouts/na;
 end
 
@@ -111,8 +121,9 @@ end
 rawdata = permute(data_unsorted, [1,3,2]);
 
 if strcmp('petra',seq.getDefinition('Name'))
+    fprintf('performing special data handling for petra ...\n');
     SamplesPerShell=seq.getDefinition('SamplesPerShell');
-    waspi_samples=1; % 1 16 32 tested; BART does not seem to like waspi (background noise goes up)
+    waspi_samples=1; % 1 16 32 tested; BART (nlinv) does not seem to like waspi (background noise goes up)
     if ~isempty(SamplesPerShell)
         SamplesSPI=sum(SamplesPerShell(2:end));
         data_mask=boolean([ones(SamplesPerShell(1),adc_len); ...
@@ -128,11 +139,12 @@ if strcmp('petra',seq.getDefinition('Name'))
     % reshape to 4D (1 samples 1 channels) as BART needs it
     rawdata=reshape(rawdata,[1 size(rawdata,1) 1 channels]);
 
-    kyz_plane=abs(ktraj_adc(1,:))<0.7; % *(1/fov(1)) -- for BART-like trajectory not needed
-    figure; plot(ktraj_adc(2,kyz_plane),ktraj_adc(3,kyz_plane),'r.'); axis equal;title('Kyz plane');
+    kyz_plane=abs(ktraj_adc(1,:))<0.9; % *(1/fov(1)) -- for BART-like trajectory not needed
+    figure; plot(ktraj_adc(2,kyz_plane),ktraj_adc(3,kyz_plane),'r.','MarkerSize',0.5); axis equal;title('Kyz plane');
     %figure; plot3(kspace(kxz_plane,1),kspace(kxz_plane,2),kspace(kxz_plane,3),'r.'); axis equal;
     drawnow;
 elseif strcmp('ute_rs',seq.getDefinition('Name'))
+    fprintf('performing special data handling for ute ...\n');
     % average every 2nd spoke because of the half-rf excitation
     ktraj_adc=reshape(ktraj_adc,[3,adc_len,readouts]);
     ktraj_adc=ktraj_adc(:,:,1:2:end-1);
@@ -152,9 +164,12 @@ end
 %% BART expects the trajectory in units of 1/FOV, Pulseq's trajectory is in inverse meters, need to rescale
 for i=1:3, ktraj_adc(i,:)=ktraj_adc(i,:)*fov(i); end
 
+% left-right swap (tested on TRIO)
+ktraj_adc(1,:)=-ktraj_adc(1,:);
+
 %% detect and clean-up 2D trajectory
 kmax=max(abs(ktraj_adc'));
-klim_almost_zero=1e-6; % why? 
+klim_almost_zero=1e-3; % why? 
 if any(kmax<klim_almost_zero)
     fprintf('2D trajectory detected\n');
     ktraj_adc(kmax<klim_almost_zero,:)=0;
@@ -168,16 +183,39 @@ datapwr=squeeze(sum(rawdata.*conj(rawdata),2));
 igrid = bart('nufft -i -t -lowmem1', ktraj_adc, rawdata); % inverse interative gridding (-i) % -lowmem1 may be of help with large data
 save([basic_file_path '_recon_igrid'],'igrid');
 % display (needs imab for displaying multiple slices/partitions)
-figure; imab(sum(abs(igrid).^2,4).^0.5); colormap gray; drawnow;
+figure; imab(sum(abs(igrid).^2,4).^0.5); colormap gray; 
+title('BART recon, inverse gridding'); drawnow;
 
 %% call bart for the actual recon -- now try iterative non-linear inversion which also uses multiple coils in a parallel imaging way
 nlinv = bart('nlinv -n -d4 -m1 -i16 -t', ktraj_adc, rawdata); % there is a -R<n> key, but I did not notice any effect
 %nlinv = bart('nlinv -n -d4 -m1 -i16 -t', ktraj_adc, rawdata(:,:,:,pwrsort(1:3))); % only include N most important channels (to save time and/or RAM)
 save([basic_file_path '_recon_nlinv'],'nlinv');
-figure; imab(abs(nlinv)); colormap gray;
+figure; imab(abs(nlinv)/max(abs(nlinv(:)))); colormap gray;
+title('BART recon, nonlinear inversion'); drawnow;
 
-%%
-% [xx,yy,zz]=ndgrid(-128:127,-128:127,-128:127);
-% igrid_sos=sum(abs(igrid).^2,4).^0.5;
-% igrid_sos(vecnorm([xx(:),yy(:),zz(:)]')>128)=0;
-% volumeViewer(igrid_sos);
+%% call bart for the pics algorithm with compressed sensing (with dummy coil sensitivities)
+pics = bart('pics -S -l2 -r5 -t', ktraj_adc, rawdata, ones(size(igrid))); % inverse interative gridding (-i) % -lowmem1 may be of help with large data
+%pics_l1 = bart('pics -S -l1 -i100 -s0.0002 -r0.003 -t', ktraj_adc, rawdata, ones(size(igrid))); % inverse interative gridding (-i) % -lowmem1 may be of help with large data
+% tested r 0.002 0.004 and 0.01 (l1, l1s or ++, l1ss or +++)
+save([basic_file_path '_recon_pics'],'pics');
+% display (needs imab for displaying multiple slices/partitions)
+figure; imab(sum(abs(pics).^2,4).^0.5); colormap gray; 
+title('BART recon, pics-l2'); drawnow;
+
+% %%
+% pics_l2 = bart('pics -S -l2 -r5 -t', ktraj_adc, rawdata, ones(size(igrid))); % inverse interative gridding (-i) % -lowmem1 may be of help with large data
+% save([basic_file_path '_recon_picsL2'],'pics_l2');
+% % display (needs imab for displaying multiple slices/partitions)
+% figure; imab(sum(abs(pics_l2).^2,4).^0.5); colormap gray; drawnow;
+
+%% 3D viewer 
+% img3d=abs(pics_l1(:,:,end:-1:1));
+% %img3d=imag(pics);
+% %img3d(img3d<0)=0;
+% % img3d=sum(abs(igrid).^2,4).^0.5;
+% 
+% s=size(img3d);
+% [xx,yy,zz]=ndgrid(-s(1)/2:s(1)/2-1,-s(2)/2:s(2)/2-1,-s(3)/2:s(3)/2-1);
+% img3d(vecnorm([xx(:),yy(:),zz(:)]')>min(s)/2)=0;
+% figure; imab(permute(img3d(116:140,:,:),[2,3,1])); colormap gray;
+% volumeViewer(img3d);

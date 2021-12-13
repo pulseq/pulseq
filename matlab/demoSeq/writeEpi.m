@@ -36,6 +36,8 @@ dur = ceil(2*sqrt(deltak/lims.maxSlew)/10e-6)*10e-6;
 gy = mr.makeTrapezoid('y',lims,'Area',deltak,'Duration',dur);
 
 % Define sequence blocks
+% seq.addBlock(mr.makeDelay(1)); % older scanners like Trio may need this
+                                 % dummy delay to keep up with timing
 for s=1:Nslices
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
     seq.addBlock(rf,gz);
@@ -47,9 +49,21 @@ for s=1:Nslices
     end
 end
 
-seq.plot();             % Plot sequence waveforms
+%% check whether the timing of the sequence is correct
+[ok, error_report]=seq.checkTiming;
 
-% trajectory calculation
+if (ok)
+    fprintf('Timing check passed successfully\n');
+else
+    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf([error_report{:}]);
+    fprintf('\n');
+end
+
+%% Plot sequence waveforms
+seq.plot();             
+
+%% trajectory calculation
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 
 % plot k-spaces

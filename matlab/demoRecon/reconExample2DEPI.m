@@ -36,7 +36,7 @@ else
 end
 
 %% if necessary re-tune the trajectory delay to supress ghosting
-traj_recon_delay=0;%3.23e-6;%-1e-6;%3.90e-6;%-1.03e-6; % adjust this parameter to supress ghosting (negative allowed) (our trio -1.0e-6, prisma +3.9e-6; avanto +3.88)
+traj_recon_delay=0e-6;%3.23e-6;%-1e-6;%3.90e-6;%-1.03e-6; % adjust this parameter to supress ghosting (negative allowed) (our trio -1.0e-6, prisma +3.9e-6; avanto +3.88)
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('trajectory_delay', traj_recon_delay);
 %[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
 %ktraj_adc_nodelay=seq.calculateKspace('trajectory_delay', 10e-6);
@@ -99,7 +99,7 @@ kmaxabs=max(kxmax1, -kxmin);
 
 kxx= ((-Nx/2):(Nx/2-1))/(Nx/2)*kmaxabs; % kx-sample positions
 ktraj_adc2=reshape(ktraj_adc,[size(ktraj_adc,1), nADC, size(ktraj_adc,2)/nADC]);
-t_adc2=reshape(t_adc,[nADC, size(t_adc,1)/nADC]);
+t_adc2=reshape(t_adc,[nADC, length(t_adc)/nADC]);
 
 data_resampled=zeros(length(kxx), nCoils, nAcq);
 ktraj_resampled=zeros(nD, length(kxx), nAcq);
