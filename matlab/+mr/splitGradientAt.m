@@ -86,6 +86,11 @@ else
     error('Splitting of unsupported event.');
 end
 
+% if the cutline is behind the gradient there is no second gradient to create
+if timepoint >= grad.delay+times(end)
+    error('trying to place the splitting time point after the end of the gradient');
+end
+
 % now we have everything in the extended trapezoid structure
 
 % if the cutline goes through the delay we need special treatment
@@ -93,6 +98,8 @@ if timepoint < grad.delay
     times=[0 grad.delay+times];
     amplitudes = [0 amplitudes];
     grad.delay=0;
+else
+    timepoint = timepoint - grad.delay;
 end
 
 % sample at timepoint
@@ -112,7 +119,7 @@ grad1.delay = grad.delay;
 grad2 = mr.makeExtendedTrapezoid(ch, opt.system, 'times', times2,...
                                   'amplitudes', amplitudes2, ...
                                   'skip_check', true); 
-grad2.delay = timepoint;
+grad2.delay = timepoint + grad.delay;
 
 %grads = [grad1 grad2];
 if nargout==1
