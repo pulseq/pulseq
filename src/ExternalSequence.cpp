@@ -560,7 +560,7 @@ bool ExternalSequence::load(std::string path)
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
 			}
-			// this was not compatible vit Numaris4 VB line (MSVC6)
+			// this was not compatible with Numaris4 VB line (MSVC6)
 			/*std::istringstream ss(buffer);
 			while(retgl==gl_truncated) { // if the line was truncated read in the rest of it into the stream/buffer
 				retgl=getline(data_file, buffer, MAX_LINE_SIZE);
@@ -572,11 +572,12 @@ bool ExternalSequence::load(std::string path)
 				retgl=getline(data_file, buffer, MAX_LINE_SIZE);
 				stmp+=buffer;
 			}
-			char* tmp_buff= new char[stmp.length()+1]; // old compilers like MSVC6 require such stupid conversions
-			strcpy(tmp_buff,stmp.c_str());
-			std::istringstream ss(tmp_buff);
-			delete [] tmp_buff;
-			// end of stupid compatible code
+			char* tmp_buff1= new char[stmp.length()+1]; // old compilers like MSVC6 require such stupid conversions
+			strcpy(tmp_buff1,stmp.c_str());
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- reading definitions, tmp_buff1=`"<<tmp_buff1<<"'"<<std::endl);
+			std::istringstream ss(tmp_buff1);
+			// delete [] tmp_buff1; // moved few lines below
+			// end of stupid compatible code (except for the delete line below)
 			std::string key;
 			ss >> key;
 			std::string str_value;
@@ -584,17 +585,20 @@ bool ExternalSequence::load(std::string path)
 				str_value = str_trim(str_value);
 				m_definitions_str[key] = str_value; 
 				// old compilers like MSVC6 require such stupid conversions
-				char* tmp_buff= new char[str_value.length()+1];
-				strcpy(tmp_buff,str_value.c_str());
-				std::istringstream ssv(tmp_buff);
+				char* tmp_buff2= new char[str_value.length()+1];
+				strcpy(tmp_buff2,str_value.c_str());
+				print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- reading definitions(2), tmp_buff2=`"<<tmp_buff2<<"'"<<std::endl);
+				std::istringstream ssv(tmp_buff2);
 				double value;
 				std::vector<double> values;
 				while (ssv >> value) {
 					values.push_back(value);
 				}
-				delete [] tmp_buff;
+				delete [] tmp_buff2;
 				m_definitions[key] = values;
 			}
+			// this 'delete' should be here because some compilers pass the buffer by reference
+			delete [] tmp_buff1;
 		}
 
 		std::ostringstream out;
