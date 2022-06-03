@@ -50,6 +50,7 @@ for r=1:Nreps
     seq.addBlock(trig, mr.makeLabel('SET','SLC', 0)); 
     for s=1:Nslices
         rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
+        rf.phaseOffset=-rf.freqOffset*mr.calcRfCenter(rf); % compensate for the slice-offset induced phase
         seq.addBlock(rf,gz);
         seq.addBlock(gxPre,gzReph, ...
                      mr.makeLabel('SET','NAV',1),...
@@ -116,5 +117,6 @@ axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold; plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.');
 
 % seq.sound(); % simulate the seq's tone
-seq.read('epi_label.seq');
-seq.write('epi_label2.seq');
+% test read-write
+%seq.read('epi_label.seq');
+%seq.write('epi_label2.seq');
