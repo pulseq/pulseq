@@ -24,6 +24,7 @@ sat_ppm=-3.45;
 sat_freq=sat_ppm*1e-6*sys.B0*sys.gamma;
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,'dwell',10e-6,...
     'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
+rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
 gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',2e-3,...
@@ -103,6 +104,7 @@ gyPre.amplitude=gyPre.amplitude*pe_enable;
 for s=1:Nslices
     seq.addBlock(rf_fs,gz_fs);
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
+    rf.phaseOffset=-2*pi*rf.freqOffset*mr.calcRfCenter(rf); % compensate for the slice-offset induced phase
     seq.addBlock(rf,gz,trig);
     seq.addBlock(gxPre,gyPre,gzReph);
     for i=1:Ny_meas
