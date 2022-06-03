@@ -58,9 +58,13 @@ if kabs_echo>eps
     end
 end
 
-t_ex_tmp=t_excitation(t_excitation<t_echo);
-TE=t_echo-t_ex_tmp(end);
-% TODO detect multiple TEs
+if ~isempty(t_excitation)
+    t_ex_tmp=t_excitation(t_excitation<t_echo);
+    TE=t_echo-t_ex_tmp(end);
+    % TODO detect multiple TEs
+else
+    TE=NaN;
+end
 
 if (length(t_excitation)<2)
     TR=duration; % best estimate for now
@@ -181,14 +185,16 @@ common_time=unique(dim1ind([gw_data{:}],1));
 gw_ct=zeros(length(gw_data),length(common_time));
 gs_ct=zeros(length(gw_data),length(common_time)-1);
 for gc=1:length(gw_data)
-    gws{gc}=(gw_data{gc}(2,2:end)-gw_data{gc}(2,1:end-1))./(gw_data{gc}(1,2:end)-gw_data{gc}(1,1:end-1)); % slew
-    % interpolate to the common time
-    gw_ct(gc,:)=interp1(gw_data{gc}(1,:),gw_data{gc}(2,:),common_time,'linear',0);
-    gs_ct(gc,:)=(gw_ct(gc,2:end)-gw_ct(gc,1:end-1))./(common_time(2:end)-common_time(1:end-1));
-    % max grad/slew per channel
-    ga(gc)=max(abs(gw_data{gc}(2,:)));
-    gs(gc)=max(abs(gws{gc}));
-    % TODO: calculate grad RMS values (this is an interesting task in the piece-wise-linear domain)
+    if size(gw_data{gc},2)>0 
+        gws{gc}=(gw_data{gc}(2,2:end)-gw_data{gc}(2,1:end-1))./(gw_data{gc}(1,2:end)-gw_data{gc}(1,1:end-1)); % slew
+        % interpolate to the common time
+        gw_ct(gc,:)=interp1(gw_data{gc}(1,:),gw_data{gc}(2,:),common_time,'linear',0);
+        gs_ct(gc,:)=(gw_ct(gc,2:end)-gw_ct(gc,1:end-1))./(common_time(2:end)-common_time(1:end-1));
+        % max grad/slew per channel
+        ga(gc)=max(abs(gw_data{gc}(2,:)));
+        gs(gc)=max(abs(gws{gc}));
+        % TODO: calculate grad RMS values (this is an interesting task in the piece-wise-linear domain)
+    end
 end
 
 %figure; plot(common_time, gw_ct');
