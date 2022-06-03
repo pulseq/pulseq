@@ -135,7 +135,7 @@ classdef Sequence < handle
             eventCount=zeros(size(obj.blockEvents{1}));
             duration=0;
             for iB=1:numBlocks
-                b=obj.getBlock(iB);
+                %b=obj.getBlock(iB);
                 eventCount = eventCount + (obj.blockEvents{iB}>0);
                 duration=duration+obj.blockDurations(iB);%mr.calcDuration(b);
             end
@@ -1295,8 +1295,8 @@ classdef Sequence < handle
             % waveforms_and_times()
             %   Decompress the entire gradient waveform
             %   Returns gradient wave forms as a cell array with
-            %   gradient_axes (typically 3) dimension; each cell bontains
-            %   timepoints and the correspndig gradient amplitude values.
+            %   gradient_axes (typically 3) dimension; each cell contains
+            %   time points and the correspndig gradient amplitude values.
             %   Additional return values are time points of excitations,
             %   refocusings and ADC sampling points.
             %   If the optionl parameter 'appendRF' is set to true the RF 
@@ -1392,21 +1392,28 @@ classdef Sequence < handle
                                     curr_dur+grad.delay+cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);...
                                     grad.amplitude*[0 1 1 0]];
                             else
-                                out_len(j)=out_len(j)+3;
-                                shape_pieces{j,iB}=[
-                                    curr_dur+grad.delay+cumsum([0 grad.riseTime grad.fallTime]);...
-                                    grad.amplitude*[0 1 0]];
+                                if (abs(grad.riseTime)>eps && abs(grad.fallTime)>eps) % we skip 'empty' gradients
+                                    out_len(j)=out_len(j)+3;
+                                    shape_pieces{j,iB}=[
+                                        curr_dur+grad.delay+cumsum([0 grad.riseTime grad.fallTime]);...
+                                        grad.amplitude*[0 1 0]];
+                                else
+                                    if abs(grad.amplitude)>eps
+                                        warning('''empty'' gradient with non-zero magnitude detected in block %d',iB);
+                                    end
+                                end
                             end
                         end
                     end
                 end
                 if ~isempty(block.rf)
                     rf=block.rf;
-                    t=rf.delay+mr.calcRfCenter(rf);
+                    tc=mr.calcRfCenter(rf);
+                    t=rf.delay+tc;
                     if (~isfield(block.rf,'use') || strcmp(block.rf.use,'excitation') || strcmp(block.rf.use,'undefined'))
-                        tfp_excitation(:,end+1) = [curr_dur+t; block.rf.freqOffset; block.rf.phaseOffset];
+                        tfp_excitation(:,end+1) = [curr_dur+t; block.rf.freqOffset; block.rf.phaseOffset+block.rf.freqOffset*tc];
                     elseif strcmp(block.rf.use,'refocusing')
-                        tfp_refocusing(:,end+1) = [curr_dur+t; block.rf.freqOffset; block.rf.phaseOffset];
+                        tfp_refocusing(:,end+1) = [curr_dur+t; block.rf.freqOffset; block.rf.phaseOffset+block.rf.freqOffset*tc];
                     end
                     if appendRF
                         pre=[];
@@ -1424,9 +1431,9 @@ classdef Sequence < handle
                     end
                 end
                 if ~isempty(block.adc)
-                    t_adc((end+1):(end+block.adc.numSamples)) = ((0:(block.adc.numSamples-1))+0.5)... % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
-                        *block.adc.dwell + block.adc.delay + curr_dur;
-                    fp_adc(:,end+1) = [block.adc.freqOffset; block.adc.phaseOffset];
+                    ta=block.adc.dwell*((0:(block.adc.numSamples-1))+0.5); % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell) % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
+                    t_adc((end+1):(end+block.adc.numSamples)) = ta + block.adc.delay + curr_dur;
+                    fp_adc(:,(end+1):(end+block.adc.numSamples)) = [block.adc.freqOffset*ones(1,block.adc.numSamples); block.adc.phaseOffset+block.adc.freqOffset*ta];
                 end
                 curr_dur=curr_dur+obj.blockDurations(iB);%mr.calcDuration(block);
             end
@@ -1443,6 +1450,18 @@ classdef Sequence < handle
                     if ~isempty(shape_pieces{j,iB})
                         wave_data_local=shape_pieces{j,iB};
                         len=size(wave_data_local,2);
+                        if wave_cnt(j)~=0 && wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime < wave_data_local(1,1)
+                            if  wave_data{j}(2,wave_cnt(j))~=0
+                                warning('waveforms_and_times(): forcing ramp-down from a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are probably wrong.', j, round(1e6*wave_data{j}(1,wave_cnt(j))));
+                                wave_data{j}(:,wave_cnt(j)+1)=[wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime/2; 0]; % this is likely to cause memory reallocations
+                                wave_cnt(j)=wave_cnt(j)+1;
+                            end
+                            if wave_data_local(2,1)~=0
+                                warning('waveforms_and_times(): forcing ramp-up to a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are probably wrong.', j, round(1e6*wave_data_local(1,1)));
+                                wave_data_local=[[wave_data_local(1,1)-obj.gradRasterTime/2; 0] wave_data_local]; % this is likely to cause memory reallocations also later on
+                                len=len+1;
+                            end
+                        end
                         if wave_cnt(j)==0 || wave_data{j}(1,wave_cnt(j))~=wave_data_local(1,1)
                             wave_data{j}(:,wave_cnt(j)+(1:len))=wave_data_local;
                             wave_cnt(j)=wave_cnt(j)+len;
@@ -1451,7 +1470,7 @@ classdef Sequence < handle
                             wave_cnt(j)=wave_cnt(j)+len-1;
                         end
                         if wave_cnt(j)~=length(unique(wave_data{j}(1,1:wave_cnt(j))))
-                            fprintf('Warning: not all elements of the generated time vector are unique!\n');
+                            warning('Warning: not all elements of the generated time vector are unique!\n');
                         end
                     end
                 end
@@ -1559,16 +1578,21 @@ classdef Sequence < handle
             
             % calculate slice positions. for now we entirely rely on the
             % excitation -- ignoring complicated interleaved refocused sequences
-            slicepos=zeros(length(gw_data),size(tfp_excitation,2)); % position in x,y,z;
-            for j=1:length(gw_data)
-                if isempty(gw_pp{j})
-                    slicepos(j,:)=NaN;
-                else
-                    slicepos(j,:)=tfp_excitation(2,:)./ppval(gw_pp{j},tfp_excitation(1,:));
+            if ~isempty(tfp_excitation)
+                slicepos=zeros(length(gw_data),size(tfp_excitation,2)); % position in x,y,z;
+                for j=1:length(gw_data)
+                    if isempty(gw_pp{j})
+                        slicepos(j,:)=NaN;
+                    else
+                        slicepos(j,:)=tfp_excitation(2,:)./ppval(gw_pp{j},tfp_excitation(1,:));
+                    end
                 end
+                slicepos(~isfinite(slicepos))=0; % reset undefined to 0 (or is NaN better?)
+                t_slicepos=tfp_excitation(1,:);
+            else
+                slicepos=[];
+                t_slicepos=[];
             end
-            slicepos(~isfinite(slicepos))=0; % reset undefined to 0 (or is NaN better?)
-            t_slicepos=tfp_excitation(1,:);
             
             %t_adc = t_adc + opt.trajectory_delay;
             % this was wrong because it dod not shift RF events (which are
