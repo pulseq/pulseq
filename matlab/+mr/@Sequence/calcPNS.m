@@ -27,8 +27,16 @@ if doPlots
 end
 
 % find beginning and end times and resample GWs to a regular sampling raster
-nt_min=floor(min([gw{1}(1,1) gw{2}(1,1) gw{3}(1,1)])/obj.gradRasterTime+eps); % or should we always start at t=0?
-nt_max=ceil(max([gw{1}(1,end) gw{2}(1,end) gw{3}(1,end)])/obj.gradRasterTime-eps);
+tf=[];
+tl=[];
+for i=1:3
+    if size(gw{i},2)>0
+        tf(end+1)=gw{i}(1,1);
+        tl(end+1)=gw{i}(1,end);
+    end
+end
+nt_min=floor(min(tf)/obj.gradRasterTime+eps); 
+nt_max=ceil(max(tl)/obj.gradRasterTime-eps);
 % shift raster positions to the centers of the raster periods
 nt_min = nt_min + 0.5;
 nt_max = nt_max - 0.5;
@@ -38,12 +46,14 @@ end
 t_axis=(nt_min:nt_max)*obj.gradRasterTime;
 gwr=zeros(length(t_axis),3);
 for i=1:3
-    gwr(:,i)=interp1(gw{i}(1,:),gw{i}(2,:),t_axis,'linear',0);
+    if size(gw{i},2)>0
+        gwr(:,i)=interp1(gw{i}(1,:),gw{i}(2,:),t_axis,'linear',0);
+    end
 end
 
 if ischar(hardware)
     % this loads the parameters from the provided text file
-    asc=readasc(hardware);
+    asc=mr.Siemens.readasc(hardware);
     hardware=asc_to_hw(asc);
 end
 
@@ -63,103 +73,6 @@ end
 end
 
 % local utility functions
-
-function [asc, extra] = readasc(filePath);
-% reads Siemens ASC ascii-formatted textfile 
-% return is a matlab structure with fields from the file.
-% usage:
-% myAsc= readasc(path,fileName);
-% [prot, yaps] = readasc(path,fileName);
-
-% Ralph Strecker 16/02/2005
-% Maxim Zaitsev 08/10/2019
-
-
-%%% read asc file and convert it into a structure
-fid= fopen(filePath);
-endOfAsc=0;
-
-%nextLine=fgetl(fid); %read next line
-%while nextLine~=-1 
-while ~feof(fid) 
-    openbrack= [];
-    closebrack= [];
-    nextLine=strtrim(fgetl(fid));
-    if strcmp(nextLine,'### ASCCONV END ###') % find end of mrProt in the asc file
-        endOfAsc=1;
-    end
-    if isempty(nextLine) || nextLine(1)=='#' 
-        continue;
-    end
-    indEqualSign= findstr(nextLine,'=');
-    if ~isempty(indEqualSign)
-        fieldName=deblank(nextLine(1:indEqualSign-1));
-        openbrack= findstr(fieldName,'[');
-        closebrack= findstr(fieldName,']');
-        if ~isempty(openbrack) & ~isempty(closebrack)
-            fieldName(openbrack)='(';
-            fieldName(closebrack)=')';
-%             if strcmp(fieldName(end),fieldName(closebrack))
-%                 fieldName(closebrack)='}';
-%                 fieldName(openbrack)='{';
-%             end
-            for k=1:length(openbrack)
-                counter= str2num(fieldName(openbrack(k)+1:closebrack(k)-1));
-                fieldName= [fieldName(1:openbrack(k)),num2str(counter+1),fieldName(closebrack(k):end)];
-            end
-        end
-        openclosebrack= findstr(fieldName,')(');
-        fieldName(openclosebrack)=[];
-        fieldName(openclosebrack)=',';
-        %if  findstr(fieldName,'atImagedNucleus')
-        %    fieldName= [fieldName,'.value'];
-        %end
-
-        fieldValue= deblank(nextLine(indEqualSign+2:end));
-        com=[strfind(fieldValue,'#') strfind(fieldValue,'//')];
-        if ~isempty(com)
-            com=min(com);
-            fieldValue=fieldValue(1:(com-1));
-        end
-        
-%         if findstr(fieldValue,'i0') || findstr(fieldValue,'i1')
-%             ind= findstr(fieldValue,'i');
-%             fieldValue=[fieldValue(1:ind),'*',fieldValue(ind+1:end)];
-%         end
-        if ischar(fieldValue)
-            ind=findstr(fieldValue,'"');
-            %fieldValue(ind)=[];
-            fieldValue(ind)='';
-        end            
-        
-        if length(fieldValue)>1 & strcmp(fieldValue(1:2),'0x') & isempty(findstr(fieldName,'atImagedNucleus'))
-            fieldValue= hex2dec(fieldValue(3:end)); %fieldValue is hexadecimal
-        elseif ~isempty(str2num(fieldValue))
-            fieldValue= str2num(fieldValue);
-        end
-        
-        if ischar(fieldValue) && fieldName(end)==')'
-            fieldName(end)='}';
-            ib=max(strfind(fieldName,'('));
-            fieldName(ib)='{';
-        end
-        
-%         fprintf('< %s > ',nextLine);
-%         fprintf('fieldName= %s fieldValue= %s\n', fieldName, mat2str(fieldValue));
-
-        if endOfAsc==0
-            eval(['asc.' fieldName '=','fieldValue;']);
-        else
-            eval(['extra.' fieldName '=','fieldValue;']);
-        end
-    end
-        
-end
-        
-fclose(fid);
-
-end
-
 
 function hw = asc_to_hw(asc)
 % function hw = asc_to_hw(asc)
