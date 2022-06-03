@@ -83,7 +83,7 @@ if nargout>1
     end
 
     amplitude = BW/opt.sliceThickness;
-    area = amplitude*opt.duration;
+    area = amplitude*duration;
     gz = mr.makeTrapezoid('z', opt.system, 'flatTime', opt.duration, ...
                           'flatArea', area);
     
