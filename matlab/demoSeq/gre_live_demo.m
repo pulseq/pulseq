@@ -7,9 +7,6 @@
 % 5 ... Add dummy scans
 step = 0;
 
-% Create a new sequence object
-seq=mr.Sequence();
-
 % Define FOV and resolution
 fov = 256e-3;
 sliceThickness = 5e-3;
@@ -25,6 +22,9 @@ alpha=30;
 sys = mr.opts('MaxGrad',25,'GradUnit','mT/m',...
     'MaxSlew',130,'SlewUnit','T/m/s',...
     'rfRingdownTime', 20e-6, 'rfDeadtime', 100e-6);
+
+% Create a new sequence object
+seq=mr.Sequence(sys);
 
 % Create slice selective alpha-pulse and corresponding gradients
 [rf, gz, gzReph] = mr.makeSincPulse(alpha*pi/180, 'Duration', 4e-3,...
