@@ -99,8 +99,11 @@ elseif opt.duration>0
             assert(possible,['Requested area is too large for this gradient. Minimum required duration is ' num2str(round(sqrt(4*abs(opt.area)*dC)*1e6)) 'us']);    
             amplitude = ( opt.duration - sqrt(opt.duration^2 - 4*abs(opt.area)*dC) )/(2*dC);
         else
-            amplitude = opt.area/(opt.duration-riseTime);
-            possible = opt.duration>2*riseTime & abs(amplitude)<maxGrad;
+            if isempty(fallTime)
+                fallTime = riseTime;
+            end    
+            amplitude = opt.area/(opt.duration-0.5*riseTime-0.5*fallTime);
+            possible = opt.duration>(riseTime+fallTime) & abs(amplitude)<maxGrad;
             assert(possible,['Requested area is too large for this gradient. Probably amplitude is violated (' num2str(round(abs(amplitude)/maxGrad*100)) '%)']);    
         end    
     end
@@ -127,6 +130,9 @@ else
         % first check if the area can be realized as a triangle
         % if not we calculate a trapezoid
         riseTime=ceil(sqrt(abs(opt.area)/maxSlew)/opt.system.gradRasterTime)*opt.system.gradRasterTime;
+        if riseTime < opt.system.gradRasterTime % the "area" was probably 0 or almost 0 ...
+            riseTime=opt.system.gradRasterTime;
+        end
         amplitude=opt.area/riseTime;
         tEff=riseTime;
         if abs(amplitude)>maxGrad 
