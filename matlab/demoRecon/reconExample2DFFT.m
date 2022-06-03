@@ -42,10 +42,12 @@ else
     twix_obj = mapVBVD(data_file_path);
     if iscell(twix_obj)
         data_unsorted = twix_obj{end}.image.unsorted();
+        seqHash_twix=twix_obj{end}.hdr.Dicom.tSequenceVariant;
     else
         data_unsorted = twix_obj.image.unsorted();
+        seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant;
     end
-    seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant;
+    
     if length(seqHash_twix)==32
         fprintf(['raw data contain pulseq-file signature ' seqHash_twix '\n']);
     end
@@ -57,6 +59,8 @@ end
 fprintf(['loading `' seq_file_path '´ ...\n']);
 seq = mr.Sequence();              % Create a new sequence object
 seq.read(seq_file_path,'detectRFuse');
+seqName=seq.getDefinition('Name');
+if ~isempty(seqName), fprintf('sequence name: %s\n',seqName); end
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
