@@ -1,14 +1,16 @@
-seq=mr.Sequence();              % Create a new sequence object
-fov=256e-3; Nx=64; Ny=64;       % Define FOV and resolution
-
+% Define FOV and resolution
+fov=256e-3; Nx=64; Ny=64; 
+thickness=3e-3;
 % Set system limits
 lims = mr.opts('MaxGrad', 32, 'GradUnit', 'mT/m',...
-    'MaxSlew', 130, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 30e-6, ...
+    'MaxSlew', 130, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 20e-6);  
+% Create a new sequence object
+seq=mr.Sequence(lims);
 
 % Create 90 degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(pi/2,lims,'Duration',3e-3,...
-    'SliceThickness',3e-3,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4);
 
 % Define other gradients and ADC events
 deltak=1/fov;
@@ -57,6 +59,20 @@ for i=1:Ny
 end
 seq.addBlock(mr.makeDelay(1e-4));
 
+%% check whether the timing of the sequence is correct
+[ok, error_report]=seq.checkTiming;
+
+if (ok)
+    fprintf('Timing check passed successfully\n');
+else
+    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf([error_report{:}]);
+    fprintf('\n');
+end
+
+%% export and visualization
+seq.setDefinition('FOV', [fov fov thickness]);
+seq.setDefinition('Name', 'epise');
 seq.write('epi_se.seq');   % Output sequence for scanner
 seq.plot();             % Plot sequence waveforms
 
