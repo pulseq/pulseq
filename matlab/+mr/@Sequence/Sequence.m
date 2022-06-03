@@ -1427,7 +1427,7 @@ classdef Sequence < handle
 %                         pre=[curr_dur+rf.delay+rf.t(1)-eps;NaN];
 %                         post=[curr_dur+rf.delay+rf.t(end)+eps;NaN];
                         out_len(end)=out_len(j)+length(rf.t)+size(pre,2)+size(post,2);
-                        shape_pieces{end,iB}=[pre [curr_dur+rf.delay+rf.t'; rf.signal'] post];
+                        shape_pieces{end,iB}=[pre [curr_dur+rf.delay+rf.t'; (rf.signal.*exp(1i*(rf.phaseOffset+2*pi*rf.freqOffset*rf.t)))'] post];
                     end
                 end
                 if ~isempty(block.adc)
