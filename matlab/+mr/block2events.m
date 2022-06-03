@@ -14,6 +14,8 @@ end
 c = b;    % Assume b is already a cell array of events
 if iscell(b)
     first = b{1}; % Use first element to test for block structure
+else 
+    first = b;
 end
 if isfield(first, 'rf')
     % Argument is a block structure, copy events to cell array
