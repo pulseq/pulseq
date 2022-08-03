@@ -42,7 +42,7 @@ if strcmp(grad.type, 'grad')
        all(abs(grad.tt(2:end)-grad.tt(1:end-1)-gradRasterTime)<1e-10)
         % arbitrary gradient -- the most trivial conversion
         % if timepoint is out of range we have nothing to do
-        if timeindex == 1 || timeindex >= length(grad.t)
+        if timeindex == 1 || timeindex >= length(grad.tt)
             varargout{1} = grad;
         else
             grad1=grad;
