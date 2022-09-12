@@ -5,12 +5,17 @@
 #include <iomanip>		// std::setw etc
 
 #include <algorithm>	// for std::max_element
+#include <functional>	// for std::bind...
 
 #include <math.h>		// fabs etc
+
+#include <assert.h>		// assert (TODO: remove in the released version)
 
 ExternalSequence::PrintFunPtr ExternalSequence::print_fun = &ExternalSequence::defaultPrint;
 const int ExternalSequence::MAX_LINE_SIZE = 256;
 const char ExternalSequence::COMMENT_CHAR = '#';
+std::string& str_trim(std::string& str);
+double SeqBlock::s_blockDurationRaster = 10.0;
 
 /***********************************************************/
 ExternalSequence::ExternalSequence()
@@ -20,6 +25,7 @@ ExternalSequence::ExternalSequence()
 	version_minor=0;
 	version_revision=0;
 	version_combined=0;
+	m_bSignatureDefined=false;
 }
 
 
@@ -45,6 +51,29 @@ void ExternalSequence::print_msg(MessageType level, std::ostream& ss) {
 bool ExternalSequence::load(std::string path)
 {
 	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "Reading external sequence files");
+
+	// reset the internal structures in case this is a repeated call to load()
+	m_adcLibrary.clear();
+	m_blockDurations_ru.clear();
+	m_blocks.clear();
+	m_bSignatureDefined=false;
+	m_definitions.clear();
+	m_definitions_str.clear();
+	m_extensionLibrary.clear();
+	m_extensionNameIDs.clear();
+	m_fileIndex.clear();
+	m_fileSections.clear();
+	m_gradLibrary.clear();
+	m_labelincLibrary.clear();
+	m_labelsetLibrary.clear();
+	m_rfLibrary.clear();
+	m_rotationLibrary.clear();
+	m_shapeLibrary.clear();
+	m_signatureMap.clear();
+	m_strSignature="";
+	m_strSignatureType="";
+	m_triggerLibrary.clear();
+	version_combined=0;
 
 	char buffer[MAX_LINE_SIZE];
 	char tmpStr[MAX_LINE_SIZE];
@@ -121,6 +150,17 @@ bool ExternalSequence::load(std::string path)
 		}
 		version_combined=version_major*1000000L+version_minor*1000L+version_revision;
 	}
+	else
+	{
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: supported Pulseq files MUST contain the [VERSION] section");
+		return false;
+	}
+
+	if (version_combined<1002000L)
+	{
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: unsupported Pulseq file version " << version_combined << ". The oldest supported version is 1.2.0.");
+		return false;
+	}
 	
 	// Read shapes section
 	// ------------------------
@@ -147,7 +187,7 @@ bool ExternalSequence::load(std::string path)
 			return false;
 		}
 
-		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Reading shape " << shapeId );
+		//print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Reading shape " << shapeId );
 
 		CompressedShape shape;
 		shape.samples.clear();
@@ -161,6 +201,12 @@ bool ExternalSequence::load(std::string path)
 			}
 			shape.samples.push_back(sample);
 		}
+		// number of samples equal to the data length is used as a non-compressed flag
+		// but only for v1.4.0 or above
+		if (version_combined >= 1004000 && numSamples==shape.samples.size())
+			shape.isCompressed=false;
+		else 
+			shape.isCompressed=true;
 		shape.numUncompressedSamples=numSamples;
 
 		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape index " << shapeId << " has " << shape.samples.size()
@@ -203,21 +249,21 @@ bool ExternalSequence::load(std::string path)
 				break;
 			}
 			RFEvent event;
-			if (version_combined<1002000L)
-			{
-				if (6!=sscanf(buffer, "%d%f%d%d%f%f", &rfId, &(event.amplitude),
-							&(event.magShape),&(event.phaseShape),
-							&(event.freqOffset), &(event.phaseOffset)
-							)) {
-				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
-				return false;
-			}
-				event.delay=0;
-			}
-			else
+			if (version_combined<1004000L)
 			{
 				if (7!=sscanf(buffer, "%d%f%d%d%d%f%f", &rfId, &(event.amplitude),
 							&(event.magShape),&(event.phaseShape), &(event.delay),
+							&(event.freqOffset), &(event.phaseOffset)
+							)) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
+					return false;
+				}
+				event.timeShape=0;
+			}
+			else
+			{
+				if (8!=sscanf(buffer, "%d%f%d%d%d%d%f%f", &rfId, &(event.amplitude),
+							&(event.magShape),&(event.phaseShape),&(event.timeShape),&(event.delay),
 							&(event.freqOffset), &(event.phaseOffset)
 							)) {
 					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
@@ -240,20 +286,20 @@ bool ExternalSequence::load(std::string path)
 			}
 			int gradId;
 			GradEvent event;
-			if ( version_combined>=1001001L )
+			if ( version_combined>=1004000L )
 			{
-				if (4!=sscanf(buffer, "%d%f%d%d", &gradId, &(event.amplitude), &(event.shape), &(event.delay))) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode gradient event\n" << buffer << std::endl );
+				if (5!=sscanf(buffer, "%d%f%d%d%d", &gradId, &(event.amplitude), &(event.waveShape), &(event.timeShape), &(event.delay))) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode v1.4.x gradient event\n" << buffer << std::endl );
 					return false;
 				}
 			}
 			else
 			{
-				if (3!=sscanf(buffer, "%d%f%d", &gradId, &(event.amplitude), &(event.shape))) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode gradient event\n" << buffer << std::endl );
+				event.timeShape=0;
+				if (4!=sscanf(buffer, "%d%f%d%d", &gradId, &(event.amplitude), &(event.waveShape), &(event.delay))) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode v1.2.x gradient event\n" << buffer << std::endl );
 					return false;
 				}
-				event.delay=0;
 			}
 			m_gradLibrary[gradId] = event;
 		}
@@ -270,25 +316,13 @@ bool ExternalSequence::load(std::string path)
 			}
 			int gradId;
 			GradEvent event;
-			if ( version_combined>=1001001L )
-			{
-				if (6!=sscanf(buffer, "%d%f%ld%ld%ld%d", &gradId, &(event.amplitude),
-					&(event.rampUpTime),&(event.flatTime),&(event.rampDownTime),&(event.delay))) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode trapezoid gradient entry" << buffer << std::endl );
-					return false;
-				}					
-			}
-			else
-			{
-				if (5!=sscanf(buffer, "%d%f%ld%ld%ld", &gradId, &(event.amplitude),
-							&(event.rampUpTime),&(event.flatTime),&(event.rampDownTime))) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode trapezoid gradient entry" << buffer << std::endl );
-					return false;
-				}
-				event.delay=0;
-			}
-			
-			event.shape=0;
+			if (6!=sscanf(buffer, "%d%f%ld%ld%ld%d", &gradId, &(event.amplitude),
+				&(event.rampUpTime),&(event.flatTime),&(event.rampDownTime),&(event.delay))) {
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode trapezoid gradient entry" << buffer << std::endl );
+				return false;
+			}					
+			event.waveShape=0;
+			event.timeShape=0;
 			m_gradLibrary[gradId] = event;
 		}
 	}
@@ -296,7 +330,6 @@ bool ExternalSequence::load(std::string path)
 	// Sort gradients based on index
 	// -----------------------------
 	//std::sort(m_gradLibrary.begin(),m_gradLibrary.end(),compareGradEvents);
-
 
 	// Read ADC section
 	// -------------------------------
@@ -319,14 +352,14 @@ bool ExternalSequence::load(std::string path)
 		}
 	}
 
-	// Read delays section
-	// -------------------------------
+	// Read delays section (comatibility with Pulseq version prior to 1.4.0)
+	// ---------------------------------------------------------------------
+	std::map<int,long> tmpDelayLibrary;
 	if (m_fileIndex.find("[DELAYS]") != m_fileIndex.end()) {
 		data_file.seekg(m_fileIndex["[DELAYS]"], std::ios::beg);
 
 		int delayId;
 		long delay;
-		m_delayLibrary.clear();
 		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
@@ -335,7 +368,7 @@ bool ExternalSequence::load(std::string path)
 				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode delay event\n" << buffer << std::endl );
 				return false;
 			}
-			m_delayLibrary[delayId] = delay;
+			tmpDelayLibrary[delayId] = delay;
 		}
 	}
 
@@ -344,6 +377,8 @@ bool ExternalSequence::load(std::string path)
 	m_extensionLibrary.clear();
 	m_extensionNameIDs.clear();
 	m_triggerLibrary.clear(); // clear also all known extension libraries
+	m_labelsetLibrary.clear();
+	m_labelincLibrary.clear();
 	std::map<std::string,int>::iterator itFI = m_fileIndex.find("[EXTENSIONS]");
 	if ( itFI != m_fileIndex.end()) {
 		data_file.seekg(itFI->second, std::ios::beg);
@@ -379,8 +414,12 @@ bool ExternalSequence::load(std::string path)
 					nKnownID=EXT_TRIGGER;
 				else if (0==strcmp("ROTATIONS",szStrID))
 					nKnownID=EXT_ROTATION;
+				else if (0==strcmp("LABELSET",szStrID))
+					nKnownID=EXT_LABELSET;
+				else if (0==strcmp("LABELINC",szStrID))
+					nKnownID=EXT_LABELINC;
 				if (nKnownID!=EXT_UNKNOWN)
-					m_extensionNameIDs[nInternalID]=std::make_pair<std::string,int>(szStrID,nKnownID);
+					m_extensionNameIDs[nInternalID]=std::make_pair(std::string(szStrID),nKnownID);
 				else {
 					print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unknown extension ignored\n" << buffer << std::endl );
 				}
@@ -391,6 +430,10 @@ bool ExternalSequence::load(std::string path)
 				ExtensionListEntry extEntry;
 				TriggerEvent trigger;
 				RotationEvent rotation;
+				int  nVal;					   // read label set/inc values from label set/inc extension
+				int  nRet;                     // conversion result / return value
+				char szLabelID[MAX_LINE_SIZE]; // read labels strings from label set/inc extension
+				LabelEvent	label;			   // write label event
 				switch (nExtensionID) {
 					case EXT_LIST: 
 						if (4!=sscanf(buffer, "%d%d%d%ld", &nID, &(extEntry.type), &(extEntry.ref), &(extEntry.next))) {
@@ -418,6 +461,35 @@ bool ExternalSequence::load(std::string path)
 						}
 						rotation.defined=true;
 						m_rotationLibrary[nID] = rotation; 
+						break;
+					case EXT_LABELSET: 
+						if (3!=sscanf(buffer, "%d%d%s", &nID, &nVal, szLabelID)) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to load labelset event\n" << buffer << std::endl );
+							return false;
+						}
+						nRet = decodeLabel(EXT_LABELSET,nVal,szLabelID,label);
+						if (nRet<0) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelset event\n" << buffer << std::endl );
+							return false;
+						}else if(nRet>0) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** decoding labelset event returned 0\n" << buffer << std::endl );
+						} 
+						m_labelsetLibrary[nID] = label;
+						break;
+					case EXT_LABELINC: 
+						if (3!=sscanf(buffer, "%d%d%s", &nID, &nVal, szLabelID)) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
+							return false;
+						}
+						nRet = decodeLabel(EXT_LABELINC,nVal,szLabelID,label);
+						if (nRet<0) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
+							return false;
+						}else if(nRet>0) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: decoding labelinc event returnd 0\n" << buffer << std::endl );
+						}
+
+						m_labelincLibrary[nID] = label;
 						break;
 					case EXT_UNKNOWN:
 						break; // just ignore unknown extensions
@@ -454,8 +526,7 @@ bool ExternalSequence::load(std::string path)
 		<<" RF: " << m_rfLibrary.size()
 		<<" GRAD: " << m_gradLibrary.size()
 		<<" ADC: " << m_adcLibrary.size()
-		<<" DELAY: " << m_delayLibrary.size()
-		<<" EXTENSIONS: " << m_extensionLibrary.size() + m_triggerLibrary.size() + m_rotationLibrary.size() );
+		<<" EXTENSIONS: " << m_extensionLibrary.size() + m_triggerLibrary.size() + m_rotationLibrary.size() + m_labelsetLibrary.size() + m_labelincLibrary.size());
 
 
 	// **********************************************************************************************************************
@@ -474,28 +545,60 @@ bool ExternalSequence::load(std::string path)
 		buildFileIndex(data_file);
 	}
 
-
+	unsigned int numBlocks = 0;
+	
 	// Read definition section
 	// ------------------------
-	unsigned int numBlocks = 0;
 	if (m_fileIndex.find("[DEFINITIONS]") != m_fileIndex.end()) {
 		data_file.seekg(m_fileIndex["[DEFINITIONS]"], std::ios::beg);
 
 		// Read each definition line
 		m_definitions.clear();
-		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
+		m_definitions_str.clear();
+		int retgl=0;
+		while (retgl=getline(data_file, buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
 			}
-			std::istringstream ss(buffer);
+			// this was not compatible with Numaris4 VB line (MSVC6)
+			/*std::istringstream ss(buffer);
+			while(retgl==gl_truncated) { // if the line was truncated read in the rest of it into the stream/buffer
+				retgl=getline(data_file, buffer, MAX_LINE_SIZE);
+				ss.str(ss.str()+buffer); 
+			}*/
+			// stupid compatible code
+			std::string stmp(buffer);
+			while(retgl==gl_truncated) { // if the line was truncated read in the rest of it into the temporary string
+				retgl=getline(data_file, buffer, MAX_LINE_SIZE);
+				stmp+=buffer;
+			}
+			char* tmp_buff1= new char[stmp.length()+1]; // old compilers like MSVC6 require such stupid conversions
+			strcpy(tmp_buff1,stmp.c_str());
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- reading definitions, tmp_buff1=`"<<tmp_buff1<<"'"<<std::endl);
+			std::istringstream ss(tmp_buff1);
+			// delete [] tmp_buff1; // moved few lines below
+			// end of stupid compatible code (except for the delete line below)
 			std::string key;
 			ss >> key;
-			double value;
-			std::vector<double> values;
-			while (ss >> value) {
-				values.push_back(value);
+			std::string str_value;
+			if (std::getline(ss,str_value)) {
+				str_value = str_trim(str_value);
+				m_definitions_str[key] = str_value; 
+				// old compilers like MSVC6 require such stupid conversions
+				char* tmp_buff2= new char[str_value.length()+1];
+				strcpy(tmp_buff2,str_value.c_str());
+				print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- reading definitions(2), tmp_buff2=`"<<tmp_buff2<<"'"<<std::endl);
+				std::istringstream ssv(tmp_buff2);
+				double value;
+				std::vector<double> values;
+				while (ssv >> value) {
+					values.push_back(value);
+				}
+				delete [] tmp_buff2;
+				m_definitions[key] = values;
 			}
-			m_definitions[key] = values;
+			// this 'delete' should be here because some compilers pass the buffer by reference
+			delete [] tmp_buff1;
 		}
 
 		std::ostringstream out;
@@ -511,6 +614,48 @@ bool ExternalSequence::load(std::string path)
 
 	} // if definitions exist
 
+	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Starting to interpret definitions");
+
+	if (version_combined<1004000L)
+	{
+		// initialize default raster times
+		m_dAdcRasterTime_us=1e-1; // Siemens default: 1e-07 
+		m_dGradientRasterTime_us=10.0; // Siemens default: 1e-05 
+		m_dRadiofrequencyRasterTime_us=1.0; // Siemens default: 1e-06 
+		m_dBlockDurationRaster_us = m_dGradientRasterTime_us;
+	}
+	else
+	{
+		// for v1.4.x and later we REQUIRE definitions to be present
+		std::vector<double> def = GetDefinition("AdcRasterTime");
+		if (def.empty()){
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition AdcRasterTime is not present in the file");
+			return false;
+		}
+		m_dAdcRasterTime_us=1e6*def[0];
+		def = GetDefinition("GradientRasterTime");
+		if (def.empty()){
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition GradientRasterTime is not present in the file");
+			return false;
+		}
+		m_dGradientRasterTime_us=1e6*def[0];
+		def = GetDefinition("RadiofrequencyRasterTime");
+		if (def.empty()){
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition RadiofrequencyRasterTime is not present in the file");
+			return false;
+		}
+		m_dRadiofrequencyRasterTime_us=1e6*def[0];
+		def = GetDefinition("BlockDurationRaster");
+		if (def.empty()){
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition BlockDurationRaster is not present in the file");
+			return false;
+		}
+		m_dBlockDurationRaster_us=1e6*def[0];
+	}
+	SeqBlock::s_blockDurationRaster=m_dBlockDurationRaster_us;
+
+	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Finished reading definitions, reading blocks ...");
+
 	// Read blocks section
 	// ------------------------
 	if (m_fileIndex.find("[BLOCKS]") == m_fileIndex.end()) {
@@ -519,8 +664,8 @@ bool ExternalSequence::load(std::string path)
 	}
 	data_file.seekg(m_fileIndex["[BLOCKS]"], std::ios::beg);
 
-	int blockIdx;
-	EventIDs events;
+    int blockIdx;
+    EventIDs events;
 
 	// Read blocks
 	m_blocks.clear();
@@ -530,9 +675,10 @@ bool ExternalSequence::load(std::string path)
 		}
 
 		memset(events.id, 0, NUM_EVENTS*sizeof(int));
+		long dur_ru =0;
 
 		int ret=sscanf(buffer, "%d%d%d%d%d%d%d%d", &blockIdx,
-				&events.id[DELAY],                              // Delay
+				&dur_ru,                                        // block duration
 				&events.id[RF],                                 // RF
 				&events.id[GX],&events.id[GY],&events.id[GZ],   // Gradients
 				&events.id[ADC],                                // ADCs
@@ -548,27 +694,125 @@ bool ExternalSequence::load(std::string path)
 		if (!checkBlockReferences(events)) {
 			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Block " << blockIdx
 				<< " contains references to undefined events" );
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "***        RF:" << events.id[RF] << " GX:" << events.id[GX] << " GY:" << events.id[GY] << " GZ:" << events.id[GZ] << " ADC:" << events.id[DELAY] << " GX:" << events.id[DELAY] << " EXT:" << events.id[EXT]);
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "***        RF:" << events.id[RF] << " GX:" << events.id[GX] << " GY:" << events.id[GY] << " GZ:" << events.id[GZ] << " ADC:" << events.id[ADC] << " EXT:" << events.id[EXT]);
 			return false;
 		}
 		// Add event IDs to list of blocks
 		m_blocks.push_back(events);
+		m_blockDurations_ru.push_back(dur_ru); // ATTENTION, for versions prior to 1.4.0 this will contain delayIDs, we fix it below
 	}
-	data_file.close();
 
 	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- BLOCKS READ: " << m_blocks.size());
-
 	// Num_Blocks definition (if defined) is used to check the correct number of blocks are read
 	if (numBlocks>0 && m_blocks.size()!=numBlocks) {
 		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Expected " << numBlocks
 		    << " blocks but read " << m_blocks.size() << " blocks");
 		return false;
 	}
-	std::vector<double> def = GetDefinition("Scan_ID");
-	int scanID = def.empty() ? 0: (int)def[0];
-	print_msg(NORMAL_MSG, std::ostringstream().flush() << "==========================================" );
-	print_msg(NORMAL_MSG, std::ostringstream().flush() << "===== EXTERNAL SEQUENCE #" << std::setw(5) << scanID << " ===========" );
-	print_msg(NORMAL_MSG, std::ostringstream().flush() << "==========================================" );
+	
+	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Reading signature...");
+	// Read signature section
+	// ------------------------
+	if (m_fileIndex.find("[SIGNATURE]") != m_fileIndex.end()) {
+		data_file.seekg(m_fileIndex["[SIGNATURE]"], std::ios::beg);
+
+		// Read each signature line
+		m_signatureMap.clear();
+		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
+			if (buffer[0]=='[' || strlen(buffer)==0) {
+				break;
+			}
+			if (buffer[0]=='#')
+				continue;
+			std::istringstream ss(buffer);
+			std::string key;
+			ss >> key;
+			std::string str_value;
+			if (std::getline(ss,str_value)) {
+				str_value = str_trim(str_value);
+				m_signatureMap[key] = str_value; // old compilers like MSVC6 require such stupid conversions
+			}
+		}
+
+		std::ostringstream out;
+		out << "-- " << "SIGNATURE SECTION READ with " << m_signatureMap.size() << " entries:" << std::endl;
+		for (std::map<std::string, std::string >::iterator it=m_signatureMap.begin(); it!=m_signatureMap.end(); ++it)
+			out << it->first << " : " << it->second << std::endl;		
+		print_msg(DEBUG_HIGH_LEVEL, out);
+
+		// convert the relevant field(s) into the internal structure(s)
+		if (m_signatureMap.count("Hash")>0) {
+			m_bSignatureDefined = true;
+			m_strSignature = m_signatureMap["Hash"];
+			if (m_signatureMap.count("Type")>0) 
+				m_strSignatureType = m_signatureMap["Type"];
+		}
+	} // if signature exists
+
+	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Finished reading signature");
+	data_file.close();
+
+	if (version_combined<1004000L) 
+	{
+		print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- converting blocks from version " << version_combined);
+		// we need to calculate dutation of every block and save it in m_blockDurations_ru
+
+		for (int b=0; b<m_blocks.size(); ++b) 
+		{
+			SeqBlock* block=GetBlock(b);
+			// Calculate duration of block
+			long duration = 0;
+			// special processing of the delay objects (which are now eliminated)
+			if (m_blockDurations_ru[b]) // non-zero means old delay library reference
+			{
+				if (tmpDelayLibrary.end()==tmpDelayLibrary.find(m_blockDurations_ru[b])) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: invalid delay library reference " << m_blockDurations_ru[b] << " in block " << b << " detected while convering the Pulseq file from older version");
+					return false;
+				}
+				duration=tmpDelayLibrary[m_blockDurations_ru[b]]; // we know delay is still 0, see above
+			}
+			// fairly standard code, copied from the old version of GetBlock()
+			if (block->isRF()) {
+				RFEvent &rf = block->GetRFEvent();
+				duration = MAX(duration, rf.delay+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples); // in versions prior to v 1.4.0 RF raster was 1us and there was no RF time shape
+			}
+			for (int iC=0; iC<NUM_GRADS; iC++)
+			{
+				GradEvent &grad = block->GetGradEvent(iC);
+				if (block->isArbitraryGradient(iC))
+					duration = MAX(duration, (long)(m_dGradientRasterTime_us*m_shapeLibrary[grad.waveShape].numUncompressedSamples) + grad.delay); // in versions prior to v 1.4.0 there was no time shape
+				else if (block->isTrapGradient(iC))
+					duration = MAX(duration, grad.rampUpTime + grad.flatTime + grad.rampDownTime + grad.delay); 
+				else if (block->isExtTrapGradient(iC)) {
+					// in versions prior to 1.4.0 there were no extended trapezoids (no time shape IDs) so this should never happen
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: unexpected error while converting arbitrary gradients");
+					return false;
+				}
+			}
+			if (block->isADC()) {
+				ADCEvent &adc = block->GetADCEvent();
+				duration = MAX(duration, adc.delay + (adc.numSamples*adc.dwellTime)/1000);
+			}
+			if (block->isTrigger()) {
+				TriggerEvent &trigger = block->GetTriggerEvent();
+				duration = MAX(duration, trigger.delay+trigger.duration );
+			}
+			// clean up memory
+			delete block;
+			// convert duration to raster units and store it
+			m_blockDurations_ru[b]=ceil(duration/SeqBlock::s_blockDurationRaster - 1e-12);
+			// sanity check
+			if (fabs(m_blockDurations_ru[b]*SeqBlock::s_blockDurationRaster-duration)>1e-9) {
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** WARNING: rounding up block duration for block" << b);
+			}
+		}
+	}
+
+	//std::vector<double> def = GetDefinition("Scan_ID");
+	//int scanID = def.empty() ? 0: (int)def[0];
+	//print_msg(NORMAL_MSG, std::ostringstream().flush() << "==========================================" );
+	//print_msg(NORMAL_MSG, std::ostringstream().flush() << "===== EXTERNAL SEQUENCE #" << std::setw(5) << scanID << " ===========" );
+	//print_msg(NORMAL_MSG, std::ostringstream().flush() << "==========================================" );
 
 	return true;
 };
@@ -614,17 +858,16 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 
 	// Set some defaults
 	block->index = index;
-	block->delay = 0;
+	block->duration_ru = m_blockDurations_ru[index];
 	block->adc.numSamples = 0;
 	block->trigger.triggerType=0;
 	block->trigger.triggerChannel=0;
 	block->rotation.defined=false;
-
+	block->labelset.clear();
+	block->labelinc.clear();
 	// Set event structures (if applicable) so e.g. gradient type can be determined
 	if (events.id[RF]>0)     block->rf      = m_rfLibrary[events.id[RF]];
 	if (events.id[ADC]>0)    block->adc     = m_adcLibrary[events.id[ADC]];
-	if (events.id[DELAY]>0)  block->delay   = m_delayLibrary[events.id[DELAY]];
-	//if (events.id[CTRL]>0)   block->control = m_controlLibrary[events.id[CTRL]];
 	for (unsigned int i=0; i<NUM_GRADS; i++)
 		if (events.id[GX+i]>0) block->grad[i] = m_gradLibrary[events.id[GX+i]];
 	// unpack (known) extension objects
@@ -657,9 +900,19 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 							print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: only one rotation per block is supported; error block: " << index );
 						}
 						else {
-							// ok, lets find the trigger in the library
+							// ok, lets find the rotation in the library
 							block->rotation=m_rotationLibrary[itEL->second.ref]; // do we have to check whether it can be found?
 						}
+						break;
+					case EXT_LABELSET:
+						//do we have to check anything ? //MZ: TODO: check that we find the evet in the library TODO: check for conflicts between set and inc
+							// ok, lets find the labelset in the library
+							block->labelset.push_back(m_labelsetLibrary[itEL->second.ref]); // do we have to check whether it can be found?
+						break;
+					case EXT_LABELINC:
+						//do we have to check anything ? //MZ: TODO: check that we find the evet in the library TODO: check for conflicts between set and inc
+							// ok, lets find the labelinc in the library
+							block->labelinc.push_back(m_labelincLibrary[itEL->second.ref]); // do we have to check whether it can be found?
 						break;
 					default:
 						print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unimplemented extension type " << itEN->second.first << " in block " << index );
@@ -674,7 +927,7 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 		}
 	}
 	// Calculate duration of block
-	long duration = 0;
+	/*long duration = 0;
 	if (block->isRF()) {
 		RFEvent &rf = block->GetRFEvent();
 		duration = MAX(duration, rf.delay+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples);
@@ -684,9 +937,21 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 	{
 		GradEvent &grad = block->GetGradEvent(iC);
 		if (block->isArbitraryGradient(iC))
-			duration = MAX(duration, (long)(10*m_shapeLibrary[grad.shape].numUncompressedSamples) + grad.delay);
+			duration = MAX(duration, (long)(m_dGradientRasterTime_us*m_shapeLibrary[grad.waveShape].numUncompressedSamples) + grad.delay);
 		else if (block->isTrapGradient(iC))
-			duration = MAX(duration, grad.rampUpTime + grad.flatTime + grad.rampDownTime + grad.delay);
+			duration = MAX(duration, grad.rampUpTime + grad.flatTime + grad.rampDownTime + grad.delay); 
+		else if (block->isExtTrapGradient(iC)) {
+			// we have to get the last time sample -- need to unpack the timeShape...
+			std::vector<float> timepoints;
+			// Decompress the shape for this channel
+			CompressedShape& shape = m_shapeLibrary[grad.timeShape];
+			timepoints.resize(shape.numUncompressedSamples);
+			//if (!decompressShape(shape,&timepoints[0]))
+			//	return false;
+			//}
+			decompressShape(shape,&timepoints[0]);
+			duration = MAX(duration, timepoints[shape.numUncompressedSamples-1]*m_dGradientRasterTime_us + grad.delay);
+		}
 	}
 	if (block->isADC()) {
 		ADCEvent &adc = block->GetADCEvent();
@@ -697,11 +962,14 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 		duration = MAX(duration, trigger.delay+trigger.duration );
 	}
 
-	// handling of delays has changed in revision 1.2.0
-	if (version_combined<1002000L)
-		block->duration = duration + block->delay;
-	else
-		block->duration = MAX(duration, block->delay);
+	// TODO: conversion from previous versons
+	assert(version_combined>=1004000L);
+	//// handling of delays has changed in revision 1.2.0
+	//if (version_combined<1002000L)
+	//	block->duration = duration + block->delay;
+	//else
+	//	block->duration = MAX(duration, block->delay);
+	*/
 
 	//ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "block duration: " << block->duration);
     
@@ -715,9 +983,8 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Decoding block " << block->index << " events: "
 		<< events[0]+1 << " " << events[1]+1 << " " << events[2]+1 << " "
 		<< events[3]+1 << " " << events[4]+1 );
-
-	std::vector<float> waveform;
-
+	
+	std::vector<float> waveform;	
 	// Decode RF
 	if (block->isRF())
 	{
@@ -727,59 +994,78 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 		if (!decompressShape(shape,&waveform[0]))
 			return false;
 
-		/*
-		// detect zero-padding 
-		int nStart;
-		for (nStart=0; nStart<shape.numUncompressedSamples; ++nStart)
-			if (0.0 != waveform[nStart])
-				break;
-		int nEnd;
-		for (nEnd=shape.numUncompressedSamples; nEnd>0; --nEnd)
-		{
-			//print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Tail 0 detection: nEnd=" << nEnd << " waveform[nEnd-1]=" << waveform[nEnd-1] );
-			if (fabs(waveform[nEnd-1]) > 1e-6)
-				break;
-		}
-		// mz: now only copy the inner non-zero part
-		//block->rfAmplitude = std::vector<float>(waveform);
-		block->rfAmplitude = std::vector<float>(waveform.begin()+nStart, waveform.begin()+nEnd);
-		// mz: and take notice of optimizations
-		block->rf.rfZeroHead = nStart;
-		block->rf.rfZeroTail = shape.numUncompressedSamples - nEnd;
-		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "shape length was "<< shape.numUncompressedSamples << "0 detection foung " << block->rf.rfZeroHead << " head zeros and " << block->rf.rfZeroTail << " trailing zeros, new length is " << block->rfAmplitude.size() );
-
-		CompressedShape& shapePhase = m_shapeLibrary[block->rf.phaseShape];
-		waveform.resize(shapePhase.numUncompressedSamples);
-		decompressShape(shapePhase,&waveform[0]);
-
-		// Scale phase by 2pi
-		std::transform(waveform.begin(), waveform.end(), waveform.begin(), std::bind1st(std::multiplies<float>(),TWO_PI));
-		//block->rfPhase = std::vector<float>(waveform);
-		// mz: now only copy the inner non-zero part
-		block->rfPhase = std::vector<float>(waveform.begin()+nStart, waveform.begin()+nEnd);
-		*/
-
 		//MZ: original Kelvin's code follows
-		block->rfAmplitude = std::vector<float>(waveform);
-
 		CompressedShape& shapePhase = m_shapeLibrary[block->rf.phaseShape];
-		waveform.resize(shapePhase.numUncompressedSamples);
-		if (!decompressShape(shapePhase,&waveform[0]))
+		std::vector<float> waveform_p;
+		waveform_p.resize(shapePhase.numUncompressedSamples);
+		if (!decompressShape(shapePhase,&waveform_p[0]))
 			return false;
-
 		// Scale phase by 2pi
-		std::transform(waveform.begin(), waveform.end(), waveform.begin(), std::bind1st(std::multiplies<float>(),TWO_PI));
-		block->rfPhase = std::vector<float>(waveform);
+		std::transform(waveform_p.begin(), waveform_p.end(), waveform_p.begin(), std::bind1st(std::multiplies<float>(),TWO_PI));
+
+		float fDwellTime_us=0;
+		// feature of v1.4.x
+		// handle time shape 
+		if (block->rf.timeShape) 
+		{
+			// new file format (v1.4.x)
+			CompressedShape& shapeTime = m_shapeLibrary[block->rf.timeShape];
+			// detect regular sampling 
+			if (shapeTime.samples.size()!=shapeTime.numUncompressedSamples &&
+				(shapeTime.samples.size()==3 || shapeTime.samples.size()==4)) 
+			{
+				// size=3: 1 1 N-2; size=4: t0 d d N-3 
+				// in both cases the actuall dwell time is stored at shapeTime.samples[1]
+				fDwellTime_us=m_dRadiofrequencyRasterTime_us*shapeTime.samples[1]; // no need to unpack 
+			}
+			else
+			{
+				std::vector<float> waveform_t;
+				waveform_t.resize(shapeTime.numUncompressedSamples);
+				if (!decompressShape(shapeTime,&waveform_t[0]))
+					return false;
+				// we resample the input on the fly 
+				// for now we just use the RF raster time
+				fDwellTime_us=m_dRadiofrequencyRasterTime_us;
+				int nSamples=int(0.5+waveform_t.back());
+				// for now we use nearest neighbour/right repetition interpolation
+				// FIXME/TODO: convert to complex, use linear interpolation and convert back to magnitude&phase
+				std::vector<float> wv_a(nSamples);
+				std::vector<float> wv_p(nSamples);
+				int tc=0;
+				for(int c=0;c<nSamples;++c)
+				{
+					if(waveform_t[tc]<(c+1)) 
+					{
+						if (tc<waveform_t.size())
+							++tc;
+					}
+					wv_a[c]=waveform[tc];
+					wv_p[c]=waveform_p[tc];
+				}
+				// replace the waveforms
+				waveform.swap(wv_a);
+				waveform_p.swap(wv_p);
+			}
+		}
+		else
+		{
+			// compatibility mode with the older pulseq versions
+			fDwellTime_us=1.0; // old Pulseq's predefined RF raster time
+		}
+		//
+		block->rfAmplitude = std::vector<float>(waveform);
+		block->rfPhase = std::vector<float>(waveform_p);
+		block->rfDwellTime_us = fDwellTime_us;
 	}
 
 	// Decode gradients
 	for (int iC=GX; iC<ADC; iC++)
 	{
-
 		if (block->isArbitraryGradient(iC-GX))	// is arbitrary gradient?
 		{
 			// Decompress the arbitrary shape for this channel
-			CompressedShape& shape = m_shapeLibrary[block->grad[iC-GX].shape];
+			CompressedShape& shape = m_shapeLibrary[block->grad[iC-GX].waveShape];
 
 			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Loaded shape with "
 				<< shape.samples.size() << " compressed samples" );
@@ -794,6 +1080,9 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 			block->gradWaveforms[iC-GX] = std::vector<float>(waveform);
 		}
 	}
+
+	if (!decodeExtTrapGradInBlock(block))
+		return false;
 
 	// Decode ADC
 	/*if (block->isADC())
@@ -813,9 +1102,59 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 	return true;
 }
 
+bool ExternalSequence::decodeExtTrapGradInBlock(SeqBlock *block)
+{
+	int *events = &block->events[0];
+	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Decoding ext gradient in block " << block->index << " events: "
+		<< events[0]+1 << " " << events[1]+1 << " " << events[2]+1 << " "
+		<< events[3]+1 << " " << events[4]+1 );
+
+	std::vector<float> waveform;
+	block->gradExtTrapForms.clear();
+	block->gradExtTrapForms.resize(NUM_GRADS);
+	// Decode gradients
+	for (int iC=GX; iC<ADC; iC++)
+	{
+		if (block->isExtTrapGradient(iC-GX))	// is arbitrary gradient?
+		{
+			// Decompress the ExtTrap shapes for this channel
+			// time shape first
+			CompressedShape& tshape = m_shapeLibrary[block->grad[iC-GX].timeShape];
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Loaded time shape " << block->grad[iC-GX].timeShape << " with " << tshape.samples.size() << " compressed samples" );
+			//for (int a=0; a<tshape.samples.size(); ++a) {
+			//	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << tshape.samples[a] );
+			//}
+			waveform.resize(tshape.numUncompressedSamples);
+			if (!decompressShape(tshape,&waveform[0])) return false;
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Time shape uncompressed to " << tshape.numUncompressedSamples << " samples" );
+			//block->gradExtTrapForms[iC-GX].first = std::vector<float>(waveform); 
+			block->gradExtTrapForms[iC-GX].first.resize(waveform.size());
+			for (int i=0;i<waveform.size();++i)
+				block->gradExtTrapForms[iC-GX].first[i]=long(0.5+m_dGradientRasterTime_us*waveform[i]); // convert to long usec from grad rasters 
+			// now wave amplitude shape
+			CompressedShape& wshape = m_shapeLibrary[block->grad[iC-GX].waveShape];
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Loaded wave shape " << block->grad[iC-GX].waveShape << " with " << wshape.samples.size() << " compressed samples" );
+			waveform.resize(wshape.numUncompressedSamples);
+			if (!decompressShape(wshape,&waveform[0])) return false;
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Wave shape uncompressed to " << wshape.numUncompressedSamples << " samples" );
+			block->gradExtTrapForms[iC-GX].second = std::vector<float>(waveform);
+			if (block->gradExtTrapForms[iC-GX].first.size() != block->gradExtTrapForms[iC-GX].second.size()) {
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "ERROR: uncompressed extended trapezoid time and wave shape lengths do not match" );
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 /***********************************************************/
 bool ExternalSequence::decompressShape(CompressedShape& encoded, float *shape)
 {
+	if (!encoded.isCompressed) {
+		memcpy(shape,&encoded.samples.front(),sizeof(float)*encoded.numUncompressedSamples);
+		return true;
+	}
+	// need to uncompress
 	float *packed = &encoded.samples[0];
 	int numPacked = encoded.samples.size();
 	int numSamples = encoded.numUncompressedSamples;
@@ -824,7 +1163,6 @@ bool ExternalSequence::decompressShape(CompressedShape& encoded, float *shape)
 	int countUnpack=1;
 	while (countPack<numPacked)
 	{
-
 		if (packed[countPack-1]!=packed[countPack])
 		{
 			shape[countUnpack-1]=((float)packed[countPack-1]);
@@ -868,7 +1206,7 @@ bool ExternalSequence::checkBlockReferences(EventIDs& events)
 	error|= (events.id[GY]>0    && m_gradLibrary.count(events.id[GY])==0);
 	error|= (events.id[GZ]>0    && m_gradLibrary.count(events.id[GZ])==0);
 	error|= (events.id[ADC]>0   && m_adcLibrary.count(events.id[ADC])==0);
-	error|= (events.id[DELAY]>0 && m_delayLibrary.count(events.id[DELAY])==0);
+	//error|= (events.id[DELAY]>0 && m_delayLibrary.count(events.id[DELAY])==0);
 	//error|= (events.id[CTRL]>0  && m_controlLibrary.count(events.id[CTRL])==0); // TODO: currently all error checking is done in getBlock(); it needs to be done here 
 	
 	return (!error);
@@ -905,7 +1243,7 @@ void ExternalSequence::checkRF(SeqBlock& block)
 
 
 /***********************************************************/
-bool ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE)
+int ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE)
 {
 	//std::cout << "ExternalSequence::getline()" << std::endl;
 
@@ -918,7 +1256,7 @@ bool ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE)
 				buffer[i]='\0';
 				//std::cout << "ExternalSequence::getline() EOL i:" << i << std::endl;
 				//std::cout << "buffer: " << buffer << std::endl;
-				return true;
+				return gl_true;
 			case '\r':
 				if(is.peek() == '\n') {
 					is.get();       // Discard character
@@ -926,19 +1264,156 @@ bool ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE)
 				buffer[i]='\0';
 				//std::cout << "ExternalSequence::getline() CR i:" << i << std::endl;
 				//std::cout << "buffer: " << buffer << std::endl;
-				return true;
+				return gl_true;
 			case EOF:
 				if(i==0)
 					is.seekg(-1);   // Create error on stream
 				buffer[i]='\0';     // In case last line has no line ending
 				//std::cout << "ExternalSequence::getline() EOF i:" << i << std::endl;
-				return (i!=0);
+				return (i!=0)?gl_true:gl_false;
 			default:
 				buffer[i++] = c;
 				if (i>=MAX_SIZE)
 				{
-					return true;
+					buffer[i-1]='\0';
+					return gl_truncated;
 				}
 		}
 	}
 }
+
+/***********************************************************/
+// MZ: TODO: replace me with a table and a faster search (std::map)
+int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, LabelEvent& label)
+{
+	//initialize
+	int nKnownID=LABEL_UNKNOWN;
+	int nKnownFG=FLAG_UNKNOWN;
+	//label.defined=false;
+	label.bid=std::make_pair(nKnownFG,false);
+	label.nid=std::make_pair(nKnownID,0);
+
+	if (nKnownID==LABEL_UNKNOWN){		//always true; split it in two pieces to make it faster
+		if (0==strcmp("NAV",szLabelID))
+			nKnownFG=NAV;
+		else if (0==strcmp("REV",szLabelID))
+			nKnownFG=REV;
+		else if (0==strcmp("SMS",szLabelID))
+			nKnownFG=SMS;
+		else if (0==strcmp("PMC",szLabelID))
+			nKnownFG=PMC;
+	}
+
+	if (nKnownFG==FLAG_UNKNOWN){
+		if (0==strcmp("SLC",szLabelID))
+			nKnownID=SLC;
+		else if (0==strcmp("SEG",szLabelID))
+			nKnownID=SEG;
+		else if (0==strcmp("REP",szLabelID))
+			nKnownID=REP;
+		else if (0==strcmp("AVG",szLabelID))
+			nKnownID=AVG;
+		else if (0==strcmp("ECO",szLabelID))
+			nKnownID=ECO;
+		else if (0==strcmp("PHS",szLabelID))
+			nKnownID=PHS;
+		else if (0==strcmp("SET",szLabelID))
+			nKnownID=SET;
+		else if (0==strcmp("LIN",szLabelID))
+			nKnownID=LIN;
+		else if (0==strcmp("PAR",szLabelID))
+			nKnownID=PAR;
+	}
+
+	//assemble LabelEvent
+	if (nKnownFG !=FLAG_UNKNOWN){
+		//label.defined=true;
+		label.bid=std::make_pair(nKnownFG,bool(nVal));
+	}else if (nKnownID !=LABEL_UNKNOWN){
+		//label.defined=true;
+		label.nid=std::make_pair(nKnownID,nVal);
+	}
+
+	//here we check if the labels/flags are valid //No boundary check, boundary check moves to prep()
+	if ((LABEL_UNKNOWN==nKnownID && FLAG_UNKNOWN==nKnownFG)){
+		//label.defined=false; // when no label is founded, reset label.defined to false
+		print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unknown label specification\n");
+		return 1;
+	}else if (exttype==EXT_LABELSET){				//here we check if the values are valid
+		if (nKnownID!=LABEL_UNKNOWN){
+			if (nVal<0){
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELSET for int-type MDH Headers is incorrect\n");
+				return -1;
+			}else
+				return 0;
+		}else if (nKnownFG!=FLAG_UNKNOWN){
+			if ((nVal!=0)&&(nVal!=1)){
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELSET for bool-type MDH Headers is incorrect\n");
+				return -1;
+			}else
+				return 0;
+		}else{
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: EXT_LABELSET only support LABEL&&FLAG\n");
+			return -1;					 
+		}
+	}else if (exttype==EXT_LABELINC){
+		if (nKnownID!=LABEL_UNKNOWN){			
+			return 0;				 
+		}else if (nKnownFG!=FLAG_UNKNOWN){				// EXT_LABELINC should NOT be used for bool type MDH Headers
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELINC is NOT for bool-type MDH Headers\n");
+			return -1;
+		}else {
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: EXT_LABELINC only support LABEL&&FLAG\n");
+			return -1;	
+		}		
+	}else{											// No ExtType recognized
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification is NOT recognized\n");
+		return -1;					 
+	}
+}
+
+bool ExternalSequence::isGradientInBlockStartAtNonZero(SeqBlock *block, int channel) {
+	if (!block->isExtTrapGradient(channel) && !block->isArbitraryGradient(channel)) {
+		//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isGradientInBlockStartAtNonZero() returns FALSE because there is no arb grad in channel " << channel);
+		return false;
+	}
+	// only Arbitrary or ExtTrap gradients reach here
+	if (block->grad[channel].delay>0) {
+		//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isGradientInBlockStartAtNonZero() returns FALSE because there is delay in channel " << channel);
+		return false;
+	}
+	if (!block->gradWaveforms[channel].empty()) { 
+		//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isGradientInBlockStartAtNonZero() uses decompressed shape and returns " << (fabs(block->gradWaveforms[channel].front())>0));
+		return fabs(block->gradWaveforms[channel].front())>0;
+	}
+	// we could decode the block's shapes at this point, but we can also just look up the first sample of the compressed shape
+	//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isGradientInBlockStartAtNonZero() uses compressed shape and returns " << (fabs(m_shapeLibrary[block->grad[channel].waveShape].samples.front())>0));
+	return fabs(m_shapeLibrary[block->grad[channel].waveShape].samples.front())>0;
+}
+
+bool ExternalSequence::isAllGradientsInBlockStartAtZero(SeqBlock *block) {
+	for (int i=0; i<NUM_GRADS; ++i)
+		if (isGradientInBlockStartAtNonZero(block,i))
+			return false;
+	//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isAllGradientsStartAtZero() returns TRUE");
+	return true;
+}
+
+const std::string& trim_chars = "\t\n\v\f\r ";
+std::string& str_ltrim(std::string& str)
+{
+    str.erase(0, str.find_first_not_of(trim_chars));
+    return str;
+}
+ 
+std::string& str_rtrim(std::string& str)
+{
+    str.erase(str.find_last_not_of(trim_chars) + 1);
+    return str;
+}
+ 
+std::string& str_trim(std::string& str)
+{
+    return str_ltrim(str_rtrim(str));
+}
+

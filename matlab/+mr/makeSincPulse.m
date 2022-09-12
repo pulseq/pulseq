@@ -1,4 +1,4 @@
-function [rf, gz, gzr] = makeSincPulse(flip,varargin)
+function [rf, gz, gzr, delay] = makeSincPulse(flip,varargin)
 %makeSincPulse Create a slice selective since pulse.
 %   rf=makeSincPulse(flip, 'Duration', dur) Create sinc pulse
 %   with given flip angle (rad) and duration (s).
@@ -18,7 +18,7 @@ function [rf, gz, gzr] = makeSincPulse(flip,varargin)
 %
 %   See also  Sequence.addBlock
 
-validPulseUses = {'excitation','refocusing','inversion'};
+validPulseUses = mr.getSupportedRfUse();
 
 persistent parser
 if isempty(parser)
@@ -39,25 +39,35 @@ if isempty(parser)
     addParamValue(parser, 'maxSlew', 0, @isnumeric);
     addParamValue(parser, 'sliceThickness', 0, @isnumeric);
     addParamValue(parser, 'delay', 0, @isnumeric);
+    addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
     addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
 end
 parse(parser, flip, varargin{:});
 opt = parser.Results;
 
+if opt.dwell==0
+    opt.dwell=opt.system.rfRasterTime;
+end
+
+if opt.duration<=0
+    error('rf pulse duration must be positive');
+end
+
 BW = opt.timeBwProduct/opt.duration;
 alpha = opt.apodization;
-N = round(opt.duration/1e-6);
-t = (1:N)*opt.system.rfRasterTime;
+N = round(opt.duration/opt.dwell);
+t = ((1:N)-0.5)*opt.dwell;
 tt = t - opt.duration*opt.centerpos;
 window = (1.0-alpha+alpha*cos(2*pi*tt/opt.duration));
 signal = window.*sinc(BW*tt);
-flip = sum(signal)*opt.system.rfRasterTime*2*pi;
+flip = sum(signal)*opt.dwell*2*pi;
 signal = signal*opt.flipAngle/flip;
 
 rf.type = 'rf';
 rf.signal = signal;
 rf.t = t;
+rf.shape_dur=N*opt.dwell;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = opt.system.rfDeadTime;
@@ -92,12 +102,15 @@ if nargout > 1
     end
 end
 
-if rf.ringdownTime > 0
-    tFill = (1:round(rf.ringdownTime/1e-6))*1e-6;  % Round to microsecond
-    rf.t = [rf.t rf.t(end)+tFill];
-    rf.signal = [rf.signal, zeros(size(tFill))];
-end
-    
+% v1.4 finally eliminates RF zerofilling
+% if rf.ringdownTime > 0
+%     tFill = (1:round(rf.ringdownTime/1e-6))*1e-6;  % Round to microsecond
+%     rf.t = [rf.t rf.t(end)+tFill];
+%     rf.signal = [rf.signal, zeros(size(tFill))];
+% end
+if rf.ringdownTime > 0 && nargout > 3
+    delay=mr.makeDelay(mr.calcDuration(rf)+rf.ringdownTime);
+end    
 
 function y = sinc(x)
     % sinc Calculate the sinc function:

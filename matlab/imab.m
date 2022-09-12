@@ -51,7 +51,7 @@ if bSep && size(data,3)>1
         
     if size(data,4)==1
         if isempty(noCols)
-            noCols = min(5,ceil(dims(3)/2));
+            noCols = ceil(dims(3).^0.5);%min(5,ceil(dims(3)/2));
         end
         noRows = ceil(dims(3)/noCols);
         iPlots = reshape(noCols*noRows:-1:1,[noCols noRows]).';
@@ -98,7 +98,7 @@ else
     if size(data,4)==1
         if size(data,3)>1
             if isempty(noCols)
-                noCols = min(5,ceil(size(data,3)/2));
+                noCols = ceil(size(data,3).^0.5);%min(5,ceil(size(data,3)/2));
             end
             outIm = makemosaic(data,noCols);
         else

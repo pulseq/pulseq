@@ -48,12 +48,22 @@ firsts = [];
 lasts = [];
 durs=[];
 is_trap=[];
+is_arb=[];
 for ii = 1:length(grads)
+    if grads{ii}.channel~=channel
+        error('cannot add gradients on different channels');
+    end
     delays = [delays, grads{ii}.delay];
     firsts = [firsts, grads{ii}.first];
     lasts = [lasts, grads{ii}.last];
     durs = [durs, mr.calcDuration(grads{ii})];
     is_trap = [is_trap, strcmp(grads{ii}.type,'trap')];
+    if is_trap(end)
+        is_arb = [is_arb, false];
+    else
+        tt_rast=grads{ii}.tt/opt.system.gradRasterTime+0.5;
+        is_arb = [is_arb, all(abs(tt_rast-(1:length(tt_rast)))<eps)];
+    end
 end
 common_delay = min(delays);
 total_duration = max(durs);
@@ -76,12 +86,72 @@ if all(is_trap)
     end    
 end
 
+% check if we only have arbitrary grads on irregular time samplings
+% optionally mixed with trapezoids
+if all(is_trap | ~is_arb)
+    % we can do quite efficient calculations and keep the shapes still rather simple
+    times=[];
+    for ii = 1:length(grads)
+        g=grads{ii};
+        if strcmp(g.type,'trap')
+            times = [times cumsum([g.delay g.riseTime g.flatTime g.fallTime])];
+        else
+            times = [times g.delay+g.tt];
+        end
+    end
+    times=unique(times); % unique() also sorts the array
+    %times=unique(round(times/opt.system.gradRasterTime)*opt.system.gradRasterTime); % rounding to raster would be too crude here
+    dt=times(2:end)-times(1:end-1);
+    ieps=find(dt<eps);
+    if ~isempty(ieps)
+        dtx=[times(1) dt];
+        dtx(ieps)=dtx(ieps)+dtx(ieps+1); % this assumes that no more than two too similar values can occur
+        dtx(ieps+1)=[];
+        times=cumsum(dtx);
+    end
+    amplitudes=zeros(size(times));
+    for ii = 1:length(grads)
+        g=grads{ii};
+        if strcmp(g.type,'trap')
+            if g.flatTime>0 % trapezoid or triange
+                g.tt=cumsum([0 g.riseTime g.flatTime g.fallTime]);
+                g.waveform=[0 g.amplitude g.amplitude 0];
+            else
+                g.tt=cumsum([0 g.riseTime g.fallTime]);
+                g.waveform=[0 g.amplitude 0];
+            end
+        end
+        tt=g.delay+g.tt;
+        % fix rounding for the first and last time points
+        [tmin, imin]=min(abs(tt(1)-times));
+        if tmin<eps
+            tt(1)=times(imin);
+        end
+        [tmin, imin]=min(abs(tt(end)-times));
+        if tmin<eps
+            tt(end)=times(imin);
+        end
+        % give up the "ownership" of the first point of the shape if it starts at a non-zero value
+        if abs(g.waveform(1))>eps && tt(1)>eps 
+            tt(1)=tt(1)+eps;
+        end
+        amplitudes=amplitudes+interp1(tt,g.waveform,times,'linear',0);
+    end
+    grad=mr.makeExtendedTrapezoid(channel,'amplitudes',amplitudes,'times',times,'system',opt.system);
+    return;
+end
+
+% OK, here we convert everything to a regularly-sampled waveform
 waveforms = {};
 max_length = 0;
 for ii = 1:length(grads)
     g = grads{ii};
     if strcmp(g.type, 'grad')
-        waveforms{ii} = g.waveform;
+        if is_arb(ii)
+            waveforms{ii} = g.waveform;
+        else
+            waveforms{ii} = mr.pts2waveform(g.tt, g.waveform, opt.system.gradRasterTime);
+        end
     elseif strcmp(g.type, 'trap')
         if (g.flatTime>0) % triangle or trapezoid
             times = [g.delay - common_delay ...
@@ -95,11 +165,11 @@ for ii = 1:length(grads)
                      g.delay - common_delay + g.riseTime + g.fallTime];
             amplitudes = [0 g.amplitude 0];
         end
-        waveforms{ii} = mr.pts2waveform(times, amplitudes, ...
-                                        opt.system.gradRasterTime);
+        waveforms{ii} = mr.pts2waveform(times, amplitudes, opt.system.gradRasterTime);
     else
         error('Unknown gradient type.');
     end
+    warning('addGradient(): potentially incorrect handling of delays... TODO: fixme!');
     if g.delay - common_delay > 0
 %         t_delay = 0:opt.system.gradRasterTime:g.delay-opt.system.gradRasterTime;
         t_delay = 0:opt.system.gradRasterTime:g.delay-common_delay-opt.system.gradRasterTime;

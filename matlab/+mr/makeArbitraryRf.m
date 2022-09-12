@@ -1,4 +1,4 @@
-function [rf, gz] = makeArbitraryRf(signal,flip,varargin)
+function [rf, gz, delay] = makeArbitraryRf(signal,flip,varargin)
 %makeArbitraryRf Create an RF pulse with the given pulse shape.
 %   rf=makeArbitraryRf(singal, flip) Create RF pulse with complex signal 
 %   and given flip angle (in radians)
@@ -12,7 +12,7 @@ function [rf, gz] = makeArbitraryRf(signal,flip,varargin)
 %
 %   See also  Sequence.makeSincPulse, Sequence.addBlock
 
-validPulseUses = {'excitation','refocusing','inversion'};
+validPulseUses = mr.getSupportedRfUse();
 
 persistent parser
 if isempty(parser)
@@ -33,21 +33,31 @@ if isempty(parser)
     addParamValue(parser, 'sliceThickness', 0, @isnumeric);
     % Delay
     addParamValue(parser, 'delay', 0, @isnumeric);
+    addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
     addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
 end
 parse(parser, signal, flip,varargin{:});
 opt = parser.Results;
 
-signal = signal./sum(signal.*opt.system.rfRasterTime)*flip/(2*pi);
+if opt.dwell==0
+    opt.dwell=opt.system.rfRasterTime;
+end
+
+signal = signal./abs(sum(signal.*opt.dwell))*flip/(2*pi);
+
+if size(signal,1)>size(signal,2)
+    signal=signal';
+end
 
 N=  length(signal);
-duration = N*opt.system.rfRasterTime;
-t = (1:N)*opt.system.rfRasterTime;
+duration = N*opt.dwell;
+t = ((1:N)-0.5)*opt.dwell;
 
 rf.type = 'rf';
 rf.signal = signal;
 rf.t = t;
+rf.shape_dur=duration;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = opt.system.rfDeadTime;
@@ -63,6 +73,7 @@ end
 if nargout>1
     assert(opt.sliceThickness > 0, 'SliceThickness must be provided');
     assert(opt.bandwidth > 0, 'Bandwidth of pulse must be provided');
+    warning('FIXME: there are some potential issues with the bandwidth and related parameters, double check (e-mail communication)');
     if opt.maxGrad > 0
         opt.system.maxGrad = opt.maxGrad;
     end
@@ -76,8 +87,8 @@ if nargout>1
     end
 
     amplitude = BW/opt.sliceThickness;
-    area = amplitude*opt.duration;
-    gz = mr.makeTrapezoid('z', opt.system, 'flatTime', opt.duration, ...
+    area = amplitude*duration;
+    gz = mr.makeTrapezoid('z', opt.system, 'flatTime', duration, ...
                           'flatArea', area);
     
     if rf.delay > gz.riseTime
@@ -88,10 +99,14 @@ if nargout>1
     end
 end
 
-if rf.ringdownTime > 0
-    tFill = (1:round(rf.ringdownTime/1e-6))*1e-6;  % Round to microsecond
-    rf.t = [rf.t rf.t(end)+tFill];
-    rf.signal = [rf.signal, zeros(size(tFill))];
+% v1.4 finally eliminates RF zerofilling
+% if rf.ringdownTime > 0
+%     tFill = (1:round(rf.ringdownTime/1e-6))*1e-6;  % Round to microsecond
+%     rf.t = [rf.t rf.t(end)+tFill];
+%     rf.signal = [rf.signal, zeros(size(tFill))];
+% end
+if rf.ringdownTime > 0 && nargout > 2
+    delay=mr.makeDelay(mr.calcDuration(rf)+rf.ringdownTime);
 end
 
 end

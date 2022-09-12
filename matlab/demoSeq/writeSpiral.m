@@ -1,7 +1,7 @@
 % this is an experimentaal spiral sequence
 
 seq=mr.Sequence();          % Create a new sequence object
-fov=256e-3; Nx=128; Ny=128;  % Define FOV and resolution
+fov=256e-3; Nx=96; Ny=Nx;  % Define FOV and resolution
 sliceThickness=3e-3;             % slice thinckness
 Nslices=1;
 Oversampling=2; % by looking at the periphery of the spiral I would say it needs to be at least 2
@@ -9,7 +9,7 @@ phi=pi/2; % orientation of the readout e.g. for interleaving
 
 % Set system limits
 lims = mr.opts('MaxGrad',30,'GradUnit','mT/m',...
-    'MaxSlew',180,'SlewUnit','T/m/s',...
+    'MaxSlew',120,'SlewUnit','T/m/s',...
     'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6, 'adcDeadTime', 10e-6);  
 
 % Create fat-sat pulse 
@@ -146,29 +146,34 @@ for s=1:Nslices
     seq.addBlock(mr.rotate('z',phi,gx_spoil,gy_spoil,gz_spoil));
     %seq.addBlock(gx_combined,gy_combined,gz_combined,adc);
 end
+
+% check whether the timing of the sequence is correct
+[ok, error_report]=seq.checkTiming;
+
+if (ok)
+    fprintf('Timing check passed successfully\n');
+else
+    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf([error_report{:}]);
+    fprintf('\n');
+end
+
 %
 seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'spiral');
+seq.setDefinition('MaxAdcSegmentLength', adcSamplesPerSegment);
 
 seq.write('spiral.seq');   % Output sequence for scanner
 
-% % write the k-space trajectory (now 3D and wothout reconSize)
-% save('epi_rs_traj.mat','traj_mat','ktime');%,'reconSize');
-% 
+% the sequence is ready, so let's see what we got 
 seq.plot();             % Plot sequence waveforms
-% figure; plot(traj_mat'); % plot k-space trajectory
-% figure; plot(traj_mat(1,:),traj_mat(2,:),'b'); % a better plot
-% hold;plot(traj_mat(1,:),traj_mat(2,:),'r.');
-% 
 
-% new single-function call for trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
+% k-space trajectory calculation
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 
 % plot k-spaces
-
-figure; plot(ktraj'); % plot the entire k-space trajectory
+figure; plot(t_ktraj, ktraj'); title('k-space components as functions of time'); % plot the entire k-space trajectory
 figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
-hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.');
+hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); title('2D k-space');
 
-
-% % seq.install('siemens');
+% seq.install('siemens');

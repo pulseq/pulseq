@@ -1,6 +1,6 @@
 function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
 %checkTiming(sys, objects, ...) 
-%   Function checks whether timing of the specified evets are aligned to
+%   Function checks whether timing of the specified evets is aligned to
 %   the corresponding raster
 
     if (isempty(varargin))
@@ -9,7 +9,7 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
         return;
     end
     total_dur=mr.calcDuration(varargin{:});
-    is_ok=div_check(total_dur,system.gradRasterTime);
+    is_ok=div_check(total_dur,system.blockDurationRaster);
     if (is_ok)
         text_error=[];
     else
@@ -17,14 +17,25 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
     end
     for i=1:length(varargin)
         e=varargin{i};
+        if isnumeric(e) % special handling for blockDuration
+            continue;
+        end
         assert(isstruct(e), 'wrong format of the variable aguments, list of structures is expected');
         ok=true;
+        if length(e)>1
+            % for now this is only the case for arrays of extensions, but
+            % we actually cannot check extensons anyway...
+            continue;
+        end
         if isfield(e, 'type') && (strcmp(e.type,'adc') || strcmp(e.type,'rf'))
             raster=system.rfRasterTime;
         else
             raster=system.gradRasterTime;
         end
         if isfield(e, 'delay')
+            if e.delay<-eps
+                ok=false;
+            end
             if ~div_check(e.delay,raster)
                 ok=false;
             end
@@ -34,8 +45,8 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
                 ok=false;
             end
         end
-        if isfield(e, 'dwell')
-            if e.dwell<raster
+        if isfield(e, 'dwell') % special case ADC
+            if e.dwell<system.adcRasterTime || abs(round(e.dwell/system.adcRasterTime)*system.adcRasterTime - e.dwell)>1e-10
                 ok=false;
             end
         end

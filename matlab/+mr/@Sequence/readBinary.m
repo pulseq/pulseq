@@ -50,14 +50,14 @@ while true
         case binaryCodes.section.blocks
             obj.blockEvents = readBlocks(fid);
         case binaryCodes.section.rf
-            format = {'float64','int32','int32','float64','float64'};
-            obj.rfLibrary = readEvents(fid,format,1);
+            format = {'float64','int32','int32','int32','float64','float64'};
+            obj.rfLibrary = readEvents(fid,format,[1 1 1 1e-6 1 1]);
         case binaryCodes.section.gradients
-            format = {'float64','int32'};
-            obj.gradLibrary = readEvents(fid,format,1,'g',obj.gradLibrary);
+            format = {'float64','int32','int32'};
+            obj.gradLibrary = readEvents(fid,format,[1 1 1e-6],'g',obj.gradLibrary);
         case binaryCodes.section.trapezoids
-            format = {'float64','int64','int64','int64'};
-            obj.gradLibrary = readEvents(fid,format,[1 1e-6 1e-6 1e-6],'t',obj.gradLibrary);
+            format = {'float64','int64','int64','int64','int64'};
+            obj.gradLibrary = readEvents(fid,format,[1 1e-6 1e-6 1e-6 1e-6],'t',obj.gradLibrary);
         case binaryCodes.section.adc
             format = {'int64','int64','int64','float64','float64'};
             obj.adcLibrary = readEvents(fid,format,[1 1e-9 1e-6 1 1]);
@@ -72,6 +72,8 @@ while true
 end
 fclose(fid);
 
+
+warning('readBinary() is not fully functional yet... as it needs to apply similar post-processing as read()');
 
 return
 
@@ -94,17 +96,21 @@ return
                 c = fread(fid,1,'char');
             end
             key = char(key);
-            type = fread(fid,1,'int8');
             count = fread(fid,1,'int8');
+            type = fread(fid,1,'char');
             switch type
-                case 1
-                    type = 'int64';
-                case 2
-                    type = 'float64';
+                case 'f'
+                    values = double(fread(fid,count,'float64'));
+                case 'i'
+                    values = int(fread(fid,count,'int32'));
+                case 'c'
+                    values = char(fread(fid,count,'char')');
+                    if values(end)==0
+                        values=values(1:(end-1));
+                    end
                 otherwise
                     error('Unknown definition type');
             end
-            values = double(fread(fid,count,type));
             def(key) = values;
         end
     end
@@ -115,8 +121,8 @@ return
         %   open MR sequence file and return the event table.
         
         numBlocks = double(fread(fid,1,'int64'));
-        eventIds = double(fread(fid,6*numBlocks,'int32'));
-        eventTable_tmp = reshape(eventIds,6,numBlocks)';
+        eventIds = double(fread(fid,7*numBlocks,'int32'));
+        eventTable_tmp = reshape(eventIds,7,numBlocks)';
         eventTable = cell(1, numBlocks);
         for ii = 1:numBlocks
             eventTable{ii} = eventTable_tmp(ii,:);

@@ -49,5 +49,8 @@ end
 if opt.dwell > 0
     adc.duration = opt.dwell*opt.numSamples;
 end
+if adc.deadTime > adc.delay
+    adc.delay = adc.deadTime;
+end
 
 end

@@ -31,8 +31,14 @@ if length(axes2rot)~=2
     error('incorrect axis specification');
 end
 
-for i=1:length(varargin)
-    event = varargin{i};
+if 1==length(varargin) && iscell(varargin{1})
+    va=varargin{1}; % we need this to allow for nested mr.rotate() calls
+else
+    va=varargin;
+end
+
+for i=1:length(va)
+    event = va{i};
     if isempty(event)
         continue;
     end
@@ -60,19 +66,19 @@ rotated1=cell(1,length(irotate1)+length(irotate2));
 rotated2=cell(1,length(irotate1)+length(irotate2));
 max_mag=0; % measure of the relevant amplitude
 for i=1:length(irotate1)
-    g=varargin{irotate1(i)};
+    g=va{irotate1(i)};
     max_mag=max(max_mag, getGradAbsMag(g));
-    rotated1{i}=scaleGrad(g,cos(angle));
-    g=scaleGrad(g,sin(angle));
+    rotated1{i}=mr.scaleGrad(g,cos(angle));
+    g=mr.scaleGrad(g,sin(angle));
     g.channel=axes2rot{2};
     rotated2{i}=g;
 end
 o=length(irotate1);
 for i=1:length(irotate2)
-    g=varargin{irotate2(i)};
+    g=va{irotate2(i)};
     max_mag=max(max_mag, getGradAbsMag(g));
-    rotated2{i+o}=scaleGrad(g,cos(angle));
-    g=scaleGrad(g,-sin(angle));
+    rotated2{i+o}=mr.scaleGrad(g,cos(angle));
+    g=mr.scaleGrad(g,-sin(angle));
     g.channel=axes2rot{1};
     rotated1{i+o}=g;
 end
@@ -116,7 +122,7 @@ for i=length(g):-1:1
 end
 
 % export
-bypass=varargin(ibypass);
+bypass=va(ibypass);
 out={bypass{:},g{:}}; 
 
 nout = nargout;
@@ -135,16 +141,6 @@ end
 
 end
 
-
-function [grad] = scaleGrad(grad, scale)
-    if strcmp(grad.type,'trap')
-        grad.amplitude=grad.amplitude*scale;
-        grad.area=grad.area*scale;
-        grad.flatArea=grad.flatArea*scale;
-    else
-        grad.waveform=grad.waveform*scale;
-    end
-end
 
 function [out] = getGradAbsMag(grad)
     if strcmp(grad.type,'trap')

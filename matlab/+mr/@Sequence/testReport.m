@@ -9,8 +9,12 @@ function [ report ] = testReport( obj )
 flipAnglesDeg=[];
 for k=obj.rfLibrary.keys
     libData=obj.rfLibrary.data(k).array;
-    rf=obj.rfFromLibData(libData);
-    flipAnglesDeg=[flipAnglesDeg abs(sum(rf.signal))*rf.t(1)*360]; %we use rfex.t(1) in place of opt.system.rfRasterTime
+    if length(obj.rfLibrary.type)>=k
+        rf=obj.rfFromLibData(libData,obj.rfLibrary.type(k));
+    else
+        rf=obj.rfFromLibData(libData);
+    end
+    flipAnglesDeg=[flipAnglesDeg abs(sum(rf.signal(1:end-1).*(rf.t(2:end)-rf.t(1:end-1))))*360]; %we use rfex.t(1) in place of opt.system.rfRasterTime
 end
 flipAnglesDeg=unique(flipAnglesDeg);
 
@@ -18,7 +22,9 @@ flipAnglesDeg=unique(flipAnglesDeg);
 
 [duration, numBlocks, eventCount]=obj.duration();
 
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = obj.calculateKspace();
+%[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = obj.calculateKspace();
+%[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = obj.calculateKspacePP();
+[ktraj_adc, t_adc, ~, ~, t_excitation, ~] = obj.calculateKspacePP();
 
 % trajectory calculation will fail for spin-echoes if seq is loaded from a 
 % file for the current file format revision (1.2.0) because we do not store 
@@ -28,10 +34,37 @@ flipAnglesDeg=unique(flipAnglesDeg);
 %        
 kabs_adc=sum(ktraj_adc.^2,1).^0.5;
 [kabs_echo, index_echo]=min(kabs_adc);
-t_echo=t_adc(index_echo);
-t_ex_tmp=t_excitation(t_excitation<t_echo);
-TE=t_echo-t_ex_tmp(end);
-% TODO detect multiple TEs
+t_echo=t_adc(index_echo); % just a first estimate, see if we can improve it
+if kabs_echo>eps
+    i2check=[];
+    % check if adc kspace trajectory has elements left and right to index_echo
+    if index_echo > 1
+        i2check=[i2check (index_echo-1)];
+    end
+    if index_echo < length(kabs_adc)
+        i2check=[i2check (index_echo+1)];
+    end
+    for a=1:numel(i2check)
+        v_i_to_0=-ktraj_adc(:,index_echo);
+        v_i_to_t=ktraj_adc(:,i2check(a))-ktraj_adc(:,index_echo);
+        % project v_i_to_0 to v_o_to_t
+        p_vit=v_i_to_0'*v_i_to_t/(vecnorm(v_i_to_t)^2);
+        if p_vit>0
+            % we have forund a bracket for the echo and the proportionality
+            % coefficient is p_vit
+            t_echo=t_adc(index_echo)*(1-p_vit) + t_adc(i2check(a))*p_vit;
+            break;
+        end
+    end
+end
+
+if ~isempty(t_excitation)
+    t_ex_tmp=t_excitation(t_excitation<t_echo);
+    TE=t_echo-t_ex_tmp(end);
+    % TODO detect multiple TEs
+else
+    TE=NaN;
+end
 
 if (length(t_excitation)<2)
     TR=duration; % best estimate for now
@@ -84,7 +117,12 @@ if (k_scale~=0)
     % at this point k_storage(1:(k_storage_next-1)) is our visit frequency map
     Repeats_max=max(k_storage(1:(k_storage_next-1)));
     Repeats_min=min(k_storage(1:(k_storage_next-1)));
-    Repeats_median=median(k_storage(1:(k_storage_next-1)));    
+    Repeats_median=median(k_storage(1:(k_storage_next-1))); 
+    Repeats_unique=unique(k_storage(1:(k_storage_next-1)));
+    Counts_unique=zeros(size(Repeats_unique));
+    for i=1:numel(Repeats_unique)
+        Counts_unique(i)=sum(Repeats_unique(i)==k_storage(1:(k_storage_next-1)));
+    end
 
     ktraj_rep1=ktraj_adc(:,k_repeat==1);
     % TODO: think of something clever, e.g. detecting maximum delta-k
@@ -135,14 +173,37 @@ else
 end
 % check gradient amplitudes and slew rates
 
-gw=obj.gradient_waveforms(); % gradient waveform
-gws=(gw(:,2:end)-gw(:,1:end-1))./obj.sys.gradRasterTime; % slew
-% max grad/slew per channel
-ga=max(abs(gw),[],2);
-gs=max(abs(gws),[],2);
+% gradient waveform
+gw_data=obj.waveforms_and_times(); % FIXME: avoid this second call for generating gradient shapes (1st one was inside of the k-space calculation routine)
+gws=cell(size(gw_data));
+ga=zeros(length(gw_data),1);
+gs=zeros(length(gw_data),1);
+% to calculate max absolute gradients and slew rates we have to play
+% tricks... we namely have to interpolate the data to the common time axis
+dim1ind = @(x, n) x(n,:);
+common_time=unique(dim1ind([gw_data{:}],1));
+gw_ct=zeros(length(gw_data),length(common_time));
+gs_ct=zeros(length(gw_data),length(common_time)-1);
+for gc=1:length(gw_data)
+    if size(gw_data{gc},2)>0 
+        gws{gc}=(gw_data{gc}(2,2:end)-gw_data{gc}(2,1:end-1))./(gw_data{gc}(1,2:end)-gw_data{gc}(1,1:end-1)); % slew
+        % interpolate to the common time
+        gw_ct(gc,:)=interp1(gw_data{gc}(1,:),gw_data{gc}(2,:),common_time,'linear',0);
+        gs_ct(gc,:)=(gw_ct(gc,2:end)-gw_ct(gc,1:end-1))./(common_time(2:end)-common_time(1:end-1));
+        % max grad/slew per channel
+        ga(gc)=max(abs(gw_data{gc}(2,:)));
+        gs(gc)=max(abs(gws{gc}));
+        % TODO: calculate grad RMS values (this is an interesting task in the piece-wise-linear domain)
+    end
+end
+
+%figure; plot(common_time, gw_ct');
+%figure; plot(common_time, sum(gw_ct.^2,1).^0.5);
+%figure; plot(0.5*(common_time(1:end-1)+common_time(2:end)), sum(gs_ct.^2,1).^0.5);
+
 % max absolute value grad/slew -- check for a worst case upon rotation
-ga_abs=max(sum(gw.^2,1).^0.5,[],2);
-gs_abs=max(sum(gws.^2,1).^0.5,[],2);
+ga_abs=max(sum(gw_ct.^2,1).^0.5);
+gs_abs=max(sum(gs_ct.^2,1).^0.5);
 
 
 % check timing of blocks and delays (raster alignment)
@@ -161,11 +222,14 @@ report = { sprintf('Number of blocks: %d\n',numBlocks),...
              sprintf('TR: %.6fs\n',TR) ],...
              sprintf('Flip angle: %.02f°\n', flipAnglesDeg),...
              sprintf('Unique k-space positions (a.k.a. columns, rows, etc): %d\n', unique_kpositions)};
-if (unique_kpositions>1)
+if any(unique_kpositions>1)
     report = { report{:},...
            [ sprintf('Dimensions: %d\n', length(k_extent)),...
              sprintf('   Spatial resolution: %.02f mm\n', 0.5./k_extent*1e3) ],...
              sprintf('Repetitions/slices/contrasts: %.d  range: [%.d %.d]\n', Repeats_median, Repeats_min, Repeats_max) };
+    report = { report{:},...
+        sprintf('   %d k-space position(s) repeated %d times\n', [Counts_unique;Repeats_unique])};
+
     if isCartesian
        report = { report{:}, sprintf('Cartesian encoding trajectory detected\n') };
     else

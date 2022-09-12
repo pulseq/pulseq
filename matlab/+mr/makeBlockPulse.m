@@ -1,4 +1,4 @@
-function [rf, gz] = makeBlockPulse(flip,varargin)
+function [rf, delay] = makeBlockPulse(flip,varargin)
 %makeBlockPulse Create a block pulse with optional slice selectiveness.
 %   rf=makeBlockPulse(flip, 'Duration', dur) Create block pulse
 %   with given flip angle and duration.
@@ -10,12 +10,12 @@ function [rf, gz] = makeBlockPulse(flip,varargin)
 %   rf=makeBlockPulse(..., 'FreqOffset', f,'PhaseOffset',p)
 %   Create block pulse with frequency offset and phase offset.
 %
-%   [rf, gz]=makeBlockPulse(...,'SliceThickness',st) Return the
-%   corresponding slice select gradient suitable for MRI.
+%   [rf, delay]=makeBlockPulse(...) returns the corresponding delay object 
+%   that takes care of the RF ringdown time.
 %
 %   See also  Sequence.addBlock
 
-validPulseUses = {'excitation','refocusing','inversion'};
+validPulseUses = mr.getSupportedRfUse();
 
 persistent parser
 if isempty(parser)
@@ -53,13 +53,14 @@ if opt.duration == 0
 end
 
 BW = 1/(4*opt.duration);
-N = round(opt.duration/1e-6);
-t = (1:N)*opt.system.rfRasterTime;
+N = round(opt.duration/opt.system.rfRasterTime);
+t = [0 N]*opt.system.rfRasterTime; % CHECKME whether we start at 0 or at 0.5 or at 1 
 signal = opt.flipAngle/(2*pi)/opt.duration*ones(size(t));
 
 rf.type = 'rf';
 rf.signal = signal;
 rf.t = t;
+rf.shape_dur=t(end);
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = opt.system.rfDeadTime;
@@ -72,32 +73,12 @@ if rf.deadTime > rf.delay
     rf.delay = rf.deadTime;
 end
 
-if nargout > 1
-    assert(opt.sliceThickness > 0, 'SliceThickness must be provided');
-    if opt.maxGrad > 0
-        opt.system.maxGrad = opt.maxGrad;
-    end
-    if opt.maxSlew > 0
-        opt.system.maxSlew = opt.maxSlew;
-    end
-    
-    amplitude = BW/opt.sliceThickness;
-    area = amplitude*opt.duration;
-    gz = mr.makeTrapezoid('z', opt.system, 'flatTime', opt.duration, ...
-                          'flatArea', area);
-
-    if rf.delay > gz.riseTime
-        gz.delay = ceil((rf.delay - gz.riseTime)/opt.system.gradRasterTime)*opt.system.gradRasterTime; % round-up to gradient raster
-    end
-    if rf.delay < (gz.riseTime+gz.delay)
-        rf.delay = gz.riseTime+gz.delay; % these are on the grad raster already which is coarser 
-    end
-end
-
-if rf.ringdownTime > 0
-    tFill = (1:round(rf.ringdownTime/1e-6))*1e-6;  % Round to microsecond
-    rf.t = [rf.t rf.t(end)+tFill];
-    rf.signal = [rf.signal, zeros(size(tFill))];
-end
-
+% v1.4 finally eliminates RF zerofilling
+% if rf.ringdownTime > 0
+%     tFill = (1:round(rf.ringdownTime/1e-6))*1e-6;  % Round to microsecond
+%     rf.t = [rf.t rf.t(end)+tFill];
+%     rf.signal = [rf.signal, zeros(size(tFill))];
+% end
+if rf.ringdownTime > 0 && nargout > 1
+    delay=mr.makeDelay(mr.calcDuration(rf)+rf.ringdownTime);
 end
