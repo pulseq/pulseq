@@ -1,0 +1,33 @@
+# Reading external sequence files
+#     Building index
+#   decoding VERSION section
+#   buffer: 
+major 1
+
+#   major=1
+#   buffer: 
+minor 2
+
+#   minor=2
+#   buffer: 
+revision 1
+
+#   revision=1
+#     Reading shape 1
+#     Shape index 1 has 8 compressed and 130 uncompressed samples
+#     Reading shape 2
+#     Shape index 2 has 3 compressed and 130 uncompressed samples
+# -- SHAPES READ numShapes: 2
+# -- EVENTS READ:  RF: 1 GRAD: 0 ADC: 1 DELAY: 3 CONTROL: 0
+# -- BLOCKS READ: 64
+# ==========================================
+# ===== EXTERNAL SEQUENCE #    0 ===========
+# ==========================================
+Number of blocks:       64
+Number of RF pulses:    16
+Number of GX events:     0
+Number of GY events:     0
+Number of GZ events:     0
+Number of readouts:     16
+Number of Delays:       48
+
