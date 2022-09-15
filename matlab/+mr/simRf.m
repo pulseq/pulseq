@@ -50,20 +50,20 @@ q(:,1)=1; % init rotation quaternions
 % prephaser / left spoiler
 W = -F*dt*length(T)*prephase_factor;     % effective field rotation angle
 Q = [cos(W/2) zeros(sf) zeros(sf) sin(W/2)];
-q=quatmultiply(q,Q);
+q=quat_multiply(q,Q);
 
 % RF pulse simulation
 for j=1:length(T)
     W = -dt*sqrt(abs(shapea(j))^2+F.^2); % effective field rotation angles
     n = dt * [real(shapea(j))*ones(sf) imag(shapea(j))*ones(sf) F]./abs(W); % effective field rotation axes
     Q = [cos(W/2) sin(W/2).*n];
-    q=quatmultiply(q,Q);
+    q=quat_multiply(q,Q);
 end
 
 % rephaser / right spoiler / refocusing pulse
 W = -F*dt*length(T)*rephase_factor;     % effective field rotation angle
 Q = [cos(W/2) zeros(sf) zeros(sf) sin(W/2)];
-q=quatmultiply(q,Q);
+q=quat_multiply(q,Q);
 
 % export results
 F=F/(2*pi);
@@ -71,17 +71,42 @@ m=zeros(sf(1),4);
 
 % excitation: start with M0=M_z
 m(:,4)=1;
-m0rf=quatmultiply(quatconj(q),quatmultiply(m,q));
+m0rf=quat_multiply(quat_conj(q),quat_multiply(m,q));
 M_z=m0rf(:,4);
 M_xy=m0rf(:,2)+1i*m0rf(:,3);
 
 % refocusing: start both with M0=M_x and them M0=M_y
 m=zeros(sf(1),4);
 m(:,2)=1;
-ref_mx=quatmultiply(quatconj(q),quatmultiply(m,q));
+ref_mx=quat_multiply(quat_conj(q),quat_multiply(m,q));
 ref_mx=ref_mx(:,2)+1i*ref_mx(:,3);
 m=zeros(sf(1),4);
 m(:,3)=1;
-ref_my=quatmultiply(quatconj(q),quatmultiply(m,q));
+ref_my=quat_multiply(quat_conj(q),quat_multiply(m,q));
 ref_my=ref_my(:,2)+1i*ref_my(:,3);
 ref_eff=(ref_mx+ref_my*1i)/2;
+end 
+
+function qout = quat_multiply( q, r )
+%  quat_multiply: Calculate the product of two quaternions.
+
+% Calculate vector portion of quaternion product
+% vec = s1*v2 + s2*v1 + cross(v1,v2)
+vec = [q(:,1).*r(:,2) q(:,1).*r(:,3) q(:,1).*r(:,4)] + ...
+         [r(:,1).*q(:,2) r(:,1).*q(:,3) r(:,1).*q(:,4)]+...
+         [ q(:,3).*r(:,4)-q(:,4).*r(:,3) ...
+           q(:,4).*r(:,2)-q(:,2).*r(:,4) ...
+           q(:,2).*r(:,3)-q(:,3).*r(:,2)];
+
+% Calculate scalar portion of quaternion product
+% scalar = s1*s2 - dot(v1,v2)
+scalar = q(:,1).*r(:,1) - q(:,2).*r(:,2) - ...
+             q(:,3).*r(:,3) - q(:,4).*r(:,4);
+
+qout = [scalar  vec];
+end
+       
+function q = quat_conj( q ) 
+%  quat_conj Calculate the conjugate of a quaternion.
+q(:,2:4) = -q(:,2:4);
+end
