@@ -1344,7 +1344,7 @@ classdef Sequence < handle
                         if strcmp(grad.type,'grad')
                             % check if we have an extended trapezoid or an arbitrary gradient on a regular raster
                             tt_rast=grad.tt/obj.gradRasterTime+0.5;
-                            if all(abs(tt_rast-(1:length(tt_rast)))<eps)
+                            if all(abs(tt_rast-(1:length(tt_rast))')<1e-6)
                                 % arbitrary gradient
                                 %
                                 % restore & recompress shape: if we had a

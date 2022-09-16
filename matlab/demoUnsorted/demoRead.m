@@ -11,7 +11,8 @@
 % method.
 %seq_name='gre.seq'; 
 %seq_name='epi_rs.seq';
-seq_name='spiral.seq';
+%seq_name='spiral.seq';
+seq_name='idea/external.seq';
 %seq_name='trufi.seq'; 
 %seq_name='epi_se.seq';
 %seq_name='../tests/gre.seq';

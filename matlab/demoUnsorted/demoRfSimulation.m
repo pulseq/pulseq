@@ -33,7 +33,7 @@ rf90_sinc = mr.makeSincPulse(pi/2,'system',sys,'Duration',3e-3,'use','excitation
     'PhaseOffset',pi/2,'apodization',0.3,'timeBwProduct',4);
 
 [bw,f0,M_xy_sta,F1]=mr.calcRfBandwidth(rf90_sinc);
-[M_z,M_xy,F2]=mr.simRf(rf90_sinc);
+[M_z,M_xy,F2]=mr.simRf(rf90_sinc,-0.525);
 
 figure; plot(F1,abs(M_xy_sta),F2,abs(M_xy),F2,M_z);
 axis([f0-2*bw, f0+2*bw, -0.1, 1.2]);
@@ -42,6 +42,13 @@ xlabel('frequency offset / Hz');
 ylabel('magnetisation');
 title('STA vs. simulation, flip angle 90°');
 
+figure; plot(F2,atan2(abs(M_xy),M_z)/pi*180);
+axis([f0-2*bw, f0+2*bw, -5, 100]);
+xlabel('frequency offset / Hz');
+ylabel('flip ange [°]');
+legend({'SINC'});
+title('Achieved flip angle for the nominal 90° flip');
+
 figure; plot(F2,real(M_xy),F2,imag(M_xy));
 axis([f0-2*bw, f0+2*bw, -1.2, 1.2]);
 legend({'M_xSIM','M_ySIM'});
@@ -49,19 +56,30 @@ xlabel('frequency offset / Hz');
 ylabel('magnetisation');
 title('Real and imag. parts of transverse magnetisation, 90° flip');
 
+%%
 figure; plot(F2,angle(M_xy));
 axis([f0-2*bw, f0+2*bw, -3.2, 3.2]);
 xlabel('frequency offset / Hz');
 ylabel('phase');
-legend({'SINC'});
 title('Phase of transverse magnetisation, 90° flip'); 
 
-figure; plot(F2,atan2(abs(M_xy),M_z)/pi*180);
-axis([f0-2*bw, f0+2*bw, -5, 100]);
-xlabel('frequency offset / Hz');
-ylabel('flip ange [°]');
-legend({'SINC'});
-title('Achieved flip angle for the nominal 90° flip');
+M_xy_masked=M_xy;
+M_xy_masked(F2<f0-bw/2)=0;
+M_xy_masked(F2>f0+bw/2)=0;
+
+i_phase_slope=sum(M_xy_masked(2:end).*conj(M_xy_masked(1:end-1)));
+i_phase_slope=1i*angle(i_phase_slope)/(F2(2)-F2(1));
+i_phase_offset=sum(M_xy_masked.*exp(-i_phase_slope*F2));
+i_phase_offset=i_phase_offset/abs(i_phase_offset);
+
+hold on; plot(F2,angle(exp(i_phase_slope*F2)*i_phase_offset),'--');
+
+xline(f0,'-');
+xline(f0-bw/2,'--');
+xline(f0+bw/2,'--');
+
+legend({'SINC-phase','linear fit'});
+fprintf('rf center error: %g\n', abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10); % no idea where this 10 comes from
 
 %% 90 degree slice selective SLR pulse 
 rf_90slr= mr.makeSLRpulse(pi/2,'duration',3e-3,'timeBwProduct',4,'PhaseOffset',pi/2,'use','excitation',...
@@ -278,4 +296,27 @@ xlabel('frequency offset / Hz');
 ylabel('signal');
 legend({'spoiling','ref.eff.','.5-.5*M_z'});
 title('signal with spoiling vs refocusing efficiency'); 
+
+%% investigare RF center shift as a function of clip angle (is it an artifact?)
+
+alphas=[5:5:175];
+rfce=[];
+for a=alphas
+    rfAlpha = mr.makeSincPulse(a/180*pi,'system',sys,'Duration',3e-3,'use','excitation','apodization',0.3,'timeBwProduct',4);
+    %rfAlpha = mr.makeGaussPulse(a*pi/180,'system',sys,'Duration',3e-3,'timeBwProduct',8,'use','excitation');
+
+    [bw,f0,M_xy_sta,F1]=mr.calcRfBandwidth(rfAlpha);
+    [M_z,M_xy,F2]=mr.simRf(rfAlpha);
+    
+    M_xy_masked=M_xy;
+    M_xy_masked(F2<f0-bw/2)=0;
+    M_xy_masked(F2>f0+bw/2)=0;
+    
+    i_phase_slope=sum(M_xy_masked(2:end).*conj(M_xy_masked(1:end-1)));
+    i_phase_slope=1i*angle(i_phase_slope)/(F2(2)-F2(1));
+    
+    rfce=[rfce,abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10]; % no idea where this 10 comes from
+end
+
+figure;plot(alphas,rfce);
 
