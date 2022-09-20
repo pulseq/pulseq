@@ -1,4 +1,4 @@
-function [rf, gz, delay] = makeArbitraryRf(signal,flip,varargin)
+function [rf, gz, gzr, delay] = makeArbitraryRf(signal,flip,varargin)
 %makeArbitraryRf Create an RF pulse with the given pulse shape.
 %   rf=makeArbitraryRf(singal, flip) Create RF pulse with complex signal 
 %   and given flip angle (in radians)
@@ -27,6 +27,7 @@ if isempty(parser)
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
     addParamValue(parser, 'timeBwProduct', 0, @isnumeric);
     addParamValue(parser, 'bandwidth', 0, @isnumeric);
+    addParamValue(parser, 'center', NaN, @isnumeric);
     % Slice params
     addParamValue(parser, 'maxGrad', 0, @isnumeric);
     addParamValue(parser, 'maxSlew', 0, @isnumeric);
@@ -70,6 +71,20 @@ if rf.deadTime > rf.delay
     rf.delay = rf.deadTime;
 end
 
+if isfinite(opt.center)
+    rf.center=opt.center;
+    if rf.center < 0, rf.center = 0; end
+    if rf.center > rf.shape_dur, rf.center = rf.shape_dur; end
+end
+
+if opt.timeBwProduct>0
+    if opt.bandwidth > 0
+        error('Both ''bandwidth'' and ''timeBwProduct'' cannot be specified at the same time');
+    else
+        opt.bandwidth=opt.timeBwProduct/duration; % QL
+    end
+end
+
 if nargout>1
     assert(opt.sliceThickness > 0, 'SliceThickness must be provided');
     assert(opt.bandwidth > 0, 'Bandwidth of pulse must be provided');
@@ -97,6 +112,10 @@ if nargout>1
     if rf.delay < (gz.riseTime+gz.delay)
         rf.delay = gz.riseTime+gz.delay; % these are on the grad raster already which is coarser 
     end
+    
+    if nargout > 2
+        gzr= mr.makeTrapezoid('z', opt.system, 'Area', -area*(1-mr.calcRfCenter(rf)/rf.shape_dur)-0.5*(gz.area-area));
+    end
 end
 
 % v1.4 finally eliminates RF zerofilling
@@ -105,7 +124,7 @@ end
 %     rf.t = [rf.t rf.t(end)+tFill];
 %     rf.signal = [rf.signal, zeros(size(tFill))];
 % end
-if rf.ringdownTime > 0 && nargout > 2
+if rf.ringdownTime > 0 && nargout > 3
     delay=mr.makeDelay(mr.calcDuration(rf)+rf.ringdownTime);
 end
 
