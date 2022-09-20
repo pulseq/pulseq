@@ -33,7 +33,7 @@ rf90_sinc = mr.makeSincPulse(pi/2,'system',sys,'Duration',3e-3,'use','excitation
     'PhaseOffset',pi/2,'apodization',0.3,'timeBwProduct',4);
 
 [bw,f0,M_xy_sta,F1]=mr.calcRfBandwidth(rf90_sinc);
-[M_z,M_xy,F2]=mr.simRf(rf90_sinc,-0.525);
+[M_z,M_xy,F2]=mr.simRf(rf90_sinc);
 
 figure; plot(F1,abs(M_xy_sta),F2,abs(M_xy),F2,M_z);
 axis([f0-2*bw, f0+2*bw, -0.1, 1.2]);
@@ -79,7 +79,7 @@ xline(f0-bw/2,'--');
 xline(f0+bw/2,'--');
 
 legend({'SINC-phase','linear fit'});
-fprintf('rf center error: %g\n', abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10); % no idea where this 10 comes from
+fprintf('rf center error: %g (%g %%)\n', abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10, 100/0.5*abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10); % no idea where this 10 comes from
 
 %% 90 degree slice selective SLR pulse 
 rf_90slr= mr.makeSLRpulse(pi/2,'duration',3e-3,'timeBwProduct',4,'PhaseOffset',pi/2,'use','excitation',...
@@ -299,7 +299,7 @@ title('signal with spoiling vs refocusing efficiency');
 
 %% investigare RF center shift as a function of clip angle (is it an artifact?)
 
-alphas=[5:5:175];
+alphas=[5:5:150];
 rfce=[];
 for a=alphas
     rfAlpha = mr.makeSincPulse(a/180*pi,'system',sys,'Duration',3e-3,'use','excitation','apodization',0.3,'timeBwProduct',4);
@@ -318,5 +318,10 @@ for a=alphas
     rfce=[rfce,abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10]; % no idea where this 10 comes from
 end
 
-figure;plot(alphas,rfce);
+figure;plot(alphas,rfce/0.5*100); title('excess gradient refocusing needed in %');
+xticks([0:30:alphas(end)]);
+yticks([0:2:10]);
+grid on;
+xlabel('flip angle / °');
+ylabel('refocusing / %');
 
