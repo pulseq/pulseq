@@ -26,12 +26,18 @@ function [tc ic]=calcRfCenter(rf)
 %     rfmax=max(abs(rf.signal(first:last)));
 %     ipeak=find(abs(rf.signal(first:last))>=rfmax-eps);
 
-    % we detect the excitation peak and if it is a plato we take its center
-    rfmax=max(abs(rf.signal));
-    ipeak=find(abs(rf.signal)>=rfmax*0.99999);
-    tc=(rf.t(ipeak(1))+rf.t(ipeak(end)))/2;
-    ic=ipeak(round(end/2));
-    
+    if isfield(rf,'center')
+        tc=rf.center;
+        [~,ic]=min(abs(rf.t-tc));
+    else
+
+        % we detect the excitation peak and if it is a plato we take its center
+        rfmax=max(abs(rf.signal));
+        ipeak=find(abs(rf.signal)>=rfmax*0.99999);
+        tc=(rf.t(ipeak(1))+rf.t(ipeak(end)))/2;
+        ic=ipeak(round(end/2));
+    end
+
 %     % detect the excitation peak (this code is far from being ideal...)
 %     rfmin=min(abs(rf.signal(first:last))); % pure max check fails for the block pulse!!!
 %     [rfmax,ic]=max(abs(rf.signal(first:last))); 
