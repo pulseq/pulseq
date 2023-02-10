@@ -13,7 +13,7 @@ persistent parser
 
 if isempty(parser)
     parser = inputParser;
-    parser.FunctionName = 'splitGradient';
+    parser.FunctionName = 'addGradients';
 	parser.addRequired('grads');
     parser.addOptional('system', mr.opts(), @isstruct);
     parser.addParamValue('maxGrad', 0, @isnumeric);
@@ -61,8 +61,9 @@ for ii = 1:length(grads)
     if is_trap(end)
         is_arb = [is_arb, false];
     else
+        % check if this is an extended trapezoid
         tt_rast=grads{ii}.tt/opt.system.gradRasterTime+0.5;
-        is_arb = [is_arb, all(abs(tt_rast-(1:length(tt_rast)))<eps)];
+        is_arb = [is_arb, all(abs(tt_rast-(1:length(tt_rast)))<1e-6)];
     end
 end
 common_delay = min(delays);
@@ -93,7 +94,7 @@ if all(is_trap | ~is_arb)
     times=[];
     for ii = 1:length(grads)
         g=grads{ii};
-        if strcmp(g.type,'trap')
+        if is_trap(ii)
             times = [times cumsum([g.delay g.riseTime g.flatTime g.fallTime])];
         else
             times = [times g.delay+g.tt];
@@ -146,13 +147,13 @@ waveforms = {};
 max_length = 0;
 for ii = 1:length(grads)
     g = grads{ii};
-    if strcmp(g.type, 'grad')
+    if ~is_trap(ii)
         if is_arb(ii)
             waveforms{ii} = g.waveform;
         else
             waveforms{ii} = mr.pts2waveform(g.tt, g.waveform, opt.system.gradRasterTime);
         end
-    elseif strcmp(g.type, 'trap')
+    else
         if (g.flatTime>0) % triangle or trapezoid
             times = [g.delay - common_delay ...
                      g.delay - common_delay + g.riseTime ...
@@ -166,38 +167,34 @@ for ii = 1:length(grads)
             amplitudes = [0 g.amplitude 0];
         end
         waveforms{ii} = mr.pts2waveform(times, amplitudes, opt.system.gradRasterTime);
-    else
-        error('Unknown gradient type.');
     end
-    warning('addGradient(): potentially incorrect handling of delays... TODO: fixme!');
+    %warning('addGradient(): potentially incorrect handling of delays... TODO: fixme!');
     if g.delay - common_delay > 0
-%         t_delay = 0:opt.system.gradRasterTime:g.delay-opt.system.gradRasterTime;
         t_delay = 0:opt.system.gradRasterTime:g.delay-common_delay-opt.system.gradRasterTime;
-        waveforms{ii} = [t_delay waveforms{ii}];
+        waveforms{ii} = [t_delay*0 waveforms{ii}];
     end
-    num_points = length(waveforms{ii});
-    if num_points > max_length
-        max_length = num_points;
-    end
+    max_length = max(max_length, length(waveforms{ii}));
 end
 
 w = zeros(max_length,1);
 for ii = 1:length(grads)
-    % SK: Matlab is so ridiculously cumbersome...
-    wt = zeros(max_length, 1);
-    wt(1:length(waveforms{ii})) = waveforms{ii};
-    w = w + wt;
+    % % SK: Matlab is so ridiculously cumbersome...
+    % wt = zeros(max_length, 1);
+    % wt(1:length(waveforms{ii})) = waveforms{ii};
+    % w = w + wt;
+    % MZ: it is cumbersome indeed, but not so...
+    w(1:length(waveforms{ii})) = w(1:length(waveforms{ii})) + waveforms{ii};
 end
 
 grad = mr.makeArbitraryGrad(channel, w, opt.system, ...
                             'maxSlew', maxSlew,...
                             'maxGrad', maxGrad,...
-                            'delay', common_delay);
-                       
-% fix the first and the last values
+                            'delay', common_delay,...
+                            'first',sum(firsts(delays==common_delay)),...
+                            'last',sum(lasts(durs==total_duration)));
 % first is defined by the sum of firsts with the minimal delay (common_delay)
 % last is defined by the sum of lasts with the maximum duration (total_duration)
-grad.first=sum(firsts(delays==common_delay));
-grad.last=sum(lasts(durs==total_duration));
+%grad.first=sum(firsts(delays==common_delay));
+%grad.last=sum(lasts(durs==total_duration));
 
 end
