@@ -1,15 +1,27 @@
-function [M_z,M_xy,F,ref_eff,ref_mx,ref_my]=simRf(rf,rephase_factor,prephase_factor) 
+function [Mz_z,Mz_xy,F,ref_eff,Mx_xy,My_xy]=simRf(rf,rephase_factor,prephase_factor) 
 %simRf Simulate an RF pulse with the given pulse shape.
-%   [M_z,M_xy,ref_eff,F]=simRf(pulse,prephase_factor,rephase_factor) 
+%   [Mz_z,Mz_xy,F,ref_eff,Mx_xy,My_xy]=simRf(pulse,prephase_factor,rephase_factor) 
 %   Performs a rapid RF pulse simulation based on the rotation formalism.
-%   The algorithm is additionally optimized by using quaternions to
-%   represent rotations (may require some Matlab toolboxes). 
+%   The algorithm is optimized by using quaternions to represent rotations. 
 %   The compulsory parameter 'rf' is the Pulseq RF pulse. Optional
 %   parameter 'rephase_factor' is needed in several cases e.g. to correclty 
 %   visualize the phase of the magnetization for slice-selective
 %   excitation. Another optional parameter 'prephase_factor' is an 
 %   experimental parameter useful for simulating refocusing pulses or
 %   spoiling needed. 
+%   Return values: 
+%     Mz_z,Mz_xy:  z and xy comnponents of the magnetisation after the pulse
+%                  assuming the unit magnetization was aligned with z before
+%                  the pulse. Useful for assessing excitation RF pulses. 
+%     F:           frequency axis in Hz 
+%     ref_eff:     Refocusing efficiency of the pulse as a complex value.
+%                  Magnitude of ref_eff seems to closely follow Mz_z. Phase
+%                  of ref_eff is related to the effective phase of the RF
+%                  pulse, e.g. the axis of the planar flip.
+%     Mx_xy,My_xy: xy magnetizations after the RF pulse assuming the unit
+%                  magnetization was aligned with x or y axis prior to the
+%                  pulse, respectively. Useful for detailed analyses of
+%                  refocusing pulses.
 %
 %   The implementation was inspired by the example by Dr. Tony Stoecker
 %   (https://github.com/stoeckert/mr-simu-example-ismrm19)
@@ -33,7 +45,7 @@ if nargin < 3
     prephase_factor = 0;
 end
         
-[bw,f0,spectrum,FF,rfs,tt]=mr.calcRfBandwidth(rf,0.5,10,10e-6);
+[bw,f0,spectrum,FF,rfs,tt]=mr.calcRfBandwidth(rf,0.5,df*10,dt);
 
 T     = (1:round(rf.shape_dur/dt))*dt-0.5*dt;                           % timesteps axis [s]
 F     = 2*pi*linspace(f0-bw_mul*bw/2,f0+bw_mul*bw/2,bw/df)';               % offset frequencies [rad/s] 
@@ -72,19 +84,19 @@ m=zeros(sf(1),4);
 % excitation: start with M0=M_z
 m(:,4)=1;
 m0rf=quat_multiply(quat_conj(q),quat_multiply(m,q));
-M_z=m0rf(:,4);
-M_xy=m0rf(:,2)+1i*m0rf(:,3);
+Mz_z=m0rf(:,4);
+Mz_xy=m0rf(:,2)+1i*m0rf(:,3);
 
 % refocusing: start both with M0=M_x and them M0=M_y
 m=zeros(sf(1),4);
 m(:,2)=1;
-ref_mx=quat_multiply(quat_conj(q),quat_multiply(m,q));
-ref_mx=ref_mx(:,2)+1i*ref_mx(:,3);
+Mx_xy=quat_multiply(quat_conj(q),quat_multiply(m,q));
+Mx_xy=Mx_xy(:,2)+1i*Mx_xy(:,3);
 m=zeros(sf(1),4);
 m(:,3)=1;
-ref_my=quat_multiply(quat_conj(q),quat_multiply(m,q));
-ref_my=ref_my(:,2)+1i*ref_my(:,3);
-ref_eff=(ref_mx+ref_my*1i)/2;
+My_xy=quat_multiply(quat_conj(q),quat_multiply(m,q));
+My_xy=My_xy(:,2)+1i*My_xy(:,3);
+ref_eff=(Mx_xy+My_xy*1i)/2;
 end 
 
 function qout = quat_multiply( q, r )
