@@ -132,12 +132,15 @@ classdef Sequence < handle
             
             % Loop over blocks and gather statistics
             numBlocks = length(obj.blockEvents);
-            eventCount=zeros(size(obj.blockEvents{1}));
+            if numBlocks>0 && nargout>2
+                eventCount=zeros(size(obj.blockEvents{1}));
+            end
             duration=0;
             for iB=1:numBlocks
-                %b=obj.getBlock(iB);
-                eventCount = eventCount + (obj.blockEvents{iB}>0);
-                duration=duration+obj.blockDurations(iB);%mr.calcDuration(b);
+                if nargout>2
+                    eventCount = eventCount + (obj.blockEvents{iB}>0);
+                end
+                duration=duration+obj.blockDurations(iB);
             end
         end
         
@@ -875,6 +878,8 @@ classdef Sequence < handle
                             grad.first = libData(5);
                             grad.last = libData(6);
                         else
+                            if isfield(grad,'first'), grad=rmfield(grad,'first'); end
+                            if isfield(grad,'last'), grad=rmfield(grad,'last'); end
 %			    assert(false); % this should never happen, as now we recover the correct first/last values during reading
 %                             % for the data read from a file we need to
 %                             % infer the missing fields here
@@ -1051,13 +1056,16 @@ classdef Sequence < handle
             %plot Plot the sequence in a new figure.
             %   plot(seqObj) Plot the sequence
             %
-            %   plot(...,'TimeRange',[start stop]) Plot the sequence
+            %   plot(...,'timeRange',[start stop]) Plot the sequence
             %   between the times specified by start and stop.
             %
-            %   plot(...,'TimeDisp',unit) Display time in:
+            %   plot(...,'blockRange',[first last]) Plot the sequence
+            %   starting from the first specified block to the last one.
+            %
+            %   plot(...,'timeDisp',unit) Display time in:
             %   's', 'ms' or 'us'.
             %
-            %   plot(...,'Label','LIN,REP') Plot label values for ADC events:
+            %   plot(...,'label','LIN,REP') Plot label values for ADC events:
             %   in this example for LIN and REP labels; other valid labes are 
             %   accepted as a comma-separated list.
             %
@@ -1074,13 +1082,14 @@ classdef Sequence < handle
                 parser.FunctionName = 'plot';
                 parser.addParamValue('showBlocks',false,@(x)(isnumeric(x) || islogical(x)));
                 parser.addParamValue('timeRange',[0 inf],@(x)(isnumeric(x) && length(x)==2));
+                parser.addParamValue('blockRange',[1 inf],@(x)(isnumeric(x) && length(x)==2));
                 parser.addParamValue('timeDisp',validTimeUnits{1},...
                     @(x) any(validatestring(x,validTimeUnits)));
                 parser.addOptional('label',[]);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
             end
             parse(parser,varargin{:});
             opt = parser.Results;
-            
+                        
             fig=figure;
             if nargout>0
                 f=fig;
@@ -1116,9 +1125,17 @@ classdef Sequence < handle
                 label_colors_2plot=label_colors_2plot(1:end-1,:);
             end
             
-            % block timings
+            % time/block range
+            timeRange=opt.timeRange;
             blockEdges=[0 cumsum(obj.blockDurations)];
-            blockEdgesInRange=blockEdges(logical((blockEdges>=opt.timeRange(1)).*(blockEdges<=opt.timeRange(2))));
+            if opt.blockRange(1)>1 && blockEdges(opt.blockRange(1))>timeRange(1)
+                timeRange(1)=blockEdges(opt.blockRange(1));
+            end
+            if isfinite(opt.blockRange(2)) && opt.blockRange(2)<length(obj.blockDurations) && blockEdges(opt.blockRange(2)+1)<timeRange(2)
+                timeRange(2)=blockEdges(opt.blockRange(2)+1);
+            end
+            % block timings
+            blockEdgesInRange=blockEdges(logical((blockEdges>=timeRange(1)).*(blockEdges<=timeRange(2))));
             if (opt.timeDisp=='us')
                 for i=1:6
                     xax=get(ax(i),'XAxis');
@@ -1143,7 +1160,7 @@ classdef Sequence < handle
             %for iB=1:size(obj.blockEvents,1)
             for iB=1:length(obj.blockEvents)
                 block = obj.getBlock(iB);
-                isValid = t0+obj.blockDurations(iB)>opt.timeRange(1) && t0<=opt.timeRange(2);
+                isValid = t0+obj.blockDurations(iB)>timeRange(1) && t0<=timeRange(2);
                 if isValid
                     if isfield(block,'label') %current labels, works on the curent or next adc
                         for i=1:length(block.label)
@@ -1215,7 +1232,7 @@ classdef Sequence < handle
             end
             
             % Set axis limits and zoom properties
-            dispRange = tFactor*[opt.timeRange(1) min(opt.timeRange(2),t0)];
+            dispRange = tFactor*[timeRange(1) min(timeRange(2),t0)];
             arrayfun(@(x)xlim(x,dispRange),ax);
             linkaxes(ax(:),'x')
             h = zoom(fig);
@@ -1291,7 +1308,7 @@ classdef Sequence < handle
             end
         end
                
-        function [wave_data, tfp_excitation, tfp_refocusing, t_adc, fp_adc]=waveforms_and_times(obj, appendRF)
+        function [wave_data, tfp_excitation, tfp_refocusing, t_adc, fp_adc]=waveforms_and_times(obj, appendRF, blockRange)
             % waveforms_and_times()
             %   Decompress the entire gradient waveform
             %   Returns gradient wave forms as a cell array with
@@ -1308,6 +1325,14 @@ classdef Sequence < handle
             %   phase offsets of each ADC object (not sample).
             %   TODO: return RF frequency offsets and RF waveforms and t_preparing (once its available)
             
+            if nargin < 3
+                blockRange=[1, length(obj.blockEvents)];
+            else
+                if length(blockRange)~=2
+                    error('parameter ''blockRange'' must contain exactly two numbers: first and last blocks from the range to consider');
+                end
+            end
+            
             if nargin < 2
                 appendRF=false;
             end
@@ -1318,7 +1343,7 @@ classdef Sequence < handle
             t0=0;
             t0_n=0;
             
-            numBlocks=length(obj.blockEvents);
+            numBlocks=blockRange(2)-blockRange(1)+1;
 
             % collect the shape pieces into a cell array
             if appendRF
@@ -1335,9 +1360,11 @@ classdef Sequence < handle
             fp_adc=[];
             %block_durations=zeros(1,numBlocks);
             curr_dur=0;
+            iP=0;
             out_len=zeros(1,shape_channels); % the last "channel" is RF
-            for iB=1:numBlocks
-                block = obj.getBlock(iB);
+            for iBc=blockRange(1):blockRange(2)
+                block = obj.getBlock(iBc);
+                iP=iP+1;
                 for j=1:length(gradChannels)
                     grad=block.(gradChannels{j});
                     if ~isempty(block.(gradChannels{j}))
@@ -1346,60 +1373,38 @@ classdef Sequence < handle
                             tt_rast=grad.tt/obj.gradRasterTime+0.5;
                             if all(abs(tt_rast-(1:length(tt_rast))')<1e-6)
                                 % arbitrary gradient
-                                %
-                                % restore & recompress shape: if we had a
+                                % restore shape: if we had a
                                 % trapezoid converted to shape we have to find
                                 % the "corners" and we can eliminate internal
                                 % samples on the straight segments
                                 % but first we have to restore samples on the
                                 % edges of the gradient raster intervals
                                 % for that we need the first sample
-                                max_abs=max(abs(grad.waveform));
-                                odd_step1=[grad.first 2*grad.waveform'];
-                                odd_step2=odd_step1.*(mod(1:length(odd_step1),2)*2-1);
-                                waveform_odd_rest=(cumsum(odd_step2).*(mod(1:length(odd_step2),2)*2-1))';
-                                waveform_odd_interp=[grad.first; 0.5*(grad.waveform(1:end-1)+grad.waveform(2:end)); grad.last];
-                                assert(abs(waveform_odd_rest(end)-grad.last)<=2e-5*max_abs,['last restored point of shaped gradient differs too much from the recorded last, deviation: ' num2str(abs(waveform_odd_rest(end)-grad.last)) 'Hz/m (' num2str(abs(waveform_odd_rest(end)-grad.last)/max_abs*100) '%). Block number: ' num2str(iB)]); % what's the reasonable threshold? 
-                                %figure; plot([0,10e-6+grad.t'],waveform_odd_rest-waveform_odd_interp);
-                                waveform_odd_mask=abs(waveform_odd_rest-waveform_odd_interp)<=eps+2e-5*max_abs; % threshold ???
-                                waveform_odd=waveform_odd_interp.*waveform_odd_mask+waveform_odd_rest.*(1-waveform_odd_mask);
-
-                                % combine odd & even
-                                comb=[ 0 grad.waveform' ; waveform_odd' ];
-                                waveform_os=comb(2:end)';
-
-                                tt_odd=(0:(length(waveform_odd_rest)-1))*obj.gradRasterTime;
-                                tt_os=(0:(length(waveform_os)-1))*obj.gradRasterTime*0.5;
-
-                                waveform_even_reint=0.5*(waveform_odd_rest(1:end-1)+waveform_odd_rest(2:end));
-
-                                maskChanges = abs([1; diff(waveform_os,2); 1])>1e-8;   % TRUE if values change
-                                waveform_chg = waveform_os(maskChanges);                     % Elements without repetitions
-                                tt_chg=tt_os(maskChanges);
-                                %figure;plot(grad.tt,grad.waveform);hold on; plot(tt_chg,waveform_chg); plot(tt_chg,waveform_chg,'o');
-                                tgc=[tt_chg; waveform_chg'];
-                                out_len(j)=size(tgc,2);
-                                shape_pieces{j,iB}=curr_dur+grad.delay+tgc;
+                                
+                                [tt_chg, waveform_chg] = mr.restoreAdditionalShapeSamples(grad.tt,grad.waveform,grad.first,grad.last,obj.gradRasterTime,iBc);
+                                
+                                out_len(j)=out_len(j)+length(tt_chg);
+                                shape_pieces{j,iP}=[curr_dur+grad.delay+tt_chg; waveform_chg];%curr_dur+grad.delay+tgc;
                             else
                                 % extended trapezoid (the easy case!)
                                 out_len(j)=out_len(j)+length(grad.tt);
-                                shape_pieces{j,iB}=[curr_dur+grad.delay+grad.tt'; grad.waveform'];
+                                shape_pieces{j,iP}=[curr_dur+grad.delay+grad.tt'; grad.waveform'];
                             end
                         else
                             if (abs(grad.flatTime)>eps) % interp1 gets confused by triangular gradients (repeating sample)
                                 out_len(j)=out_len(j)+4;
-                                shape_pieces{j,iB}=[
+                                shape_pieces{j,iP}=[
                                     curr_dur+grad.delay+cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);...
                                     grad.amplitude*[0 1 1 0]];
                             else
                                 if (abs(grad.riseTime)>eps && abs(grad.fallTime)>eps) % we skip 'empty' gradients
                                     out_len(j)=out_len(j)+3;
-                                    shape_pieces{j,iB}=[
+                                    shape_pieces{j,iP}=[
                                         curr_dur+grad.delay+cumsum([0 grad.riseTime grad.fallTime]);...
                                         grad.amplitude*[0 1 0]];
                                 else
                                     if abs(grad.amplitude)>eps
-                                        warning('''empty'' gradient with non-zero magnitude detected in block %d',iB);
+                                        warning('''empty'' gradient with non-zero magnitude detected in block %d',iBc);
                                     end
                                 end
                             end
@@ -1427,7 +1432,7 @@ classdef Sequence < handle
 %                         pre=[curr_dur+rf.delay+rf.t(1)-eps;NaN];
 %                         post=[curr_dur+rf.delay+rf.t(end)+eps;NaN];
                         out_len(end)=out_len(j)+length(rf.t)+size(pre,2)+size(post,2);
-                        shape_pieces{end,iB}=[pre [curr_dur+rf.delay+rf.t'; (rf.signal.*exp(1i*(rf.phaseOffset+2*pi*rf.freqOffset*rf.t)))'] post];
+                        shape_pieces{end,iP}=[pre [curr_dur+rf.delay+rf.t'; (rf.signal.*exp(1i*(rf.phaseOffset+2*pi*rf.freqOffset*rf.t)))'] post];
                     end
                 end
                 if ~isempty(block.adc)
@@ -1435,7 +1440,7 @@ classdef Sequence < handle
                     t_adc((end+1):(end+block.adc.numSamples)) = ta + block.adc.delay + curr_dur;
                     fp_adc(:,(end+1):(end+block.adc.numSamples)) = [block.adc.freqOffset*ones(1,block.adc.numSamples); block.adc.phaseOffset+block.adc.freqOffset*ta];
                 end
-                curr_dur=curr_dur+obj.blockDurations(iB);%mr.calcDuration(block);
+                curr_dur=curr_dur+obj.blockDurations(iBc);%mr.calcDuration(block);
             end
             
             % collect wave data
@@ -1445,19 +1450,19 @@ classdef Sequence < handle
             end
             wave_cnt=zeros(1,shape_channels);
             curr_dur=0;
-            for iB=1:numBlocks
+            for iP=1:numBlocks
                 for j=1:shape_channels
-                    if ~isempty(shape_pieces{j,iB})
-                        wave_data_local=shape_pieces{j,iB};
+                    if ~isempty(shape_pieces{j,iP})
+                        wave_data_local=shape_pieces{j,iP};
                         len=size(wave_data_local,2);
                         if wave_cnt(j)~=0 && wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime < wave_data_local(1,1)
                             if  wave_data{j}(2,wave_cnt(j))~=0
-                                warning('waveforms_and_times(): forcing ramp-down from a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are probably wrong.', j, round(1e6*wave_data{j}(1,wave_cnt(j))));
+                                warning('waveforms_and_times(): forcing ramp-down from a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are possibly wrong. If using mr.makeArbitraryGrad() consider using explicit values for ''first'' and ''last'' and setting them correctly.', j, round(1e6*wave_data{j}(1,wave_cnt(j))));
                                 wave_data{j}(:,wave_cnt(j)+1)=[wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime/2; 0]; % this is likely to cause memory reallocations
                                 wave_cnt(j)=wave_cnt(j)+1;
                             end
                             if wave_data_local(2,1)~=0
-                                warning('waveforms_and_times(): forcing ramp-up to a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are probably wrong.', j, round(1e6*wave_data_local(1,1)));
+                                warning('waveforms_and_times(): forcing ramp-up to a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are probably wrong.  If using mr.makeArbitraryGrad() consider using explicit values for ''first'' and ''last'' and setting them correctly.', j, round(1e6*wave_data_local(1,1)));
                                 wave_data_local=[[wave_data_local(1,1)-obj.gradRasterTime/2; 0] wave_data_local]; % this is likely to cause memory reallocations also later on
                                 len=len+1;
                             end
@@ -1513,6 +1518,7 @@ classdef Sequence < handle
                 parser.FunctionName = 'calculateKspacePP';
                 parser.addParamValue('trajectory_delay',0,@(x)(isnumeric(x)));
                 parser.addParamValue('gradient_offset',0,@(x)(isnumeric(x)));
+                parser.addParamValue('blockRange',[1 inf],@(x)(isnumeric(x) && length(x)==2));
             end
             parse(parser,varargin{:});
             opt = parser.Results;
@@ -1520,10 +1526,18 @@ classdef Sequence < handle
             if any(abs(opt.trajectory_delay)>100e-6)
                 warning('trajectory delay of (%s) us is suspiciously high',num2str(opt.trajectory_delay*1e6));
             end
+            
+            blockRange=opt.blockRange;
+            if blockRange(1)<1
+                blockRange(1)=1;
+            end
+            if ~isfinite(blockRange(2))
+                blockRange(2)=length(obj.blockDurations);
+            end            
                       
             total_duration=sum(obj.blockDurations);
             
-            [gw_data, tfp_excitation, tfp_refocusing, t_adc]=obj.waveforms_and_times();
+            [gw_data, tfp_excitation, tfp_refocusing, t_adc]=obj.waveforms_and_times(false,blockRange);
             
             ng=length(gw_data);
             % gradient delay handling
