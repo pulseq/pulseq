@@ -1,4 +1,4 @@
-function [bw,fc,spectrum,f,rfs,t]=calcRfBandwidth(rf, cutoff, dw, dt)
+function [bw,fc,spectrum,f,rfs,t]=calcRfBandwidth(rf, cutoff, df, dt)
 %calcRfbandwidth Calculate the spectrum of the RF pulse
 %   Returns the bandwidth of the pulse (calculated by a simple FFT, e.g. 
 %   pesuming a low-angle approximation) and optionally the spectrum and the
@@ -12,7 +12,7 @@ if nargin<2
 end
     
 if nargin<3
-    dw=10; % spectral resolution in Hz
+    df=10; % spectral resolution in Hz
 end
 
 if nargin<4
@@ -22,12 +22,12 @@ end
 tc=mr.calcRfCenter(rf);
 
 % resample the pulse to a resonable time array
-nn=round(1/dw/dt);
+nn=round(1/df/dt);
 t=(-floor(nn/2):ceil(nn/2)-1)*dt;
 
 rfs=interp1(rf.t-tc,rf.signal.*exp(1i*(rf.phaseOffset+2*pi*rf.freqOffset*rf.t)),t,'linear',0);
 spectrum=fftshift(fft(fftshift(rfs)));
-f=(-floor(nn/2):ceil(nn/2)-1)*dw;
+f=(-floor(nn/2):ceil(nn/2)-1)*df;
 
 w1=findFlank(f,spectrum,cutoff);
 w2=findFlank(f(end:-1:1),spectrum(end:-1:1),cutoff);
