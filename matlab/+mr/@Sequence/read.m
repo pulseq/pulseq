@@ -233,18 +233,10 @@ for iB = 1:length(obj.blockEvents)
                 grad_duration=grad.delay+grad.tt(end);
             else
                 % restore samples on the edges of the gradient raster intervals
-                % for that we need the first sample
+                % for that we need the first sample 
                 odd_step1=[grad.first 2*grad.waveform'];
                 odd_step2=odd_step1.*(mod(1:length(odd_step1),2)*2-1);
                 waveform_odd_rest=(cumsum(odd_step2).*(mod(1:length(odd_step2),2)*2-1))';
-%                 delta_odd=waveform_odd_rest(2:end-1)-0.5*(grad.waveform(1:end-1)+grad.waveform(2:end));
-%                 delta_odd_signed=delta_odd.*(mod(1:length(delta_odd),2)*2-1)';
-%                 delta_odd_signed_flt=medfilt1(delta_odd_signed,49);
-%                 delta_odd_flt=delta_odd_signed_flt.*(mod(1:length(delta_odd),2)*2-1)';
-%                 waveform_odd_rest1=waveform_odd_rest-[0; delta_odd_flt; 0];
-%                 waveform_odd_rest1(end)=2*grad.waveform(end)-waveform_odd_rest1(end-1); %restore the final sample based on the recurrent relation 
-%                 waveform_odd_rest0=waveform_odd_rest;
-%                 waveform_odd_rest=waveform_odd_rest1;
                 grad.last = waveform_odd_rest(end);
                 grad_duration=grad.delay+length(grad.waveform)*obj.gradRasterTime;
             end
