@@ -30,7 +30,7 @@ classdef Sequence < handle
     %
     % Kelvin Layton <kelvin.layton@uniklinik-freiburg.de>
     % Maxim Zaitsev <maxim.zaitsev@uniklinik-freiburg.de>
-
+    %
     % Private properties
     %
     properties(GetAccess = public, SetAccess = private)
