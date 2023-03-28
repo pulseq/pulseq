@@ -84,6 +84,7 @@ else
     grad.delay = round(opt.times(1)/opt.system.gradRasterTime)*opt.system.gradRasterTime;
     grad.tt = opt.times - grad.delay;
     grad.shape_dur = round(opt.times(end)/opt.system.gradRasterTime)*opt.system.gradRasterTime;
+    grad.area=0.5*sum((grad.tt(2:end)-grad.tt(1:end-1)).*(grad.waveform(2:end)+grad.waveform(1:end-1)));
 end
 
 % MZ: although makeArbitraryGrad sets the .first and .last for extended 

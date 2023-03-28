@@ -77,7 +77,14 @@ adc.delay=floor((gx.delay-adc.dwell*0.5-adc.dwell*ro_discard)/sys.gradRasterTime
 rf_phase=0;
 rf_inc=0;
 
-for i=(-Ndummy):Nr
+if Ndummy>0
+    seq.addBlock(mr.makeLabel('SET','ONCE', 1)); % label the few following scans as preparing scans
+end
+
+for i=(-Ndummy+1):Nr
+    if Ndummy>0 && i==1
+        seq.addBlock(mr.makeLabel('SET','ONCE', 0)); % remove the preparing scan label
+    end
     for c=1:2
         rf.phaseOffset=rf_phase/180*pi;
         adc.phaseOffset=rf_phase/180*pi;

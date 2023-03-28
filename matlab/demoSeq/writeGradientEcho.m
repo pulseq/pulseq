@@ -1,6 +1,6 @@
 % set system limits
-sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
-    'MaxSlew', 150, 'SlewUnit', 'T/m/s', ... 
+sys = mr.opts('MaxGrad', 22, 'GradUnit', 'mT/m', ...
+    'MaxSlew', 120, 'SlewUnit', 'T/m/s', ... 
     'rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 seq=mr.Sequence(sys);           % Create a new sequence object
@@ -13,6 +13,7 @@ TE=5e-3;                        % echo time TE
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
+roDuration=3.2e-3;              % ADC duration
 
 % Create fat-sat pulse 
 % (in Siemens interpreter from January 2019 duration is limited to 8.192 ms, and although product EPI uses 10.24 ms, 8 ms seems to be sufficient)
@@ -29,11 +30,14 @@ rfSpoilingInc=117;              % RF spoiling increment
 
 % Define other gradients and ADC events
 deltak=1/fov;
-gx = mr.makeTrapezoid('x','FlatArea',Nx*deltak,'FlatTime',3.2e-3,'system',sys);
+gx = mr.makeTrapezoid('x','FlatArea',Nx*deltak,'FlatTime',roDuration,'system',sys);
 adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime,'system',sys);
 gxPre = mr.makeTrapezoid('x','Area',-gx.area/2,'Duration',1e-3,'system',sys);
 gzReph = mr.makeTrapezoid('z','Area',-gz.area/2,'Duration',1e-3,'system',sys);
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
+gyPre = mr.makeTrapezoid('y','Area',max(abs(phaseAreas)),'Duration',mr.calcDuration(gxPre),'system',sys);
+peScales=phaseAreas/gyPre.area;
+        
 
 % gradient spoiling
 gxSpoil=mr.makeTrapezoid('x','Area',2*Nx*deltak,'system',sys);
@@ -60,12 +64,11 @@ for i=1:Ny
         rf_phase=mod(rf_phase+rf_inc, 360.0);
         %
         seq.addBlock(rf,gz);
-        gyPre = mr.makeTrapezoid('y','Area',phaseAreas(i),'Duration',mr.calcDuration(gxPre),'system',sys);
-        seq.addBlock(gxPre,gyPre,gzReph);
+        seq.addBlock(gxPre,mr.scaleGrad(gyPre,peScales(i)),gzReph);
         seq.addBlock(mr.makeDelay(delayTE(c)));
         seq.addBlock(gx,adc);
-        gyPre.amplitude=-gyPre.amplitude;
-        seq.addBlock(mr.makeDelay(delayTR(c)),gxSpoil,gyPre,gzSpoil)
+        %gyPre.amplitude=-gyPre.amplitude;
+        seq.addBlock(mr.makeDelay(delayTR(c)),gxSpoil,mr.scaleGrad(gyPre,-peScales(i)),gzSpoil)
     end
 end
 

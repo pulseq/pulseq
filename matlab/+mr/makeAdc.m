@@ -9,8 +9,10 @@ function adc=makeAdc(num,varargin)
 %   adc=makeAdc(..., 'Delay', d) Create ADC with initial delay.
 %
 %   adc=makeAdc(n, sys, ...) Create ADC considering system properties
-%   given in sys. For example, a dead time after sampling can be added to
-%   the duration. 
+%   given in sys. For example, adcDeadTime can be taken into account by 
+%   making sure that both the before the ADC is as least as long as 
+%   adcDeadTime and another period of adcDeadTime is added after sampling 
+%   is finished. 
 %
 %   See also  Sequence.addBlock
 
@@ -50,7 +52,7 @@ if opt.dwell > 0
     adc.duration = opt.dwell*opt.numSamples;
 end
 if adc.deadTime > adc.delay
-    adc.delay = adc.deadTime;
+    adc.delay = adc.deadTime; % adcDeadTime is added before the actual sampling (and also second time after the sampling period)
 end
 
 end

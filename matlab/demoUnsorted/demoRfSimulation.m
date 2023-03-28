@@ -30,11 +30,12 @@ title('Real and imag. parts of transverse magnetisation, 30° flip');
 
 %% 90 degree slice selective SINC pulse 
 rf90_sinc = mr.makeSincPulse(pi/2,'system',sys,'Duration',3e-3,'use','excitation',...
-    'PhaseOffset',pi/2,'apodization',0.3,'timeBwProduct',4);
+    'PhaseOffset',pi/2,'apodization',0.6,'timeBwProduct',8);
 
 [bw,f0,M_xy_sta,F1]=mr.calcRfBandwidth(rf90_sinc);
 [M_z,M_xy,F2]=mr.simRf(rf90_sinc);
 
+%%
 figure; plot(F1,abs(M_xy_sta),F2,abs(M_xy),F2,M_z);
 axis([f0-2*bw, f0+2*bw, -0.1, 1.2]);
 legend({'M_x_ySTA','M_x_ySIM','M_zSIM'});
@@ -47,6 +48,7 @@ axis([f0-2*bw, f0+2*bw, -5, 100]);
 xlabel('frequency offset / Hz');
 ylabel('flip ange [°]');
 legend({'SINC'});
+grid on;
 title('Achieved flip angle for the nominal 90° flip');
 
 figure; plot(F2,real(M_xy),F2,imag(M_xy));
@@ -79,7 +81,7 @@ xline(f0-bw/2,'--');
 xline(f0+bw/2,'--');
 
 legend({'SINC-phase','linear fit'});
-fprintf('rf center error: %g (%g %%)\n', abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10, 100/0.5*abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10); % no idea where this 10 comes from
+fprintf('SINC90 rf center error: %g (%g %%)\n', abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10, 100/0.5*abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10); % no idea where this 10 comes from
 
 %% 90 degree slice selective SLR pulse 
 rf_90slr= mr.makeSLRpulse(pi/2,'duration',3e-3,'timeBwProduct',4,'PhaseOffset',pi/2,'use','excitation',...
@@ -114,6 +116,7 @@ axis([f0-2*bw, f0+2*bw, -5, 100]);
 xlabel('frequency offset / Hz');
 ylabel('flip ange [°]');
 legend({'SLR'});
+grid on;
 title('SLR: Achieved flip angle for the nominal 90° flip');
 
 %% 60 degree slice selective SINC pulse 
@@ -184,6 +187,7 @@ axis([f0-2*bw, f0+2*bw, -5, 190]);
 xlabel('frequency offset / Hz');
 ylabel('flip ange [°]');
 legend({'SINC'});
+grid on;
 title('Achieved flip angle for the nominal 180° flip');
 
 figure; plot(F2,abs(ref_eff)); 
@@ -211,6 +215,7 @@ axis([f0-2*bw, f0+2*bw, -5, 190]);
 xlabel('frequency offset / Hz');
 ylabel('flip ange [°]');
 legend({'SLR'});
+grid on;
 title('Achieved flip angle for the nominal 180° flip');
 
 figure; plot(F2_slr,abs(ref_eff_slr)); 
@@ -265,6 +270,7 @@ axis([f0-2*bw, f0+2*bw, -5, 190]);
 xlabel('frequency offset / Hz');
 ylabel('flip ange [°]');
 legend({'WURST'});
+grid on;
 title('Achieved flip angle adiabatic pulse');
 
 figure; plot(F2,abs(ref_eff)); 

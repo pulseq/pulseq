@@ -96,7 +96,7 @@ elseif opt.duration>0
         if isempty(riseTime)
             dC = 1/abs(2*maxSlew) + 1/abs(2*maxSlew);
             possible = opt.duration^2 > 4*abs(opt.area)*dC;
-            assert(possible,['Requested area is too large for this gradient. Minimum required duration is ' num2str(round(sqrt(4*abs(opt.area)*dC)*1e6)) 'us']);    
+            assert(possible,['Requested area is too large for this gradient. Minimum required duration (assuming triangle gradient can be realized) is ' num2str(round(sqrt(4*abs(opt.area)*dC)*1e6)) 'us']);    
             amplitude = ( opt.duration - sqrt(opt.duration^2 - 4*abs(opt.area)*dC) )/(2*dC);
         else
             if isempty(fallTime)

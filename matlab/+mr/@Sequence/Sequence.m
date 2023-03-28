@@ -610,7 +610,7 @@ classdef Sequence < handle
                             id=obj.registerAdcEvent(event);
                         end
                         obj.blockEvents{index}(6)=id;
-                        duration=max(duration,event.delay+event.numSamples*event.dwell+event.deadTime);
+                        duration=max(duration,event.delay+event.numSamples*event.dwell+event.deadTime); % adcDeadTime is added after the sampling period (mr.makeADC also adds a delay before the actual sampling if it was shorter)
                     case 'delay' 
                         %if isfield(event,'id')
                         %    id=event.id;
@@ -695,51 +695,44 @@ classdef Sequence < handle
             %%% PERFORM GRADIENT CHECKS                                 %%%
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             
-            % check if connection to the previous block is correct
-%             check_g
+            % check if connection to the previous block is correct using check_g
             for cg_temp = check_g
                 cg=cg_temp{1}; % cg_temp is still a cell-array with a single element here...
-                if isempty(cg) 
-                    continue
-                end
+                if isempty(cg), continue; end
+                
                 % check the start 
-                %if event.delay ~= 0 && event.first ~= 0 
-                %if cg.start(1) ~= 0 && cg.start(2) ~= 0 
-                %    error('No delay allowed for gradients which start with a non-zero amplitude.');
-                %end
-        
                 if abs(cg.start(2)) > obj.sys.maxSlew * obj.sys.gradRasterTime % MZ: we only need the following check if the current gradient starts at non-0
                     if cg.start(1) ~= 0
-                        error('No delay allowed for gradients which start with a non-zero amplitude.');
+                        error('Error in block %d: No delay allowed for gradients which start with a non-zero amplitude', index);
                     end
                     if index > 1
-                        prev_id = obj.blockEvents{index-1}(cg.idx);
+                        [~,prev_nonempty_block]=find(obj.blockDurations(1:(index-1))>0, 1, 'last');
+                        prev_id = obj.blockEvents{prev_nonempty_block}(cg.idx);
                         if prev_id ~= 0
-                            prev_lib = obj.gradLibrary.get(prev_id);
+                            prev_lib = obj.gradLibrary.get(prev_id); % MZ: for performance reasons we access the gradient library directly. I know, this is not elegant 
                             prev_dat = prev_lib.data;
                             prev_type = prev_lib.type;
                             if prev_type == 't'
-                                error('Two consecutive gradients need to have the same amplitude at the connection point');
+                                error('Error in block %d: Two consecutive gradients need to have the same amplitude at the connection point, this is not possible if the previous gradient is a simple trapezoid', index);
                             elseif prev_type == 'g'
-                                last = prev_dat(6); % '6' means last
+                                last = prev_dat(6); % '6' means last; MZ: I know, this is a real hack...
                                 if abs(last - cg.start(2)) > obj.sys.maxSlew * obj.sys.gradRasterTime
-                                    error('Two consecutive gradients need to have the same amplitude at the connection point');
+                                    error('Error in block %d: Two consecutive gradients need to have the same amplitude at the connection point', index);
                                 end
                             end
+                        else
+                            error('Error in block %d: Gradient starting at non-zero value need to be preceded by a comptible gradient', index);
                         end
                     else                   
                         error('First gradient in the the first block has to start at 0.');
                     end
                 end
                 
-                % Check if gradients, which do not end at 0, are as long as the
-                % block itself.
-                %assert(abs(duration-block_duration)<eps); % TODO: if this never fails we should remove mr.calcDuration at the beginning
+                % Check if gradients, which do not end at 0, are as long as the block itself.
                 if cg.stop(2) > obj.sys.maxSlew * obj.sys.gradRasterTime && abs(cg.stop(1)-duration) > 1e-7
-                    error('A gradient that doesn''t end at zero needs to be aligned to the block boundary.');
+                    error('Error in block %d: A gradient that doesn''t end at zero needs to be aligned to the block boundary', index);
                 end
             end
-       
             
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %%% GRADIENT CHECKS DONE                                    %%%
@@ -1195,6 +1188,7 @@ classdef Sequence < handle
                         [tc,ic]=mr.calcRfCenter(rf);
                         t=rf.t;
                         s=rf.signal;
+                        sreal=max(abs(imag(s)))/max(abs(real(s)))<1e-6; %all(isreal(s));
                         if abs(s(1))~=0 % fix strangely looking phase / amplitude in the beginning
                             s=[0; s];
                             t=[t(1); t];
@@ -1204,10 +1198,17 @@ classdef Sequence < handle
                             s=[s; 0];
                             t=[t; t(end)];
                         end
-                        plot(tFactor*(t0+t+rf.delay),  abs(s),'Parent',ax(2));
-                        plot(tFactor*(t0+t+rf.delay),  angle(s    *exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)),...
-                             tFactor*(t0+tc+rf.delay), angle(s(ic)*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t(ic)*rf.freqOffset)),'xb',...
-                             'Parent',ax(3));
+                        if (sreal)
+                            plot(tFactor*(t0+t+rf.delay),  real(s),'Parent',ax(2));
+                            plot(tFactor*(t0+t+rf.delay),  angle(exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)),...
+                                 tFactor*(t0+tc+rf.delay), angle(exp(1i*rf.phaseOffset).*exp(1i*2*pi*t(ic)*rf.freqOffset)),'xb',...
+                                 'Parent',ax(3));
+                        else
+                            plot(tFactor*(t0+t+rf.delay),  abs(s),'Parent',ax(2));
+                            plot(tFactor*(t0+t+rf.delay),  angle(s    *exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)),...
+                                 tFactor*(t0+tc+rf.delay), angle(s(ic)*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t(ic)*rf.freqOffset)),'xb',...
+                                 'Parent',ax(3));
+                        end
                     end
                     gradChannels={'gx','gy','gz'};
                     for j=1:length(gradChannels)

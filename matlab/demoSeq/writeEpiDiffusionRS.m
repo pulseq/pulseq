@@ -17,12 +17,12 @@ fov=224e-3; Nx=112; Ny=Nx; % Define FOV and resolution
 thickness=2e-3;            % slice thinckness
 Nslices=3;
 bFactor=1000; % s/mm^2
-TE=100e-3;
+TE=80e-3;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delay calibration
 ro_os=1;                   % oversampling factor (in contrast to the product sequence we don't really need it)
 readoutTime=6.3e-4;        % this controls the readout bandwidth
-partFourierFactor=0.75;    % partial Fourier factor: 1: full sampling 0: start with ky=0
+partFourierFactor=0.5;    % partial Fourier factor: 1: full sampling 0: start with ky=0
 
 tRFex=3e-3;
 tRFref=3e-3;
