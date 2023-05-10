@@ -45,10 +45,21 @@ if nargin < 3
     prephase_factor = 0;
 end
         
-[bw,f0,spectrum,FF,rfs,tt]=mr.calcRfBandwidth(rf,0.5,df*10,dt);
+[bw,f0]=mr.calcRfBandwidth(rf,0.5,df*10,dt);
+
+% adapt time stepping -- just some compromizes -- we stick to dt~1/bw/50
+if bw>4e3
+    dt=5e-6;
+    if bw>1e4
+        dt=2e-6;
+        if bw>20000
+            dt=1e-6;
+        end
+    end
+end
 
 T     = (1:round(rf.shape_dur/dt))*dt-0.5*dt;                           % timesteps axis [s]
-F     = 2*pi*linspace(f0-bw_mul*bw/2,f0+bw_mul*bw/2,bw/df)';               % offset frequencies [rad/s] 
+F     = 2*pi*linspace(f0-bw_mul*bw/2,f0+bw_mul*bw/2,bw/df)';            % offset frequencies [rad/s] 
 
 shapea = interp1(rf.t, 2*pi*rf.signal.*exp(1i*(rf.phaseOffset+2*pi*rf.freqOffset*rf.t)),T,'linear',0);
 
