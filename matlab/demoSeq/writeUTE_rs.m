@@ -45,8 +45,9 @@ rfs_1=interp1(kzs_0,rf.signal,kzs_1);
 %figure; plot(kzs_1, abs(rfs_1),'r.');
 %hold; plot(kzs_0, abs(rf.signal),'b-');
 rf.t=rft_1;
-rf.signal=rfs_1.*gzas_1;
-gz.flatTime=gz.flatTime-gz.fallTime*0.5; % oops, we can get off gradient raster here, FIXME
+rf.shape_dur=length(rfs_1)*sys.rfRasterTime;
+gz.flatTime=ceil((gz.flatTime-gz.fallTime*0.5)/sys.gradRasterTime)*sys.gradRasterTime;
+rf.delay=mr.calcDuration(rf,gz)-rf.shape_dur; % fix the possible time shift due to the rounding-up step above
 
 % Align RO assymmetry to ADC samples
 Nxo=round(ro_os*Nx);
