@@ -30,7 +30,7 @@ classdef Sequence < handle
     %
     % Kelvin Layton <kelvin.layton@uniklinik-freiburg.de>
     % Maxim Zaitsev <maxim.zaitsev@uniklinik-freiburg.de>
-    %
+
     % Private properties
     %
     properties(GetAccess = public, SetAccess = private)
@@ -173,11 +173,19 @@ classdef Sequence < handle
                 
                 is_ok = (is_ok && res); 
                 
-                % check the stored total block duration
+                % check the stored block duration
                 if abs(dur-obj.blockDurations(iB))>eps
                     rep = [rep 'inconsistency between the stored block duration and the duration of the block content'];
                     is_ok = false;
                     dur=obj.blockDurations(iB);
+                end
+                
+                % check that block duration is aligned to the blockDurationRaster
+                bd=obj.blockDurations(iB)/obj.blockDurationRaster;
+                bdr=round(bd);
+                if abs(bdr-bd)>=1e-6
+                    rep = [rep 'block duration is not aligned to the blockDurationRaster'];
+                    is_ok = false;
                 end
                 
                 % check RF dead times
@@ -1475,7 +1483,8 @@ classdef Sequence < handle
                             wave_data{j}(:,wave_cnt(j)+(1:len-1))=wave_data_local(:,2:end);
                             wave_cnt(j)=wave_cnt(j)+len-1;
                         end
-                        if wave_cnt(j)~=length(unique(wave_data{j}(1,1:wave_cnt(j))))
+                        if any(diff(wave_data{j}(1,1:wave_cnt(j)))<=0.0) && ... % quick pre-check whether the time vector is monotonously increasing to avoid too often unique() calls 
+                            wave_cnt(j)~=length(unique(wave_data{j}(1,1:wave_cnt(j))))
                             warning('Warning: not all elements of the generated time vector are unique!\n');
                         end
                     end
