@@ -44,7 +44,7 @@ if any(diff(opt.times)<=0)
     error('Times must be in ascending order and all times must be distinct.');
 end
 
-if abs(round(opt.times(end)/opt.system.gradRasterTime)*opt.system.gradRasterTime-opt.times(end))>eps
+if abs(round(opt.times(end)/opt.system.gradRasterTime)*opt.system.gradRasterTime-opt.times(end))>1e-8 % 10ns is an acceptable rounding error
     error('The last time point must be on a gradient raster.');
 end
 
@@ -74,7 +74,7 @@ if (opt.convert2arbitrary)
                                 'delay', opt.times(1));
 else
     % keep the original possibly irregular sampling
-    if any(abs(round(opt.times/opt.system.gradRasterTime)*opt.system.gradRasterTime-opt.times)>eps)
+    if any(abs(round(opt.times/opt.system.gradRasterTime)*opt.system.gradRasterTime-opt.times)>1e-8) % 10ns is an acceptable rounding error
         error('All time points must be on a gradient raster or "convert2arbitrary" option must be used.');
     end
     %
