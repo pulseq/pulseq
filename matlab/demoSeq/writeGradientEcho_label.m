@@ -12,9 +12,9 @@ fov=224e-3; Nx=256; Ny=Nx; % Define FOV and resolution
 alpha=10;                  % flip angle
 thickness=3e-3;            % slice
 Nslices=1;
-TR=30e-3; 
-%TE=4.3e-3;
-TE=[7.38 9.84 15]*1e-3;            % alternatively give a vector here to have multiple TEs (e.g. for field mapping)
+TR=10e-3; 
+TE=4.3e-3;
+%TE=[7.38 9.84 15]*1e-3;            % alternatively give a vector here to have multiple TEs (e.g. for field mapping)
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
