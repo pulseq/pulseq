@@ -68,16 +68,30 @@ if opt.dwell==0
     opt.dwell=opt.system.rfRasterTime;
 end
 
-% find python (probably only works on linux, maybe also mac)
-[status, result]=system('which python');
-if status==0
-    python=strip(result);
+% find python 
+if ispc()
+    [status, result]=system('python --version');
+    if status==0
+        python='python';
+    else
+        [status, result]=system('py --version');
+        if status~=0
+            error('python executable not found, please check your system PATH settings');
+        end
+        python='py';
+    end
 else
+    % this probably only works on linux and maybe also on mac
     [status, result]=system('which python3');
     if status==0
         python=strip(result);
     else
-        error('python executable not found');
+        [status, result]=system('which python');
+        if status==0
+            python=strip(result);
+        else
+            error('python executable not found');
+        end
     end
 end
 
@@ -102,10 +116,18 @@ switch opt.use
 end
 
 N = round(opt.duration/opt.dwell);
-cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
-            ',' num2str(opt.timeBwProduct) ',ptype=\''' ptype '\''' ... 
-            ',d1=' num2str(opt.passbandRipple) ',d2=' num2str(opt.stopbandRipple) ...
-            ',ftype=\''' opt.filterType '\''' add_opt ')\nprint(*pulse)'''];
+% on Windows it looks like the $ and '' are not needed and ; can be used in place of \n
+if ispc()
+    cmd=[python ' -c "import sigpy.mri.rf;pulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
+                ',' num2str(opt.timeBwProduct) ',ptype=''' ptype '''' ... 
+                ',d1=' num2str(opt.passbandRipple) ',d2=' num2str(opt.stopbandRipple) ...
+                ',ftype=''' opt.filterType '''' add_opt ');print(*pulse)"'];
+else
+    cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
+                ',' num2str(opt.timeBwProduct) ',ptype=\''' ptype '\''' ... 
+                ',d1=' num2str(opt.passbandRipple) ',d2=' num2str(opt.stopbandRipple) ...
+                ',ftype=\''' opt.filterType '\''' add_opt ')\nprint(*pulse)'''];
+end
 %fprintf('cmd=%s\n',cmd);
 [status, result]=system(cmd);
 
