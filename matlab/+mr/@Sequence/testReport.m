@@ -202,9 +202,16 @@ end
 %figure; plot(0.5*(common_time(1:end-1)+common_time(2:end)), sum(gs_ct.^2,1).^0.5);
 
 % max absolute value grad/slew -- check for a worst case upon rotation
-ga_abs=max(sum(gw_ct.^2,1).^0.5);
-gs_abs=max(sum(gs_ct.^2,1).^0.5);
-
+if ~isempty(gw_ct)
+    ga_abs=max(sum(gw_ct.^2,1).^0.5);
+else
+    ga_abs=0;
+end
+if ~isempty(gs_ct)
+    gs_abs=max(sum(gs_ct.^2,1).^0.5);
+else
+    gs_abs=0;
+end
 
 % check timing of blocks and delays (raster alignment)
 [timing_ok, timing_error_report] = obj.checkTiming();
