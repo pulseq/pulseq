@@ -30,8 +30,8 @@ def main():
     # binary sequences are unsuported now
     #binary_sequences = ['gre_binary']
     binary_sequences = []
-    base_dir = '../test/'
-    approved_dir = '../test/approved/'
+    base_dir = '../tests/'
+    approved_dir = '../tests/approved/'
     ok_flag = True
 
     cell_str = '{'
@@ -50,10 +50,12 @@ def main():
 
     # run test sequences
     matlab_cmd = 'matlab -nodisplay -nosplash -r ' + \
-        '"try; run ' + base_dir + '/run_all; catch; exit(-1); end; exit(0)"' +\
+        '"try; run ' + base_dir + 'run_all.m; catch; exit(-1); end; exit(0)"' +\
         ' > /dev/null'
+    #matlab_cmd = 'matlab -nodisplay -nosplash -r ' + \
+    #    '"run ' + base_dir + 'run_all.m; exit(0)"' 
     print("Exporting test sequences (this may take a while)...")
-    #  print(matlab_cmd)
+    #print(matlab_cmd)
     subprocess.call(matlab_cmd, shell=True)
 
     #  fun_cmd = "parsemr({0}); exit;".format(cell_str)
