@@ -1282,65 +1282,69 @@ int ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE)
 	}
 }
 
-/***********************************************************/
-// MZ: TODO: replace me with a table and a faster search (std::map)
+#define LABELMAP_COUNTER(LBL) \
+	m_labelMap.mapLabelIdToStr[LBL]=#LBL;\
+	m_labelMap.mapStrToLabel[#LBL]=std::make_pair(LBL,FLAG_UNKNOWN);
+
+#define LABELMAP_FLAG(LBL) \
+	m_labelMap.mapFlagIdToStr[LBL]=#LBL;\
+	m_labelMap.mapStrToLabel[#LBL]=std::make_pair(LABEL_UNKNOWN,LBL);
+
 int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, LabelEvent& label)
 {
-	//initialize
-	int nKnownID=LABEL_UNKNOWN;
-	int nKnownFG=FLAG_UNKNOWN;
-	//label.defined=false;
-	label.bid=std::make_pair(nKnownFG,false);
-	label.nid=std::make_pair(nKnownID,0);
-
-	if (nKnownID==LABEL_UNKNOWN){		//always true; split it in two pieces to make it faster
-		if (0==strcmp("NAV",szLabelID))
-			nKnownFG=NAV;
-		else if (0==strcmp("REV",szLabelID))
-			nKnownFG=REV;
-		else if (0==strcmp("SMS",szLabelID))
-			nKnownFG=SMS;
-		else if (0==strcmp("PMC",szLabelID))
-			nKnownFG=PMC;
+	//initialize label map if needed
+	if (m_labelMap.mapStrToLabel.empty())
+	{
+		LABELMAP_COUNTER(SLC);
+		LABELMAP_COUNTER(SEG);
+		LABELMAP_COUNTER(REP);
+		LABELMAP_COUNTER(AVG);
+		LABELMAP_COUNTER(ECO);
+		LABELMAP_COUNTER(PHS);
+		LABELMAP_COUNTER(SET);
+		LABELMAP_COUNTER(LIN);
+		LABELMAP_COUNTER(PAR);
+		LABELMAP_COUNTER(ONCE);		
+		LABELMAP_FLAG(NAV);
+		LABELMAP_FLAG(REV);
+		LABELMAP_FLAG(SMS);
+		LABELMAP_FLAG(PMC);
+		LABELMAP_FLAG(NOPOS);
+		LABELMAP_FLAG(NOROT);
+		LABELMAP_FLAG(NOSCL);
+		// check if all labels/flags have been added to the map
+		//print_msg(WARNING_MSG, std::ostringstream().flush() << "*** m_labelMap.mapLabelIdToStr.size()= " << m_labelMap.mapLabelIdToStr.size());
+		//print_msg(WARNING_MSG, std::ostringstream().flush() << "*** m_labelMap.mapFlagIdToStr.size()= " << m_labelMap.mapFlagIdToStr.size());
+		//print_msg(WARNING_MSG, std::ostringstream().flush() << "*** m_labelMap.mapStrToLabel.size()= " << m_labelMap.mapStrToLabel.size());
+		assert(m_labelMap.mapLabelIdToStr.size()==NUM_LABELS);
+		assert(m_labelMap.mapFlagIdToStr.size()==NUM_FLAGS);
+		assert(m_labelMap.mapStrToLabel.size()==NUM_LABELS+NUM_FLAGS);
 	}
 
-	if (nKnownFG==FLAG_UNKNOWN){
-		if (0==strcmp("SLC",szLabelID))
-			nKnownID=SLC;
-		else if (0==strcmp("SEG",szLabelID))
-			nKnownID=SEG;
-		else if (0==strcmp("REP",szLabelID))
-			nKnownID=REP;
-		else if (0==strcmp("AVG",szLabelID))
-			nKnownID=AVG;
-		else if (0==strcmp("ECO",szLabelID))
-			nKnownID=ECO;
-		else if (0==strcmp("PHS",szLabelID))
-			nKnownID=PHS;
-		else if (0==strcmp("SET",szLabelID))
-			nKnownID=SET;
-		else if (0==strcmp("LIN",szLabelID))
-			nKnownID=LIN;
-		else if (0==strcmp("PAR",szLabelID))
-			nKnownID=PAR;
-	}
-
-	//assemble LabelEvent
-	if (nKnownFG !=FLAG_UNKNOWN){
-		//label.defined=true;
-		label.bid=std::make_pair(nKnownFG,bool(nVal));
-	}else if (nKnownID !=LABEL_UNKNOWN){
-		//label.defined=true;
-		label.nid=std::make_pair(nKnownID,nVal);
-	}
-
-	//here we check if the labels/flags are valid //No boundary check, boundary check moves to prep()
-	if ((LABEL_UNKNOWN==nKnownID && FLAG_UNKNOWN==nKnownFG)){
+	// now search
+	LabelMap::tM::const_iterator it = m_labelMap.mapStrToLabel.find(szLabelID);
+	if (it==m_labelMap.mapStrToLabel.end())
+	{
 		//label.defined=false; // when no label is founded, reset label.defined to false
 		print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unknown label specification\n");
 		return 1;
-	}else if (exttype==EXT_LABELSET){				//here we check if the values are valid
-		if (nKnownID!=LABEL_UNKNOWN){
+	}
+
+	int nKnownLBL=it->second.first;
+	int nKnownFG=it->second.second;
+	
+	//assemble LabelEvent
+	if (nKnownFG !=FLAG_UNKNOWN){
+		label.bVal=std::make_pair(nKnownFG,bool(nVal));
+		label.nVal=std::make_pair(nKnownLBL,0);
+	}else if (nKnownLBL !=LABEL_UNKNOWN){
+		label.bVal=std::make_pair(nKnownFG,false);
+		label.nVal=std::make_pair(nKnownLBL,nVal);
+	}
+
+	//here we check if the labels/flags are valid //No boundary check, boundary check moves to prep()
+	if (exttype==EXT_LABELSET){				//here we check if the values are valid
+		if (nKnownLBL!=LABEL_UNKNOWN){
 			if (nVal<0){
 				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELSET for int-type MDH Headers is incorrect\n");
 				return -1;
@@ -1357,7 +1361,7 @@ int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, L
 			return -1;					 
 		}
 	}else if (exttype==EXT_LABELINC){
-		if (nKnownID!=LABEL_UNKNOWN){			
+		if (nKnownLBL!=LABEL_UNKNOWN){			
 			return 0;				 
 		}else if (nKnownFG!=FLAG_UNKNOWN){				// EXT_LABELINC should NOT be used for bool type MDH Headers
 			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELINC is NOT for bool-type MDH Headers\n");

@@ -186,6 +186,7 @@ enum Labels {
 	SET, 
 	LIN, 
 	PAR,
+	ONCE,
 	LABEL_UNKNOWN // this entry should be the last in the list
 };
 const int NUM_LABELS=LABEL_UNKNOWN;
@@ -197,6 +198,9 @@ enum Flags{
 	REV,
 	SMS, 
 	PMC, 
+	NOPOS,
+	NOROT,
+	NOSCL,
 	FLAG_UNKNOWN
 };
 const int NUM_FLAGS=FLAG_UNKNOWN;
@@ -206,11 +210,11 @@ const int NUM_FLAGS=FLAG_UNKNOWN;
  *
  * Stores IDs that reference MDH headers for MDH_compat member
  */
-struct DataLabelStorage // MZ: is this the values or the IDs??? // XG: it's values (serial number is the IDs)
+struct DataLabelStorage 
 {
 	//bool defined;								/**< @brief indicates whether the MDHIDs member is defined  */
-	std::vector<int> nid;						/**< @brief current/maximum mdhid label */
-	std::vector<bool> bid;						/**< @brief current/maximum mdhid flags */
+	std::vector<int> nVal;						/**< @brief current/maximum label value */
+	std::vector<bool> bVal;						/**< @brief current/maximum flag value */
 };
 
 /**
@@ -221,9 +225,17 @@ struct DataLabelStorage // MZ: is this the values or the IDs??? // XG: it's valu
 struct LabelEvent
 {
 	//bool defined;					/**< @brief indicates whether a labelset object was defined in this block */
-    // MZ: TODO: check whether it is really meaningfull to store a vector here instead of a single number // XG: make it as a single number now
-	std::pair<int,int > nid;		/**< @brief set/inc value of the target mdhid label */		
-	std::pair<int,bool > bid;		/**< @brief set/unset bool flag of the target mdhid flags */
+	std::pair<int,int > nVal;		/**< @brief set/inc value of the target label */		
+	std::pair<int,bool > bVal;		/**< @brief set/unset bool value of the target flag */
+};
+
+struct LabelMap
+{
+	typedef std::pair<Labels,Flags> tP;
+	typedef std::map<std::string, tP> tM; 
+	tM mapStrToLabel;
+	std::map<int,std::string> mapLabelIdToStr;
+	std::map<int,std::string> mapFlagIdToStr;
 };
 
 /**
@@ -427,8 +439,8 @@ protected:
 	ADCEvent adc;               /**< @brief ADC event  */
 	TriggerEvent trigger;       /**< @brief trigger event (just one per block) */
 	RotationEvent rotation;     /**< @brief optional rotation event */
-	std::vector<LabelEvent>	  labelinc;     /**< @brief labelinc event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
-	std::vector<LabelEvent>	  labelset;     /**< @brief labelset event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
+	std::vector<LabelEvent> labelinc; /**< @brief labelinc event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
+	std::vector<LabelEvent> labelset; /**< @brief labelset event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
 	// Below is only valid once decompressed:
 
 	// RF
@@ -820,10 +832,12 @@ class ExternalSequence
 	//std::map<int,ControlEvent> m_controlLibrary;  /**< @brief Library of control commands */
 	std::map<int,ExtensionListEntry> m_extensionLibrary;  /**< @brief Library of extension list entries */
 	std::map<int,std::pair<std::string,int> > m_extensionNameIDs; /**< @brief Map of extension IDs from the file to textIDs and internal known numeric IDs*/
-	std::map<int, TriggerEvent> m_triggerLibrary;   /**< @brief Library of trigger events */
-	std::map<int, RotationEvent> m_rotationLibrary;   /**< @brief Library of rotation events */
-	std::map<int, LabelEvent>      m_labelsetLibrary;	/**< @brief Library of labelset events */
-	std::map<int, LabelEvent>	   m_labelincLibrary;	/**< @brief Library of labelinc events */	
+	std::map<int, TriggerEvent>  m_triggerLibrary;  /**< @brief Library of trigger events */
+	std::map<int, RotationEvent> m_rotationLibrary; /**< @brief Library of rotation events */
+	std::map<int, LabelEvent>    m_labelsetLibrary;	/**< @brief Library of labelset events */
+	std::map<int, LabelEvent>    m_labelincLibrary;	/**< @brief Library of labelinc events */	
+    LabelMap                     m_labelMap;        /**< @brief labelMap is useful for loading labels or damping/visualising values */
+
 	// List of basic shapes (referenced by events)
 	std::map<int,CompressedShape> m_shapeLibrary;    /**< @brief Library of compressed shapes */
 	// raster times
