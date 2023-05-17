@@ -45,8 +45,9 @@ rfs_1=interp1(kzs_0,rf.signal,kzs_1);
 %figure; plot(kzs_1, abs(rfs_1),'r.');
 %hold; plot(kzs_0, abs(rf.signal),'b-');
 rf.t=rft_1;
-rf.signal=rfs_1.*gzas_1;
-gz.flatTime=gz.flatTime-gz.fallTime*0.5; % oops, we can get off gradient raster here, FIXME
+rf.shape_dur=length(rfs_1)*sys.rfRasterTime;
+gz.flatTime=ceil((gz.flatTime-gz.fallTime*0.5)/sys.gradRasterTime)*sys.gradRasterTime;
+rf.delay=mr.calcDuration(rf,gz)-rf.shape_dur; % fix the possible time shift due to the rounding-up step above
 
 % Align RO assymmetry to ADC samples
 Nxo=round(ro_os*Nx);
@@ -77,7 +78,14 @@ adc.delay=floor((gx.delay-adc.dwell*0.5-adc.dwell*ro_discard)/sys.gradRasterTime
 rf_phase=0;
 rf_inc=0;
 
-for i=(-Ndummy):Nr
+if Ndummy>0
+    seq.addBlock(mr.makeLabel('SET','ONCE', 1)); % label the few following scans as preparing scans
+end
+
+for i=(-Ndummy+1):Nr
+    if Ndummy>0 && i==1
+        seq.addBlock(mr.makeLabel('SET','ONCE', 0)); % remove the preparing scan label
+    end
     for c=1:2
         rf.phaseOffset=rf_phase/180*pi;
         adc.phaseOffset=rf_phase/180*pi;

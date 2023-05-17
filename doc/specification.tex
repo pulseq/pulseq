@@ -24,7 +24,7 @@
 %\def\myversion{1.01 }
 \def\myversionmajor{1}
 \def\myversionminor{4}
-\def\myversionrevision{0}
+\def\myversionrevision{1}
 \def\myversion{\myversionmajor.\myversionminor.\myversionrevision }
 %\def\myversion{1.0.2 }
 
@@ -111,8 +111,9 @@ Version & Date & Description \\
 \\
 1.3.1 & 25 Sept 2020 & \makecell{Added support for the LABEL extension, updated figures. } 
 \\
-1.4.0 & 7 Jul 2021 & \makecell{Substantial revisions of the file format: \\ added required definitions; \\ we now explicitly specify sampling and raster alignment conventions; \\ flexible shape timing for arbitrary gradients and RF pulses; \\ explicit block duration; \\ removed [DELAYS]; \\ added uncompressed shape option; \\ added signature section; \\ TODO: update figures and examples. } 
+1.4.0 & 7 Jul 2021 & \makecell{Substantial revisions of the file format: \\ added required definitions; \\ we now explicitly specify sampling and raster alignment conventions; \\ flexible shape timing for arbitrary gradients and RF pulses; \\ explicit block duration; \\ removed [DELAYS]; \\ added uncompressed shape option; \\ added signature section. } 
 \\
+1.4.1 & 16 Feb 2023 & \makecell{New flags to the LABEL extension added; \\ TODO: update figures and examples. } \\
 \bottomrule
 \end{tabular}
 
@@ -486,15 +487,32 @@ The example above contains a specification of the TRIGGERS extension, which is n
 Starting from revision 1.3.1 both Matlab Pulseq toolbox and the Siemens interpreter sequence support LABEL extension. The extension is intended to provide a possibility for the pulse sequence to pass counters and flags over to the raw data object and in this way to communicate with the image reconstruction routines. \\ 
 
 Two types of extensions are currently defined: LABELSET and LABELINC. The former allows one to set the counter or flag value, the latter can be used to increment the counter (not compatible with flags). The following counters are supported at the moment: 
-LIN, PAR, SLC, SEG, REP, AVG, SET, ECO, PHS that can take any integer values and flags NAV, REV, SMS that can be 0 or 1 corresponding to boolean 'false' and 'true' values. \\
+LIN, PAR, SLC, SEG, REP, AVG, SET, ECO, PHS that can take any integer values and flags NAV, REV, SMS, PMC, NOPOS, NOROT, NOSLC that can be 0 or 1 corresponding to boolean 'false' and 'true' values. \\
 
 At the start of the sequence all counters and flags are automatically initialized to zero. During the run-time sequence maintains current values of all counters and flags, which can be modified with LABELSET and LABELINC directives at any time in the sequence. Also zero-duration blocks containing only LABEL extension directives are allowed. The values of the counters have no immediate effect until the next ADC directive is executed. At the moment of the ADC event the values of the counters are recorded and in case of the Siemens interpreter are copied to the ADC Data Header. Prior to the pertinent ADC direction the values of the counters can take any arbitrary excursions, e.g. can be negative or exceed matrix dimensions temporarily. This has no negative effects. \\
 
 In case the same block contains LABELSET, LABELINC and ADC directives the following priorities apply (independent of the order the events were submitted to the block e.g. in the Matlab toolbox): First all LABELSET directives are processed, followed by all LABELINC and only then the values of the counters are captured and passed over to the ADC directive.  
 
+New experimental labels have been introduced in revision 1.4.1. These include \verb.PMC., \verb.NOROT., \verb.NOPOS., \verb.NOSLC. and \verb.ONCE. flags (the latter explained further below). 
+
+The meaning of the flags \verb.PMC., \verb.NOROT., \verb.NOPOS. and \verb.NOSLC. is as follows:
+
+\begin{tabularx}{\textwidth}{llXl}
+\toprule
+ID & Type & Description\\
+\midrule
+\verb.PMC. & flag & Defines whether prospective motion correction (PMC) may be applied to the current block \\
+\verb.NOROT. & flag & Instructs the interpreter to ignore translation components of the FOV positioning applied through the UI on the scanner or by the PMC processing (EXPERIMENTAL) \\
+\verb.NOPOS. & flag & Instructs the interpreter to ignore translation components of the FOV positioning applied through the UI on the scanner or by the PMC processing (EXPERIMENTAL) \\
+\verb.NOSLC. & flag & Instructs the interpreter to ignore FOV / gradient scaling parameters applied through the UI on the scanner (EXPERIMENTAL) \\
+\bottomrule
+\end{tabularx}
+
+Additionally, there is a three-state flag \verb.ONCE., that is intended to control the execution flow for sequences with repetitions. It allows to implement dummy scans, warm-up sub-sequences, calibration scans or closing-up sub-sequences. The flag instructs the interpreter to alter the sequence when executing multiple repeats as follows: blocks with ONCE=0 are executed on every repetition; ONCE=1 marks the blocks that are only executed in the first repetition; blocks with ONCE=2 (or any other number) are only executed in the last repetition. When number of repetitions is equal to 1 no changes are applied.
+
 \subsection{Shapes}
 
-The shape section is declared with the \verb.[SHAPES]. keyword. Each shape is then declared with a header followed by a list of samples values (one per line). The end of the shape definition is declared with a blank line. Pulseq export software may opt for storing \textbf{uncompressed} shapes, e.g. to avoid rounding errors during compression/decompression or to save space for shapes that cannot be effectively compressed. The reading routines must interpret the shape as \textbf{uncompressed} if the number of samples in the store shape is equal to \verb.Num_Uncompressed.. Therefore the saving routine must save the shape in uncompressed format if the result of compression has the same length as the original shape.
+The shape section is declared with the \verb.[SHAPES]. keyword. Each shape is then declared with a header followed by a list of samples values (one per line). The end of the shape definition is declared with a blank line. Pulseq export software may opt for storing \textbf{uncompressed} shapes, e.g. to avoid rounding errors during compression/decompression or to save space for shapes that cannot be effectively compressed. The reading routines must interpret the shape as \textbf{uncompressed} if the number of samples in the stored shape is equal to \verb.Num_Uncompressed.. Therefore the saving routine must save the shape in uncompressed format if the result of compression has the same length as the original shape.
 
 \begin{lstlisting}
 Shape_ID <id>

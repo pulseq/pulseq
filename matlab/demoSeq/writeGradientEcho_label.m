@@ -9,19 +9,29 @@ sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
 seq=mr.Sequence(sys);         % Create a new sequence object
 
 fov=224e-3; Nx=256; Ny=Nx; % Define FOV and resolution
-alpha=7;                  % flip angle
+alpha=10;                  % flip angle
 thickness=3e-3;            % slice
 Nslices=1;
+TR=10e-3; 
 TE=4.3e-3;
-TR=10e-3;                       
+%TE=[7.38 9.84 15]*1e-3;            % alternatively give a vector here to have multiple TEs (e.g. for field mapping)
 
+% more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
 roDuration=3.2e-3;              % ADC duration
 
+% Create fat-sat pulse 
+% (in Siemens interpreter from January 2019 duration is limited to 8.192 ms, and although product EPI uses 10.24 ms, 8 ms seems to be sufficient)
+% B0=2.89; % 1.5 2.89 3.0
+% sat_ppm=-3.45;
+% sat_freq=sat_ppm*1e-6*B0*lims.gamma;
+% rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
+%     'bandwidth',abs(sat_freq),'freqOffset',sat_freq);
+% gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(alpha*pi/180,'Duration',3e-3,...
-    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4,'system',sys);
+    'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'system',sys);
 
 % Define other gradients and ADC events
 deltak=1/fov;
@@ -51,14 +61,12 @@ rf_inc=0;
 
 seq.addBlock(mr.makeLabel('SET','REV', 1)); % left-right swap fix (needed for 1.4.0)
 
-%seq.addBlock(mr.makeDelay(1)); % older scanners like Trio may need this
-                                % dummy delay to keep up with timing
-
 % loop over slices
 for s=1:Nslices
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
     % loop over phase encodes and define sequence blocks
     for i=1:Ny
+      for c=1:length(TE)
         rf.phaseOffset=rf_phase/180*pi;
         adc.phaseOffset=rf_phase/180*pi;
         rf_inc=mod(rf_inc+rfSpoilingInc, 360.0);
@@ -67,16 +75,24 @@ for s=1:Nslices
         seq.addBlock(rf,gz);
         gyPre = mr.makeTrapezoid('y','Area',phaseAreas(i),'Duration',mr.calcDuration(gxPre),'system',sys);
         seq.addBlock(gxPre,gyPre,gzReph);
-        seq.addBlock(mr.makeDelay(delayTE));
+        seq.addBlock(mr.makeDelay(delayTE(c)));
         seq.addBlock(gx,adc);
         gyPre.amplitude=-gyPre.amplitude;
-        spoilBlockContents={mr.makeDelay(delayTR),gxSpoil,gyPre,gzSpoil}; % here we demonstrate the technique to combine variable counter-dependent content into the same block
-        if i~=Ny
-            spoilBlockContents=[spoilBlockContents {mr.makeLabel('INC','LIN', 1)}];
+        spoilBlockContents={mr.makeDelay(delayTR(c)),gxSpoil,gyPre,gzSpoil}; % here we demonstrate the technique to combine variable counter-dependent content into the same block
+        if c~=length(TE)
+            spoilBlockContents=[spoilBlockContents {mr.makeLabel('INC','ECO', 1)}];
         else
-            spoilBlockContents=[spoilBlockContents {mr.makeLabel('SET','LIN', 0), mr.makeLabel('INC','SLC', 1)}];
+            if length(TE)>1
+                spoilBlockContents=[spoilBlockContents {mr.makeLabel('SET','ECO', 0)}];
+            end
+            if i~=Ny
+                spoilBlockContents=[spoilBlockContents {mr.makeLabel('INC','LIN', 1)}];
+            else
+                spoilBlockContents=[spoilBlockContents {mr.makeLabel('SET','LIN', 0), mr.makeLabel('INC','SLC', 1)}];
+            end
         end
         seq.addBlock(spoilBlockContents{:});
+      end
     end
 end
 

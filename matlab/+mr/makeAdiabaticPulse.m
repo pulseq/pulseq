@@ -90,36 +90,66 @@ if opt.dwell==0
 end
 
 % find python (probably only works on linux, maybe also mac)
-[status, result]=system('which python');
-if status==0
-    python=strip(result);
+if ispc()
+    if status==0
+        python='python';
+    else
+        [status, result]=system('py --version');
+        if status~=0
+            error('python executable not found, please check your system PATH settings');
+        end
+        python='py';
+    end
 else
+    % this probably only works on linux and maybe also on mac
     [status, result]=system('which python3');
     if status==0
         python=strip(result);
     else
-        error('python executable not found');
+        [status, result]=system('which python');
+        if status==0
+            python=strip(result);
+        else
+            error('python executable not found');
+        end
     end
 end
 
 Nraw = round(opt.duration/opt.dwell+eps);
 N = floor(Nraw/4)*4; % number of points must be divisible by four -- this is a requirement of the underlying library
 
-switch type
-    case 'hypsec'
-        cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.hypsec(' ... % hypsec(n=512, beta=800, mu=4.9, dur=0.012)
-            'n=' num2str(N) ',beta=' num2str(opt.beta) ',' ...
-            'mu=' num2str(opt.mu) ',dur=' num2str(opt.duration) ...
-            ')\nprint(*pulse[0])\nprint(*pulse[1])'''];
-    case 'wurst'
-        cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.wurst(' ... % wurst(n=512, n_fac=40, bw=40000.0, dur=0.002)
-            'n=' num2str(N) ',n_fac=' num2str(opt.n_fac) ',' ...
-            'bw=' num2str(opt.bandwidth) ',dur=' num2str(opt.duration) ...
-            ')\nprint(*pulse[0])\nprint(*pulse[1])'''];
-    otherwise
-        error('unsupported adiabatic pulse type');
+if ispc()
+    switch type
+        case 'hypsec'
+            cmd=[python ' -c "import sigpy.mri.rf;pulse=sigpy.mri.rf.hypsec(' ... % hypsec(n=512, beta=800, mu=4.9, dur=0.012)
+                'n=' num2str(N) ',beta=' num2str(opt.beta) ',' ...
+                'mu=' num2str(opt.mu) ',dur=' num2str(opt.duration) ...
+                ');print(*pulse[0]);print(*pulse[1])"'];
+        case 'wurst'
+            cmd=[python ' -c "import sigpy.mri.rf;pulse=sigpy.mri.rf.wurst(' ... % wurst(n=512, n_fac=40, bw=40000.0, dur=0.002)
+                'n=' num2str(N) ',n_fac=' num2str(opt.n_fac) ',' ...
+                'bw=' num2str(opt.bandwidth) ',dur=' num2str(opt.duration) ...
+                ');print(*pulse[0]);print(*pulse[1])"'];
+        otherwise
+            error('unsupported adiabatic pulse type');
+    end
+else
+    switch type
+        case 'hypsec'
+            cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.hypsec(' ... % hypsec(n=512, beta=800, mu=4.9, dur=0.012)
+                'n=' num2str(N) ',beta=' num2str(opt.beta) ',' ...
+                'mu=' num2str(opt.mu) ',dur=' num2str(opt.duration) ...
+                ')\nprint(*pulse[0])\nprint(*pulse[1])'''];
+        case 'wurst'
+            cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.wurst(' ... % wurst(n=512, n_fac=40, bw=40000.0, dur=0.002)
+                'n=' num2str(N) ',n_fac=' num2str(opt.n_fac) ',' ...
+                'bw=' num2str(opt.bandwidth) ',dur=' num2str(opt.duration) ...
+                ')\nprint(*pulse[0])\nprint(*pulse[1])'''];
+        otherwise
+            error('unsupported adiabatic pulse type');
+    end
 end
-
+%fprintf('cmd=%s\n',cmd);
 [status, result]=system(cmd);
 
 if status~=0

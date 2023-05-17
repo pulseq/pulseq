@@ -17,10 +17,12 @@ if isempty(parser)
     parser.addRequired('channel',...
         @(x) any(validatestring(x,validChannels)));
     parser.addRequired('waveform');
-    parser.addOptional('system',mr.opts(),@isstruct);
+    parser.addOptional('system', mr.opts(), @isstruct);
     parser.addParamValue('maxGrad',0,@isnumeric);
     parser.addParamValue('maxSlew',0,@isnumeric);
     parser.addParamValue('delay',0,@isnumeric);
+    parser.addParamValue('first',NaN,@isnumeric);
+    parser.addParamValue('last',NaN,@isnumeric);
 end
 parse(parser,channel,varargin{:});
 opt = parser.Results;
@@ -46,9 +48,21 @@ grad.type = 'grad';
 grad.channel = opt.channel;
 grad.waveform = g;
 grad.delay = opt.delay;
+grad.area=sum(grad.waveform);
 % true timing and aux shape data
 grad.tt = ((1:length(g))-0.5)*opt.system.gradRasterTime;
 grad.shape_dur = length(g)*opt.system.gradRasterTime;
-grad.first = (3*g(1)-g(2))*0.5; % extrapolate by 1/2 gradient rasters
-grad.last = (g(end)*3-g(end-1))*0.5; % extrapolate by 1/2 gradient rasters
+
+if isfinite(opt.first)
+    grad.first = opt.first;
+else
+    grad.first = (3*g(1)-g(2))*0.5; % extrapolate by 1/2 gradient of the raster
+end
+
+if isfinite(opt.last)
+    grad.last = opt.last;
+else
+    grad.last = (g(end)*3-g(end-1))*0.5; % extrapolate by 1/2 gradient of the raster
+end
+
 end

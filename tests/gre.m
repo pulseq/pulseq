@@ -1,8 +1,7 @@
-seq=mr.Sequence();              % Create a new sequence object
 fov=250e-3; Nx=64; Ny=64;       % Define FOV and resolution
 alpha=10;                       % flip angle
 sliceThickness=3e-3;            % slice
-TE=[7.38 9.84]*1e-3;            % give a vector here to have multiple TEs (e.g. for field mapping)
+TE=7.38*1e-3;                   % give a vector here to have multiple TEs (e.g. for field mapping)
 TR=100e-3;                      % only a single value for now
 
 % more in-depth parameters
@@ -12,6 +11,7 @@ rfSpoilingInc=117;              % RF spoiling increment
 sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
     'MaxSlew', 150, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
+seq=mr.Sequence(sys);           % Create a new sequence object
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(alpha*pi/180,'Duration',4e-3,...

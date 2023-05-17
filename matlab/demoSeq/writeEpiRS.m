@@ -136,13 +136,15 @@ seq.plot();             % Plot all sequence waveforms
 
 seq.plot('timeDisp','us','showBlocks',1,'timeRange',[0 25e-3]); %detailed view
 
-[rf_bw,rf_spectrum,rf_w]=mr.calcRfBandwidth(rf);
+rf.freqOffset=0;
+rf.phaseOffset=0;
+[rf_bw,rf_f0,rf_spectrum,rf_w]=mr.calcRfBandwidth(rf);
 figure;plot(rf_w,abs(rf_spectrum));
 title('Excitation pulse profile (low-angle approximation)');
 xlabel('Frequency, Hz');
 xlim(3*[-rf_bw rf_bw]);
 
-% trajectory calculation
+%% trajectory calculation
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos] = seq.calculateKspacePP();
 
 % plot k-spaces

@@ -2,7 +2,6 @@
 % which uses split gradients to overlap blips with the readout
 % gradients combined with ramp-samping
 
-seq=mr.Sequence();         % Create a new sequence object
 fov=250e-3; Nx=64; Ny=64;  % Define FOV and resolution
 thickness=3e-3;            % slice thinckness
 Nslices=3;
@@ -14,6 +13,7 @@ pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as n
 lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
     'MaxSlew',130,'SlewUnit','T/m/s',...
     'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6);  
+seq=mr.Sequence(lims);     % Create a new sequence object
 
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',3e-3,...

@@ -19,8 +19,8 @@ TR = 16e-3;
 alpha=30;
 
 % set system limits
-sys = mr.opts('MaxGrad',25,'GradUnit','mT/m',...
-    'MaxSlew',130,'SlewUnit','T/m/s',...
+sys = mr.opts('MaxGrad',20,'GradUnit','mT/m',...
+    'MaxSlew',120,'SlewUnit','T/m/s',...
     'rfRingdownTime', 20e-6, 'rfDeadtime', 100e-6);
 
 % Create a new sequence object
@@ -79,7 +79,7 @@ for i=start:Ny
                                     'phaseOffset', rand_phase);
     end
     seq.addBlock(rf, gz);
-    if (i>0) % negative index -- dummy scans
+    if (i>0) % negative or zero index -- dummy scans
         gyPre = mr.makeTrapezoid('y', 'Area', phaseAreas(i), 'Duration', 2e-3);
     else
         gyPre = mr.makeTrapezoid('y', 'Area', 0, 'Duration', 2e-3);
@@ -130,10 +130,30 @@ seq.plot('timeRange', [0 2*TR])
 return
 
 %% plot gradients to check for gaps and optimality of the timing
-gw=seq.gradient_waveforms();
-figure; plot(gw'); % plot the entire gradient shape
+wave_data=seq.waveforms_and_times(); 
+% plot the entire gradient shape
+figure; plot(wave_data{1}(1,:),wave_data{1}(2,:)); xlabel('time /s'); ylabel('gradient /(Hz/m)');
+hold on; plot(wave_data{2}(1,:),wave_data{2}(2,:));
+plot(wave_data{3}(1,:),wave_data{3}(2,:));
+legend('G_x', 'G_y', 'G_z');
 
-%% new single-function call for trajectory calculation
+%% calculate k-space trajectory 
+
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
+
+% plot k-spaces
+figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
+hold on; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
+title('k-space vector components as functions of time');
+legend('k_x', 'k_y', 'k_z');
+
+figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
+hold on;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
+axis('equal'); % enforce aspect ratio for the correct trajectory display
+title('k-space trajectory (k_x/k_y)');
+
+%%
+
 [ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
 
 % plot k-spaces

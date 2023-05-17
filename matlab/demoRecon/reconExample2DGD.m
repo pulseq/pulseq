@@ -117,9 +117,15 @@ rawdata = reshape(rawdata, [size(rawdata,1)*size(rawdata,2)/Ns,Ns,size(rawdata,3
 ktraj_adc=ktraj_adc(:,1:end/Ns);
 t_adc=t_adc(1:end/Ns);
 
+t_adcEx=t_adc-t_excitation(end);
+for i=1:length(t_excitation)-1
+    ii=find(t_adc>t_excitation(i)&t_adc<t_excitation(i+1));
+    t_adcEx(ii)=t_adc(ii)-t_excitation(i);
+end
+
 for s=1:Ns
     for c=1:channels
-        rawdata(:,s,c) = rawdata(:,s,c) .* exp(-1i*2*pi*t_adc'*offresonance);
+        rawdata(:,s,c) = rawdata(:,s,c) .* exp(-1i*2*pi*t_adcEx'*offresonance);
     end
 end
 

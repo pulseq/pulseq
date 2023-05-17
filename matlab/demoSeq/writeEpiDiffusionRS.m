@@ -17,12 +17,12 @@ fov=224e-3; Nx=112; Ny=Nx; % Define FOV and resolution
 thickness=2e-3;            % slice thinckness
 Nslices=3;
 bFactor=1000; % s/mm^2
-TE=100e-3;
+TE=80e-3;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delay calibration
 ro_os=1;                   % oversampling factor (in contrast to the product sequence we don't really need it)
 readoutTime=6.3e-4;        % this controls the readout bandwidth
-partFourierFactor=0.75;    % partial Fourier factor: 1: full sampling 0: start with ky=0
+partFourierFactor=0.5;    % partial Fourier factor: 1: full sampling 0: start with ky=0
 
 tRFex=3e-3;
 tRFref=3e-3;
@@ -37,11 +37,11 @@ gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4);
 
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',tRFex,...
-    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',thickness,'PhaseOffset',pi/2,'apodization',0.5,'timeBwProduct',4);
 
-% Create 90 degree slice refocusing pulse and gradients
+% Create 180 degree slice refocusing pulse and gradients
 [rf180, gz180] = mr.makeSincPulse(pi,'system',lims,'Duration',tRFref,...
-    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4,'PhaseOffset',pi/2,'use','refocusing');
+    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4,'use','refocusing');
 [~, gzr_t, gzr_a]=mr.makeExtendedTrapezoidArea('z',gz180.amplitude,0,-gzReph.area+0.5*gz180.amplitude*gz180.fallTime,lims);
 gz180n=mr.makeExtendedTrapezoid('z','system',lims,'times',[0 gz180.riseTime gz180.riseTime+gz180.flatTime+gzr_t]+gz180.delay, 'amplitudes', [0 gz180.amplitude gzr_a]);
 
@@ -147,9 +147,9 @@ assert(mr.calcDuration(gDiff)<=delayTE2);
 for s=1:Nslices
     seq.addBlock(rf_fs,gz_fs);
     rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
-    rf.phaseOffset=-2*pi*rf.freqOffset*mr.calcRfCenter(rf); % compensate for the slice-offset induced phase
+    rf.phaseOffset=pi/2-2*pi*rf.freqOffset*mr.calcRfCenter(rf); % compensate for the slice-offset induced phase
     rf180.freqOffset=gz180.amplitude*thickness*(s-1-(Nslices-1)/2);
-    rf180.phaseOffset=pi/2-2*pi*rf180.freqOffset*mr.calcRfCenter(rf180); % compensate for the slice-offset induced phase
+    rf180.phaseOffset=-2*pi*rf180.freqOffset*mr.calcRfCenter(rf180); % compensate for the slice-offset induced phase
     seq.addBlock(rf,gz,trig);
     seq.addBlock(mr.makeDelay(delayTE1),gDiff);
     seq.addBlock(rf180,gz180n);

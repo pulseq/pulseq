@@ -63,7 +63,6 @@ gx_parts(2).delay=0;
 gxPre.delay=mr.calcDuration(gx_parts(2));
 gx_2=mr.addGradients({gx_parts(2),gxPre},'system',sys);
 
-
 % Calculate timing
 %pe_dur=min(max(tp2(end),tpr1(end-2)),max(tp(end-3),tpr2(end))); 
 gxPre.delay=0; % otherwise duration below is misreported
@@ -84,32 +83,31 @@ TE=TR/2;
 % create 0.5*alpha prep pulse
 rf05=rf;
 rf05.signal=0.5*rf.signal;
-seq.addBlock(rf05,gz_1);
-seq.addBlock(gz_2);
+seq.addBlock(rf05,gz_1,mr.makeLabel('SET','ONCE', 1)); % we also label the few following blocks as preparing to exclude them if the sequence is repeated
 % the following delay calculation fails for agressive sequence timing
-prepDelay=mr.makeDelay(round((TR/2-mr.calcDuration(gz_1)-mr.calcDuration(gz_2))/sys.gradRasterTime)*sys.gradRasterTime); % I know this round() is not 100% correct
-seq.addBlock(prepDelay);
+prepDelay=mr.makeDelay(round((TR/2-mr.calcDuration(gz_1))/sys.gradRasterTime)*sys.gradRasterTime); % I know this round() is not 100% correct
+gx_1_1=mr.makeExtendedTrapezoidArea('x',0,gx_2.first,-gx_2.area,sys);
+gyPre_2 = mr.makeTrapezoid('y','Area',phaseAreas(end),'Duration',pe_dur,'system',sys); % last PE step (in case of repetitions)
+seq.addBlock(mr.align('left',prepDelay,gz_2,gyPre_2,'right',gx_1_1));
+seq.addBlock(mr.makeLabel('SET','ONCE', 0)); % remove preparing block label
 
 % Loop over phase encodes and define sequence blocks
 for i=1:Ny
     rf.phaseOffset=pi*mod(i,2);
     adc.phaseOffset=pi*mod(i,2);
         
+    gyPre_1 = mr.scaleGrad(gyPre_2,-1); % undo previous PE step
     gyPre_2 = mr.makeTrapezoid('y','Area',phaseAreas(i),'Duration',pe_dur,'system',sys); % current PE step
-    if i>1
-        gyPre_1 = mr.makeTrapezoid('y','Area',-phaseAreas(mod(i+Ny-2,Ny)+1),'Duration',pe_dur,'system',sys); % previous PE step
-        seq.addBlock(rf,gz_1, gyPre_1, gx_2);
-    else
-        seq.addBlock(rf,gz_1);
-    end
+
+    seq.addBlock(rf,gz_1, gyPre_1, gx_2);
     seq.addBlock(gx_1,gyPre_2, gz_2,adc);
 end
 % finish the x-grad shape 
-seq.addBlock(gx_2);
+seq.addBlock(gx_2,mr.makeLabel('SET','ONCE', 2)); % we also label this block as the exit block, which excludes it from all but last repetitions if the sequence is repeated
 
 % check that the calculated TR was reached
-% alpha / 2 prep takes 3 blocks
-assert(TR==(mr.calcDuration(seq.getBlock(4))+mr.calcDuration(seq.getBlock(5))));
+% alpha / 2 prep takes 4 blocks
+assert(TR==(mr.calcDuration(seq.getBlock(5))+mr.calcDuration(seq.getBlock(6))));
 
 fprintf('Sequence ready\n');
 fprintf('TR=%03f ms  TE=%03f ms\n', TR*1e3, TE*1e3);
