@@ -1148,7 +1148,7 @@ classdef Sequence < handle
                 % show block edges in plots
                 for i=1:6
                     xax=get(ax(i),'XAxis');
-                    xax.TickValues=tFactor.*blockEdgesInRange;
+                    xax.TickValues=unique(tFactor.*blockEdgesInRange); % there may be more efficient ways than this unique() call, but something like that is necessary here
                     set(ax(i),'XTickLabelRotation',90);
                     %xax.MinorTickValues=tFactor.*blockEdgesInRange;
                     %set(ax(i),'XMinorTick', 'on');
