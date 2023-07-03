@@ -78,6 +78,9 @@ if isempty(parser)
     addParamValue(parser, 'sliceThickness', 0, @isnumeric);
     addParamValue(parser, 'delay', 0, @isnumeric);
     addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
+    % Optional Python command
+    addParamValue(parser, 'pythonCmd', '', @(x)isstring(x)||ischar(x));
+
     % whether it is a refocusing pulse (for k-space calculation)
     addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
 end
@@ -90,29 +93,33 @@ if opt.dwell==0
 end
 
 % find python (probably only works on linux, maybe also mac)
-if ispc()
-    if status==0
-        python='python';
-    else
-        [status, result]=system('py --version');
-        if status~=0
-            error('python executable not found, please check your system PATH settings');
+if isempty(opt.pythonCmd)
+    if ispc()
+        if status==0
+            python='python';
+        else
+            [status, result]=system('py --version');
+            if status~=0
+                error('python executable not found, please check your system PATH settings');
+            end
+            python='py';
         end
-        python='py';
-    end
-else
-    % this probably only works on linux and maybe also on mac
-    [status, result]=system('which python3');
-    if status==0
-        python=strip(result);
     else
-        [status, result]=system('which python');
+        % this probably only works on linux and maybe also on mac
+        [status, result]=system('which python3');
         if status==0
             python=strip(result);
         else
-            error('python executable not found');
+            [status, result]=system('which python');
+            if status==0
+                python=strip(result);
+            else
+                error('python executable not found');
+            end
         end
     end
+else
+    python=opt.pythonCmd;
 end
 
 Nraw = round(opt.duration/opt.dwell+eps);
