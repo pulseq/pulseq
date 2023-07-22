@@ -951,7 +951,7 @@ classdef Sequence < handle
             c_excitation=0;
             c_refocusing=0;
             c_adcSamples=0;
-            % loop throught the blocks to prepare preallocations
+            % loop through the blocks to prepare preallocations
             for iB=1:length(obj.blockEvents)
                 block = obj.getBlock(iB);
                 if ~isempty(block.rf)
@@ -1024,7 +1024,7 @@ classdef Sequence < handle
 %                     ii_next_refocusing = min(length(i_refocusing),ii_next_refocusing+1);
 %                 end
 %             end
-            i_periods=sort([1; i_excitation+1; i_refocusing+1; size(gw,2)+1]); % we need thise +1 for compatibility with the above code which proved to be correct
+            i_periods=sort([1; i_excitation+1; i_refocusing+1; size(gw,2)+1]); % we need these +1 for compatibility with the above code which proved to be correct
             ii_next_excitation=min(length(i_excitation),1);
             ii_next_refocusing=min(length(i_refocusing),1);
             ktraj=zeros(size(gw));

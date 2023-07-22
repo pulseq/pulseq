@@ -1,5 +1,5 @@
 % very basic generic non-Cartesian recon using BART
-% assumes raw data *.mat (or *.dat) fiels are stored together with the 
+% assumes raw data *.mat (or *.dat) files are stored together with the 
 % *.seq Pulseq files with the identical(!) names
 %
 % optionally needs mapVBVD in the path (if raw data have not yet been converted to *.mat)

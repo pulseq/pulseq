@@ -104,7 +104,7 @@ adcSamplesDesired=kRadius*kSamples;
 adcSegments=round(adcSamplesDesired/adcSamplesPerSegment);
 adcSamples=adcSegments*adcSamplesPerSegment;
 adcDwell=round(adcTime/adcSamples/100e-9)*100e-9; % on Siemens adcDwell needs to be aligned to 100ns (if my memory serves me right)
-adcSegmentDuration=adcSamplesPerSegment*adcDwell; % with the 100 samples above and the 100ns alignment we automatically fullfill the segment alignment requirement
+adcSegmentDuration=adcSamplesPerSegment*adcDwell; % with the 100 samples above and the 100ns alignment we automatically fulfill the segment alignment requirement
 if mod(adcSegmentDuration, sys.gradRasterTime)>eps 
     error('ADC segmentation model results in incorrect segment duration');
 end
@@ -130,7 +130,7 @@ gy_spoil=mr.makeExtendedTrapezoid('y','times',[0 mr.calcDuration(gz_spoil)],'amp
 % extends past the end of the trajectory (these points will have to be
 % discarded in the reconstruction, which is no problem). However, the
 % ramp-down parts and the Z-spoiler now have to be added to the readout
-% block otherwise there will be a gap inbetween
+% block otherwise there will be a gap between
 % gz_spoil.delay=mr.calcDuration(gx);
 % gx_spoil.delay=gz_spoil.delay;
 % gy_spoil.delay=gz_spoil.delay;

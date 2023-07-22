@@ -125,7 +125,7 @@ for i=1:Nrep
     seq.addBlock(gxSpoil_combi,gySpoil_combi,gz_comb,rf_180_4);
     seq.addBlock(adc,mr.makeDelay(mr.calcDuration(adc)+system.adcDeadTime));
     
-    % this is realy a lazy way of defining the TR delay
+    % this is really a lazy way of defining the TR delay
     if i==1
         delayTR = TR- seq.duration();
         assert(delayTR>0);

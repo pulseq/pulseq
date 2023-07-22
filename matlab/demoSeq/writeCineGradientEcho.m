@@ -10,7 +10,7 @@ TR=9e-3;                        % only a single value for now
 
 % cardiac features
 phases = 8;
-hearbeats = 15; % odd numbers of heartbeats / segments work better
+heartbeats = 15; % odd numbers of heartbeats / segments work better
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
@@ -49,7 +49,7 @@ adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime,'system',sys);
 gxPre = mr.makeTrapezoid('x','Area',-gx.area/2,'Duration',pre_duration,'system',sys);
 gzReph = mr.makeTrapezoid('z','Area',-gz.area/2,'Duration',pre_duration,'system',sys);
 
-lines_per_segment = round(Ny/hearbeats);
+lines_per_segment = round(Ny/heartbeats);
 Ns=ceil(Ny/lines_per_segment);
 Ny=Ns*lines_per_segment; % it can be that because of the rounding above we measure few more k-space lines...
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;

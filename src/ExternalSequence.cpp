@@ -766,7 +766,7 @@ bool ExternalSequence::load(std::string path)
 			if (m_blockDurations_ru[b]) // non-zero means old delay library reference
 			{
 				if (tmpDelayLibrary.end()==tmpDelayLibrary.find(m_blockDurations_ru[b])) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: invalid delay library reference " << m_blockDurations_ru[b] << " in block " << b << " detected while convering the Pulseq file from older version");
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: invalid delay library reference " << m_blockDurations_ru[b] << " in block " << b << " detected while covering the Pulseq file from older version");
 					return false;
 				}
 				duration=tmpDelayLibrary[m_blockDurations_ru[b]]; // we know delay is still 0, see above
@@ -1015,7 +1015,7 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 				(shapeTime.samples.size()==3 || shapeTime.samples.size()==4)) 
 			{
 				// size=3: 1 1 N-2; size=4: t0 d d N-3 
-				// in both cases the actuall dwell time is stored at shapeTime.samples[1]
+				// in both cases the actual dwell time is stored at shapeTime.samples[1]
 				fDwellTime_us=m_dRadiofrequencyRasterTime_us*shapeTime.samples[1]; // no need to unpack 
 			}
 			else
