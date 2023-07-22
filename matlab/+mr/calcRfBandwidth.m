@@ -21,7 +21,7 @@ end
 
 tc=mr.calcRfCenter(rf);
 
-% resample the pulse to a resonable time array
+% resample the pulse to a reasonable time array
 nn=round(1/df/dt);
 t=(-floor(nn/2):ceil(nn/2)-1)*dt;
 

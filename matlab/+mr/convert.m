@@ -1,7 +1,7 @@
 function out=convert(in,varargin)
 %OPTS Set gradient limits of the MR system.
 %   out=convert(in,from,to) Convert the numerical data in, given in
-%   specificed units 'from' to units specified in 'to'.
+%   specified units 'from' to units specified in 'to'.
 %
 %   Valid unit strings are:
 %    'Hz/m' 'mT/m' 'rad/ms/mm' 'Hz/m/s' 'mT/m/ms' 'T/m/s' 'rad/ms/mm/ms'

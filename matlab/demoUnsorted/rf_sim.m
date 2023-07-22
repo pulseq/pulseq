@@ -16,7 +16,7 @@ N     = round(numel(F)*.5*pi/dt/max(F))*2;                                 % nmu
 M_STA = sin(w)*abs(fftshift(fft(shapea,N))) * dt*v/w; 
 M_STA = M_STA(N/2+(-numel(F)/2+1:numel(F)/2));                             % extract frequencies of interest
 
-% intialize result vectors
+% initialize result vectors
 %M_ODE=zeros(size(F)); 
 M_ROT=zeros(size(F)); 
 Z_ROT=zeros(size(F));
@@ -55,7 +55,7 @@ for freq = F; i=i+1;
   % summarize results
   M_ROT(i) = abs(2*Q(1,1)'*Q(2,1));                                        % transv. magn.
   Z_ROT(i) = Q(1,1)*Q(2,2)+Q(2,1)*Q(1,2);                                  % long. magn.
-  q(1,i)=0.5*real(Q(1,1)+Q(2,2)); % rotation quaternion (for futher anlysis)
+  q(1,i)=0.5*real(Q(1,1)+Q(2,2)); % rotation quaternion (for further analysis)
   q(2,i)=0.5*imag(Q(2,1)+Q(1,2)); 
   q(3,i)=0.5*real(Q(1,2)-Q(2,1));
   q(4,i)=0.5*imag(Q(1,1)-Q(2,2));

@@ -1,4 +1,4 @@
-% this is an experimentaal spiral sequence
+% this is an experimental spiral sequence
 
 fov=256e-3; Nx=96; Ny=Nx;  % Define FOV and resolution
 sliceThickness=3e-3;             % slice thinckness
@@ -32,7 +32,7 @@ kRadius = round(Nx/2);
 kSamples=round(2*pi*kRadius)*Oversampling;
 readoutTime = 4.2e-4;
 
-% calculate a raw Archimedian spiral trajectory
+% calculate a raw Archimedean spiral trajectory
 clear ka;
 ka(kRadius*kSamples+1)=1i; % init as complex
 for c=0:kRadius*kSamples
@@ -114,7 +114,7 @@ adcSamples=adcSegments*adcSamplesPerSegment;
 adc = mr.makeAdc(adcSamples,'Dwell',adcDwell,'Delay',mr.calcDuration(gzReph));%lims.adcDeadTime);
 
 % extend spiral_grad_shape by repeating the last sample
-% this is needed to accomodate for the ADC tuning delay
+% this is needed to accommodate for the ADC tuning delay
 spiral_grad_shape = [spiral_grad_shape spiral_grad_shape(:,end)];
 
 % readout grad 

@@ -3,7 +3,7 @@ function grad=makeTrapezoid(channel, varargin)
 %   g=makeTrapezoid(channel, ...) Create trapezoid gradient on
 %   the given channel.
 %
-%   g=makeTrapezoid(channel,lims,...) Create trapezoid with the specificed 
+%   g=makeTrapezoid(channel,lims,...) Create trapezoid with the specified 
 %   gradient limits (e.g. amplitude, slew).
 %
 %   g=makeTrapezoid(...,'Duration',d,'Area',a) Create a

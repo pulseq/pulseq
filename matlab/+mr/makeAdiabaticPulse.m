@@ -164,7 +164,7 @@ assert(length(am)==length(fm));
 pm=cumsum(fm)*opt.dwell;
 
 [dfm,ifm]=min(abs(fm)); % find the center of the pulse
-% we will also use the ocasion to find the rate of change of the frequency
+% we will also use the occasion to find the rate of change of the frequency
 % at the center of the pulse
 if dfm==0 
     pm0=pm(ifm);

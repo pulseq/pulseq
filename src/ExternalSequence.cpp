@@ -352,7 +352,7 @@ bool ExternalSequence::load(std::string path)
 		}
 	}
 
-	// Read delays section (comatibility with Pulseq version prior to 1.4.0)
+	// Read delays section (compatibility with Pulseq version prior to 1.4.0)
 	// ---------------------------------------------------------------------
 	std::map<int,long> tmpDelayLibrary;
 	if (m_fileIndex.find("[DELAYS]") != m_fileIndex.end()) {
@@ -486,7 +486,7 @@ bool ExternalSequence::load(std::string path)
 							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
 							return false;
 						}else if(nRet>0) {
-							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: decoding labelinc event returnd 0\n" << buffer << std::endl );
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: decoding labelinc event returned 0\n" << buffer << std::endl );
 						}
 
 						m_labelincLibrary[nID] = label;
@@ -872,7 +872,7 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 		if (events.id[GX+i]>0) block->grad[i] = m_gradLibrary[events.id[GX+i]];
 	// unpack (known) extension objects
 	if (events.id[EXT]>0) {
-		// oh yeah, the current data stuctures seem to be really ugly and slow...
+		// oh yeah, the current data structures seem to be really ugly and slow...
 		int nNextExtID=events.id[EXT];
 		while (nNextExtID) {
 			std::map<int,ExtensionListEntry>::iterator itEL = m_extensionLibrary.find(nNextExtID);
@@ -962,7 +962,7 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 		duration = MAX(duration, trigger.delay+trigger.duration );
 	}
 
-	// TODO: conversion from previous versons
+	// TODO: conversion from previous versions
 	assert(version_combined>=1004000L);
 	//// handling of delays has changed in revision 1.2.0
 	//if (version_combined<1002000L)

@@ -1,6 +1,6 @@
 % very basic generic non-Cartesian recon using BART
 % assumes raw data *.mat (or *.dat) fiels are stored together with the 
-% *.seq Pulseq files withe the identical(!) names
+% *.seq Pulseq files with the identical(!) names
 %
 % optionally needs mapVBVD in the path (if raw data have not yet been converted to *.mat)
 % requires BART, modify or remove the line below depending on your path settings
@@ -66,7 +66,7 @@ end
 
 %% calculate k-space trajectory
 traj_recon_delay=0*1e-6;%1.75e-6; % adjust this parameter to potentially improve resolution & geometric accuracy. It can be calibrated by inverting the spiral revolution dimension and making two images match. for our Prisma and a particular trajectory we found 1.75e-6
-samples_to_mask=0; % each ADC may contain damaged samples in the begining
+samples_to_mask=0; % each ADC may contain damaged samples in the beginning
 fprintf('calculating k-space trajectory ...');
 
 %[ktraj_adc, t_adc, ktraj, t, t_excitation, t_refocusing]=seq.calculateKspacePP('trajectory_delay', traj_recon_delay);
@@ -180,7 +180,7 @@ datapwr=squeeze(sum(rawdata.*conj(rawdata),2));
 [~,pwrsort]=sort(-datapwr);
 
 %% call bart for the actual recon -- first try inverse gridding
-igrid = bart('nufft -i -t -lowmem1', ktraj_adc, rawdata); % inverse interative gridding (-i) % -lowmem1 may be of help with large data
+igrid = bart('nufft -i -t -lowmem1', ktraj_adc, rawdata); % inverse interactive gridding (-i) % -lowmem1 may be of help with large data
 save([basic_file_path '_recon_igrid'],'igrid');
 % display (needs imab for displaying multiple slices/partitions)
 figure; imab(sum(abs(igrid).^2,4).^0.5); colormap gray; 
@@ -194,8 +194,8 @@ figure; imab(abs(nlinv)/max(abs(nlinv(:)))); colormap gray;
 title('BART recon, nonlinear inversion'); drawnow;
 
 %% call bart for the pics algorithm with compressed sensing (with dummy coil sensitivities)
-pics = bart('pics -S -l2 -r5 -t', ktraj_adc, rawdata, ones(size(igrid))); % inverse interative gridding (-i) % -lowmem1 may be of help with large data
-%pics_l1 = bart('pics -S -l1 -i100 -s0.0002 -r0.003 -t', ktraj_adc, rawdata, ones(size(igrid))); % inverse interative gridding (-i) % -lowmem1 may be of help with large data
+pics = bart('pics -S -l2 -r5 -t', ktraj_adc, rawdata, ones(size(igrid))); % inverse interactive gridding (-i) % -lowmem1 may be of help with large data
+%pics_l1 = bart('pics -S -l1 -i100 -s0.0002 -r0.003 -t', ktraj_adc, rawdata, ones(size(igrid))); % inverse interactive gridding (-i) % -lowmem1 may be of help with large data
 % tested r 0.002 0.004 and 0.01 (l1, l1s or ++, l1ss or +++)
 save([basic_file_path '_recon_pics'],'pics');
 % display (needs imab for displaying multiple slices/partitions)
@@ -203,7 +203,7 @@ figure; imab(sum(abs(pics).^2,4).^0.5); colormap gray;
 title('BART recon, pics-l2'); drawnow;
 
 % %%
-% pics_l2 = bart('pics -S -l2 -r5 -t', ktraj_adc, rawdata, ones(size(igrid))); % inverse interative gridding (-i) % -lowmem1 may be of help with large data
+% pics_l2 = bart('pics -S -l2 -r5 -t', ktraj_adc, rawdata, ones(size(igrid))); % inverse interactive gridding (-i) % -lowmem1 may be of help with large data
 % save([basic_file_path '_recon_picsL2'],'pics_l2');
 % % display (needs imab for displaying multiple slices/partitions)
 % figure; imab(sum(abs(pics_l2).^2,4).^0.5); colormap gray; drawnow;

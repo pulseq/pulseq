@@ -9,7 +9,7 @@ dt=sys.gradRasterTime; % time raster
 fmax=10000; %10kHz
 nwin=5000; % 0.05s
 os=3; % frequency oversampling for prettier peaks
-ascName=[]; % this disables the display of the system's resonance frequences
+ascName=[]; % this disables the display of the system's resonance frequencies
 %ascName='idea/asc/MP_GPA_K2309_2250V_951A_AS82.asc'; % 3T prisma
 
 if ischar(ascName)

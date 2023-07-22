@@ -18,7 +18,7 @@ delta= 2* pi / Nr;              % angular increment; try golden angle pi*(3-5^0.
 rf_duration=0.5e-3;             % duration of the excitation pulse
 ro_duration=0.720e-3;           % read-out time: controls RO bandwidth and T2-blurring
 ro_os=2;                        % oversampling
-minRF_to_ADC_time=70e-6;        % the parameter wich defines TE together with ro_discard
+minRF_to_ADC_time=70e-6;        % the parameter which defines TE together with ro_discard
 ro_discard=0;                   % dummy ADC samples to discard (due to ADC filter 
 ro_spoil=1;                     % extend RO to achieve spoiling
 
@@ -49,7 +49,7 @@ rf.shape_dur=length(rfs_1)*sys.rfRasterTime;
 gz.flatTime=ceil((gz.flatTime-gz.fallTime*0.5)/sys.gradRasterTime)*sys.gradRasterTime;
 rf.delay=mr.calcDuration(rf,gz)-rf.shape_dur; % fix the possible time shift due to the rounding-up step above
 
-% Align RO assymmetry to ADC samples
+% Align RO asymmetry to ADC samples
 Nxo=round(ro_os*Nx);
 % Define other gradients and ADC events
 deltak=1/fov/2;
@@ -73,7 +73,7 @@ fprintf('TE= %d us; delay in TR:= %d us\n', round(TE*1e6), floor(delayTR*1e6));
 
 % set up timing
 gx.delay=mr.calcDuration(gz)+TE;
-adc.delay=floor((gx.delay-adc.dwell*0.5-adc.dwell*ro_discard)/sys.gradRasterTime)*sys.gradRasterTime; % take into accout 0.5 samples ADC shift
+adc.delay=floor((gx.delay-adc.dwell*0.5-adc.dwell*ro_discard)/sys.gradRasterTime)*sys.gradRasterTime; % take into account 0.5 samples ADC shift
 
 rf_phase=0;
 rf_inc=0;
