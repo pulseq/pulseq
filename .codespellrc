@@ -1,4 +1,5 @@
 [codespell]
 skip = .git,*.pdf,*.svg
-#
-# ignore-words-list =
+# some abbreviated citations etc
+ignore-regex = .*Reson\. Ser.*
+ignore-words-list = te,fo,nd,maked,datas,iten,itel,tread
