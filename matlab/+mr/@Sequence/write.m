@@ -157,34 +157,31 @@ if ~isempty(obj.trigLibrary.keys)
     fprintf(fid, '\n');
 end
 
-if ~isempty(obj.labelsetLibrary.keys) || ~isempty(obj.labelincLibrary.keys)
+if ~isempty(obj.labelsetLibrary.keys)
     lbls=mr.getSupportedLabels();
 
-    if ~isempty(obj.labelsetLibrary.keys)
-       fprintf(fid, '# Extension specification for setting labels:\n');
-        fprintf(fid, '# id set labelstring\n');
-        tid=obj.getExtensionTypeID('LABELSET');
-        fprintf(fid, ['extension LABELSET ',num2str(tid),'\n']);
-        keys = obj.labelsetLibrary.keys;
-        for k = keys
-                fprintf(fid, '%d %d %s\n', ... 
-                    k, obj.labelsetLibrary.data(k).array(1),lbls{obj.labelsetLibrary.data(k).array(2)});
-        end
-        fprintf(fid, '\n');
+    fprintf(fid, '# Extension specification for setting labels:\n');
+    fprintf(fid, '# id set labelstring\n');
+    tid=obj.getExtensionTypeID('LABELSET');
+    fprintf(fid, ['extension LABELSET ',num2str(tid),'\n']);
+    keys = obj.labelsetLibrary.keys;
+    for k = keys
+            fprintf(fid, '%d %d %s\n', ... 
+                k, obj.labelsetLibrary.data(k).array(1),lbls{obj.labelsetLibrary.data(k).array(2)});
     end
-    if ~isempty(obj.labelincLibrary.keys)
-        fprintf(fid, '# Extension specification for increasing labels:\n');
-        fprintf(fid, '# id set labelstring\n');
-        tid=obj.getExtensionTypeID('LABELINC');
-        fprintf(fid, ['extension LABELINC ',num2str(tid),'\n']);
-        lbls=mr.getSupportedLabels();
-        keys = obj.labelincLibrary.keys;
-        for k = keys
-                fprintf(fid, '%d %d %s\n', ... 
-                    k, obj.labelincLibrary.data(k).array(1),lbls{obj.labelincLibrary.data(k).array(2)});
-        end
-        fprintf(fid, '\n');
+    fprintf(fid, '\n');
+
+    fprintf(fid, '# Extension specification for setting labels:\n');
+    fprintf(fid, '# id set labelstring\n');
+    tid=obj.getExtensionTypeID('LABELINC');
+    fprintf(fid, ['extension LABELINC ',num2str(tid),'\n']);
+    lbls=mr.getSupportedLabels();
+    keys = obj.labelincLibrary.keys;
+    for k = keys
+            fprintf(fid, '%d %d %s\n', ... 
+                k, obj.labelincLibrary.data(k).array(1),lbls{obj.labelincLibrary.data(k).array(2)});
     end
+    fprintf(fid, '\n');
 end
 
 if ~isempty(obj.shapeLibrary.keys)
