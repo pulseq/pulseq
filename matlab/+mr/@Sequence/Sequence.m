@@ -119,7 +119,7 @@ classdef Sequence < handle
         
         
         % See calcPNS.m
-        [ok, pns_norm, pns_comp, t_axis]=calcPNS(obj,hardware,doPlots)
+        [ok, pns_norm, pns_comp, t_axis]=calcPNS(obj,hardware,doPlots,calcCNS)
         
         % See testReport.m
         %testReport(obj);
@@ -1148,7 +1148,7 @@ classdef Sequence < handle
                 % show block edges in plots
                 for i=1:6
                     xax=get(ax(i),'XAxis');
-                    xax.TickValues=unique(tFactor.*blockEdgesInRange); % there may be more efficient ways than this unique() call, but something like that is necessary here
+                    xax.TickValues=unique(tFactor.*blockEdgesInRange);
                     set(ax(i),'XTickLabelRotation',90);
                     %xax.MinorTickValues=tFactor.*blockEdgesInRange;
                     %set(ax(i),'XMinorTick', 'on');
@@ -1193,9 +1193,18 @@ classdef Sequence < handle
                     end
                     if ~isempty(block.rf)
                         rf=block.rf;
-                        [tc,ic]=mr.calcRfCenter(rf);
-                        t=rf.t;
-                        s=rf.signal;
+                        [tc,ic]=mr.calcRfCenter(rf);                        
+                        if max(abs(diff(rf.t)-rf.t(2)+rf.t(1)))<1e-9
+                            % homogeneous sampling -- use lower time resolution for better display and performance
+                            dt=rf.t(2)-rf.t(1);
+                            st=round(obj.sys.gradRasterTime/dt);
+                            t=rf.t(1:st:end);
+                            s=rf.signal(1:st:end);
+                            ic=round(ic/st);
+                        else
+                            t=rf.t;
+                            s=rf.signal;
+                        end
                         sreal=max(abs(imag(s)))/max(abs(real(s)))<1e-6; %all(isreal(s));
                         if abs(s(1))~=0 % fix strangely looking phase / amplitude in the beginning
                             s=[0; s];
@@ -1246,6 +1255,8 @@ classdef Sequence < handle
             linkaxes(ax(:),'x')
             h = zoom(fig);
             setAxesZoomMotion(h,ax(1),'horizontal');
+            % make Y-axes little bit less tight
+            arrayfun(@(x) ylim(x, ylim(x) + 0.03*[-1 1]*sum(ylim(x).*[-1 1])), ax(2:end));
         end
         
         function grad_waveforms=gradient_waveforms1(obj) % currently disfunctional (feature_ExtTrap)
@@ -1744,12 +1755,18 @@ classdef Sequence < handle
             sound_length=floor(total_duration/dwell_time)+1;
             
             sound_data(2,sound_length)=0; %preallocate
-            %sound_data(1,:)=interp1((0:(grad_wavelen-1))*obj.gradRasterTime,grad_waveforms(1,:)+0.5*grad_waveforms(3,:),(0:(sound_length-1))*dwell_time);
-            sound_data(1,:)=interp1(gw_data{1}(1,:),gw_data{1}(2,:),(0:(sound_length-1))*dwell_time,'linear',0) + ...
-                            interp1(gw_data{3}(1,:),gw_data{3}(2,:),(0:(sound_length-1))*dwell_time,'linear',0)*0.5;
-            %sound_data(2,:)=interp1((0:(grad_wavelen-1))*obj.gradRasterTime,grad_waveforms(2,:)+0.5*grad_waveforms(3,:),(0:(sound_length-1))*dwell_time);
-            sound_data(1,:)=interp1(gw_data{2}(1,:),gw_data{2}(2,:),(0:(sound_length-1))*dwell_time,'linear',0) + ...
-                            interp1(gw_data{3}(1,:),gw_data{3}(2,:),(0:(sound_length-1))*dwell_time,'linear',0)*0.5;
+            
+            if ~isempty(gw_data{1})
+                sound_data(1,:)=interp1(gw_data{1}(1,:),gw_data{1}(2,:),(0:(sound_length-1))*dwell_time,'linear',0);
+            end
+            if ~isempty(gw_data{2})
+                sound_data(2,:)=interp1(gw_data{2}(1,:),gw_data{2}(2,:),(0:(sound_length-1))*dwell_time,'linear',0);
+            end            
+            if ~isempty(gw_data{3})
+                tmp=interp1(gw_data{3}(1,:),gw_data{3}(2,:),(0:(sound_length-1))*dwell_time,'linear',0)*0.5;
+                sound_data(1,:)=sound_data(1,:)+tmp;
+                sound_data(2,:)=sound_data(2,:)+tmp;
+            end
             
             % filter like we did it in the gradient music project
             %b = fir1(40, 10000/sample_rate);
@@ -1760,7 +1777,7 @@ classdef Sequence < handle
             sound_data(1,:) = conv(sound_data(1,:), gw, 'same');
             sound_data(2,:) = conv(sound_data(2,:), gw, 'same');
             
-            sound_data_max=max(sound_data(:));            
+            sound_data_max=max(abs(sound_data(:))); 
             sound_data = 0.95 * sound_data / sound_data_max;
             
             % info
@@ -1818,12 +1835,12 @@ classdef Sequence < handle
                 if strcmpi(dest,'siemensNX')
                     pulseq_seq_path='/opt/medcom/MriCustomer/CustomerSeq/pulseq';
                 end
-                [status, ~] = system(['scp -oBatchMode=yes -oStrictHostKeyChecking=no external.seq.tmp root@' ice_ip ':' pulseq_seq_path '/external_tmp.seq']);
+                [status, ~] = system(['scp -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa external.seq.tmp root@' ice_ip ':' pulseq_seq_path '/external_tmp.seq']);
                 ok = ok & status == 0;
                 if ok
-                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "chmod a+rw ' pulseq_seq_path '/external_tmp.seq"']);
-                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "rm -f ' pulseq_seq_path '/' name '.seq"']);
-                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/' name '.seq"']);
+                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "chmod a+rw ' pulseq_seq_path '/external_tmp.seq"']);
+                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "rm -f ' pulseq_seq_path '/' name '.seq"']);
+                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/' name '.seq"']);
                 end
             end
             

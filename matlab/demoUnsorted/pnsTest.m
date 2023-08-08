@@ -88,15 +88,18 @@ seq.write('idea/external.seq');
 
 %% PNS calc
 
-%[pns,tpns]=seq.calcPNS('idea/asc/MP_GPA_K2309_2250V_951A_AS82.asc'); % prisma
-%[pns,tpns]=seq.calcPNS('idea/asc/MP_GPA_K2309_2250V_951A_GC98SQ.asc'); % aera-xq
-[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GPA_K2298_2250V_793A_SC72CD_EGA.asc'); % TERRA-XR
+[pns0_ok, pns0_n, pns0_c, tpns0]=seq.calcPNS('idea/asc/MP_GPA_K2309_2250V_951A_AS82.asc'); % prisma
+%[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GPA_K2309_2250V_951A_GC98SQ.asc'); % aera-xq
+%[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GPA_K2298_2250V_793A_SC72CD_EGA.asc'); % TERRA-XR
+[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GradSys_P034_X60.asc'); % Cima.X
 
+return
 %% load simulation results 
 
 %[sll,~,~,vscale]=dsv_read('idea/dsv/prisma_pulseq_SLL.dsv');
 %[sll,~,~,vscale]=dsv_read('idea/dsv/aera_pulseq_SLL.dsv');
-[sll,~,~,vscale]=dsv_read('idea/dsv/terra_pulseq_SLL.dsv');
+%[sll,~,~,vscale]=dsv_read('idea/dsv/terra_pulseq_SLL.dsv');
+[sll,~,~,vscale]=dsv_read('idea/dsv/simax_pulseq_SLL.dsv');
 sll=cumsum(sll/vscale);
 
 %% plot

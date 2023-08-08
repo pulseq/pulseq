@@ -11,6 +11,7 @@ nwin=5000; % 0.05s
 os=3; % frequency oversampling for prettier peaks
 ascName=[]; % this disables the display of the system's resonance frequences
 %ascName='idea/asc/MP_GPA_K2309_2250V_951A_AS82.asc'; % 3T prisma
+ascName='idea/asc/MP_GradSys_P034_X60.asc'; % 3T cima.X
 
 if ischar(ascName)
     ascData=mr.Siemens.readasc(ascName);
@@ -75,11 +76,11 @@ xlabel('frequency / Hz');
 
 if ischar(ascName)
     hold on; 
-    for i=1:length(ascData.asGPAParameters.sGCParameters.aflAcousticResonanceFrequency)
-        if ascData.asGPAParameters.sGCParameters.aflAcousticResonanceFrequency(i)>0
-            xline(ascData.asGPAParameters.sGCParameters.aflAcousticResonanceFrequency(i),'-');
-            xline(ascData.asGPAParameters.sGCParameters.aflAcousticResonanceFrequency(i)-ascData.asGPAParameters.sGCParameters.aflAcousticResonanceBandwidth(i)/2,'--');
-            xline(ascData.asGPAParameters.sGCParameters.aflAcousticResonanceFrequency(i)+ascData.asGPAParameters.sGCParameters.aflAcousticResonanceBandwidth(i)/2,'--');
+    for i=1:length(ascData.asGPAParameters(1).sGCParameters.aflAcousticResonanceFrequency)
+        if ascData.asGPAParameters(1).sGCParameters.aflAcousticResonanceFrequency(i)>0
+            xline(ascData.asGPAParameters(1).sGCParameters.aflAcousticResonanceFrequency(i),'-');
+            xline(ascData.asGPAParameters(1).sGCParameters.aflAcousticResonanceFrequency(i)-ascData.asGPAParameters(1).sGCParameters.aflAcousticResonanceBandwidth(i)/2,'--');
+            xline(ascData.asGPAParameters(1).sGCParameters.aflAcousticResonanceFrequency(i)+ascData.asGPAParameters(1).sGCParameters.aflAcousticResonanceBandwidth(i)/2,'--');
         end
     end
 end
