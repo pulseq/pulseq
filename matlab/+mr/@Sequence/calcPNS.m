@@ -1,4 +1,4 @@
-function [ok, pns_norm, pns_comp, t_axis]=calcPNS(obj,hardware,doPlots)
+function [ok, pns_norm, pns_comp, t_axis]=calcPNS(obj,hardware,doPlots,calcCNS)
 % calculate PNS using safe model implementation by Szczepankiewicz and Witzel
 % assumes safe_pns_prediction package has been downloaded and installed in 
 % Matlab path. See http://github.com/filip-szczepankiewicz/safe_pns_prediction
@@ -13,9 +13,16 @@ function [ok, pns_norm, pns_comp, t_axis]=calcPNS(obj,hardware,doPlots)
 %                exercise to the interested user to find were these files
 %                can be acquired from);
 %     doPlots  - optional parameter (defaluts to true)
+%     calcCNS  - optional parameter (defaults to false): calculate cardiac
+%                stimulation (CNS) instead of the PNS if the modela data 
+%                are provided by the given platform
 
 if nargin < 3
     doPlots=true;
+    calcCNS=false;
+end
+if nargin < 4
+    calcCNS=false;
 end
 
 % acquire the entire gradient wave form
@@ -54,7 +61,7 @@ end
 if ischar(hardware)
     % this loads the parameters from the provided text file
     asc=mr.Siemens.readasc(hardware);
-    hardware=asc_to_hw(asc);
+    hardware=asc_to_hw(asc,calcCNS);
 end
 
 % use the Szczepankiewicz' and Witzel's implementation
@@ -74,7 +81,7 @@ end
 
 % local utility functions
 
-function hw = asc_to_hw(asc)
+function hw = asc_to_hw(asc,useCNS)
 % function hw = asc_to_hw(asc)
 %
 % SAFE model parameters for the asc structure as read from the asc file.
@@ -89,33 +96,54 @@ else
 end
 %hw.look_ahead    =  1.0; % MZ: this is not a real hardware parameter but a coefficient, with which the final result is multiplied
 
-hw.x.tau1        = asc.flGSWDTauX(1);  % ms
-hw.x.tau2        = asc.flGSWDTauX(2);  % ms
-hw.x.tau3        = asc.flGSWDTauX(3);  % ms
-hw.x.a1          = asc.flGSWDAX(1);
-hw.x.a2          = asc.flGSWDAX(2);
-hw.x.a3          = asc.flGSWDAX(3);
-hw.x.stim_limit  = asc.flGSWDStimulationLimitX;  % T/m/s
-hw.x.stim_thresh = asc.flGSWDStimulationThresholdX;  % T/m/s
-hw.x.g_scale     = asc.asGPAParameters.sGCParameters.flGScaleFactorX;
 
-hw.y.tau1        = asc.flGSWDTauY(1);  % ms
-hw.y.tau2        = asc.flGSWDTauY(2);  % ms
-hw.y.tau3        = asc.flGSWDTauY(3);  % ms
-hw.y.a1          = asc.flGSWDAY(1);
-hw.y.a2          = asc.flGSWDAY(2);
-hw.y.a3          = asc.flGSWDAY(3);
-hw.y.stim_limit  = asc.flGSWDStimulationLimitY;  % T/m/s
-hw.y.stim_thresh = asc.flGSWDStimulationThresholdY;  % T/m/s
-hw.y.g_scale     = asc.asGPAParameters.sGCParameters.flGScaleFactorY;
+if isfield(asc,'flGSWDTauX') % older format .asc file
+    pns_struct=asc;
+    if useCNS 
+        error('provided .asc file does not support cardiac stimulation prediction');
+    end
+elseif isfield(asc,'GradPatSup') % newer format .asc file (e.g. xa61)
+    if useCNS 
+        if isfield(asc.GradPatSup.Phys, 'CarNS')
+            pns_struct=asc.GradPatSup.Phys.CarNS;
+        else
+            error('provided .asc file does not support cardiac stimulation prediction');
+        end
+    else
+        pns_struct=asc.GradPatSup.Phys.PNS;
+    end
+else
+    error('unknown .asc file format');
+end
 
-hw.z.tau1        = asc.flGSWDTauZ(1);  % ms
-hw.z.tau2        = asc.flGSWDTauZ(2);  % ms
-hw.z.tau3        = asc.flGSWDTauZ(3);  % ms
-hw.z.a1          = asc.flGSWDAZ(1);
-hw.z.a2          = asc.flGSWDAZ(2);
-hw.z.a3          = asc.flGSWDAZ(3);
-hw.z.stim_limit  = asc.flGSWDStimulationLimitZ;  % T/m/s
-hw.z.stim_thresh = asc.flGSWDStimulationThresholdZ;  % T/m/s
-hw.z.g_scale     = asc.asGPAParameters.sGCParameters.flGScaleFactorZ;
+hw.x.tau1        = pns_struct.flGSWDTauX(1);  % ms
+hw.x.tau2        = pns_struct.flGSWDTauX(2);  % ms
+hw.x.tau3        = pns_struct.flGSWDTauX(3);  % ms
+hw.x.a1          = pns_struct.flGSWDAX(1);
+hw.x.a2          = pns_struct.flGSWDAX(2);
+hw.x.a3          = pns_struct.flGSWDAX(3);
+hw.x.stim_limit  = pns_struct.flGSWDStimulationLimitX;  % T/m/s
+hw.x.stim_thresh = pns_struct.flGSWDStimulationThresholdX;  % T/m/s
+hw.x.g_scale     = asc.asGPAParameters(1).sGCParameters.flGScaleFactorX;
+
+hw.y.tau1        = pns_struct.flGSWDTauY(1);  % ms
+hw.y.tau2        = pns_struct.flGSWDTauY(2);  % ms
+hw.y.tau3        = pns_struct.flGSWDTauY(3);  % ms
+hw.y.a1          = pns_struct.flGSWDAY(1);
+hw.y.a2          = pns_struct.flGSWDAY(2);
+hw.y.a3          = pns_struct.flGSWDAY(3);
+hw.y.stim_limit  = pns_struct.flGSWDStimulationLimitY;  % T/m/s
+hw.y.stim_thresh = pns_struct.flGSWDStimulationThresholdY;  % T/m/s
+hw.y.g_scale     = asc.asGPAParameters(1).sGCParameters.flGScaleFactorY;
+
+hw.z.tau1        = pns_struct.flGSWDTauZ(1);  % ms
+hw.z.tau2        = pns_struct.flGSWDTauZ(2);  % ms
+hw.z.tau3        = pns_struct.flGSWDTauZ(3);  % ms
+hw.z.a1          = pns_struct.flGSWDAZ(1);
+hw.z.a2          = pns_struct.flGSWDAZ(2);
+hw.z.a3          = pns_struct.flGSWDAZ(3);
+hw.z.stim_limit  = pns_struct.flGSWDStimulationLimitZ;  % T/m/s
+hw.z.stim_thresh = pns_struct.flGSWDStimulationThresholdZ;  % T/m/s
+hw.z.g_scale     = asc.asGPAParameters(1).sGCParameters.flGScaleFactorZ;
+
 end
