@@ -124,7 +124,6 @@ hw.x.a2          = pns_struct.flGSWDAX(2);
 hw.x.a3          = pns_struct.flGSWDAX(3);
 hw.x.stim_limit  = pns_struct.flGSWDStimulationLimitX;  % T/m/s
 hw.x.stim_thresh = pns_struct.flGSWDStimulationThresholdX;  % T/m/s
-hw.x.g_scale     = asc.asGPAParameters(1).sGCParameters.flGScaleFactorX;
 
 hw.y.tau1        = pns_struct.flGSWDTauY(1);  % ms
 hw.y.tau2        = pns_struct.flGSWDTauY(2);  % ms
@@ -134,7 +133,6 @@ hw.y.a2          = pns_struct.flGSWDAY(2);
 hw.y.a3          = pns_struct.flGSWDAY(3);
 hw.y.stim_limit  = pns_struct.flGSWDStimulationLimitY;  % T/m/s
 hw.y.stim_thresh = pns_struct.flGSWDStimulationThresholdY;  % T/m/s
-hw.y.g_scale     = asc.asGPAParameters(1).sGCParameters.flGScaleFactorY;
 
 hw.z.tau1        = pns_struct.flGSWDTauZ(1);  % ms
 hw.z.tau2        = pns_struct.flGSWDTauZ(2);  % ms
@@ -144,6 +142,15 @@ hw.z.a2          = pns_struct.flGSWDAZ(2);
 hw.z.a3          = pns_struct.flGSWDAZ(3);
 hw.z.stim_limit  = pns_struct.flGSWDStimulationLimitZ;  % T/m/s
 hw.z.stim_thresh = pns_struct.flGSWDStimulationThresholdZ;  % T/m/s
-hw.z.g_scale     = asc.asGPAParameters(1).sGCParameters.flGScaleFactorZ;
+
+if isfield (asc, 'asGPAParameters')
+    hw.x.g_scale = asc.asGPAParameters(1).sGCParameters.flGScaleFactorX;
+    hw.y.g_scale = asc.asGPAParameters(1).sGCParameters.flGScaleFactorY;
+    hw.z.g_scale = asc.asGPAParameters(1).sGCParameters.flGScaleFactorZ;
+else
+    hw.x.g_scale = asc.flGCGScaleFactorX; % assume older ASC files like for Trio-Tim
+    hw.y.g_scale = asc.flGCGScaleFactorY;
+    hw.z.g_scale = asc.flGCGScaleFactorZ;
+end
 
 end

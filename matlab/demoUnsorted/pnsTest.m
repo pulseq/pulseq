@@ -84,10 +84,12 @@ seq.plot();             % Plot all sequence waveforms
 
 %% 'install' to the IDEA simulator
 
-seq.write('idea/external.seq');
+seq.write('pns_test.seq');
+%seq.write('idea/external.seq');
 
 %% PNS calc
 
+[pns0_ok, pns0_n, pns0_c, tpns0]=seq.calcPNS('idea/asc/MP_GPA_K2259_2000V_650A_TQ_AS092.asc'); % trio
 [pns0_ok, pns0_n, pns0_c, tpns0]=seq.calcPNS('idea/asc/MP_GPA_K2309_2250V_951A_AS82.asc'); % prisma
 %[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GPA_K2309_2250V_951A_GC98SQ.asc'); % aera-xq
 %[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GPA_K2298_2250V_793A_SC72CD_EGA.asc'); % TERRA-XR
