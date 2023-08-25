@@ -27,7 +27,7 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
             % we actually cannot check extensons anyway...
             continue;
         end
-        if isfield(e, 'type') && (strcmp(e.type,'adc') || strcmp(e.type,'rf'))
+        if isfield(e, 'type') && (strcmp(e.type,'adc') || strcmp(e.type,'rf') || strcmp(e.type,'output'))
             raster=system.rfRasterTime;
         else
             raster=system.gradRasterTime;
