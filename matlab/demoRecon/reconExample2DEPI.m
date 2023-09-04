@@ -139,7 +139,7 @@ pc_coef=0;
 data_pc=data_resampled;
 for c=1:nCoils
     for i=1:size(data_resampled,1)
-        data_pc(i,c,:)=squeeze(data_resampled(i,1,:)).*exp(1i*2*pi*pc_coef*mod((1:size(data_pc,3))',2));
+        data_pc(i,c,:)=squeeze(data_resampled(i,c,:)).*exp(1i*2*pi*pc_coef*mod((1:size(data_pc,3))',2));
     end
 end
 figure;imagesc(squeeze(angle(data_pc(:,1,:)))');axis('square');
