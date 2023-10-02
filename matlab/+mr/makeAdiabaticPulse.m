@@ -80,6 +80,8 @@ if isempty(parser)
     addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
     addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
+    % optional Python command 
+    addParamValue(parser, 'pythonCmd', '', @(x)isstring(x)||ischar(x));
 end
 
 parse(parser, type, varargin{:});
@@ -89,8 +91,16 @@ if opt.dwell==0
     opt.dwell=opt.system.rfRasterTime;
 end
 
-% find python (probably only works on linux, maybe also mac)
-if ispc()
+% find/check python 
+if ~isempty(opt.pythonCmd)
+    [status, result]=system([opt.pythonCmd ' --version']);
+    if status~=0
+        error(['provided python executable ''' opt.pythonCmd ''' returns an error on the version check']);
+    end
+    python='python';
+elseif ispc()
+    % on Windows we rely on the PATH settings
+    [status, result]=system('python --version');
     if status==0
         python='python';
     else
@@ -157,9 +167,21 @@ if status~=0
 end
 
 lines = regexp(result,'\n','split'); % the response from the python call contains some garbage 
-am=str2num(lines{1});
-fm=str2num(lines{2});
-assert(length(am)==length(fm));
+% look for two usable result vectors
+for i=1:length(lines)-1
+    try
+        am=str2num(lines{i});
+        fm=str2num(lines{i+1});
+        if length(am)==N && length(fm)==N
+            break;
+        end
+    catch
+        continue;
+    end
+end
+if length(am)~=N || length(fm)~=N
+    error('could not find usable data in the response of the Python command');
+end
 
 pm=cumsum(fm)*opt.dwell;
 

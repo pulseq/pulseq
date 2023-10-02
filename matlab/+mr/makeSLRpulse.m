@@ -58,7 +58,9 @@ if isempty(parser)
     addParamValue(parser, 'delay', 0, @isnumeric);
     addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
-    addOptional(parser, 'use', 'excitation', @(x) any(validatestring(x,validPulseUses)));
+    addParamValue(parser, 'use', 'excitation', @(x) any(validatestring(x,validPulseUses)));
+    % optional Python command 
+    addParamValue(parser, 'pythonCmd', '', @(x)isstring(x)||ischar(x));    
 end
 parse(parser, flip, varargin{:});
 opt = parser.Results;
@@ -68,8 +70,15 @@ if opt.dwell==0
     opt.dwell=opt.system.rfRasterTime;
 end
 
-% find python 
-if ispc()
+% find/check python 
+if ~isempty(opt.pythonCmd)
+    [status, result]=system([opt.pythonCmd ' --version']);
+    if status~=0
+        error(['provided python executable ''' opt.pythonCmd ''' returns an error on the version check']);
+    end
+    python='python';
+elseif ispc()
+    % on Windows we rely on the PATH settings
     [status, result]=system('python --version');
     if status==0
         python='python';
@@ -136,7 +145,20 @@ if status~=0
 end
 
 lines = regexp(result,'\n','split'); % the response from the python call contains some garbage 
-signal = str2num(lines{1});
+% look for a usable result vector
+for i=1:length(lines)
+    try
+        signal = str2num(lines{i});
+        if length(signal)==N
+            break;
+        end
+    catch
+        continue;
+    end
+end
+if length(signal)~=N
+    error('could not find usable data in the response of the Python command');
+end
 
 BW = opt.timeBwProduct/opt.duration;
 t = ((1:N)-0.5)*opt.dwell;
