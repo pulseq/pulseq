@@ -20,7 +20,7 @@ spoilFactor=1.5;             % spoiling gradient around the pi-pulse
 % Set system limits
 lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
     'MaxSlew',130,'SlewUnit','T/m/s',...
-    'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6);  
+    'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6, 'adcDeadTime', 10e-6);  
 
 % Create fat-sat pulse 
 B0=2.89; % 1.5 2.89 3.0
