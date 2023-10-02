@@ -22,7 +22,7 @@ if isempty(parser)
         @(x) any(validatestring(x, validChannels)));
     parser.addParamValue('times', 0, @isnumeric);
     parser.addParamValue('amplitudes', 0, @isnumeric);
-    parser.addOptional('system', mr.opts(), @isstruct);
+    parser.addParamValue('system', mr.opts(), @isstruct);
     parser.addParamValue('maxGrad', 0, @isnumeric);
     parser.addParamValue('maxSlew', 0, @isnumeric);
     parser.addParamValue('skip_check', false);
