@@ -84,7 +84,7 @@ seq.plot();             % Plot all sequence waveforms
 
 %% 'install' to the IDEA simulator
 
-seq.write('idea/external.seq');
+%seq.write('idea/external.seq');
 
 %% PNS calc
 
