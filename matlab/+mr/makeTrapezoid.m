@@ -96,7 +96,10 @@ elseif opt.duration>0
         if isempty(riseTime)
             dC = 1/abs(2*maxSlew) + 1/abs(2*maxSlew);
             possible = opt.duration^2 > 4*abs(opt.area)*dC;
-            assert(possible,['Requested area is too large for this gradient. Minimum required duration (assuming triangle gradient can be realized) is ' num2str(round(sqrt(4*abs(opt.area)*dC)*1e6)) 'us']);    
+            if ~possible
+                [~, t1, t2, t3]=calcShortestParamsForArea(opt.area,maxSlew,maxGrad,opt.system.gradRasterTime);
+                error('makeTrapezoid:invalidDuration',['Requested area is too large for this gradient. Minimum required duration for this area (accounting for the gradient raster time) is ' num2str((t1+t2+t3)*1e6) 'us']);
+            end
             amplitude = ( opt.duration - sqrt(opt.duration^2 - 4*abs(opt.area)*dC) )/(2*dC);
         else
             if isempty(fallTime)
@@ -104,7 +107,7 @@ elseif opt.duration>0
             end    
             amplitude = opt.area/(opt.duration-0.5*riseTime-0.5*fallTime);
             possible = opt.duration>(riseTime+fallTime) & abs(amplitude)<maxGrad;
-            assert(possible,['Requested area is too large for this gradient. Probably amplitude is violated (' num2str(round(abs(amplitude)/maxGrad*100)) '%)']);    
+            assert(possible,['Requested area is too large for this gradient duration. Probably amplitude is violated (' num2str(round(abs(amplitude)/maxGrad*100)) '%)']);    
         end    
     end
     if isempty(riseTime)
@@ -125,29 +128,22 @@ else
     if isempty(opt.area)
         error('makeTrapezoid:invalidArguments','Must supply area or duration');
     else
-        %
-        % find the shortest possible duration
-        % first check if the area can be realized as a triangle
-        % if not we calculate a trapezoid
-        riseTime=ceil(sqrt(abs(opt.area)/maxSlew)/opt.system.gradRasterTime)*opt.system.gradRasterTime;
-        if riseTime < opt.system.gradRasterTime % the "area" was probably 0 or almost 0 ...
-            riseTime=opt.system.gradRasterTime;
-        end
-        amplitude=opt.area/riseTime;
-        tEff=riseTime;
-        if abs(amplitude)>maxGrad 
-            tEff=ceil(abs(opt.area)/maxGrad/opt.system.gradRasterTime)*opt.system.gradRasterTime;
-            amplitude=opt.area/tEff;
-            riseTime=ceil(abs(amplitude)/maxSlew/opt.system.gradRasterTime)*opt.system.gradRasterTime;
-            if(riseTime==0)
-                riseTime=opt.system.gradRasterTime;
-            end
-        end
-        flatTime=tEff-riseTime;
-        fallTime=riseTime;        
+        % call the local function to calculate the shortest timing
+        [amplitude, riseTime, flatTime, fallTime]=calcShortestParamsForArea(opt.area,maxSlew,maxGrad,opt.system.gradRasterTime);
     end
 end
-assert(abs(amplitude)<=maxGrad,'makeTrapezoid:invalidAmplitude',['Amplitude violation (' num2str(round(abs(amplitude)/maxGrad*100)) '%%)']);
+if abs(amplitude)>maxGrad
+    if isempty(opt.area)
+        error('makeTrapezoid:invalidAmplitude',['Amplitude violation (' num2str(round(abs(amplitude)/maxGrad*100)) '%%)']);
+    else
+        % this error can only be produced by the failed trapezoid
+        % calculation with the specified area (leading to exceedingly high
+        % amplitude), the triangular blip error should have occured around
+        % line 103
+        [~, t1, t2, t3]=calcShortestParamsForArea(opt.area,maxSlew,maxGrad,opt.system.gradRasterTime);
+        error('makeTrapezoid:invalidDuration',['Requested duration is too short for the area to be realized within system limits. Minimum duration for this trapezoid (accounting for the gradient raster time) is ' num2str((t1+t2+t3)*1e6) ' us']);
+    end
+end
 
 grad.type = 'trap';
 grad.channel = opt.channel;
@@ -161,4 +157,26 @@ grad.delay = opt.delay;
 grad.first = 0;
 grad.last = 0;
 
+end
+
+function [amplitude, riseTime, flatTime, fallTime] = calcShortestParamsForArea(area,maxSlew,maxGrad,gradRasterTime)
+    % find the shortest possible duration
+    % first check if the area can be realized as a triangle
+    % if not we calculate a trapezoid
+    riseTime=ceil(sqrt(abs(area)/maxSlew)/gradRasterTime)*gradRasterTime;
+    if riseTime < gradRasterTime % the "area" was probably 0 or almost 0 ...
+        riseTime=gradRasterTime;
+    end
+    amplitude=area/riseTime;
+    tEff=riseTime;
+    if abs(amplitude)>maxGrad 
+        tEff=ceil(abs(area)/maxGrad/gradRasterTime)*gradRasterTime;
+        amplitude=area/tEff;
+        riseTime=ceil(abs(amplitude)/maxSlew/gradRasterTime)*gradRasterTime;
+        if(riseTime==0)
+            riseTime=gradRasterTime;
+        end
+    end
+    flatTime=tEff-riseTime;
+    fallTime=riseTime;        
 end
