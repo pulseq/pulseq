@@ -116,6 +116,16 @@ figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold; plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.');
 
+%% evaluate label settings
+adc_lbl=seq.evalLabels('evolution','adc');
+figure; plot(adc_lbl.SLC);
+hold on; plot(adc_lbl.LIN);
+plot(adc_lbl.SEG);
+plot(adc_lbl.REP);
+legend('slc','lin','seg','rep');
+title('evolution of labels/counters');
+
+%% play out the sequence through the speakers
 % seq.sound(); % simulate the seq's tone
 % test read-write
 %seq.read('epi_label.seq');

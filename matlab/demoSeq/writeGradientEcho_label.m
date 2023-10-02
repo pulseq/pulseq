@@ -118,7 +118,7 @@ seq.write('gre_lbl.seq')       % Write to pulseq file
 
 %% plot sequence and k-space diagrams
 
-seq.plot('timeRange', [0 32]*TR, 'TimeDisp', 'ms', 'label', 'lin');
+seq.plot('timeRange', [0 32]*TR, 'TimeDisp', 'ms', 'Label', 'LIN,SLC');
 
 % k-space trajectory calculation
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
@@ -131,6 +131,13 @@ figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 title('2D k-space');
+
+%% evaluate label settings more specifically
+adc_lbl=seq.evalLabels('evolution','adc');
+figure; plot(adc_lbl.SLC);
+hold on; plot(adc_lbl.LIN);
+legend('slc','lin');
+title('evolution of labels/counters');
 
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
 
