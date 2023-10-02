@@ -38,11 +38,12 @@ end
 
 g=opt.waveform;
 slew=(g(2:end)-g(1:end-1))./opt.system.gradRasterTime;
-if ~isempty(slew)
-    assert(max(abs(slew))<=maxSlew,'Slew rate violation (%.0f%%)',max(abs(slew))/maxSlew*100);
+if ~isempty(slew) && max(abs(slew))>maxSlew
+    error('Slew rate violation (%.0f%%)',max(abs(slew))/maxSlew*100);
 end
-assert(max(abs(g))<=maxGrad,'Gradient amplitude violation (%.0f%%)',max(abs(g))/maxGrad*100);
-
+if max(abs(g))>maxGrad
+    error('Gradient amplitude violation (%.0f%%)',max(abs(g))/maxGrad*100);
+end
 
 grad.type = 'grad';
 grad.channel = opt.channel;
