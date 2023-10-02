@@ -48,7 +48,7 @@ end
 signal = signal./abs(sum(signal.*opt.dwell))*flip/(2*pi);
 
 if size(signal,1)>size(signal,2)
-    signal=signal';
+    signal=signal.';
 end
 
 N=  length(signal);
