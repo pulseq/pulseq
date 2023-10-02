@@ -11,7 +11,7 @@ nwin=5000; % 0.05s
 os=3; % frequency oversampling for prettier peaks
 ascName=[]; % this disables the display of the system's resonance frequences
 %ascName='idea/asc/MP_GPA_K2309_2250V_951A_AS82.asc'; % 3T prisma
-ascName='idea/asc/MP_GradSys_P034_X60.asc'; % 3T cima.X
+%ascName='idea/asc/MP_GradSys_P034_X60.asc'; % 3T cima.X
 
 if ischar(ascName)
     ascData=mr.Siemens.readasc(ascName);
@@ -28,6 +28,11 @@ tmax=nt*dt;
 gw=zeros(3,nt);
 for i=1:3
     gw(i,:)=interp1(wave_data{i}(1,:),wave_data{i}(2,:),((1:nt)-0.5)*dt,'linear',0);
+    % alternative (to be checked in the future)
+    % it is actually much more appropriate to calculate the spectrium of
+    % the derivative(!) of the gradient wave form and not the waveform
+    % itself, at least for the cound/noise of the gradients...
+    %gw(i,1:end-1)=diff(interp1(wave_data{i}(1,:),wave_data{i}(2,:),((1:nt)-0.5)*dt,'linear',0));
 end
 
 gs=[];
