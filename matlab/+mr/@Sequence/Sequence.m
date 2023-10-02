@@ -1053,6 +1053,102 @@ classdef Sequence < handle
             t_adc=ktime; % we now also return the sampling time points
         end
         
+        function labels = evalLabels(obj, varargin)
+            %Evaluate Label values of the entire sequence or its part
+            %   evalLabels(seqObj) Returns the label values at the end of 
+            %   the sequence. Return value of the function is the structure
+            %   'labels' with fields named after the labels used in the
+            %   sequence. Only the fiels corresponding to the lables
+            %   actually used are created.
+            %
+            %   evalLabels(...,'blockRange',[first last]) Evaluate label
+            %   values starting from the first specified block to the last
+            %   one. 
+            %
+            %   evalLabels(...,'init',labels_struct) Evaluate labels
+            %   assuming the initial values from 'labels_struct'. Useful if
+            %   evaluating labes block-by-block.
+            %
+            %   evalLabels(...,'evolution',<flag>) Evaluate labels and
+            %   return the evolution depending on the provided <flag>,
+            %   which is one of 'none','adc','label','blocks': 'blocks'
+            %   means return label values for all blocks; 'adc' - only for
+            %   blocks containig ADC objects; 'label' - only for blocks
+            %   where labels are manipulated.
+            %
+            validEvolutionValues = {'none','adc','label','blocks'};
+            persistent parser
+            if isempty(parser)
+                parser = inputParser;
+                parser.FunctionName = 'evalLabels';
+                parser.addParamValue('blockRange',[1 inf],@(x)(isnumeric(x) && length(x)==2));
+                parser.addParamValue('init',struct([]),@(x)(isempty(x) || isstruct(x)));
+                parser.addParamValue('evolution','none',@(x)any(validatestring(x,validEvolutionValues)));
+            end
+            parse(parser,varargin{:});
+            opt = parser.Results;
+
+            if isempty(opt.init)
+                labels=struct();
+            else
+                labels=opt.init;
+            end
+
+            if ~strcmp(opt.evolution,'none')
+                label_evol={};
+            end
+
+            if ~isfinite(opt.blockRange(2))
+                opt.blockRange(2)=length(obj.blockEvents);
+            end
+
+            for iB=opt.blockRange(1):opt.blockRange(2)
+                block = obj.getBlock(iB);
+                if isfield(block,'label') %current block has labels
+                    for i=1:length(block.label)
+                        if strcmp(block.label(i).type,'labelinc')
+                            if ~isfield(labels,block.label(i).label)
+                                labels.(block.label(i).label)=0;
+                            end
+                            labels.(block.label(i).label)=...
+                                labels.(block.label(i).label)+block.label(i).value;
+                        else
+                            labels.(block.label(i).label)=block.label(i).value;
+                        end
+                    end
+                    if strcmp(opt.evolution,'label')
+                        label_evol{end+1}=labels;
+                    end
+                end
+                if strcmp(opt.evolution,'blocks') || ...
+                   (strcmp(opt.evolution,'adc') && ~isempty(block.adc))
+                    label_evol{end+1}=labels;
+                end
+            end
+            n=length(label_evol);
+            if n>1 && ~strcmp(opt.evolution,'none')
+                % convert cell array of structures to a structure of arrays
+                % %l = cell2mat(label_evol); 
+                % l = [label_evol{:}]; % step1: convert to array of structures
+                % f = fields(label_store);
+                % a = cell(2,length(f)); % step2: prepare argumet 
+                % for i=1:length(f)
+                %     a{1,i}=f{i};
+                %     a{2,i}=[l.(f{i})];
+                % end
+                % label_store=struct(a{:}); % step3: create the final structure
+                f = fields(labels);
+                for i=1:length(f)
+                    labels.(f{i})=zeros(1,n);
+                    for j=1:n
+                        if isfield(label_evol{j},f{i})
+                            labels.(f{i})(j)=label_evol{j}.(f{i});
+                        end
+                    end
+                end
+            end
+        end
+        
         function f = plot(obj, varargin)
             %plot Plot the sequence in a new figure.
             %   plot(seqObj) Plot the sequence
@@ -1193,14 +1289,14 @@ classdef Sequence < handle
                     end
                     if ~isempty(block.rf)
                         rf=block.rf;
-                        [tc,ic]=mr.calcRfCenter(rf);                        
+                        [tc,ic]=mr.calcRfCenter(rf);
+                        sc=rf.signal(ic);
                         if max(abs(diff(rf.t)-rf.t(2)+rf.t(1)))<1e-9 && length(rf.t)>100
                             % homogeneous sampling and long pulses -- use lower time resolution for better display and performance
                             dt=rf.t(2)-rf.t(1);
                             st=round(obj.sys.gradRasterTime/dt);
                             t=rf.t(1:st:end);
                             s=rf.signal(1:st:end);
-                            ic=round(ic/st);
                         else
                             t=rf.t;
                             s=rf.signal;
@@ -1209,7 +1305,7 @@ classdef Sequence < handle
                         if abs(s(1))~=0 % fix strangely looking phase / amplitude in the beginning
                             s=[0; s];
                             t=[t(1); t];
-                            ic=ic+1;
+                            %ic=ic+1;
                         end
                         if abs(s(end))~=0 % fix strangely looking phase / amplitude in the beginning
                             s=[s; 0];
@@ -1217,15 +1313,12 @@ classdef Sequence < handle
                         end
                         if (sreal)
                             plot(tFactor*(t0+t+rf.delay),  real(s),'Parent',ax(2));
-                            plot(tFactor*(t0+t+rf.delay),  angle(exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)),...
-                                 tFactor*(t0+tc+rf.delay), angle(exp(1i*rf.phaseOffset).*exp(1i*2*pi*t(ic)*rf.freqOffset)),'xb',...
-                                 'Parent',ax(3));
                         else
                             plot(tFactor*(t0+t+rf.delay),  abs(s),'Parent',ax(2));
-                            plot(tFactor*(t0+t+rf.delay),  angle(s    *exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)),...
-                                 tFactor*(t0+tc+rf.delay), angle(s(ic)*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t(ic)*rf.freqOffset)),'xb',...
-                                 'Parent',ax(3));
-                        end
+                            
+                        end                        
+                        %plot(tFactor*(t0+t+rf.delay),  angle(  exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(      exp(1i*rf.phaseOffset).*exp(1i*2*pi*t(ic)*rf.freqOffset)),'xb', 'Parent',ax(3));
+                        plot(tFactor*(t0+t+rf.delay),  angle(s*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*rf.freqOffset)),'xb', 'Parent',ax(3));
                     end
                     gradChannels={'gx','gy','gz'};
                     for j=1:length(gradChannels)
@@ -1477,30 +1570,47 @@ classdef Sequence < handle
                         len=size(wave_data_local,2);
                         if wave_cnt(j)~=0 && wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime < wave_data_local(1,1)
                             if  wave_data{j}(2,wave_cnt(j))~=0
-                                warning('waveforms_and_times(): forcing ramp-down from a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are possibly wrong. If using mr.makeArbitraryGrad() consider using explicit values for ''first'' and ''last'' and setting them correctly.', j, round(1e6*wave_data{j}(1,wave_cnt(j))));
-                                wave_data{j}(:,wave_cnt(j)+1)=[wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime/2; 0]; % this is likely to cause memory reallocations
-                                wave_cnt(j)=wave_cnt(j)+1;
+                                if abs(wave_data{j}(2,wave_cnt(j)))>1e-6 % todo: real physical tolarance
+                                    warning('waveforms_and_times(): forcing ramp-down from a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are possibly wrong. If using mr.makeArbitraryGrad() consider using explicit values for ''first'' and ''last'' and setting them correctly.', j, round(1e6*wave_data{j}(1,wave_cnt(j))));
+                                    wave_data{j}(:,wave_cnt(j)+1)=[wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime/2; 0]; % this is likely to cause memory reallocations
+                                    wave_cnt(j)=wave_cnt(j)+1;
+                                else
+                                    % we are wihin the tolorance, just set it to 0 quaietly
+                                    wave_data{j}(2,wave_cnt(j))=0.0;
+                                end
                             end
                             if wave_data_local(2,1)~=0
-                                warning('waveforms_and_times(): forcing ramp-up to a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are probably wrong.  If using mr.makeArbitraryGrad() consider using explicit values for ''first'' and ''last'' and setting them correctly.', j, round(1e6*wave_data_local(1,1)));
-                                wave_data_local=[[wave_data_local(1,1)-obj.gradRasterTime/2; 0] wave_data_local]; % this is likely to cause memory reallocations also later on
-                                len=len+1;
+                                if abs(wave_data_local(2,1))>1e-6 % todo: real physical tolarance
+                                    warning('waveforms_and_times(): forcing ramp-up to a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are probably wrong.  If using mr.makeArbitraryGrad() consider using explicit values for ''first'' and ''last'' and setting them correctly.', j, round(1e6*wave_data_local(1,1)));
+                                    wave_data_local=[[wave_data_local(1,1)-obj.gradRasterTime/2; 0] wave_data_local]; % this is likely to cause memory reallocations also later on
+                                    len=len+1;
+                                else
+                                    % we are wihin the tolorance, just set it to 0 quaietly
+                                    wave_data_local(2,1)=0.0;
+                                end
                             end
                         end
-                        if wave_cnt(j)==0 || wave_data{j}(1,wave_cnt(j))~=wave_data_local(1,1)
+                        if wave_cnt(j)==0 || wave_data{j}(1,wave_cnt(j))<wave_data_local(1,1)
                             wave_data{j}(:,wave_cnt(j)+(1:len))=wave_data_local;
                             wave_cnt(j)=wave_cnt(j)+len;
                         else
-                            wave_data{j}(:,wave_cnt(j)+(1:len-1))=wave_data_local(:,2:end);
-                            wave_cnt(j)=wave_cnt(j)+len-1;
-                        end
-                        if any(diff(wave_data{j}(1,1:wave_cnt(j)))<=0.0) && ... % quick pre-check whether the time vector is monotonously increasing to avoid too often unique() calls 
-                            wave_cnt(j)~=length(unique(wave_data{j}(1,1:wave_cnt(j))))
-                            warning('Warning: not all elements of the generated time vector are unique!\n');
+                            if (wave_data_local(1,1)<wave_data{j}(1,wave_cnt(j))-1e-9) % TODO consistent time tolerance
+                                warning('Warning: looks like rounding errors for some elements exceed the acceptable tolerance!\n');
+                            end
+                            [~,d]=find(wave_data_local(1,:)>wave_data{j}(1,wave_cnt(j)),1);
+                            wave_data{j}(:,wave_cnt(j)+(1:(len-d+1)))=wave_data_local(:,d:end);
+                            wave_cnt(j)=wave_cnt(j)+len-d+1;
                         end
                     end
                 end
             end
+            for j=1:shape_channels
+                if any(diff(wave_data{j}(1,1:wave_cnt(j)))<=0.0) %&& ... % quick pre-check whether the time vector is monotonously increasing to avoid too often unique() calls 
+                    %wave_cnt(j)~=length(unique(wave_data{j}(1,1:wave_cnt(j))))
+                    warning('Warning: not all elements of the generated time vector are unique and sorted in accending order!\n');
+                end
+            end
+
             
             % trim the output data
             for j=1:shape_channels
@@ -1742,10 +1852,14 @@ classdef Sequence < handle
 %             end
         end
         
-        function sound_data=sound(obj)
+        function sound_data=sound(obj, channelWeights)
             %sound()
             %   "play out" the sequence through the system speaker
             %
+
+            if ~exist('channelWeights','var')
+                channelWeights=[1,1,1];
+            end
             
             gw_data=obj.waveforms_and_times();
             total_duration=sum(obj.blockDurations);
@@ -1757,13 +1871,13 @@ classdef Sequence < handle
             sound_data(2,sound_length)=0; %preallocate
             
             if ~isempty(gw_data{1})
-                sound_data(1,:)=interp1(gw_data{1}(1,:),gw_data{1}(2,:),(0:(sound_length-1))*dwell_time,'linear',0);
+                sound_data(1,:)=interp1(gw_data{1}(1,:),gw_data{1}(2,:)*channelWeights(1),(0:(sound_length-1))*dwell_time,'linear',0);
             end
             if ~isempty(gw_data{2})
-                sound_data(2,:)=interp1(gw_data{2}(1,:),gw_data{2}(2,:),(0:(sound_length-1))*dwell_time,'linear',0);
+                sound_data(2,:)=interp1(gw_data{2}(1,:),gw_data{2}(2,:)*channelWeights(2),(0:(sound_length-1))*dwell_time,'linear',0);
             end            
             if ~isempty(gw_data{3})
-                tmp=interp1(gw_data{3}(1,:),gw_data{3}(2,:),(0:(sound_length-1))*dwell_time,'linear',0)*0.5;
+                tmp=interp1(gw_data{3}(1,:),0.5*gw_data{3}(2,:)*channelWeights(3),(0:(sound_length-1))*dwell_time,'linear',0);
                 sound_data(1,:)=sound_data(1,:)+tmp;
                 sound_data(2,:)=sound_data(2,:)+tmp;
             end
