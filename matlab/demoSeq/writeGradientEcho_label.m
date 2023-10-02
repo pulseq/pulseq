@@ -118,7 +118,7 @@ seq.write('gre_lbl.seq')       % Write to pulseq file
 
 %% plot sequence and k-space diagrams
 
-seq.plot('timeRange', [0 32]*TR, 'TimeDisp', 'ms', 'Label', 'LIN,SLC');
+seq.plot('timeRange', [0 32]*TR, 'TimeDisp', 'ms', 'Label', 'LIN,SLC'); % looks like there is abug in the coloring of the multiple labels in the plot
 
 % k-space trajectory calculation
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
