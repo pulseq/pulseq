@@ -10,7 +10,7 @@
 % Set system limits
 lims = mr.opts('MaxGrad',38,'GradUnit','mT/m',...
     'MaxSlew',180,'SlewUnit','T/m/s',...
-    'rfRingdownTime', 10e-6, 'rfDeadtime', 100e-6, 'B0', 2.89);  
+    'rfRingdownTime', 10e-6, 'rfDeadtime', 100e-6, 'adcDeadTime', 10e-6, 'B0', 2.89);  
 
 seq=mr.Sequence(lims);     % Create a new sequence object
 fov=224e-3; Nx=112; Ny=Nx; % Define FOV and resolution
