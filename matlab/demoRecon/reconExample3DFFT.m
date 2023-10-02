@@ -9,7 +9,7 @@
 %     the data
 
 %% Load the latest file from the specified directory
-path='../IceNIH_RawSend/'; % directory to be scanned for data files
+path='/ad/O/Exchange/wehkamp/shim_test_b0/';%'../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='/data/Dropbox/ismrm2021pulseq_liveDemo/dataLive/Vienna_7T_Siemens'; % directory to be scanned for data files
 
 pattern='*.seq';
@@ -112,7 +112,11 @@ data_coils_last = permute(data_unsorted, [1, 3, 2]);
 data_coils_last = reshape(data_coils_last, [adc_len*readouts, channels]);
 
 data=zeros([kindex_end' channels]);
-if (size(kindex,1)==3)
+if (size(kindex,1)==4)
+    for i=1:size(kindex,2)
+        data(kindex_mat(1,i),kindex_mat(2,i),kindex_mat(3,i),kindex_mat(4,i),:)=data_coils_last(i,:);
+    end
+elseif (size(kindex,1)==3)
     for i=1:size(kindex,2)
         data(kindex_mat(1,i),kindex_mat(2,i),kindex_mat(3,i),:)=data_coils_last(i,:);
     end
@@ -122,11 +126,13 @@ else
     end
 end
 
-if size(kindex,1)==3
-    nImages=size(data,3);
-else
-    nImages=1;
-    data=reshape(data, [size(data,1) size(data,2) 1 size(data,3)]); % we need a dummy images/slices dimension
+nImages=max(repeat(:));
+if ndims(data)<5
+    if ndims(data)==4
+        data=reshape(data, [size(data,1) size(data,2) size(data,3) 1 size(data,4)]); % we need a dummy images/slices dimension
+    else
+        data=reshape(data, [size(data,1) size(data,2) 1 1 size(data,3)]); % we need a dummy images/slices dimension
+    end
 end
 
 %figure; imab(log(abs(data))); title('k-space data');
@@ -137,7 +143,7 @@ images = zeros(size(data));
 %figure;
 
 for ii = 1:channels
-    images(:,:,:,ii) = fftshift(fft2(fftshift(data(:,:,:,ii)))); % 1.4.0. does not need inversion of the read direction
+    images(:,:,:,:,ii) = fftshift(fft2(fftshift(data(:,:,:,:,ii)))); % 1.4.0. does not need inversion of the read direction
     %for ni = 1:nImages
         %tmp = abs(images(:,:,ni,ii));
         %tmp = tmp./max(tmp(:));
