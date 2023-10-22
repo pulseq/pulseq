@@ -36,9 +36,13 @@ divided into <a href="https://github.com/pulseq/pulseq/tree/master/matlab">MATLA
 Currently, *Pulseq* sequences can be executed on the following platforms. Please <a href="mailto:pulseq.mr@uniklinik-freiburg.de">contact us</a> if
 you would like to run open and flexible sequences at your institution.
 
-- Siemens
+- <a href="#" onclick="location.href='mai'+'lto:'+'pul'+'se'+'q.m'+'r@'+'uni'+'kl'+'ini'+'k-'+'fre'+'ib'+'urg'+'.d'+'e'; return false;">Siemens</a>
 - <a href="https://toppemri.github.io">GE</a>
 - <a href="https://github.com/pulseq/bruker_interpreter">Bruker</a>
+- <a href="https://github.com/lcbMGH/ocra-pulseq">OCRA</a>
+- <a href="https://github.com/lcbMGH/flocra-pulseq">FLOCRA</a>
+- <a href="https://openmr.nl">Philips</a>
+
 
 ## Download source code
 
