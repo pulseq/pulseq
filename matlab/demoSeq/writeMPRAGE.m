@@ -124,7 +124,7 @@ else
 end
 
 %% plot, etc
-seq.plot('TimeRange',[0 TRout*2], 'label', 'par');
+seq.plot('TimeRange',[0 TRout*2], 'label', 'par,lin');
 
 %%
 seq.setDefinition('FOV', fov);
