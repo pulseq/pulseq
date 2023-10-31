@@ -1949,12 +1949,14 @@ classdef Sequence < handle
                 if strcmpi(dest,'siemensNX')
                     pulseq_seq_path='/opt/medcom/MriCustomer/CustomerSeq/pulseq';
                 end
-                [status, ~] = system(['scp -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa external.seq.tmp root@' ice_ip ':' pulseq_seq_path '/external_tmp.seq']);
+                [status, retmes] = system(['scp -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa external.seq.tmp root@' ice_ip ':' pulseq_seq_path '/external_tmp.seq']);
                 ok = ok & status == 0;
                 if ok
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "chmod a+rw ' pulseq_seq_path '/external_tmp.seq"']);
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "rm -f ' pulseq_seq_path '/' name '.seq"']);
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/' name '.seq"']);
+                else
+                    error(['Failed to copy the sequence file to the scanner, the returned error message is: ' strip(retmes)]);
                 end
             end
             
