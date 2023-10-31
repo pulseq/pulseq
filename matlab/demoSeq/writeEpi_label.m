@@ -8,6 +8,7 @@ seq=mr.Sequence();              % Create a new sequence object
 fov=220e-3; Nx=96; Ny=Nx;       % Define FOV and resolution
 thickness=3e-3;                 % slice thinckness
 Nslices=7;
+sliceGap = 1e-3 ;
 Nreps = 4;
 Navigator = 3;
 
@@ -45,12 +46,17 @@ gy = mr.makeTrapezoid('y',lims,'Area',-deltak,'Duration',dur); % phase area shou
 
 gz_spoil=mr.makeTrapezoid('z',lims,'Area',deltak*Nx*4);
 
+% slice positions
+slicePositions=(thickness+sliceGap)*((0:(Nslices-1)) - (Nslices-1)/2);
+slicePositions=slicePositions([1:2:Nslices 2:2:Nslices]); % reorder slices for an interleaved acquisition (optional)
+
+
 % Define sequence blocks
 for r=1:Nreps
     seq.addBlock(trig, mr.makeLabel('SET','SLC', 0)); 
     for s=1:Nslices
         rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
-        rf.phaseOffset=-rf.freqOffset*mr.calcRfCenter(rf); % compensate for the slice-offset induced phase
+        rf.phaseOffset=-2*pi*rf.freqOffset*mr.calcRfCenter(rf); % compensate for the slice-offset induced phase
         seq.addBlock(rf,gz);
         seq.addBlock(gxPre,gzReph, ...
                      mr.makeLabel('SET','NAV',1),...
@@ -97,9 +103,12 @@ else
 end
 
 %% prepare sequence export
-seq.setDefinition('FOV', [fov fov thickness*Nslices]);
+seq.setDefinition('FOV', [fov fov max(slicePositions)-min(slicePositions)+thickness]);
 seq.setDefinition('Name', 'epi_lbl');
-
+% the following definitions have effect in conjunction with LABELs 
+seq.setDefinition('SlicePositions', slicePositions);
+seq.setDefinition('SliceThickness', thickness);
+seq.setDefinition('SliceGap', sliceGap);
 seq.write('epi_label.seq');   % Output sequence for scanner
 
 return
