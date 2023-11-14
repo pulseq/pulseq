@@ -1218,8 +1218,8 @@ classdef Sequence < handle
                 end
             end 
             if ~isempty(label_indexes_2plot)
-                label_colors_2plot=parula(length(label_indexes_2plot)+1);
-                label_colors_2plot=label_colors_2plot(1:end-1,:);
+                label_colors_2plot=parula(length(label_indexes_2plot)+1); % need +1 because the ADC plot by itself also "eats up" one color
+                label_colors_2plot=[label_colors_2plot(end,:); label_colors_2plot(1:end-1,:)]; % we like these colors better ?
             end
             
             % time/block range
@@ -1313,12 +1313,12 @@ classdef Sequence < handle
                         end
                         if (sreal)
                             plot(tFactor*(t0+t+rf.delay),  real(s),'Parent',ax(2));
+                            plot(tFactor*(t0+t+rf.delay),  angle(s.*sign(real(s))*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*rf.freqOffset)),'xb', 'Parent',ax(3));
                         else
                             plot(tFactor*(t0+t+rf.delay),  abs(s),'Parent',ax(2));
-                            
+                            plot(tFactor*(t0+t+rf.delay),  angle(s*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*rf.freqOffset)),'xb', 'Parent',ax(3));
                         end                        
                         %plot(tFactor*(t0+t+rf.delay),  angle(  exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(      exp(1i*rf.phaseOffset).*exp(1i*2*pi*t(ic)*rf.freqOffset)),'xb', 'Parent',ax(3));
-                        plot(tFactor*(t0+t+rf.delay),  angle(s*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*rf.freqOffset)),'xb', 'Parent',ax(3));
                     end
                     gradChannels={'gx','gy','gz'};
                     for j=1:length(gradChannels)
