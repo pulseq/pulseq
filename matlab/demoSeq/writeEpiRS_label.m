@@ -12,7 +12,7 @@ sys = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
 );  
 
 seq=mr.Sequence(sys);      % Create a new sequence object
-fov=192e-3; Nx=96; Ny=Nx;  % Define FOV and resolution
+fov=220e-3; Nx=96; Ny=Nx;  % Define FOV and resolution
 thickness=3e-3;            % slice thinckness in mm
 sliceGap=1.5e-3;             % slice gap im mm
 Nslices=36;
