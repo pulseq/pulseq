@@ -26,7 +26,7 @@ seq=mr.Sequence(sys);      % Create a new sequence object
 
 pulseqUseWave=false; % use the "UseWave" option with case as it is really demanding both on the Pulseq environment and the scanner (shape memory)
 
-seq = mrMusic.musicToSequence(seq, pitches, durations, 1, pulseqUseWave);
+seq = mrMusic.musicToSequence(seq, pitches, durations, 'barDurationSeconds', 1, 'pulseqUseWave', pulseqUseWave);
 
 %% output
 if pulseqUseWave
