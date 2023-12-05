@@ -1632,7 +1632,7 @@ classdef Sequence < handle
 %             end            
         end
         
-        function [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos] = calculateKspacePP(obj, varargin)
+        function [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos, gw_pp] = calculateKspacePP(obj, varargin)
             % calculate the k-space trajectory of the entire pulse sequence
 	        %   using piecewise-polynomial gradient wave representation 
 	        %   which is much faster for simple shapes and large delays
@@ -1650,6 +1650,7 @@ classdef Sequence < handle
                 parser.addParamValue('trajectory_delay',0,@(x)(isnumeric(x)));
                 parser.addParamValue('gradient_offset',0,@(x)(isnumeric(x)));
                 parser.addParamValue('blockRange',[1 inf],@(x)(isnumeric(x) && length(x)==2));
+                parser.addParamValue('externalWaveformsAndTimes',struct([]),@(x)(isstruct(x)));
             end
             parse(parser,varargin{:});
             opt = parser.Results;
@@ -1666,9 +1667,17 @@ classdef Sequence < handle
                 blockRange(2)=length(obj.blockDurations);
             end            
                       
-            total_duration=sum(obj.blockDurations);
+            total_duration=sum(obj.blockDurations(blockRange(1):blockRange(2)));
             
-            [gw_data, tfp_excitation, tfp_refocusing, t_adc]=obj.waveforms_and_times(false,blockRange);
+            if isempty(opt.externalWaveformsAndTimes)
+                [gw_data, tfp_excitation, tfp_refocusing, t_adc]=obj.waveforms_and_times(false,blockRange);
+            else
+                gw_data=opt.externalWaveformsAndTimes.gw_data;
+                tfp_excitation=opt.externalWaveformsAndTimes.tfp_excitation;
+                tfp_refocusing=opt.externalWaveformsAndTimes.tfp_refocusing;
+                t_adc=opt.externalWaveformsAndTimes.t_adc;
+                % how do we verify that the total_duration is correct???
+            end
             
             ng=length(gw_data);
             % gradient delay handling
@@ -1852,34 +1861,45 @@ classdef Sequence < handle
 %             end
         end
         
-        function sound_data=sound(obj, channelWeights)
+        function soundData=sound(obj, varargin)
             %sound()
             %   "play out" the sequence through the system speaker
             %
 
-            if ~exist('channelWeights','var')
-                channelWeights=[1,1,1];
+            persistent parser
+            if isempty(parser)
+                parser = inputParser;
+                parser.FunctionName = 'evalLabels';
+                parser.addParamValue('blockRange',[1 inf],@(x)(isnumeric(x) && length(x)==2));
+                parser.addParamValue('channelWeights',[1 1 1],@(x)(isnumeric(x) && length(x)==3));
+                parser.addParamValue('onlyProduceSoundData',false,@(x)(islogical(x)));
+            end
+            parse(parser,varargin{:});
+            opt = parser.Results;
+            
+            if ~isfinite(opt.blockRange(2))
+                opt.blockRange(2)=length(obj.blockEvents);
             end
             
-            gw_data=obj.waveforms_and_times();
+            gw_data=obj.waveforms_and_times(false,opt.blockRange);
             total_duration=sum(obj.blockDurations);
             
             sample_rate=44100; %Hz
             dwell_time=1/sample_rate;
             sound_length=floor(total_duration/dwell_time)+1;
             
-            sound_data(2,sound_length)=0; %preallocate
+            soundData(2,sound_length)=0; %preallocate
             
             if ~isempty(gw_data{1})
-                sound_data(1,:)=interp1(gw_data{1}(1,:),gw_data{1}(2,:)*channelWeights(1),(0:(sound_length-1))*dwell_time,'linear',0);
+                soundData(1,:)=interp1(gw_data{1}(1,:),gw_data{1}(2,:)*opt.channelWeights(1),(0:(sound_length-1))*dwell_time,'linear',0);
             end
             if ~isempty(gw_data{2})
-                sound_data(2,:)=interp1(gw_data{2}(1,:),gw_data{2}(2,:)*channelWeights(2),(0:(sound_length-1))*dwell_time,'linear',0);
+                soundData(2,:)=interp1(gw_data{2}(1,:),gw_data{2}(2,:)*opt.channelWeights(2),(0:(sound_length-1))*dwell_time,'linear',0);
             end            
             if ~isempty(gw_data{3})
-                tmp=interp1(gw_data{3}(1,:),0.5*gw_data{3}(2,:)*channelWeights(3),(0:(sound_length-1))*dwell_time,'linear',0);
-                sound_data(1,:)=sound_data(1,:)+tmp;
-                sound_data(2,:)=sound_data(2,:)+tmp;
+                tmp=interp1(gw_data{3}(1,:),0.5*gw_data{3}(2,:)*opt.channelWeights(3),(0:(sound_length-1))*dwell_time,'linear',0);
+                soundData(1,:)=soundData(1,:)+tmp;
+                soundData(2,:)=soundData(2,:)+tmp;
             end
             
             % filter like we did it in the gradient music project
@@ -1888,19 +1908,20 @@ classdef Sequence < handle
             % use Gaussian convolution instead to supress ringing
             gw=gausswin(round(sample_rate/6000)*2+1);
             gw=gw/sum(gw(:));
-            sound_data(1,:) = conv(sound_data(1,:), gw, 'same');
-            sound_data(2,:) = conv(sound_data(2,:), gw, 'same');
+            soundData(1,:) = conv(soundData(1,:), gw, 'same');
+            soundData(2,:) = conv(soundData(2,:), gw, 'same');
             
-            sound_data_max=max(abs(sound_data(:))); 
-            sound_data = 0.95 * sound_data / sound_data_max;
-            
-            % info
-            fprintf('playing out the sequence waveform, duration %.1gs\n', sound_length*dwell_time);
-            
-            % play out the sound
-            % we have to zero-pad the weveform due to the limitations of
-            % matlab-to-sound interface
-            sound([zeros(2,sample_rate/2) sound_data zeros(2,sample_rate/2)], sample_rate); 
+            sound_data_max=max(abs(soundData(:))); 
+            soundData = 0.95 * soundData / sound_data_max;
+                        
+            if ~opt.onlyProduceSoundData
+                % info
+                fprintf('playing out the sequence waveform, duration %.1gs\n', sound_length*dwell_time);            
+                % play out the sound
+                % we have to zero-pad the weveform due to the limitations of
+                % matlab-to-sound interface            
+                sound([zeros(2,sample_rate/2) soundData zeros(2,sample_rate/2)], sample_rate); 
+            end
         end
         
         function ok=install(seq,dest,name)
