@@ -22,9 +22,10 @@ flipAnglesDeg=unique(flipAnglesDeg);
 
 [duration, numBlocks, eventCount]=obj.duration();
 
+[wnt.gw_data, wnt.tfp_excitation, wnt.tfp_refocusing, wnt.t_adc]=obj.waveforms_and_times();
 %[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = obj.calculateKspace();
 %[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = obj.calculateKspacePP();
-[ktraj_adc, t_adc, ~, ~, t_excitation, ~] = obj.calculateKspacePP();
+[ktraj_adc, t_adc, ~, ~, t_excitation, ~] = obj.calculateKspacePP('externalWaveformsAndTimes',wnt);
 
 % trajectory calculation will fail for spin-echoes if seq is loaded from a 
 % file for the current file format revision (1.2.0) because we do not store 
@@ -174,24 +175,24 @@ end
 % check gradient amplitudes and slew rates
 
 % gradient waveform
-gw_data=obj.waveforms_and_times(); % FIXME: avoid this second call for generating gradient shapes (1st one was inside of the k-space calculation routine)
-gws=cell(size(gw_data));
-ga=zeros(length(gw_data),1);
-gs=zeros(length(gw_data),1);
+%gw_data=obj.waveforms_and_times(); % FIXME: avoid this second call for generating gradient shapes (1st one was inside of the k-space calculation routine)
+gws=cell(size(wnt.gw_data));
+ga=zeros(length(wnt.gw_data),1);
+gs=zeros(length(wnt.gw_data),1);
 % to calculate max absolute gradients and slew rates we have to play
 % tricks... we namely have to interpolate the data to the common time axis
 dim1ind = @(x, n) x(n,:);
-common_time=unique(dim1ind([gw_data{:}],1));
-gw_ct=zeros(length(gw_data),length(common_time));
-gs_ct=zeros(length(gw_data),length(common_time)-1);
-for gc=1:length(gw_data)
-    if size(gw_data{gc},2)>0 
-        gws{gc}=(gw_data{gc}(2,2:end)-gw_data{gc}(2,1:end-1))./(gw_data{gc}(1,2:end)-gw_data{gc}(1,1:end-1)); % slew
+common_time=unique(dim1ind([wnt.gw_data{:}],1));
+gw_ct=zeros(length(wnt.gw_data),length(common_time));
+gs_ct=zeros(length(wnt.gw_data),length(common_time)-1);
+for gc=1:length(wnt.gw_data)
+    if size(wnt.gw_data{gc},2)>0 
+        gws{gc}=(wnt.gw_data{gc}(2,2:end)-wnt.gw_data{gc}(2,1:end-1))./(wnt.gw_data{gc}(1,2:end)-wnt.gw_data{gc}(1,1:end-1)); % slew
         % interpolate to the common time
-        gw_ct(gc,:)=interp1(gw_data{gc}(1,:),gw_data{gc}(2,:),common_time,'linear',0);
+        gw_ct(gc,:)=interp1(wnt.gw_data{gc}(1,:),wnt.gw_data{gc}(2,:),common_time,'linear',0);
         gs_ct(gc,:)=(gw_ct(gc,2:end)-gw_ct(gc,1:end-1))./(common_time(2:end)-common_time(1:end-1));
         % max grad/slew per channel
-        ga(gc)=max(abs(gw_data{gc}(2,:)));
+        ga(gc)=max(abs(wnt.gw_data{gc}(2,:)));
         gs(gc)=max(abs(gws{gc}));
         % TODO: calculate grad RMS values (this is an interesting task in the piece-wise-linear domain)
     end
