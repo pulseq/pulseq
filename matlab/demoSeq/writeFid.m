@@ -2,14 +2,14 @@ system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
                  'adcDeadTime', 20e-6);
 
 seq=mr.Sequence(system);              % Create a new sequence object
-Nx=256;
+Nx=2048;
 Nrep=16;
 
 % Create non-selective pulse 
 rf = mr.makeBlockPulse(pi/2,'Duration',0.1e-3, 'system', system);
 
 % Define delays and ADC events
-adc = mr.makeAdc(Nx,'Duration',3.2e-3, 'system', system,'delay',system.adcDeadTime);
+adc = mr.makeAdc(Nx,'Duration',128e-3, 'system', system,'delay',system.adcDeadTime);
 delayTE=20e-3;
 delayTR=5000e-3;
 %
