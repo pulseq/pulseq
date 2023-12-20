@@ -3,13 +3,12 @@
 % needs mapVBVD in the path
 
 %% Load data from the given directory sorted by name
-path='../data'; % directory to be scanned for data files
-nF=1; % the number of the file / data set to load
+path='../../IceNIH_RawSend/'; % directory to be scanned for data files
 
 pattern='*.dat';
 D=dir([path filesep pattern]);
-[~,I]=sort(string({D(:).name}));
-data_file_path=[path filesep D(I(nF)).name];
+[~,I]=sort(string({D(:).datenum}));
+data_file_path=[path filesep D(I(end-0)).name];
 
 fprintf(['loading `' data_file_path '´ ...\n']);
 twix_obj = mapVBVD(data_file_path);
@@ -91,7 +90,17 @@ end
 
 %% plot spectr(um/a)
 data_fft=fftshift(fft(fftshift(rawdata,1)),1);
-w_axis=(-adc_len/2:(adc_len/2-1))/((t_adc(end,1,1)-t_adc(1,1,1))/(adc_len-1)*adc_len)/twix_obj.hdr.Meas.lFrequency*1e6';
+
+if iscell(twix_obj)
+    measurementFrequency = twix_obj{end}.hdr.Meas.lFrequency;
+else
+    measurementFrequency = twix_obj.hdr.Meas.lFrequency;
+end
+if isempty(measurementFrequency)
+    measurementFrequency=123206046;
+end
+
+w_axis=(-adc_len/2:(adc_len/2-1))/((t_adc(end,1,1)-t_adc(1,1,1))/(adc_len-1)*adc_len)/measurementFrequency*1e6';
 figure; 
 plot(w_axis, abs(data_fft(:,:,1))); title('abs spectr(um/a)');
 xlim([-10 10]); xlabel('frequency /ppm');

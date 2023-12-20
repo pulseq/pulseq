@@ -3,7 +3,7 @@
 % needs mapVBVD in the path
 
 %% Load the latest file from a dir
-path='../IceNIH_RawSend/'; % directory to be scanned for data files
+path='../../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='~/Dropbox/shared/data/siemens/';
 %path='~/Downloads/2021-07-12-090810/';
 %path='/raid/home_zaitsev/range_software/pulseq/IceNIH_RawSend/';

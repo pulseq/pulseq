@@ -3,7 +3,7 @@
 % needs mapVBVD in the path
 
 %% Load the latest file from a dir
-path='../IceNIH_RawSend/'; % directory to be scanned for data files
+path='../../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='~/Dropbox/shared/data/siemens/';
 %path='~/Dropbox/shared/data/siemens/demo_epi/';
 
@@ -11,7 +11,7 @@ pattern='/*.dat';
 
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
-data_file_path=[path D(I(end)).name]; % use end-1 to reconstruct the second-last data set, etc.
+data_file_path=[path D(I(end-0)).name]; % use end-1 to reconstruct the second-last data set, etc.
 %%
 twix_obj = mapVBVD(data_file_path);
 
