@@ -74,6 +74,8 @@ pe2Steps=((0:N(ax.n3)-1)-N(ax.n3)/2)/N(ax.n3)*2; % phase encoding steps
 TIdelay=round((TI-(find(pe1Steps==0)-1)*TRinner-(mr.calcDuration(rf180)-mr.calcRfCenter(rf180)-rf180.delay)-rf.delay-mr.calcRfCenter(rf))/sys.blockDurationRaster)*sys.blockDurationRaster;
 TRoutDelay=TRout-TRinner*N(ax.n2)-TIdelay-mr.calcDuration(rf180);
 
+TE = mr.calcDuration(rf) - rf.shape_dur/2 -rf.delay + mr.calcDuration(gro1) - mr.calcDuration(adc)/2 ;
+ESP = mr.calcDuration(rf) + mr.calcDuration(gro1) ;
 % all LABELS / counters an flags are automatically initialized to 0 in the beginning, no need to define initial 0's  
 % so we will just increment LIN after the ADC event (e.g. during the spoiler)
 lblIncPar=mr.makeLabel('INC','PAR', 1);
@@ -107,6 +109,7 @@ ACSnum = 32 ;
 centerLineIdx = floor(nY/2) + 1 ; % index of the center k-space line, starting from 1.
 %PEsamp_u = 1:accelFactorPE:nY ; % undersampling by every alternate line. Phase encoding in Y direction
 count = 1 ;
+clear PEsamp_u ;
 for i = 1:nY
     if ( mod(i-centerLineIdx, accelFactorPE)==0 )
         PEsamp_u(count) = i ;
