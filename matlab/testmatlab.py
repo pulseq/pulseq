@@ -27,7 +27,7 @@ def cmp_lines(path_1, path_2):
 def main():
     """Main"""
     sequences = ['fid', 'gre', 'epi_rs']
-    # binary sequences are unsuported now
+    # binary sequences are unsupported now
     #binary_sequences = ['gre_binary']
     binary_sequences = []
     base_dir = '../tests/'

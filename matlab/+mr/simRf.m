@@ -4,7 +4,7 @@ function [Mz_z,Mz_xy,F,ref_eff,Mx_xy,My_xy]=simRf(rf,rephase_factor,prephase_fac
 %   Performs a rapid RF pulse simulation based on the rotation formalism.
 %   The algorithm is optimized by using quaternions to represent rotations. 
 %   The compulsory parameter 'rf' is the Pulseq RF pulse. Optional
-%   parameter 'rephase_factor' is needed in several cases e.g. to correclty 
+%   parameter 'rephase_factor' is needed in several cases e.g. to correctly 
 %   visualize the phase of the magnetization for slice-selective
 %   excitation. Another optional parameter 'prephase_factor' is an 
 %   experimental parameter useful for simulating refocusing pulses or
@@ -63,7 +63,7 @@ F     = 2*pi*linspace(f0-bw_mul*bw/2,f0+bw_mul*bw/2,bw/df)';            % offset
 
 shapea = interp1(rf.t, 2*pi*rf.signal.*exp(1i*(rf.phaseOffset+2*pi*rf.freqOffset*rf.t)),T,'linear',0);
 
-% intialize result vectors
+% initialize result vectors
 M_ROT=zeros(size(F)); 
 Z_ROT=zeros(size(F));
 sf=size(F);

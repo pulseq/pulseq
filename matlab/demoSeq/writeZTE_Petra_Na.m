@@ -17,7 +17,7 @@ dK=1/fov;
 
 rf_duration=50e-6;              % duration of the excitation pulse
 ro_duration=1800e-6;            % read-out time: controls RO bandwidth and T2-blurring
-minRF_to_ADC_time=50e-6;        % the parameter wich defines TE together with ro_discard
+minRF_to_ADC_time=50e-6;        % the parameter which defines TE together with ro_discard
 %ro_discard=4;                   % how many ADC samples are contaminated by RF switching artifacts and alike
 rfSpoilingInc=117;              % RF spoiling increment
 
@@ -27,7 +27,7 @@ sys = mr.opts('MaxGrad', 36, 'GradUnit', 'mT/m', ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6, 'gamma',11.262e6); % 1H: 42.576e6  23Na: 11.262e6
 
 seq=mr.Sequence(sys);           % Create a new sequence object
-seq_sar=mr.Sequence(sys);       % Create an auxillary sequence object for SAR testing
+seq_sar=mr.Sequence(sys);       % Create an auxiliary sequence object for SAR testing
 
 %% create main sequence elements
 
@@ -191,7 +191,7 @@ figure;plot3(kf(1,:),kf(2,:),kf(3,:));
 hold on;plot3(kfa(1,:),kfa(2,:),kfa(3,:),'r.');
 
 %%
-% Align RO assymmetry to ADC samples
+% Align RO asymmetry to ADC samples
 Nxo=round(ro_os*Nx);
 % Define other gradients and ADC events
 deltak=1/fov/2;
@@ -215,7 +215,7 @@ fprintf('TE= %d us; delay in TR:= %d us\n', round(TE*1e6), floor(delayTR*1e6));
 
 % set up timing
 gx.delay=mr.calcDuration(gz)+TE;
-adc.delay=floor((gx.delay-adc.dwell*0.5-adc.dwell*ro_discard)/sys.gradRasterTime)*sys.gradRasterTime; % take into accout 0.5 samples ADC shift
+adc.delay=floor((gx.delay-adc.dwell*0.5-adc.dwell*ro_discard)/sys.gradRasterTime)*sys.gradRasterTime; % take into account 0.5 samples ADC shift
 
 rf_phase=0;
 rf_inc=0;

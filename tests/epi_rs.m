@@ -1,4 +1,4 @@
-% this is an experimentaal high-performance EPI sequence
+% this is an experimental high-performance EPI sequence
 % which uses split gradients to overlap blips with the readout
 % gradients combined with ramp-samping
 
@@ -30,7 +30,7 @@ blip_dur = ceil(2*sqrt(deltak/lims.maxSlew)/10e-6/2)*10e-6*2; % we round-up the 
 gy = mr.makeTrapezoid('y',lims,'Area',deltak,'Duration',blip_dur);
 %gy = mr.makeTrapezoid('y',lims,'amplitude',deltak/blip_dur*2,'riseTime',blip_dur/2, 'flatTime', 0);
 
-% readout gradient is a truncated trapezoid with dead times at the beginnig
+% readout gradient is a truncated trapezoid with dead times at the beginning
 % and at the end each equal to a half of blip_dur
 % the area between the blips should be defined by kWidth
 % we do a two-step calculation: we first increase the area assuming maximum
@@ -57,7 +57,7 @@ time_to_center=adc.dwell*(adcSamples-1)/2;
 adc.delay=round((gx.riseTime+gx.flatTime/2-time_to_center)*1e6)*1e-6; % we adjust the delay to align the trajectory with the gradient. We have to aligh the delay to 1us 
 % this rounding actually makes the sampling points on odd and even readouts
 % to appear misalligned. However, on the real hardware this misalignment is
-% much stronger anways due to the grdient delays
+% much stronger anyway due to the grdient delays
 
 % FOV positioning requires alignment to grad. raster... -> TODO
 

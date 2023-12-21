@@ -37,7 +37,7 @@ timeindex = timeindex + 1; % convert to Matlab convention
 ch = grad.channel;
 
 if strcmp(grad.type, 'grad')
-    % check if we have an arbitrary gradient or an exended trapezoid
+    % check if we have an arbitrary gradient or an extended trapezoid
     if abs(grad.tt(1)-0.5*gradRasterTime)<1e-10 && ... 
        all(abs(grad.tt(2:end)-grad.tt(1:end-1)-gradRasterTime)<1e-10)
         % arbitrary gradient -- the most trivial conversion
@@ -47,7 +47,7 @@ if strcmp(grad.type, 'grad')
         else
             grad1=grad;
             grad2=grad;
-            grad1.last=0.5*(grad.waveform(timeindex-1)+grad.waveform(timeindex)); % FIXME: retrive the double-sampling point (e.g. the corner of the trapezoid)
+            grad1.last=0.5*(grad.waveform(timeindex-1)+grad.waveform(timeindex)); % FIXME: retrieve the double-sampling point (e.g. the corner of the trapezoid)
             grad2.first=grad1.last;
             grad2.delay=grad.delay + timepoint;
             grad1.tt=grad.tt(1:(timeindex-1));

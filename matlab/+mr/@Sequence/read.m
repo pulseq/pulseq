@@ -192,7 +192,7 @@ if version_combined < 1004000  % MZ: FIXME: the code below does not update key-t
     
     % for versions prior to 1.4.0 blockDurations have not been initialized
     obj.blockDurations=zeros(1,length(obj.blockEvents));
-    % scan trhough blocks and calculate durations
+    % scan through blocks and calculate durations
     for iB = 1:length(obj.blockEvents)
         b=obj.getBlock(iB);
         if delayInd_tmp(iB) > 0
@@ -497,7 +497,7 @@ return
 
     function nextLine = skipComments(fid, stopBeforeSection)
         %skipComments Read lines of skipping blank lines and comments.
-        %   line=skipComments(fid) Read lines from valid file identifer and
+        %   line=skipComments(fid) Read lines from valid file identifier and
         %   return the next non-comment line.
         
         if (nargin<2)

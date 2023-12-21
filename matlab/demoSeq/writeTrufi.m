@@ -1,6 +1,6 @@
 % we define here a really crude True-FISP a.k.a. bSSFP sequence
 % there is no user control for TR/TE, you just specify the ADC time and the
-% RF parameters and the rest is calculated to find the fastest posible
+% RF parameters and the rest is calculated to find the fastest possible
 % timing. The sequence intensively uses the extended trapezoid
 % functionality to achieve near-optimal timing. Due to the requirement for
 % splitting the sequence into blocks the TR is increased by approximately
@@ -54,7 +54,7 @@ gz_2=mr.addGradients({gz_parts(2),gzReph},'system',sys);
 % new gr will consist of two parts: 
 % 1: prephaser followed by a part of the read gradient including the 
 %    beginning of the ramp-down
-% 2: the remainer of the ramp-down and the second "prephaser"
+% 2: the remainder of the ramp-down and the second "prephaser"
 gx_parts=mr.splitGradientAt(gx,ceil(mr.calcDuration(adc)/sys.gradRasterTime)*sys.gradRasterTime);
 gx_parts(1).delay=mr.calcDuration(gxPre);
 gx_1=mr.addGradients({gxPre,gx_parts(1)},'system',sys);
@@ -84,7 +84,7 @@ TE=TR/2;
 rf05=rf;
 rf05.signal=0.5*rf.signal;
 seq.addBlock(rf05,gz_1,mr.makeLabel('SET','ONCE', 1)); % we also label the few following blocks as preparing to exclude them if the sequence is repeated
-% the following delay calculation fails for agressive sequence timing
+% the following delay calculation fails for aggressive sequence timing
 prepDelay=mr.makeDelay(round((TR/2-mr.calcDuration(gz_1))/sys.gradRasterTime)*sys.gradRasterTime); % I know this round() is not 100% correct
 gx_1_1=mr.makeExtendedTrapezoidArea('x',0,gx_2.first,-gx_2.area,sys);
 gyPre_2 = mr.makeTrapezoid('y','Area',phaseAreas(end),'Duration',pe_dur,'system',sys); % last PE step (in case of repetitions)

@@ -289,7 +289,7 @@ title('refocusing efficiency phase (~2x RF phase)');
 
 %% spoiling simulation for the same pulse used and refocusing pulse
 
-spoiling_factor=5; % area of the left/righ spoiler; reasonable range 1..10
+spoiling_factor=5; % area of the left/right spoiler; reasonable range 1..10
 cl=13; % convolution length to simulate intravoxel dephasing
 
 [M_z,M_xy,F2,ref_eff,mxrf,myrf]=mr.simRf(rf180_ad,spoiling_factor,spoiling_factor); 

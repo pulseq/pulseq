@@ -4,7 +4,7 @@
 %
 % The Pulseq toolbox has been designed such that these files are *not*
 % necessary to use the toolbox, but if they are present a substantial
-% performance improvement can be acheived.
+% performance improvement can be achieved.
 %
 % The script relies on the MATLAB Coder package, available in later
 % versions of MATLAB.

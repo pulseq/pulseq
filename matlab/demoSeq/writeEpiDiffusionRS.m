@@ -1,4 +1,4 @@
-% this is an diffusion/weighted EPI based on the experimentaal high-
+% this is an diffusion/weighted EPI based on the experimental high-
 % performance EPI sequence which uses split gradients to overlap blips with
 % the readout gradients combined with ramp-samping
 % it further features diffusion weighting using the standard 
@@ -58,7 +58,7 @@ blip_dur = ceil(2*sqrt(deltak/lims.maxSlew)/10e-6/2)*10e-6*2; % we round-up the 
 gy = mr.makeTrapezoid('y',lims,'Area',-deltak,'Duration',blip_dur); % we use negative blips to save one k-space line on our way towards the k-space center
 %gy = mr.makeTrapezoid('y',lims,'amplitude',deltak/blip_dur*2,'riseTime',blip_dur/2, 'flatTime', 0);
 
-% readout gradient is a truncated trapezoid with dead times at the beginnig
+% readout gradient is a truncated trapezoid with dead times at the beginning
 % and at the end each equal to a half of blip_dur
 % the area between the blips should be defined by kWidth
 % we do a two-step calculation: we first increase the area assuming maximum

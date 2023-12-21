@@ -1,6 +1,6 @@
 function [rf, gz, gzr, delay] = makeArbitraryRf(signal,flip,varargin)
 %makeArbitraryRf Create an RF pulse with the given pulse shape.
-%   rf=makeArbitraryRf(singal, flip) Create RF pulse with complex signal 
+%   rf=makeArbitraryRf(signal, flip) Create RF pulse with complex signal 
 %   and given flip angle (in radians)
 %
 %   rf=makeArbitraryRf(..., 'FreqOffset', f,'PhaseOffset',p)

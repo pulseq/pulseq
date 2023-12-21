@@ -2,7 +2,7 @@ function grad = addGradients(grads, varargin)
 %addGradients Superposition of several gradients
 %
 %   [grad] = addGradients(grads, system) 
-%   Returns the superposition of serveral gradients
+%   Returns the superposition of several gradients
 %   gradients have to be passed as a cell array e.g. {g1, g2, g3}
 %
 %   See also  Sequence.addBlock  mr.opts  makeTrapezoid
@@ -114,7 +114,7 @@ if all(is_trap | ~is_arb)
     for ii = 1:length(grads)
         g=grads{ii};
         if strcmp(g.type,'trap')
-            if g.flatTime>0 % trapezoid or triange
+            if g.flatTime>0 % trapezoid or triangle
                 g.tt=cumsum([0 g.riseTime g.flatTime g.fallTime]);
                 g.waveform=[0 g.amplitude g.amplitude 0];
             else

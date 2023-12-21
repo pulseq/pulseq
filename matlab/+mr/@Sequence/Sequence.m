@@ -48,7 +48,7 @@ classdef Sequence < handle
         rfLibrary;        % Library of RF events
         gradLibrary;      % Library of gradient events
         adcLibrary;       % Library of ADC readouts
-        trigLibrary;      % Library of trigger events ( referenced from the extentions library )
+        trigLibrary;      % Library of trigger events ( referenced from the extensions library )
         labelsetLibrary;  % Library of Label(set) events ( reference from the extensions library )
         labelincLibrary;  % Library of Label(inc) events ( reference from the extensions library )
         extensionLibrary; % Library of extension events. Extension events form single-linked zero-terminated lists
@@ -270,7 +270,7 @@ classdef Sequence < handle
         function addBlock(obj,varargin)
             %addBlock Add a new block to the sequence.
             %   addBlock(obj, blockStruct) Adds a sequence block with
-            %   provided as a block struture
+            %   provided as a block structure
             %
             %   addBlock(obj, e1, e2, ...) Adds a block with multiple
             %   events e1, e2, etc.
@@ -297,7 +297,7 @@ classdef Sequence < handle
             allGradEvents = paren2(vertcat(obj.blockEvents{:}),3:5);
             
             selectedEvents=unique(allGradEvents(:,channelNum));
-            selectedEvents=selectedEvents(0~=selectedEvents); % elliminate 0
+            selectedEvents=selectedEvents(0~=selectedEvents); % eliminate 0
             otherEvents=unique(allGradEvents(:,otherChans));
             assert(isempty(intersect(selectedEvents,otherEvents)),'ERROR: the same gradient event is used on multiple axes, this is not yet supported by modGradAxis()');
                                     
@@ -397,7 +397,7 @@ classdef Sequence < handle
         
         function [id shapeIDs]=registerRfEvent(obj, event)
             % registerRfEvent Add the event to the libraries (object,
-            % shapes, etc and retur the event's ID. This I can be stored in
+            % shapes, etc and return the event's ID. This I can be stored in
             % the object to accelerate addBlock()
             
             mag = abs(event.signal);
@@ -671,7 +671,7 @@ classdef Sequence < handle
                 % key mapping then... The trick is that we rely on the
                 % sorting of the extension IDs and then we can always find
                 % the last one in the list by setting the reference to the
-                % next to 0 and then proceed with the otehr elements.
+                % next to 0 and then proceed with the other elements.
                 [~,I]=sort([extensions(:).ref]);
                 extensions=extensions(I);
                 all_found=true;
@@ -729,7 +729,7 @@ classdef Sequence < handle
                                 end
                             end
                         else
-                            error('Error in block %d: Gradient starting at non-zero value need to be preceded by a comptible gradient', index);
+                            error('Error in block %d: Gradient starting at non-zero value need to be preceded by a compatible gradient', index);
                         end
                     else                   
                         error('First gradient in the the first block has to start at 0.');
@@ -951,7 +951,7 @@ classdef Sequence < handle
             c_excitation=0;
             c_refocusing=0;
             c_adcSamples=0;
-            % loop throught the blocks to prepare preallocations
+            % loop through the blocks to prepare preallocations
             for iB=1:length(obj.blockEvents)
                 block = obj.getBlock(iB);
                 if ~isempty(block.rf)
@@ -1024,7 +1024,7 @@ classdef Sequence < handle
 %                     ii_next_refocusing = min(length(i_refocusing),ii_next_refocusing+1);
 %                 end
 %             end
-            i_periods=sort([1; i_excitation+1; i_refocusing+1; size(gw,2)+1]); % we need thise +1 for compatibility with the above code which prooved to be correct
+            i_periods=sort([1; i_excitation+1; i_refocusing+1; size(gw,2)+1]); % we need these +1 for compatibility with the above code which proved to be correct
             ii_next_excitation=min(length(i_excitation),1);
             ii_next_refocusing=min(length(i_refocusing),1);
             ktraj=zeros(size(gw));
@@ -1259,7 +1259,7 @@ classdef Sequence < handle
                 block = obj.getBlock(iB);
                 isValid = t0+obj.blockDurations(iB)>timeRange(1) && t0<=timeRange(2);
                 if isValid
-                    if isfield(block,'label') %current labels, works on the curent or next adc
+                    if isfield(block,'label') %current labels, works on the current or next adc
                         for i=1:length(block.label)
                             if strcmp(block.label(i).type,'labelinc')
                                 label_store.(block.label(i).label)=...
@@ -1352,7 +1352,7 @@ classdef Sequence < handle
             arrayfun(@(x) ylim(x, ylim(x) + 0.03*[-1 1]*sum(ylim(x).*[-1 1])), ax(2:end));
         end
         
-        function grad_waveforms=gradient_waveforms1(obj) % currently disfunctional (feature_ExtTrap)
+        function grad_waveforms=gradient_waveforms1(obj) % currently dysfunctional (feature_ExtTrap)
             % gradient_waveforms()
             %   Decompress the entire gradient waveform
             %   Returns an array of gradient_axes x timepoints
@@ -1763,7 +1763,7 @@ classdef Sequence < handle
                 end
                 gm_pp{i}=fnint(gw_pp{i});
                 tc{end+1}=gm_pp{i}.breaks;
-                % "sample" ramps for display purposes otherwise piecewise-linear diplay (plot) fails (looks stupid)
+                % "sample" ramps for display purposes otherwise piecewise-linear display (plot) fails (looks stupid)
                 ii=find(abs(gm_pp{i}.coefs(:,1))>eps);
                 if ~isempty(ii)
                     tca=cell(1,length(ii));
@@ -1790,7 +1790,7 @@ classdef Sequence < handle
             tacc=1e-10; % temporal accuracy
             taccinv=1/tacc;
             t_ktraj = tacc*unique(round(taccinv*[tc{:}, 0, t_excitation-2*obj.rfRasterTime, t_excitation-obj.rfRasterTime, t_excitation, t_refocusing-obj.rfRasterTime, t_refocusing, t_adc, total_duration]));
-            % % the "proper" matlab's function ismember() is slow and returns a bool array, but builtin('_ismemberhelper'...) is not compatible accross versions (known not to work on the windows 2021a version)
+            % % the "proper" matlab's function ismember() is slow and returns a bool array, but builtin('_ismemberhelper'...) is not compatible across versions (known not to work on the windows 2021a version)
             %[~,i_excitation]=builtin('_ismemberhelper',tacc*round(taccinv*t_excitation),t_ktraj);
             %[~,i_refocusing]=builtin('_ismemberhelper',tacc*round(taccinv*t_refocusing),t_ktraj);
             %[~,i_adc]=builtin('_ismemberhelper',tacc*round(taccinv*t_adc),t_ktraj);
@@ -1905,7 +1905,7 @@ classdef Sequence < handle
             % filter like we did it in the gradient music project
             %b = fir1(40, 10000/sample_rate);
             %sound_data = filter(b, 1, sound_data,[],2);
-            % use Gaussian convolution instead to supress ringing
+            % use Gaussian convolution instead to suppress ringing
             gw=gausswin(round(sample_rate/6000)*2+1);
             gw=gw/sum(gw(:));
             soundData(1,:) = conv(soundData(1,:), gw, 'same');
@@ -2017,7 +2017,7 @@ classdef Sequence < handle
         end
         
         function id = getExtensionTypeID(obj, str) 
-            % get numeric ID for the given string extention ID
+            % get numeric ID for the given string extension ID
             % will automatically create a new ID if unknown 
             num=find(strcmp(obj.extensionStringIDs,str));
             if isempty(num)
@@ -2035,7 +2035,7 @@ classdef Sequence < handle
         end
         
         function str = getExtensionTypeString(obj, id)
-            % get numeric ID for the given string extention ID
+            % get numeric ID for the given string extension ID
             % may fail 
             num=find(obj.extensionNumericIDs==id);
             if isempty(num)
@@ -2045,7 +2045,7 @@ classdef Sequence < handle
         end
         
         function setExtensionStringAndID(obj, str, id) 
-            % set numeric ID for the given string extention ID
+            % set numeric ID for the given string extension ID
             % may fail if not unique
             if any(strcmp(obj.extensionStringIDs,str)) || any(obj.extensionNumericIDs==id) 
                 error('Numeric or String ID is not unique');

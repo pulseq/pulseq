@@ -28,7 +28,7 @@ if  obj1val>1e-3 || ... % the search did not converge
     Gp=sys.maxGrad*sign(Gp);
     obj2=@(x) (A-testGA(Gp,x,SR,sys.gradRasterTime,Gs,Ge)).^2;
     [T,obj2val,exitf] = fminsearch(obj2,0);
-    assert(obj2val<1e-2); % did the final search converge? MZ: I had to reduce the theshold...
+    assert(obj2val<1e-2); % did the final search converge? MZ: I had to reduce the threshold...
     
     Tp=ceil(T/sys.gradRasterTime)*sys.gradRasterTime;
     

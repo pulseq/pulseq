@@ -67,7 +67,7 @@ for r=1:Nreps
                          mr.makeLabel('SET','SEG', gx.amplitude<0), ...
                          mr.makeLabel('SET','AVG',n==3));
             if (n~=Navigator)
-                seq.addBlock(mr.makeDelay(mr.calcDuration(gy))); % we need this dummy blip pulse to maintain ientical RO gradient timing anf the correspnding eddy currents  
+                seq.addBlock(mr.makeDelay(mr.calcDuration(gy))); % we need this dummy blip pulse to maintain ientical RO gradient timing anf the corresponding eddy currents  
             end
             gx.amplitude = -gx.amplitude;   % Reverse polarity of read gradient
         end

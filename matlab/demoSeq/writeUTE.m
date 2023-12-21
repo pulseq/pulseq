@@ -16,7 +16,7 @@ delta= 2* pi / Nr;              % angular increment; try golden angle pi*(3-5^0.
 ro_duration=2.56e-3;            % read-out time: controls RO bandwidth and T2-blurring
 ro_os=2;                        % oversampling
 ro_asymmetry=1;                 % 0: fully symmetric 1: half-echo
-minRF_to_ADC_time=50e-6;        % the parameter wich defines TE (together with the RO asymmetyry)
+minRF_to_ADC_time=50e-6;        % the parameter which defines TE (together with the RO asymmetyry)
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
@@ -26,7 +26,7 @@ rfSpoilingInc=117;              % RF spoiling increment
     'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',2,...
     'centerpos',1,'system',sys);
 
-% Align RO assymmetry to ADC samples
+% Align RO asymmetry to ADC samples
 Nxo=round(ro_os*Nx);
 ro_asymmetry = round(ro_asymmetry*Nxo/2)/Nxo*2; % check whether we need to use 2Nx or so...
 % Define other gradients and ADC events

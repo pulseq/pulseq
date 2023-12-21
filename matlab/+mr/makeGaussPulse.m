@@ -10,10 +10,10 @@ function [rf, gz, gzr, delay] = makeGaussPulse(flip,varargin)
 %   slice select gradient corresponding to given slice thickness (m).
 %
 %   [rf, gz]=makeGaussPulse(flip,lims,...) Create slice selection gradient 
-%   with the specificed gradient limits (e.g. amplitude, slew).
+%   with the specified gradient limits (e.g. amplitude, slew).
 %
 %   [rf, gz, gzr]=makeGaussPulse(flip,lims,...) Create slice selection and 
-%   slice refocusing gradients with the specificed gradient limits 
+%   slice refocusing gradients with the specified gradient limits 
 %   (e.g. amplitude, slew) and taking into account 'centerpos' parameter
 %
 %   See also  Sequence.addBlock

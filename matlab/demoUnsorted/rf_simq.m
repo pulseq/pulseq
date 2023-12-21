@@ -17,7 +17,7 @@ N     = round(numel(F)*.5*pi/dt/max(F))*2;                                 % num
 M_STA = sin(w)*abs(fftshift(fft(shapea,N))) * dt*v/w; 
 M_STA = M_STA(N/2+(-numel(F)/2+1:numel(F)/2));                             % extract frequencies of interest
 
-% intialize result vectors
+% initialize result vectors
 M_ROT=zeros(size(F)); 
 Z_ROT=zeros(size(F));
 sf=size(F);
@@ -45,7 +45,7 @@ q=quatmultiply(q,Q);
 %   % summarize results
 %   M_ROT(i) = abs(2*Q(1,1)'*Q(2,1));                                        % transv. magn.
 %   Z_ROT(i) = Q(1,1)*Q(2,2)+Q(2,1)*Q(1,2);                                  % long. magn.
-%   q(1,i)=0.5*real(Q(1,1)+Q(2,2)); % rotation quaternion (for futher anlysis)
+%   q(1,i)=0.5*real(Q(1,1)+Q(2,2)); % rotation quaternion (for further analysis)
 %   q(2,i)=0.5*imag(Q(2,1)+Q(1,2)); 
 %   q(3,i)=0.5*real(Q(1,2)-Q(2,1));
 %   q(4,i)=0.5*imag(Q(1,1)-Q(2,2));
@@ -87,8 +87,8 @@ myrf=quatmultiply(quatconj(q),quatmultiply(m,q));
 myrf=myrf(:,2)+1i*myrf(:,3);
 myrfc=conv(myrf,ones(cl,1)/cl,'same');
 %figure;plot(F,sum(mrfc1.^2).^0.5,F,sum(mrfc2.^2).^0.5,F,0.5-0.5*real(Z_ROT));axis([-4 4 -0.1 1.1]); title('refocusing profiles vs ''inversion''');
-%figure;plot(F,(0.5*sum(mrfc1.^2,2)+0.5*sum(mrfc2.^2,2)).^0.5,F,0.5-0.5*m0rf(:,4));axis([-4 4 -0.1 1.1]); title('refocusing profiles vs (inverted and scalled) M_z');
-figure;plot(F,abs(abs(mxrfc)+1i*abs(myrfc))/2^0.5,F,0.5-0.5*m0rf(:,4));axis([-4 4 -0.1 1.1]); title('refocusing profiles vs (inverted and scalled) M_z');
+%figure;plot(F,(0.5*sum(mrfc1.^2,2)+0.5*sum(mrfc2.^2,2)).^0.5,F,0.5-0.5*m0rf(:,4));axis([-4 4 -0.1 1.1]); title('refocusing profiles vs (inverted and scaled) M_z');
+figure;plot(F,abs(abs(mxrfc)+1i*abs(myrfc))/2^0.5,F,0.5-0.5*m0rf(:,4));axis([-4 4 -0.1 1.1]); title('refocusing profiles vs (inverted and scaled) M_z');
 % refocusing phase
 %figure;plot(F,angle(mxrf)/2-(angle(myrf)+pi/2)/2);axis([-4 4 -1.6 1.6]); title('refocusing phase inconsistency');
 %figure;plot(F,angle(mxrf)/2+(angle(myrf)+pi/2)/2);axis([-4 4 -1.6 1.6]); title('mean refocusing phase');

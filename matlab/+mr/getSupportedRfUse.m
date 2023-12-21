@@ -1,5 +1,5 @@
 function supported_rf_use = getSupportedRfUse()
-% auxilary function
+% auxiliary function
 
 supported_rf_use={'excitation','refocusing','inversion','saturation','preparation'};
 
