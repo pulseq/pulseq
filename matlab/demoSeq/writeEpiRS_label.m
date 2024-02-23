@@ -9,7 +9,7 @@ sys = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
     'MaxSlew',130,'SlewUnit','T/m/s',...
     'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6,...
     'adcDeadTime', 10e-6, 'B0', 2.89 ... % this is Siemens' 3T
-);  
+);
 
 seq=mr.Sequence(sys);      % Create a new sequence object
 fov=220e-3; Nx=96; Ny=Nx;  % Define FOV and resolution
@@ -35,7 +35,7 @@ end
 readoutBW = 1/readoutTime ; % readout bandwidth
 disp(['Readout bandwidth = ', num2str(readoutBW), ' Hz/Px']) ;
 partFourierFactor=1;       % partial Fourier factor: 1: full sampling 0: start with ky=0
-Navigator=3;		   % navigator echoes for ghost supprerssion
+Nnav=3;		   % navigator echoes for ghost supprerssion
 
 % Create fat-sat pulse 
 sat_ppm=-3.45;
@@ -130,14 +130,14 @@ slicePositions=slicePositions([1:2:Nslices 2:2:Nslices]); % reorder slices for a
 %slicePositions=slicePositions([1:3:Nslices 2:3:Nslices 3:3:Nslices]); % reorder slices for an interleaved acquisition (optional)
 % Define sequence blocks
 TR_1slice = mr.calcDuration(gz_fs) + mr.calcDuration(gz) + mr.calcDuration(gzReph)+...
-    Navigator*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
+    Nnav*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
     Ny_meas*mr.calcDuration(gx) ;
 TRdelay = TR - TR_1slice * Nslices ;
 TRdelay_perSlice = ceil(TRdelay / Nslices / sys.blockDurationRaster) * sys.blockDurationRaster ;
 % assert(TRdelay_perSlice>=0) ;
 
 TE = rf.shape_dur/2 + rf.ringdownTime + mr.calcDuration(gzReph)+...
-    Navigator*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
+    Nnav*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
     Ny_meas/2*mr.calcDuration(gx) - mr.calcDuration(gx)/2;
 disp(['TR = ', num2str(TR), ' s', ', TE = ', num2str(1000*TE), ' ms']) ;
 if (scanner(1) == 't' || scanner(1) == 'T') % trio
@@ -146,13 +146,14 @@ end
 
 % change orientation to match the siemens product sequence
 % reverse the polarity of all gradients in readout direction (Gx)
-%gxPre.amplitude = -gxPre.amplitude ;
-%gx.amplitude = -gx.amplitude ;
+gxPre = mr.scaleGrad(gxPre, -1) ;
+gx = mr.scaleGrad(gx, -1) ;
 % reverse the polarity of all gradients in slice encoding direction (Gz)?
 % gz_fs.amplitude = -gz_fs.amplitude ;
 % gz.amplitude = -gz.amplitude ;
-
-seq.addBlock(mr.makeLabel('SET','REP', 0)) ;
+% initial readout gradient polarity
+ROpolarity = sign(gx.amplitude) ;
+% seq.addBlock(mr.makeLabel('SET','REP', 0)) ;
 for r=1:Nrep
     seq.addBlock(mr.makeLabel('SET', 'SLC', 0) ) ;
     for s=1:Nslices
@@ -160,19 +161,22 @@ for r=1:Nrep
         rf.freqOffset=gz.amplitude*slicePositions(s);
         rf.phaseOffset=-2*pi*rf.freqOffset*mr.calcRfCenter(rf); % compensate for the slice-offset induced phase
         seq.addBlock(rf,gz,trig);
-        if Navigator>0
+        if Nnav>0
+            gxPre = mr.scaleGrad(gxPre, -1) ; % reverse the readout gradient in advance for navigator
+            gx = mr.scaleGrad(gx, -1) ; % reverse the readout gradient in advance for navigator
             seq.addBlock(gxPre,gzReph, ...
                 mr.makeLabel('SET','NAV',1),...
                 mr.makeLabel('SET','LIN', floor(Ny/2))) ; % k-space center line
-            for n=1:Navigator
-                seq.addBlock(mr.makeLabel('SET','REV', gx.amplitude>0), ...
-                    mr.makeLabel('SET','SEG', gx.amplitude<0), ...
-                    mr.makeLabel('SET','AVG', floor(n/2)));
+            gxPre = mr.scaleGrad(gxPre, -1) ; % reverse the gxPre back after addBlock
+            for n=1:Nnav
+                seq.addBlock(mr.makeLabel('SET','REV', sign(gx.amplitude) ~= ROpolarity ), ...
+                    mr.makeLabel('SET','SEG', sign(gx.amplitude) ~= ROpolarity ), ...
+                    mr.makeLabel('SET','AVG', n==Nnav ) ) ;
                 seq.addBlock(gx, adc);
-                gx.amplitude = -gx.amplitude ;   % Reverse polarity of read gradient
+                gx = mr.scaleGrad(gx, -1) ;   % Reverse polarity of read gradient
             end
             seq.addBlock(gyPre,  ...
-                mr.makeLabel('SET','LIN', -1), ...
+                mr.makeLabel('SET','LIN', -1), ... % increment LIN by -1 for "llin" performs before adc below
                 mr.makeLabel('SET','NAV', 0), ...
                 mr.makeLabel('SET','AVG', 0) );% lin/nav/avg reset
         else
@@ -182,10 +186,10 @@ for r=1:Nrep
                 mr.makeLabel('SET','AVG', 0) );% lin/nav/avg reset
         end
 
-        for i=1:Ny_meas
-            lrev=mr.makeLabel('SET','REV', gx.amplitude>0 ) ;
-            lseg=mr.makeLabel('SET','SEG', gx.amplitude<0 ) ;
-            llin=mr.makeLabel('INC','LIN', 1) ;
+        for i = 1:Ny_meas
+            lrev = mr.makeLabel('SET', 'REV', sign(gx.amplitude) ~= ROpolarity ) ;
+            lseg = mr.makeLabel('SET', 'SEG', sign(gx.amplitude) ~= ROpolarity ) ;
+            llin = mr.makeLabel('INC', 'LIN', 1) ;
             if i==1 % first phase encoding step
                 seq.addBlock(gx, gy_blipup, adc, lrev, lseg, llin) ; % Read the first line of k-space with a single half-blip at the end
             elseif i==Ny_meas % last phase encoding step
@@ -193,11 +197,11 @@ for r=1:Nrep
             else % phase encoding steps in between
                 seq.addBlock(gx, gy_blipdownup, adc, lrev, lseg, llin) ; % Read an intermediate line of k-space with a half-blip at the beginning and a half-blip at the end
             end
-    	    gx.amplitude = -gx.amplitude ;   % Reverse polarity of read gradient
+    	    gx = mr.scaleGrad(gx, -1) ;   % Reverse polarity of read gradient
         end
         seq.addBlock(mr.makeLabel('INC','SLC', 1)) ;
-        if rem(Navigator+Ny_meas,2)~=0 % if the polarity of gx is not the same as original one
-            gx.amplitude = -gx.amplitude;
+        if sign(gx.amplitude) ~= ROpolarity % if the polarity of gx is not the same as original one
+            gx = mr.scaleGrad(gx, -1) ;
         end
        % seq.addBlock(mr.makeDelay(TRdelay_perSlice)) ; % use the minimal TR
     end
@@ -205,46 +209,46 @@ for r=1:Nrep
 end
 
 %% check whether the timing of the sequence is correct
-[ok, error_report]=seq.checkTiming;
+[ok, error_report]=seq.checkTiming ;
 
 if (ok)
-    fprintf('Timing check passed successfully\n');
+    fprintf('Timing check passed successfully\n') ;
 else
-    fprintf('Timing check failed! Error listing follows:\n');
+    fprintf('Timing check failed! Error listing follows:\n') ;
     fprintf([error_report{:}]);
     fprintf('\n');
 end
 
-% %% do some visualizations
-% 
-% seq.plot('Label', 'SEG,LIN,SLC');             % Plot all sequence waveforms
-% 
-% seq.plot('timeDisp','us','showBlocks',1,'timeRange',[0 25e-3]); %detailed view
-% 
-% rf.freqOffset=0;
-% rf.phaseOffset=0;
-% [rf_bw,rf_f0,rf_spectrum,rf_w]=mr.calcRfBandwidth(rf);
-% figure;plot(rf_w,abs(rf_spectrum));
-% title('Excitation pulse profile (low-angle approximation)');
-% xlabel('Frequency, Hz');
-% xlim(3*[-rf_bw rf_bw]);
-% 
-% %% trajectory calculation
-% [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos] = seq.calculateKspacePP();
-% 
-% % plot k-spaces
-% figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
-% hold on; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
-% title('k-space vector components as functions of time');
-% 
-% figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
-% hold on;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
-% axis('equal'); % enforce aspect ratio for the correct trajectory display
-% title('k-space trajectory (k_x/k_y)');
-% 
-% figure; plot(t_slicepos, slicepos, '*');
-% title('slice position (vector components) as a function or time');
-% %axis off;
+%% do some visualizations
+
+seq.plot('Label', 'SEG,LIN,SLC') ;             % Plot all sequence waveforms
+
+seq.plot('timeDisp','us','showBlocks',1,'timeRange',[0 25e-3]); %detailed view
+
+rf.freqOffset=0;
+rf.phaseOffset=0;
+[rf_bw,rf_f0,rf_spectrum,rf_w]=mr.calcRfBandwidth(rf);
+figure;plot(rf_w,abs(rf_spectrum));
+title('Excitation pulse profile (low-angle approximation)');
+xlabel('Frequency, Hz');
+xlim(3*[-rf_bw rf_bw]);
+
+%% trajectory calculation
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos] = seq.calculateKspacePP();
+
+% plot k-spaces
+figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
+hold on; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
+title('k-space vector components as functions of time');
+
+figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
+hold on;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
+axis('equal'); % enforce aspect ratio for the correct trajectory display
+title('k-space trajectory (k_x/k_y)');
+
+figure; plot(t_slicepos, slicepos, '*');
+title('slice position (vector components) as a function or time');
+%axis off;
 
 %% prepare the sequence output for the scanner
 seq.setDefinition('Name', 'epi'); 
