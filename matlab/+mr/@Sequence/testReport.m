@@ -1,9 +1,20 @@
-function [ report ] = testReport( obj )
+function [ report ] = testReport( obj, varargin )
 %testReport Analyze the sequence and return a text report
 %   Currently no parameters are required. In future versions it may be
-%   possible to (de)select some tests
+%   possible to (de)select some tests. Optional parameter 'system' allows
+%   to test the limits against the given MR system
 %
 % maxim.zaitsev@uniklinik-freiburg.de
+
+persistent parser
+if isempty(parser)
+    parser = inputParser;
+    parser.FunctionName = 'testReport';
+    
+    addParamValue(parser,'system',struct([]),@isstruct);
+end
+parse(parser,varargin{:});
+opt = parser.Results;
 
 % find the RF pulses and list flip angles
 flipAnglesDeg=[];
@@ -249,12 +260,28 @@ else
     report = { report{:}, [ sprintf('Block timing check failed! Error listing follows:\n'),...
                             sprintf([timing_error_report{:}]) ] };
 end
+msg_ga='';
+if ~isempty(opt.system) && any(ga > opt.system.maxGrad)
+    msg_ga=' [some component EXCEEDED]';
+end
+msg_gs='';
+if ~isempty(opt.system) && any(gs > opt.system.maxSlew)
+    msg_gs=' [some component EXCEEDED]';
+end
 report = { report{:},...
-    sprintf('Max. Gradient: %.0f Hz/m == %.02f mT/m\n', [ga mr.convert(ga,'Hz/m','mT/m')]'),...
-    sprintf('Max. Slew Rate: %g Hz/m/s == %.02f T/m/s\n', [gs mr.convert(gs,'Hz/m/s','T/m/s')]') };
+    sprintf(['Max. Gradient: %.0f Hz/m == %.02f mT/m' msg_ga '\n'], [ga mr.convert(ga,'Hz/m','mT/m')]'),...
+    sprintf(['Max. Slew Rate: %g Hz/m/s == %.02f T/m/s' msg_gs '\n'], [gs mr.convert(gs,'Hz/m/s','T/m/s')]') };
+msg_ga='';
+if ~isempty(opt.system) && ga_abs > opt.system.maxGrad
+    msg_ga=' [EXCEEDED]';
+end
+msg_gs='';
+if ~isempty(opt.system) && gs_abs > opt.system.maxSlew
+    msg_gs=' [EXCEEDED]';
+end
 report = { report{:},...
-    sprintf('Max. Absolute Gradient: %.0f Hz/m == %.02f mT/m\n', [ga_abs mr.convert(ga_abs,'Hz/m','mT/m')]'),...
-    sprintf('Max. Absolute Slew Rate: %g Hz/m/s == %.02f T/m/s\n', [gs_abs mr.convert(gs_abs,'Hz/m/s','T/m/s')]') };
+    sprintf(['Max. Absolute Gradient: %.0f Hz/m == %.02f mT/m' msg_ga '\n'], [ga_abs mr.convert(ga_abs,'Hz/m','mT/m')]'),...
+    sprintf(['Max. Absolute Slew Rate: %g Hz/m/s == %.02f T/m/s' msg_gs '\n'], [gs_abs mr.convert(gs_abs,'Hz/m/s','T/m/s')]') };
 
 end
 
