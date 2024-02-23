@@ -1860,6 +1860,96 @@ classdef Sequence < handle
 %                 slicepos=[ slicepos slicepos(:,end)];
 %             end
         end
+
+        function [mean_pwr, peak_pwr, rf_rms, total_energy]=calcRfPower(obj, varargin)
+            %calcRfPower : Calculate the relative** power of the RF pulse
+            %   Returns the (relative) energy of the pulse expressed in the units of 
+            %   RF amplitude squared multiplied by time, e.g. in Pulseq these are
+            %   Hz * Hz * s = Hz. Sounds strange, but is true. Return
+            %   parameter mean_pwr is closely related to the relative** SAR.
+            %   Also returns peak power [Hz^2] and RMS B1 amplitude [Hz].
+            %   Optional parameter 'blockRange' can be used to specify the
+            %   part of the sequence for which the energy is calculated.
+            %   Optional parameter 'windowDuration' can be used to specify
+            %   the time window for the total_energy, mean_pwr and rf_rms
+            %   calculation. The values returned in this case are the
+            %   maximum values over all time windows. The time window is
+            %   rounded up to a certain number of complete blocks.
+            %   ** Note: the power calculated by this function is relative as it is
+            %   calculated in units of Hz. It can be converted to mT^2*s by dividing
+            %   the given value by gamma^2. Nonetheless, the absolute SAR is related to
+            %   the electric field, so the further scaling coeficient is both tx-coil-
+            %   dependent (e.g. depends on the coil design) and also subject-dependent 
+            %   (e.g. depends on the reference voltage). 
+
+            persistent parser
+            if isempty(parser)
+                parser = inputParser;
+                parser.FunctionName = 'calcRfPower';
+                parser.addParamValue('blockRange',[1 inf],@(x)(isnumeric(x) && length(x)==2));
+                parser.addParamValue('windowDuration',NaN,@(x)(isnumeric(x)));
+            end
+            parse(parser,varargin{:});
+            opt = parser.Results;
+            
+            if ~isfinite(opt.blockRange(2))
+                opt.blockRange(2)=length(obj.blockEvents);
+            end
+            
+            dur=0;
+            total_energy=0;
+            peak_pwr=0;
+            rf_ms=0;
+
+            windowOn= isfinite(opt.windowDuration);
+            if windowOn
+                blockBookkeeping = zeros(2,opt.blockRange(2)-opt.blockRange(1)+1);
+                currentWindowDur=0.0;
+                currentWindowStartIdx=opt.blockRange(1);
+                total_energy_max=0.0;
+                rf_ms_max=0.0;
+            end
+            
+            for iBc=opt.blockRange(1):opt.blockRange(2)
+                block = obj.getBlock(iBc);
+                dur=dur+obj.blockDurations(iBc);
+
+                if ~isempty(block.rf)
+                    rf=block.rf;
+                    [e,pp,rms]=mr.calcRfPower(rf);
+                    
+                    total_energy=total_energy+e;
+                    rf_ms=rf_ms+rms^2*rf.shape_dur;
+                    peak_pwr=max(peak_pwr,pp);
+
+                    if windowOn
+                        blockBookkeeping(:,iBc-opt.blockRange(1)+1)=[e,rms^2*rf.shape_dur];
+                        total_energy_max=max(total_energy_max,total_energy);
+                        rf_ms_max=max(rf_ms_max,rf_ms);
+                    end
+                end
+                % keep track of the window width and make it shorter if needed
+                if windowOn
+                    currentWindowDur=currentWindowDur+obj.blockDurations(iBc);
+                    while currentWindowDur>opt.windowDuration
+                        % remove the front side of the window from total_energy and rf_ms
+                        total_energy=total_energy-blockBookkeeping(1,currentWindowStartIdx);
+                        rf_ms=rf_ms-blockBookkeeping(2,currentWindowStartIdx);
+                        currentWindowDur=currentWindowDur-obj.blockDurations(currentWindowStartIdx);
+                        currentWindowStartIdx=currentWindowStartIdx+1;
+                    end
+                end
+            end
+
+            if windowOn
+                total_energy=total_energy_max;
+                mean_pwr=total_energy/opt.windowDuration; % we divide here by the nominal window duration, which may lead to a slight overestimation
+                rf_rms=sqrt(rf_ms_max/opt.windowDuration); % we divide here by the nominal window duration, which may lead to a slight overestimation
+            else
+                mean_pwr=total_energy/dur;
+                rf_rms=sqrt(rf_ms/dur);
+            end
+        end
         
         function soundData=sound(obj, varargin)
             %sound()
