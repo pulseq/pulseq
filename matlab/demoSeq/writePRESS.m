@@ -1,7 +1,7 @@
 system = mr.opts('MaxGrad', 15, 'GradUnit', 'mT/m', ...
                  'MaxSlew', 100, 'SlewUnit', 'T/m/s', ...
                  'rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
-                 'adcDeadTime', 20e-6);
+                 'adcDeadTime', 20e-6, 'B0', 2.89 ); % this is Siemens' "3T" :-)
 
 seq=mr.Sequence(system);              % Create a new sequence object
 voxel=[20 30 40]*1e-3; % voxel size
@@ -11,7 +11,7 @@ Ndummy=0;
 adcDur=256e-3; 
 rfDurEx=3000e-6;
 rfDurRef=4000e-6;
-TR=400e-3;
+TR=600e-3;
 TE=120e-3;
 spA=0.6e3; % spoiler area in 1/m (=Hz/m*s)
 spB=2.0e3; % spoiler area in 1/m (=Hz/m*s)
@@ -68,6 +68,11 @@ g_refC1.delay=g_refC1.delay-mr.calcDuration(g_ref1_pre)+mr.calcDuration(g_spAz1)
 g_refC2.delay=g_refC2.delay-mr.calcDuration(g_ref2_pre)+mr.calcDuration(g_spBy1);
 rf_ref1.delay=rf_ref1.delay-mr.calcDuration(g_ref1_pre)+mr.calcDuration(g_spAz1);
 rf_ref2.delay=rf_ref2.delay-mr.calcDuration(g_ref2_pre)+mr.calcDuration(g_spBy1);
+% end spoiler
+end_sp_axes={'x','y','z'};
+for i=1:3
+    g_spEnd(i) = mr.makeTrapezoid(end_sp_axes{i}, 'system', system, 'area', 1/1e-4); % spoiling area in inverse meters
+end
 
 %% Define delays and ADC events
 delayTE1=1e-3; % this delay allows to shift the spin echo within the ADC window
@@ -80,11 +85,35 @@ assert(delayTE2>=0);
 adc = mr.makeAdc(Nx,'Duration',adcDur, 'system', system);
 
 % delayTR=TR-mr.calcDuration(g_ex)-mr.calcDuration(g_refC1)-delayTE1-delayTE2-mr.calcDuration(g_refC2)-mr.calcDuration(adc);
-delayTR=TR-max(mr.calcDuration(g_ex), mr.calcDuration(rf_ex))-mr.calcDuration(g_refC1)-delayTE1-delayTE2-mr.calcDuration(g_refC2)-mr.calcDuration(adc);
+delayTR=TR-max(mr.calcDuration(g_ex), mr.calcDuration(rf_ex))-mr.calcDuration(g_refC1,g_spAz,g_spAx)-delayTE1-delayTE2-mr.calcDuration(g_refC2,g_spBy,g_spBx)-mr.calcDuration(adc)-mr.calcDuration(g_spEnd(1));
+assert(delayTR>=0);
+
+%% water supression with the WET algorithm (Ogg 1994)
+ws_fa=[89.2, 83.4, 160.8];
+ws_rf_dur=14.9e-3;
+ws_rf_bw=60;
+ws_tau=60e-3;
+ws_sp_axes={'x','y','z'};
+ws_sp_area=1 / 1e-4; % in inverse m
+%rf_ws=[None]*3
+%g_ws=[None]*3
+for i=1:3
+  rf_ws(i) = mr.makeGaussPulse(ws_fa(i) * pi / 180, 'system', system, ...      
+      'duration', ws_rf_dur, 'bandwidth', ws_rf_bw, 'use', 'saturation');
+  g_ws(i) = mr.makeTrapezoid(ws_sp_axes{i}, 'system', system, ...
+      'delay', mr.calcDuration(rf_ws(i)), 'area', ws_sp_area);
+end
+delay_ws=[ws_tau ws_tau ws_tau]; % this is an overlapping delay withn the block
+delay_ws(end)=ws_tau + rf_ws(end).delay + mr.calcRfCenter(rf_ws(end)) - rf_ex.delay - mr.calcRfCenter(rf_ex);
+% new TR delay calc
+delayTR=TR-max(mr.calcDuration(g_ex), mr.calcDuration(rf_ex))-mr.calcDuration(g_refC1,g_spAz,g_spAx)-delayTE1-delayTE2-mr.calcDuration(g_refC2,g_spBy,g_spBx)-mr.calcDuration(adc)-mr.calcDuration(g_spEnd(1))-sum(delay_ws);
 assert(delayTR>=0);
 
 %% Loop over repetitions and define sequence blocks
 for i=(1-Ndummy):Nrep
+    for w=1:3                                                     % WET
+        seq.addBlock(rf_ws(w),g_ws(w),mr.makeDelay(delay_ws(w)))  % WET
+    end                                                           % WET
     seq.addBlock(rf_ex,g_ex);
     seq.addBlock(mr.makeDelay(delayTE1));
     seq.addBlock(rf_ref1,g_refC1,g_spAz,g_spAx);
@@ -95,6 +124,7 @@ for i=(1-Ndummy):Nrep
     else
         seq.addBlock(mr.makeDelay(mr.calcDuration(adc)));
     end
+    seq.addBlock(g_spEnd(1),g_spEnd(2),g_spEnd(3));
     seq.addBlock(mr.makeDelay(delayTR));
 end
 
