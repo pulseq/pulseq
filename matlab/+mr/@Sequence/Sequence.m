@@ -146,11 +146,11 @@ classdef Sequence < handle
         
         function [is_ok, errorReport]=checkTiming(obj)
             % checkTiming() 
-            %     Checks timing of all blocks and objects in the sequence 
-            %     optionally returns the detailed error log as cell array
-            %     of strings. This function also modifies the sequence
-            %     object by adding the field "TotalDuration" to sequence
-            %     definitions
+            %     Checks timing (and some other parameters) of all blocks 
+            %     and objects in the sequence optionally returns a detailed
+            %     error log as cell array of strings. This function also 
+            %     modifies the sequence object by adding the field 
+            %     "TotalDuration" to sequence definitions
             %
             
             % Loop over blocks and gather statistics
@@ -200,7 +200,7 @@ classdef Sequence < handle
                     end
                 end
                 
-                % check ADC dead times
+                % check ADC dead times, dwell times and numbers of samples
                 if ~isempty(b.adc) 
                     if b.adc.delay-obj.sys.adcDeadTime < -eps
                         rep = [rep ' adc.delay<system.adcDeadTime'];
@@ -208,6 +208,14 @@ classdef Sequence < handle
                     end
                     if b.adc.delay+b.adc.numSamples*b.adc.dwell+obj.sys.adcDeadTime-dur > eps
                         rep = [rep ' adc: system.adcDeadTime (post-adc) violation'];
+                        is_ok=false;
+                    end
+                    if abs(b.adc.dwell/obj.sys.adcRasterTime-round(b.adc.dwell/obj.sys.adcRasterTime)) > eps
+                        rep = [rep ' adc: dwell time is not an integer multiple of sys.adcRasterTime'];
+                        is_ok=false;
+                    end
+                    if abs(b.adc.numSamples/obj.sys.adcSamplesDivisor-round(b.adc.numSamples/obj.sys.adcSamplesDivisor)) > eps
+                        rep = [rep ' adc: numSamples is not an integer multiple of sys.adcSamplesDivisor'];
                         is_ok=false;
                     end
                 end
@@ -1875,8 +1883,10 @@ classdef Sequence < handle
             %   calculation. The values returned in this case are the
             %   maximum values over all time windows. The time window is
             %   rounded up to a certain number of complete blocks.
-            %   ** Note: the power calculated by this function is relative as it is
-            %   calculated in units of Hz. It can be converted to mT^2*s by dividing
+            %   ** Note: the power and rf amplitude calculated by this function is 
+            %   relative as it is calculated in units of Hz^2 or Hz. The rf amplitude 
+            %   can be converted to T by dividing the resulting value by gamma. 
+            %   Correspondingly, The power can be converted to mT^2*s by dividing
             %   the given value by gamma^2. Nonetheless, the absolute SAR is related to
             %   the electric field, so the further scaling coeficient is both tx-coil-
             %   dependent (e.g. depends on the coil design) and also subject-dependent 
