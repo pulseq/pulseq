@@ -210,7 +210,7 @@ classdef Sequence < handle
                         rep = [rep ' adc: system.adcDeadTime (post-adc) violation'];
                         is_ok=false;
                     end
-                    if abs(b.adc.dwell/obj.sys.adcRasterTime-round(b.adc.dwell/obj.sys.adcRasterTime)) > eps
+                    if abs(b.adc.dwell/obj.sys.adcRasterTime-round(b.adc.dwell/obj.sys.adcRasterTime)) > 1e-10 % the check against eps was too strict 
                         rep = [rep ' adc: dwell time is not an integer multiple of sys.adcRasterTime'];
                         is_ok=false;
                     end
