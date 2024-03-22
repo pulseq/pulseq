@@ -82,3 +82,9 @@ end
 if rf.ringdownTime > 0 && nargout > 1
     delay=mr.makeDelay(mr.calcDuration(rf)+rf.ringdownTime);
 end
+
+% RF amplitude check
+rf_amplitude=max(abs(rf.signal));
+if rf_amplitude>opt.system.maxB1
+    warning('WARNING: system maximum RF amplitude exceeded (%.01f%%)', rf_amplitude/opt.system.maxB1*100);
+end
