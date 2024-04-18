@@ -17,7 +17,7 @@ dK=1/fov;
 
 rf_duration=10e-6;              % duration of the excitation pulse
 ro_duration=300e-6;             % read-out time: controls RO bandwidth and T2-blurring
-minRF_to_ADC_time=50e-6;        % the parameter wich defines TE together with ro_discard
+minRF_to_ADC_time=50e-6;        % the parameter which defines TE together with ro_discard
 %ro_discard=4;                   % how many ADC samples are contaminated by RF switching artifacts and alike
 rfSpoilingInc=117;              % RF spoiling increment
 
@@ -27,7 +27,7 @@ sys = mr.opts('MaxGrad', 36, 'GradUnit', 'mT/m', ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6, 'gamma',42.576e6); % 1H: 42.576e6  23Na: 11.262e6
 
 seq=mr.Sequence(sys);           % Create a new sequence object
-seq_sar=mr.Sequence(sys);       % Create an auxillary sequence object for SAR testing
+seq_sar=mr.Sequence(sys);       % Create an auxiliary sequence object for SAR testing
 
 %% create main sequence elements
 

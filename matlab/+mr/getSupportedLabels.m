@@ -1,5 +1,5 @@
 function supported_labels = getSupportedLabels()
-% auxilary function
+% auxiliary function
 
 supported_labels={'SLC','SEG','REP','AVG','SET','ECO','PHS','LIN','PAR','NAV','REV','SMS', ... # these label values are copied to the corresponding MDH field on Siemens
     'REF', 'IMA', ... # For parallel imaging

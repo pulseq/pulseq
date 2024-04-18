@@ -1,4 +1,4 @@
-% this is an experimentaal spiral sequence
+% this is an experimental spiral sequence
 
 fov=256e-3; Nx=96; Ny=Nx;  % Define FOV and resolution
 sliceThickness=3e-3;             % slice thinckness
@@ -32,7 +32,7 @@ kRadius = round(Nx/2);
 kSamples=round(2*pi*kRadius)*Oversampling;
 readoutTime = 4.2e-4;
 
-% calculate a raw Archimedian spiral trajectory
+% calculate a raw Archimedean spiral trajectory
 clear ka;
 ka(kRadius*kSamples+1)=1i; % init as complex
 for c=0:kRadius*kSamples
@@ -104,7 +104,7 @@ adcSamplesDesired=kRadius*kSamples;
 adcSegments=round(adcSamplesDesired/adcSamplesPerSegment);
 adcSamples=adcSegments*adcSamplesPerSegment;
 adcDwell=round(adcTime/adcSamples/100e-9)*100e-9; % on Siemens adcDwell needs to be aligned to 100ns (if my memory serves me right)
-adcSegmentDuration=adcSamplesPerSegment*adcDwell; % with the 100 samples above and the 100ns alignment we automatically fullfill the segment alignment requirement
+adcSegmentDuration=adcSamplesPerSegment*adcDwell; % with the 100 samples above and the 100ns alignment we automatically fulfill the segment alignment requirement
 if mod(adcSegmentDuration, sys.gradRasterTime)>eps 
     error('ADC segmentation model results in incorrect segment duration');
 end
@@ -114,7 +114,7 @@ adcSamples=adcSegments*adcSamplesPerSegment;
 adc = mr.makeAdc(adcSamples,'Dwell',adcDwell,'Delay',mr.calcDuration(gzReph));%lims.adcDeadTime);
 
 % extend spiral_grad_shape by repeating the last sample
-% this is needed to accomodate for the ADC tuning delay
+% this is needed to accommodate for the ADC tuning delay
 spiral_grad_shape = [spiral_grad_shape spiral_grad_shape(:,end)];
 
 % readout grad 
@@ -130,7 +130,7 @@ gy_spoil=mr.makeExtendedTrapezoid('y','times',[0 mr.calcDuration(gz_spoil)],'amp
 % extends past the end of the trajectory (these points will have to be
 % discarded in the reconstruction, which is no problem). However, the
 % ramp-down parts and the Z-spoiler now have to be added to the readout
-% block otherwise there will be a gap inbetween
+% block otherwise there will be a gap between
 % gz_spoil.delay=mr.calcDuration(gx);
 % gx_spoil.delay=gz_spoil.delay;
 % gy_spoil.delay=gz_spoil.delay;

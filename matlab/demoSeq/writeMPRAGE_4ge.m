@@ -33,7 +33,7 @@ rf180 = mr.makeAdiabaticPulse('hypsec',sys,'Duration',10.24e-3,'dwell',1e-5);
 deltak=1./fov;
 gro = mr.makeTrapezoid(ax.d1,'Amplitude',N(ax.n1)*deltak(ax.n1)/ro_dur,'FlatTime',ceil(ro_dur/sys.gradRasterTime)*sys.gradRasterTime,'system',sys);
 adc = mr.makeAdc(N(ax.n1)*ro_os,'Duration',ro_dur,'Delay',gro.riseTime,'system',sys);
-groPre = mr.makeTrapezoid(ax.d1,'Area',-gro.amplitude*(adc.dwell*(adc.numSamples/2+0.5)+0.5*gro.riseTime),'system',sys); % the first 0.5 is necessary to acount for the Siemens sampling in the center of the dwell periods
+groPre = mr.makeTrapezoid(ax.d1,'Area',-gro.amplitude*(adc.dwell*(adc.numSamples/2+0.5)+0.5*gro.riseTime),'system',sys); % the first 0.5 is necessary to account for the Siemens sampling in the center of the dwell periods
 gpe1 = mr.makeTrapezoid(ax.d2,'Area',deltak(ax.n2)*(N(ax.n2)/2),'system',sys); % maximum PE1 gradient
 gpe2 = mr.makeTrapezoid(ax.d3,'Area',deltak(ax.n3)*(N(ax.n3)/2),'system',sys); % maximum PE2 gradient
 gslSp = mr.makeTrapezoid(ax.d3,'Area',max(deltak.*N)*4,'Duration',10e-3,'system',sys); % spoil with 4x cycles per voxel
@@ -46,7 +46,7 @@ end
 % calculate timing of the fast loop 
 % we will have two blocks in the inner loop:
 % 1: RF 
-% 2: prewinder,phase enconding + readout + spoilers/rewinders
+% 2: prewinder,phase encoding + readout + spoilers/rewinders
 [groPre,~]=mr.align('right',groPre,mr.makeDelay(mr.calcDuration(gpe1,gpe2)-gro.riseTime));
 gro1.delay=mr.calcDuration(groPre);
 groSp.delay=mr.calcDuration(gro1);

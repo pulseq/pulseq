@@ -141,7 +141,7 @@ function koutleft = joinleft0(k0,kend,G0,Gend,UsePoints)
 %
 %  1. Calculate optimal k-space point kopt that would lie on a straight 
 %     line of N=UsePoints evenly spaced points to kend. If this kopt can be 
-%     reached within gradient and slew limts, kopt is the solution of this
+%     reached within gradient and slew limits, kopt is the solution of this
 %     function call. 
 %
 %  2. If kopt cannot be reached, calculate the gradient limited point kgl 

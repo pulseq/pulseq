@@ -20,7 +20,7 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
         if isnumeric(e) % special handling for blockDuration
             continue;
         end
-        assert(isstruct(e), 'wrong format of the variable aguments, list of structures is expected');
+        assert(isstruct(e), 'wrong format of the variable arguments, list of structures is expected');
         ok=true;
         if length(e)>1
             % for now this is only the case for arrays of extensions, but
