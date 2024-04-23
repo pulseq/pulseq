@@ -11,18 +11,25 @@ Ndummy=0;
 adcDur=256e-3; 
 rfDurEx=3000e-6;
 rfDurRef=4000e-6;
-TR=600e-3;
+TR=3000e-3;
 TE=120e-3;
 spA=0.6e3; % spoiler area in 1/m (=Hz/m*s)
 spB=2.0e3; % spoiler area in 1/m (=Hz/m*s)
 
 %% Create slice-selective excitation and refocusing pulses
-[rf_ex, g_ex, g_exReph] = mr.makeSincPulse(pi/2,'Duration',rfDurEx,...
-    'SliceThickness',voxel(1),'apodization',0.5,'timeBwProduct',8,'system',system);
-[rf_ref1, g_ref1] = mr.makeSincPulse(pi,'Duration',rfDurEx,'PhaseOffset',pi/2,...
-    'SliceThickness',voxel(2),'apodization',0.6,'timeBwProduct',8,'system',system,'use','refocusing');
-[rf_ref2, g_ref2] = mr.makeSincPulse(pi,'Duration',rfDurEx,'PhaseOffset',pi/2,...
-    'SliceThickness',voxel(3),'apodization',0.6,'timeBwProduct',8,'system',system,'use','refocusing');
+% [rf_ex, g_ex, g_exReph] = mr.makeSincPulse(pi/2,'Duration',rfDurEx,...
+%     'SliceThickness',voxel(1),'apodization',0.5,'timeBwProduct',8,'system',system);
+% [rf_ref1, g_ref1] = mr.makeSincPulse(pi,'Duration',rfDurRef,'PhaseOffset',pi/2,...
+%     'SliceThickness',voxel(2),'apodization',0.6,'timeBwProduct',8,'system',system,'use','refocusing');
+% [rf_ref2, g_ref2] = mr.makeSincPulse(pi,'Duration',rfDurRef,'PhaseOffset',pi/2,...
+%     'SliceThickness',voxel(3),'apodization',0.6,'timeBwProduct',8,'system',system,'use','refocusing');
+[rf_ex, g_ex, g_exReph] = mr.makeSLRpulse(pi/2,'Duration',rfDurEx,...
+    'SliceThickness',voxel(1),'timeBwProduct',6,'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',system);
+[rf_ref1, g_ref1] = mr.makeSLRpulse(pi,'Duration',rfDurRef,'PhaseOffset',pi/2,...
+    'SliceThickness',voxel(2),'timeBwProduct',6,'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',system,'use','refocusing');
+[rf_ref2, g_ref2] = mr.makeSLRpulse(pi,'Duration',rfDurRef,'PhaseOffset',pi/2,...
+    'SliceThickness',voxel(3),'timeBwProduct',6,'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',system,'use','refocusing');
+
 % fix channels for the gradients
 g_ex.channel='x';
 g_ref1.channel='y';
@@ -79,13 +86,13 @@ delayTE1=1e-3; % this delay allows to shift the spin echo within the ADC window
 % we define TE as 2* delay between the centers of the refocusing pulses
 % delayTE2=TE/2-(mr.calcDuration(rf_ref1)-mr.calcRfCenter(rf_ref1)-rf_ref1.delay)-g_ref1_post.shape_dur-rf_ref2.delay-mr.calcRfCenter(rf_ref2);
 % QC:
-delayTE2=TE/2 - rf_ref1.shape_dur/2 - g_ref1_post.shape_dur - rf_ref2.delay - rf_ref2.shape_dur/2 ;
+delayTE2=round((TE/2 - rf_ref1.shape_dur/2 - g_ref1_post.shape_dur - rf_ref2.delay - rf_ref2.shape_dur/2)/system.gradRasterTime)*system.gradRasterTime;
 assert(delayTE2>=0);
 % we start the ADC object right away after the spoiler
 adc = mr.makeAdc(Nx,'Duration',adcDur, 'system', system);
 
 % delayTR=TR-mr.calcDuration(g_ex)-mr.calcDuration(g_refC1)-delayTE1-delayTE2-mr.calcDuration(g_refC2)-mr.calcDuration(adc);
-delayTR=TR-max(mr.calcDuration(g_ex), mr.calcDuration(rf_ex))-mr.calcDuration(g_refC1,g_spAz,g_spAx)-delayTE1-delayTE2-mr.calcDuration(g_refC2,g_spBy,g_spBx)-mr.calcDuration(adc)-mr.calcDuration(g_spEnd(1));
+delayTR=round((TR-max(mr.calcDuration(g_ex), mr.calcDuration(rf_ex))-mr.calcDuration(g_refC1,g_spAz,g_spAx)-delayTE1-delayTE2-mr.calcDuration(g_refC2,g_spBy,g_spBx)-mr.calcDuration(adc)-mr.calcDuration(g_spEnd(1)))/system.gradRasterTime)*system.gradRasterTime;
 assert(delayTR>=0);
 
 %% water supression with the WET algorithm (Ogg 1994)
@@ -106,7 +113,7 @@ end
 delay_ws=[ws_tau ws_tau ws_tau]; % this is an overlapping delay withn the block
 delay_ws(end)=ws_tau + rf_ws(end).delay + mr.calcRfCenter(rf_ws(end)) - rf_ex.delay - mr.calcRfCenter(rf_ex);
 % new TR delay calc
-delayTR=TR-max(mr.calcDuration(g_ex), mr.calcDuration(rf_ex))-mr.calcDuration(g_refC1,g_spAz,g_spAx)-delayTE1-delayTE2-mr.calcDuration(g_refC2,g_spBy,g_spBx)-mr.calcDuration(adc)-mr.calcDuration(g_spEnd(1))-sum(delay_ws);
+delayTR=round((TR-max(mr.calcDuration(g_ex), mr.calcDuration(rf_ex))-mr.calcDuration(g_refC1,g_spAz,g_spAx)-delayTE1-delayTE2-mr.calcDuration(g_refC2,g_spBy,g_spBx)-mr.calcDuration(adc)-mr.calcDuration(g_spEnd(1))-sum(delay_ws))/system.gradRasterTime)*system.gradRasterTime;
 assert(delayTR>=0);
 
 %% Loop over repetitions and define sequence blocks
@@ -146,6 +153,6 @@ seq.setDefinition('Name', 'press');
 seq.write('press.seq')       % Write to pulseq file
 
 %% calculate k-space but only use it to check timing
-[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('gradient_offset',[0 0 1000]);
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('gradient_offset',[1500 -1200 1000]);
 
 figure; plot(t_ktraj,ktraj);title('k-space components as functions of time'); grid on;
