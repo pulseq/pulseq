@@ -6,10 +6,11 @@
 % we need it here to create fat-sat pulses
 sys = mr.opts('B0', 2.89); 
 %seq=mr.Sequence(sys);
+thickness_mm=5;
 
 %% 30 degree slice selective SINC pulse 
-rf30_sinc = mr.makeSincPulse(pi/6,'system',sys,'Duration',3e-3,'use','excitation',...
-    'PhaseOffset',pi/2,'apodization',0.3,'timeBwProduct',4);
+[rf30_sinc, gz] = mr.makeSincPulse(pi/6,'system',sys,'Duration',3e-3,'use','excitation',...
+    'PhaseOffset',pi/2,'apodization',0.3,'timeBwProduct',4,'SliceThickness',thickness_mm*1e-3);
 
 [bw,f0,M_xy_sta,F1]=mr.calcRfBandwidth(rf30_sinc);
 [M_z,M_xy,F2]=mr.simRf(rf30_sinc);
@@ -28,14 +29,18 @@ xlabel('frequency offset / Hz');
 ylabel('magnetisation');
 title('Real and imag. parts of transverse magnetisation, 30° flip');
 
+sl_th=mr.aux.findFlank(F2(end:-1:1)/gz.amplitude,M_xy(end:-1:1),0.5)-mr.aux.findFlank(F2/gz.amplitude,M_xy,0.5);
+figure; plot(F2/gz.amplitude*1000,abs(M_xy)); title('simulated slice profile, 30° flip'); xlabel('through-slice pos, mm');
+fprintf('actual slice thicknes : %.3f mm\n',sl_th*1e3);
+
 %% 90 degree slice selective SINC pulse 
-rf90_sinc = mr.makeSincPulse(pi/2,'system',sys,'Duration',3e-3,'use','excitation',...
-    'PhaseOffset',pi/2,'apodization',0.6,'timeBwProduct',8);
+[rf90_sinc, gz] = mr.makeSincPulse(pi/2,'system',sys,'Duration',3e-3,'use','excitation',...
+    'PhaseOffset',pi/2,'apodization',0.6,'timeBwProduct',4,'SliceThickness',thickness_mm*1e-3);
 
 [bw,f0,M_xy_sta,F1]=mr.calcRfBandwidth(rf90_sinc);
 [M_z,M_xy,F2]=mr.simRf(rf90_sinc);
 
-%%
+%
 figure; plot(F1,abs(M_xy_sta),F2,abs(M_xy),F2,M_z);
 axis([f0-2*bw, f0+2*bw, -0.1, 1.2]);
 legend({'M_x_ySTA','M_x_ySIM','M_zSIM'});
@@ -57,6 +62,12 @@ legend({'M_xSIM','M_ySIM'});
 xlabel('frequency offset / Hz');
 ylabel('magnetisation');
 title('Real and imag. parts of transverse magnetisation, 90° flip');
+
+%%
+sl_th=mr.aux.findFlank(F2(end:-1:1)/gz.amplitude,M_xy(end:-1:1),0.5)-mr.aux.findFlank(F2/gz.amplitude,M_xy,0.5);
+figure; plot(F2/gz.amplitude*1000,abs(M_xy)); title('simulated slice profile, 90° flip'); xlabel('through-slice pos, mm');
+hold on; yline(0.5,'-.'); xline([-0.5 0.5]*thickness_mm,'--'); legend({'slice profile','half-amplitude line','desired thickness'});
+fprintf('actual slice thicknes : %.3f mm\n',sl_th*1e3);
 
 %%
 figure; plot(F2,angle(M_xy));
@@ -303,13 +314,17 @@ ylabel('signal');
 legend({'spoiling','ref.eff.','.5-.5*M_z'});
 title('signal with spoiling vs refocusing efficiency'); 
 
-%% investigare RF center shift as a function of clip angle (is it an artifact?)
+%% investigare the RF center shift and the effective slice thickness as a function of flip angle
 
-alphas=[5:5:150];
+alphas=[5:5:180];
 rfce=[];
+sl_th_Mxy=[];
+sl_th_Mz=[];
+th_nom=5e-3;
 for a=alphas
-    rfAlpha = mr.makeSincPulse(a/180*pi,'system',sys,'Duration',3e-3,'use','excitation','apodization',0.3,'timeBwProduct',4);
-    %rfAlpha = mr.makeGaussPulse(a*pi/180,'system',sys,'Duration',3e-3,'timeBwProduct',8,'use','excitation');
+    [rfAlpha, gz] = mr.makeSincPulse(a/180*pi,'system',sys,'Duration',3e-3,'use','excitation','apodization',0.3,'timeBwProduct',4,'SliceThickness',th_nom);
+    %[rfAlpha, gz] = mr.makeSLRpulse(a/180*pi,'system',sys,'Duration',3e-3,'SliceThickness',th_nom,'timeBwProduct',4,'dwell',5e-6,'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','use','excitation');
+    %[rfAlpha, gz] = mr.makeGaussPulse(a*pi/180,'system',sys,'Duration',3e-3,'timeBwProduct',8,'use','excitation','SliceThickness',th_nom);
 
     [bw,f0,M_xy_sta,F1]=mr.calcRfBandwidth(rfAlpha);
     [M_z,M_xy,F2]=mr.simRf(rfAlpha);
@@ -321,13 +336,27 @@ for a=alphas
     i_phase_slope=sum(M_xy_masked(2:end).*conj(M_xy_masked(1:end-1)));
     i_phase_slope=1i*angle(i_phase_slope)/(F2(2)-F2(1));
     
-    rfce=[rfce,abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10]; % no idea where this 10 comes from
+    rfce(end+1)=abs(i_phase_slope)/2*pi/rf90_sinc.shape_dur/10; % no idea where this 10 comes from
+    
+    sl_th_Mxy(end+1)=mr.aux.findFlank(F2(end:-1:1)/gz.amplitude,M_xy(end:-1:1),0.5)-mr.aux.findFlank(F2/gz.amplitude,M_xy,0.5); % thinkness of the excite slice
+    sl_th_Mz(end+1)=mr.aux.findFlank(F2(end:-1:1)/gz.amplitude,1-M_z(end:-1:1),0.5)-mr.aux.findFlank(F2/gz.amplitude,1-M_z,0.5); % related to the thickness of the slice if used as a refocusing pulse
 end
+% fix phase fit results for too large flip angles 
+rfce(alphas>140)=NaN;
 
 figure;plot(alphas,rfce/0.5*100); title('excess gradient refocusing needed in %');
 xticks([0:30:alphas(end)]);
 yticks([0:2:10]);
 grid on;
 xlabel('flip angle / °');
-ylabel('refocusing / %');
+ylabel('grad. refocusing / %');
+%
+figure; plot(alphas,sl_th_Mxy/th_nom*100); title('slice thickness in %');
+hold on; plot(alphas,sl_th_Mz/th_nom*100);
+legend('Mxy', 'Mz','Location','northwest');
+xticks([0:30:alphas(end)]);
+%yticks([0:2:10]);
+grid on;
+xlabel('flip angle / °');
+ylabel('slice thickness / %');
 
