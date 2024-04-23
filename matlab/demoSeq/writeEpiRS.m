@@ -169,6 +169,7 @@ title('slice position (vector components) as a function or time');
 %% prepare the sequence output for the scanner
 seq.setDefinition('Name', 'epi'); 
 seq.setDefinition('FOV', [fov fov max(slicePositions)-min(slicePositions)+thickness]);
+seq.setDefinition('ReceiverGainHigh',1);
 % the following definitions only have effect in conjunction with LABELs 
 %seq.setDefinition('SlicePositions', slicePositions);
 %seq.setDefinition('SliceThickness', thickness);
