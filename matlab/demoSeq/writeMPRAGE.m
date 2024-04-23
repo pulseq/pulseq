@@ -130,6 +130,7 @@ seq.plot('TimeRange',[0 TRout*2], 'label', 'par,lin');
 seq.setDefinition('FOV', fov);
 seq.setDefinition('Name', 'mprage');
 seq.setDefinition('OrientationMapping', 'SAG'); % only when programming in saggital orientation
+seq.setDefinition('ReceiverGainHigh',1);
 
 seq.write('mprage.seq')       % Write to pulseq file
 %seq.install('siemens');
