@@ -97,7 +97,7 @@ if ~isempty(opt.pythonCmd)
     if status~=0
         error(['provided python executable ''' opt.pythonCmd ''' returns an error on the version check']);
     end
-    python='python';
+    python=opt.pythonCmd;
 elseif ispc()
     % on Windows we rely on the PATH settings
     [status, result]=system('python --version');
