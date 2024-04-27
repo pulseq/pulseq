@@ -15,23 +15,14 @@ seq=mr.Sequence(sys);      % Create a new sequence object
 fov=220e-3; Nx=96; Ny=Nx;  % Define FOV and resolution
 thickness=3e-3;            % slice thinckness in mm
 sliceGap=1.5e-3;             % slice gap im mm
-Nslices=36;
+Nslices=48;
 Nrep = 1 ;
-TR = 2940e-3 ; % s
+TR = 3500e-3 ;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delay calibration
 ro_os=2;                   % oversampling factor (in contrast to the product sequence we don't really need it)
-scanner = 'prisma' ;
-if (scanner(1) == 'c' || scanner(1) == 'C') % cimax
-    readoutTime = 580e-6 ;%seq4.2e-4;        % this controls the readout bandwidth
-elseif (scanner(1) == 'p' || scanner(1) == 'P') % prisma
-    readoutTime = 580e-6 ;
-elseif (scanner(1) == 't' || scanner(1) == 'T') % trio
-    readoutTime = 580e-6 ;
-else
-    readoutTime = 580e-6 ; % default value
-    disp('no scanner selected, use default value of readout time') ;
-end
+readoutTime = 580e-6 ; % default value
+
 readoutBW = 1/readoutTime ; % readout bandwidth
 disp(['Readout bandwidth = ', num2str(readoutBW), ' Hz/Px']) ;
 partFourierFactor=1;       % partial Fourier factor: 1: full sampling 0: start with ky=0
@@ -48,7 +39,7 @@ gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4)
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',2e-3,...
     'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'use','excitation');
 
-% define the output trigger to play out with every slice excitatuion
+% define the output trigger to play out with every slice excitation
 trig=mr.makeDigitalOutputPulse('osc0','duration', 100e-6); % possible channels: 'osc0','osc1','ext1'
 
 % Define other gradients and ADC events
@@ -134,20 +125,17 @@ TR_1slice = mr.calcDuration(gz_fs) + mr.calcDuration(gz) + mr.calcDuration(gzRep
     Ny_meas*mr.calcDuration(gx) ;
 TRdelay = TR - TR_1slice * Nslices ;
 TRdelay_perSlice = ceil(TRdelay / Nslices / sys.blockDurationRaster) * sys.blockDurationRaster ;
-% assert(TRdelay_perSlice>=0) ;
+assert(TRdelay_perSlice>=0 ) ;
 
 TE = rf.shape_dur/2 + rf.ringdownTime + mr.calcDuration(gzReph)+...
     Nnav*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
     Ny_meas/2*mr.calcDuration(gx) - mr.calcDuration(gx)/2;
 disp(['TR = ', num2str(TR), ' s', ', TE = ', num2str(1000*TE), ' ms']) ;
-if (scanner(1) == 't' || scanner(1) == 'T') % trio
-    seq.addBlock(mr.makeDelay(1)) ; % older scanners like Trio may need this % dummy delay to keep up with timing
-end
 
 % change orientation to match the siemens product sequence
 % reverse the polarity of all gradients in readout direction (Gx)
-gxPre = mr.scaleGrad(gxPre, -1) ;
-gx = mr.scaleGrad(gx, -1) ;
+% gxPre = mr.scaleGrad(gxPre, -1) ;
+% gx = mr.scaleGrad(gx, -1) ;
 % reverse the polarity of all gradients in slice encoding direction (Gz)?
 % gz_fs.amplitude = -gz_fs.amplitude ;
 % gz.amplitude = -gz.amplitude ;
