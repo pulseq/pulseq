@@ -28,7 +28,6 @@ ExternalSequence::ExternalSequence()
 	m_bSignatureDefined=false;
 }
 
-
 /***********************************************************/
 ExternalSequence::~ExternalSequence(){}
 
@@ -48,9 +47,9 @@ void ExternalSequence::print_msg(MessageType level, std::ostream& ss) {
 }
 
 /***********************************************************/
-bool ExternalSequence::load(std::string path)
+void ExternalSequence::reset()
 {
-	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "Reading external sequence files");
+	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "Resetting the sequence state");
 
 	// reset the internal structures in case this is a repeated call to load()
 	m_adcLibrary.clear();
@@ -74,6 +73,15 @@ bool ExternalSequence::load(std::string path)
 	m_strSignatureType="";
 	m_triggerLibrary.clear();
 	version_combined=0;
+}
+
+/***********************************************************/
+bool ExternalSequence::load(std::string path)
+{
+	reset();
+
+	// now time to read...
+	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "Reading external sequence files");
 
 	char buffer[MAX_LINE_SIZE];
 	char tmpStr[MAX_LINE_SIZE];
@@ -399,7 +407,7 @@ bool ExternalSequence::load(std::string path)
 			if (buffer[0]=='#' || buffer[0]=='[' || strlen(buffer)==0) {
 				continue;
 			}
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "input line: " << buffer);
+            print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "input line: " << buffer);
 			if (0==strncmp(buffer,"extension",9)) {
 				// read new extension ID from the header
 				char szStrID[MAX_LINE_SIZE];
@@ -440,9 +448,9 @@ bool ExternalSequence::load(std::string path)
 							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode extension list entry\n" << buffer << std::endl );
 							return false;
 						}
-                        print_msg(ERROR_MSG, std::ostringstream().flush() << "decoding extension list entry " << buffer);
+                        print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "decoding extension list entry " << buffer);
 						m_extensionLibrary[nID] = extEntry;
-						print_msg(ERROR_MSG, std::ostringstream().flush() << "nID:" << nID << " type:" << extEntry.type << " ref" << extEntry.ref << " next:" << extEntry.next);
+						print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "nID:" << nID << " type:" << extEntry.type << " ref" << extEntry.ref << " next:" << extEntry.next);
 						break;
 					case EXT_TRIGGER: 
 						if (5!=sscanf(buffer, "%d%d%d%ld%ld", &nID, &(trigger.triggerType), &(trigger.triggerChannel), &(trigger.delay), &(trigger.duration))) {
@@ -1077,6 +1085,14 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape uncompressed to "
 				<< shape.numUncompressedSamples << " samples" );
 
+			if (fabs(m_dGradientRasterTime_us-10)>1e-3)
+			{
+				print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape is on a raster that is different from the system raster, exitting... (will try resampling in the future versions...)" );
+				// TODO: !!!
+				// PROBLEM: we need 'first' and 'last' to be able to interpolate correctly...
+				return false;
+			}
+
 			block->gradWaveforms[iC-GX] = std::vector<float>(waveform);
 		}
 	}
@@ -1302,12 +1318,16 @@ int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, L
 		LABELMAP_COUNTER(ECO);
 		LABELMAP_COUNTER(PHS);
 		LABELMAP_COUNTER(SET);
+		LABELMAP_COUNTER(ACQ);
 		LABELMAP_COUNTER(LIN);
 		LABELMAP_COUNTER(PAR);
 		LABELMAP_COUNTER(ONCE);		
 		LABELMAP_FLAG(NAV);
 		LABELMAP_FLAG(REV);
 		LABELMAP_FLAG(SMS);
+		LABELMAP_FLAG(REF);
+		LABELMAP_FLAG(IMA);
+		LABELMAP_FLAG(NOISE);
 		LABELMAP_FLAG(PMC);
 		LABELMAP_FLAG(NOPOS);
 		LABELMAP_FLAG(NOROT);
@@ -1335,20 +1355,20 @@ int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, L
 	
 	//assemble LabelEvent
 	if (nKnownFG !=FLAG_UNKNOWN){
-		label.bVal=std::make_pair(nKnownFG,bool(nVal));
-		label.nVal=std::make_pair(nKnownLBL,0);
+		label.flagVal=std::make_pair(nKnownFG,bool(nVal));
+		label.numVal=std::make_pair(nKnownLBL,0);
 	}else if (nKnownLBL !=LABEL_UNKNOWN){
-		label.bVal=std::make_pair(nKnownFG,false);
-		label.nVal=std::make_pair(nKnownLBL,nVal);
+		label.flagVal=std::make_pair(nKnownFG,false);
+		label.numVal=std::make_pair(nKnownLBL,nVal);
 	}
 
 	//here we check if the labels/flags are valid //No boundary check, boundary check moves to prep()
 	if (exttype==EXT_LABELSET){				//here we check if the values are valid
 		if (nKnownLBL!=LABEL_UNKNOWN){
-			if (nVal<0){
+			/*if (nVal<0){
 				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELSET for int-type MDH Headers is incorrect\n");
 				return -1;
-			}else
+			}else*/
 				return 0;
 		}else if (nKnownFG!=FLAG_UNKNOWN){
 			if ((nVal!=0)&&(nVal!=1)){

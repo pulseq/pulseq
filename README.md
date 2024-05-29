@@ -30,7 +30,8 @@ System requirements vary depending on which features one intends to use or modif
 
 - doxygen is required to generate HTML source code documentation
 - latex is required to build the file specification PDF
-- python is required to run the build tests
+- python is required to run the build tests and to generate advanced RF pulses
+- python's sigpy package is required to generate advanced RF pulses
 
 These are optional and not essential to start using Pulseq.
 

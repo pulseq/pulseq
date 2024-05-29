@@ -9,7 +9,7 @@
 %     the data
 
 %% Load the latest file from the specified directory
-path='../IceNIH_RawSend/'; % directory to be scanned for data files
+path='../../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='/data/Dropbox/ismrm2021pulseq_liveDemo/dataLive/Vienna_7T_Siemens'; % directory to be scanned for data files
 
 if path(end)~=filesep, path=[path filesep]; end

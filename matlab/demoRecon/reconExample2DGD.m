@@ -3,9 +3,10 @@
 % needs mapVBVD in the path
 
 %% Load the latest file from a dir
-path='../IceNIH_RawSend/'; % directory to be scanned for data files
+path='../../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='~/Dropbox/shared/data/siemens/';
 %path='~/Downloads/2021-07-12-090810/';
+%path='/raid/home_zaitsev/range_software/pulseq/IceNIH_RawSend/';
 pattern='*.seq';
 
 if path(end)~=filesep, path(end+1)=filesep; end
@@ -42,10 +43,11 @@ catch
     twix_obj = mapVBVD(data_file_path);
     if iscell(twix_obj)
         data_unsorted = double(twix_obj{end}.image.unsorted());
+        seqHash_twix=twix_obj{end}.hdr.Dicom.tSequenceVariant;
     else
         data_unsorted = double(twix_obj.image.unsorted());
+        seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant; 
     end
-    seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant;
     if length(seqHash_twix)==32
         fprintf(['raw data contain pulseq-file signature ' seqHash_twix '\n']);
     end

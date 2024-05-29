@@ -29,7 +29,7 @@ if isempty(parser)
         @(x) any(validatestring(x,validChannels)));
     parser.addOptional('system',mr.opts(),@isstruct);
     parser.addParamValue('duration',0,@(x)(isnumeric(x) && x>0));
-    parser.addParamValue('area',0,@isnumeric);
+    parser.addParamValue('area',[],@isnumeric);
     parser.addParamValue('flatTime',[],@isnumeric);
     parser.addParamValue('flatArea',[],@isnumeric);
     parser.addParamValue('amplitude',[],@isnumeric);
@@ -66,8 +66,8 @@ if opt.fallTime>0
 end
 
 
-if isempty(opt.area) && isempty(opt.flatArea) && isempty(opt.amplitude)
-    error('makeTrapezoid:invalidArguments','Must supply either ''area'', ''flatArea'' or ''amplitude''');
+if (isempty(opt.area)+isempty(opt.flatArea)+isempty(opt.amplitude))~=2
+    error('makeTrapezoid:invalidArguments','Must supply either ''area'', ''flatArea'' or ''amplitude'', and only one of the three may be specified');
 end
 if ~isempty(opt.flatTime) % MZ was: opt.flatTime>0
     if ~isempty(opt.amplitude)

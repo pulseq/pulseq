@@ -11,8 +11,9 @@ sys = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
 
 seq=mr.Sequence(sys);      % Create a new sequence object
 fov=256e-3; Nx=64; Ny=Nx;  % Define FOV and resolution
-thickness=4e-3;            % slice thinckness
-Nslices=5;
+thickness=4e-3;            % slice thinckness in mm
+sliceGap=1e-3;             % slice gap im mm
+Nslices=8;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delay calibration
 ro_os=1;                   % oversampling factor (in contrast to the product sequence we don't really need it)
@@ -98,12 +99,16 @@ gyPre = mr.makeTrapezoid('y',sys,'Area',Ny_pre*deltak);
 gyPre = mr.makeTrapezoid('y',sys,'Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre,gzReph));
 gyPre.amplitude=gyPre.amplitude*pe_enable;
 
+% slice positions
+slicePositions=(thickness+sliceGap)*((0:(Nslices-1)) - (Nslices-1)/2);
+slicePositions=slicePositions([1:2:Nslices 2:2:Nslices]); % reorder slices for an interleaved acquisition (optional)
+
 % Define sequence blocks
 %seq.addBlock(mr.makeDelay(1)); % older scanners like Trio may need this
                                 % dummy delay to keep up with timing
 for s=1:Nslices
     seq.addBlock(rf_fs,gz_fs);
-    rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
+    rf.freqOffset=gz.amplitude*slicePositions(s);
     rf.phaseOffset=-2*pi*rf.freqOffset*mr.calcRfCenter(rf); % compensate for the slice-offset induced phase
     seq.addBlock(rf,gz,trig);
     seq.addBlock(gxPre,gyPre,gzReph);
@@ -161,6 +166,19 @@ figure; plot(t_slicepos, slicepos, '*');
 title('slice position (vector components) as a function or time');
 %axis off;
 
+%% prepare the sequence output for the scanner
+seq.setDefinition('Name', 'epi'); 
+seq.setDefinition('FOV', [fov fov max(slicePositions)-min(slicePositions)+thickness]);
+% the following definitions only have effect in conjunction with LABELs 
+%seq.setDefinition('SlicePositions', slicePositions);
+%seq.setDefinition('SliceThickness', thickness);
+%seq.setDefinition('SliceGap', sliceGap);
+
+seq.write('epi_rs.seq'); 
+
+% seq.install('siemens');
+
+% seq.sound(); % simulate the seq's tone
 return;
 
 %% another manual pretty plot option for gradients
@@ -197,16 +215,6 @@ set(gca,'xtick',[]);
 set(gca,'xticklabel',[]);
 set(gca,'ytick',[]);
 set(gca,'yticklabel',[]);
-
-%% prepare the sequence output for the scanner
-seq.setDefinition('FOV', [fov fov thickness]);
-seq.setDefinition('Name', 'epi');
-
-seq.write('epi_rs.seq'); 
-
-% seq.install('siemens');
-
-% seq.sound(); % simulate the seq's tone
 
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits  
 

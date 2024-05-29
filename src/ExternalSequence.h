@@ -183,7 +183,8 @@ enum Labels {
 	AVG, 
 	ECO, 
 	PHS, 
-	SET, 
+	SET,
+	ACQ,
 	LIN, 
 	PAR,
 	ONCE,
@@ -197,6 +198,9 @@ enum Flags{
 	NAV,
 	REV,
 	SMS, 
+	REF,
+	IMA,
+	NOISE,
 	PMC, 
 	NOPOS,
 	NOROT,
@@ -212,9 +216,30 @@ const int NUM_FLAGS=FLAG_UNKNOWN;
  */
 struct DataLabelStorage 
 {
-	//bool defined;								/**< @brief indicates whether the MDHIDs member is defined  */
-	std::vector<int> nVal;						/**< @brief current/maximum label value */
-	std::vector<bool> bVal;						/**< @brief current/maximum flag value */
+	std::vector<int>  numVal;					/**< @brief current numeric label values */
+	std::vector<bool> bNumValUpdated;			/**< @brief flag whether the numeric label value was updated in this block */
+	std::vector<bool> bNumValUsed;				/**< @brief flag whether the numeric label value was ever updated in this sequence */
+	std::vector<bool> flagVal;					/**< @brief current flag value */
+	std::vector<bool> bFlagUpdated;				/**< @brief flag whether the flag label value was updated in this block */
+	std::vector<bool> bFlagUsed;				/**< @brief flag whether the flag label value was ever updated in this sequence */
+};
+
+struct MinMaxLabelStorage 
+{
+	std::vector<int>  numValMin;				/**< @brief minimum of the numeric label values */
+	std::vector<int>  numValMax;				/**< @brief maximum of the numeric label values */
+	std::vector<bool> bNumMinMaxValid;			/**< @brief flag whether the min/max values are valid, that is the numeric label value was ever updated in this sequence */
+	// unsure whether we really need this
+	std::vector<bool> flagValMin;				/**< @brief minimum of the flag label values */
+	std::vector<bool> flagValMax;				/**< @brief maximum of the flag label values */
+	std::vector<bool> bFlagMinMaxValid;			/**< @brief flag whether the min/max values are valid, that is the flag label value was ever updated in this sequence */
+	// parallel imaging flags
+	int minRefLin;
+	int numRefLin;
+	int numRefImaLin;
+	int minRefPar;
+	int numRefPar;
+	int numRefImaPar;
 };
 
 /**
@@ -224,9 +249,8 @@ struct DataLabelStorage
  */
 struct LabelEvent
 {
-	//bool defined;					/**< @brief indicates whether a labelset object was defined in this block */
-	std::pair<int,int > nVal;		/**< @brief set/inc value of the target label */		
-	std::pair<int,bool > bVal;		/**< @brief set/unset bool value of the target flag */
+	std::pair<int,int >  numVal;		/**< @brief set/inc value of the target label */		
+	std::pair<int,bool > flagVal;		/**< @brief set/unset bool value of the target flag */
 };
 
 struct LabelMap
@@ -575,6 +599,13 @@ class ExternalSequence
 	~ExternalSequence();
 
 	/**
+	 * @brief Reset the sequence in memory 
+	 *
+	 * Resets the state of the class to an empty sequence
+	 */
+	void reset();
+
+	/**
 	 * @brief Load the sequence from file
 	 *
 	 * Reads the sequence files into the class members, the sequence is stored in
@@ -586,7 +617,6 @@ class ExternalSequence
 	 * @param  path location of file or directory
 	 */
 	bool load(std::string path);
-
 
 	/**
 	 * @brief Report the version of the loaded sequence

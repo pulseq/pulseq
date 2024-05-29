@@ -7,7 +7,7 @@ mrMusic.init;
 barDurationSeconds=1.8; 
 timeSignature = 4/4;
 
-% Root Beer Rag by Billy Joel
+% The Entertainer by Scott Joplin 
 % 3-voice MRI version by Jochen Leupold
 melody = {
     % bar 1
