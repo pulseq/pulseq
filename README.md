@@ -1,3 +1,6 @@
+WAG: This is the GrissomLab version of PulseQ. I started this fork to incorporate root-flipping into SLR design and to allow use of John Pauly's SLR design codes. Those are available at: https://rsl.stanford.edu/download/pauly/rf_tools.mat.tgz 
+
+
 <div align="center">
 <a href="http://pulseq.github.io/" target="_blank">
 <img src="http://pulseq.github.io/logo_hires.png" width="250" alt="Pulseq logo"></img>
