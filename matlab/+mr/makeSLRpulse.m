@@ -60,7 +60,10 @@ if isempty(parser)
     % whether it is a refocusing pulse (for k-space calculation)
     addParamValue(parser, 'use', 'excitation', @(x) any(validatestring(x,validPulseUses)));
     % optional Python command 
-    addParamValue(parser, 'pythonCmd', '', @(x)isstring(x)||ischar(x));    
+    addParamValue(parser, 'pythonCmd', '', @(x)isstring(x)||ischar(x));  
+    addParamValue(parser, 'useSigPy', false, @islogical);
+    addParamValue(parser, 'axis', 'z', @isstr);
+    addParamValue(parser, 'rootFlip', false, @islogical);
 end
 parse(parser, flip, varargin{:});
 opt = parser.Results;
@@ -76,7 +79,7 @@ if ~isempty(opt.pythonCmd)
     if status~=0
         error(['provided python executable ''' opt.pythonCmd ''' returns an error on the version check']);
     end
-    python=opt.pythonCmd;
+    python='python';
 elseif ispc()
     % on Windows we rely on the PATH settings
     [status, result]=system('python --version');
@@ -125,45 +128,61 @@ switch opt.use
 end
 
 N = round(opt.duration/opt.dwell);
-% on Windows it looks like the $ and '' are not needed and ; can be used in place of \n
-if ispc()
-    cmd=[python ' -c "import sigpy.mri.rf;pulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
-                ',' num2str(opt.timeBwProduct) ',ptype=''' ptype '''' ... 
-                ',d1=' num2str(opt.passbandRipple) ',d2=' num2str(opt.stopbandRipple) ...
-                ',ftype=''' opt.filterType '''' add_opt ');print(*pulse)"'];
-else
-    cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
-                ',' num2str(opt.timeBwProduct) ',ptype=\''' ptype '\''' ... 
-                ',d1=' num2str(opt.passbandRipple) ',d2=' num2str(opt.stopbandRipple) ...
-                ',ftype=\''' opt.filterType '\''' add_opt ')\nprint(*pulse)'''];
-end
-%fprintf('cmd=%s\n',cmd);
-[status, result]=system(cmd);
 
-if status~=0
-    error('executing python command failed');
-end
-
-lines = regexp(result,'\n','split'); % the response from the python call contains some garbage 
-% look for a usable result vector
-for i=1:length(lines)
-    try
-        signal = str2num(lines{i});
-        if length(signal)==N
-            break;
-        end
-    catch
-        continue;
+if opt.useSigPy
+    % on Windows it looks like the $ and '' are not needed and ; can be used in place of \n
+    if ispc()
+        cmd = [python ' -c "import sigpy.mri.rf;pulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
+                    ',' num2str(opt.timeBwProduct) ',ptype=''' ptype '''' ... 
+                    ',d1=' num2str(opt.passbandRipple) ',d2=' num2str(opt.stopbandRipple) ...
+                    ',ftype=''' opt.filterType '''' add_opt ');print(*pulse)"'];
+    else
+        cmd = [python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
+                    ',' num2str(opt.timeBwProduct) ',ptype=\''' ptype '\''' ... 
+                    ',d1=' num2str(opt.passbandRipple) ',d2=' num2str(opt.stopbandRipple) ...
+                    ',ftype=\''' opt.filterType '\''' add_opt ')\nprint(*pulse)'''];
     end
+    fprintf('cmd=%s\n',cmd);
+    [status, result]=system(cmd);
+    
+    if status~=0
+        error('executing python command failed');
+    end
+    
+    lines = regexp(result,'\n','split'); % the response from the python call contains some garbage 
+    % look for a usable result vector
+    for i=1:length(lines)
+        try
+            signal = str2num(lines{i});
+            if length(signal)==N
+                break;
+            end
+        catch
+            continue;
+        end
+    end
+    if length(signal)~=N
+        error('could not find usable data in the response of the Python command');
+    end
+else
+    % use JP's MATLAB dzrf 
+    [signal, beta] = dzrf(N, opt.timeBwProduct, ptype, opt.filterType, ...
+        opt.passbandRipple, opt.stopbandRipple);
+    flip = abs(sum(signal))*opt.dwell*2*pi;
+    signal = signal*opt.flipAngle/flip; % Hz 
+    if opt.rootFlip
+        disp 'Root-flipping the RF pulse; this may take a while'
+        signalFlipped = rootFlip(beta, opt.passbandRipple, opt.flipAngle, ...
+            opt.timeBwProduct); % radians 
+        signal = signalFlipped / (2 * pi * opt.dwell); % Hz  
+    end 
 end
-if length(signal)~=N
-    error('could not find usable data in the response of the Python command');
-end
+
+
 
 BW = opt.timeBwProduct/opt.duration;
 t = ((1:N)-0.5)*opt.dwell;
-flip = abs(sum(signal))*opt.dwell*2*pi;
-signal = signal*opt.flipAngle/flip;
+
 
 rf.type = 'rf';
 rf.signal = signal;
@@ -192,9 +211,9 @@ if nargout > 1
     
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
-    gz = mr.makeTrapezoid('z', opt.system, 'flatTime', opt.duration, ...
+    gz = mr.makeTrapezoid(opt.axis, opt.system, 'flatTime', opt.duration, ...
                           'flatArea', area);
-    gzr= mr.makeTrapezoid('z', opt.system, 'Area', -area*(1-opt.centerpos)-0.5*(gz.area-area));
+    gzr= mr.makeTrapezoid(opt.axis, opt.system, 'Area', -area*(1-opt.centerpos)-0.5*(gz.area-area));
     if rf.delay > gz.riseTime
         gz.delay = ceil((rf.delay - gz.riseTime)/opt.system.gradRasterTime)*opt.system.gradRasterTime; % round-up to gradient raster
     end
