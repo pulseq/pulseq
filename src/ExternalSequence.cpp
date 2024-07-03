@@ -35,7 +35,7 @@ ExternalSequence::~ExternalSequence(){}
 void ExternalSequence::print_msg(MessageType level, std::ostream& ss) {
 	if (MSG_LEVEL>=level) {
 #if defined(VXWORKS) || defined (BUILD_PLATFORM_LINUX)
-		// we skip messages on the scanner platforms due to performanc limitations
+		// we skip messages on the scanner platforms due to performance limitations
 		// we could trivially use UTRACE on newer scanners, but it is not compatible with older platforms
 #else		
 		std::ostringstream oss;
@@ -78,18 +78,15 @@ void ExternalSequence::reset()
 /***********************************************************/
 bool ExternalSequence::load(std::string path)
 {
-	reset();
+	//reset(); // moved to the stream loader
 
 	// now time to read...
 	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "Reading external sequence files");
 
-	char buffer[MAX_LINE_SIZE];
-	char tmpStr[MAX_LINE_SIZE];
-
 	// **********************************************************************************************************************
 	// ************************ READ SHAPES ***********************************
 
-	// Try single file mode (everything in .seq file)
+	// Try single file mode (everything in a single .seq file)
 	std::ifstream data_file;
 	bool isSingleFileMode = true;
 	std::string filepath = path;
@@ -103,29 +100,105 @@ bool ExternalSequence::load(std::string path)
 	if (!data_file.good())
 	{
 		// Try separate file mode (blocks.seq, events.seq, shapes.seq)
+		// not really logical, but the current code expects [VERSION] to be defined in every file, 
+		// [DEFINITIONS] to be in the blocks.seq and only blocks.seq is signed... Not logical at all... TODO: FixMe!
+
+		reset();
+
 		filepath = path + PATH_SEPARATOR + "shapes.seq";
 		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
 		data_file.seekg(0, std::ios::beg);
-		isSingleFileMode = false;
+		
+		if (!data_file.good())
+		{
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
+			return false;
+		}
+
+		if (!load(data_file, lm_shapes)) {
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to load shapes from file " << filepath);
+			return false;
+		}
+
+		filepath = path + PATH_SEPARATOR + "events.seq";
+		data_file.close();
+		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
+		data_file.seekg(0, std::ios::beg);
+
+		if (!data_file.good())
+		{
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
+			return false;
+		}
+
+		if (!load(data_file, lm_events)) {
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to load events from file " << filepath);
+			return false;
+		}
+
+		filepath = path + PATH_SEPARATOR + "blocks.seq";
+		data_file.close();
+		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
+		data_file.seekg(0, std::ios::beg);
+
+		if (!data_file.good())
+		{
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
+			return false;
+		}
+		
+		if (!load(data_file, lm_blocks)) {
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to load blocks from file " << filepath);
+			return false;
+		}
+
+		return true;
 	}
-	if (!data_file.good())
+	else
 	{
-		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
+		return load(data_file);
+	}
+}
+
+bool ExternalSequence::load_from_buffer(char * buffer) 
+{
+	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "Loading sequence from a text buffer");
+
+	// Try single file mode (everything in a single .seq file)
+	std::istringstream string_stream(buffer);
+	string_stream.seekg(0, std::ios::beg);
+	return load(string_stream);
+}
+
+bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_singlefile*/)
+{
+	if (loadMode == lm_singlefile)
+	{
+		reset();
+	}
+
+	if (!data_stream.good())
+	{
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Function load() failed to read from the stream provided");
 		return false;
 	}
+
+	char buffer[MAX_LINE_SIZE];
+	char tmpStr[MAX_LINE_SIZE];
+
 	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Building index" );
 
 	// Save locations of section tags
-	buildFileIndex(data_file);
+	buildFileIndex(data_stream);
 
 	// Read version section
 	if (m_fileIndex.find("[VERSION]") != m_fileIndex.end()) {
 		print_msg(DEBUG_MEDIUM_LEVEL, std::ostringstream().flush() << "decoding VERSION section");
 		// Version is a recommended but not a compulsory section
 		// very basic reading code, repeated keywords will overwrite previous values, no serious error checking
-		data_file.seekg(m_fileIndex["[VERSION]"], std::ios::beg);
-		skipComments(data_file,buffer);			// load up some data and ignore comments & empty lines
-		while (data_file.good() && buffer[0]!='[')
+		data_stream.seekg(m_fileIndex["[VERSION]"], std::ios::beg);
+		skipComments(data_stream,buffer);			// load up some data and ignore comments & empty lines
+		while (data_stream.good() && buffer[0]!='[')
 		{
 			//print_msg(DEBUG_MEDIUM_LEVEL, std::ostringstream().flush() << "buffer: \n" << buffer << std::endl );
 			if (0==strncmp(buffer,"major",5)) {
@@ -153,8 +226,8 @@ bool ExternalSequence::load(std::string path)
 				print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unknown field in the [VERSION] block");
 				return false;
 			}
-			//getline(data_file, buffer, MAX_LINE_SIZE);
-			skipComments(data_file,buffer);			// load up some data and ignore comments & empty lines
+			//getline(data_stream, buffer, MAX_LINE_SIZE);
+			skipComments(data_stream,buffer);			// load up some data and ignore comments & empty lines
 		}
 		version_combined=version_major*1000000L+version_minor*1000L+version_revision;
 	}
@@ -170,649 +243,636 @@ bool ExternalSequence::load(std::string path)
 		return false;
 	}
 	
-	// Read shapes section
-	// ------------------------
-	if (m_fileIndex.find("[SHAPES]") == m_fileIndex.end()) {
-		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: [SHAPES] section");
-		return false;
-	}
-	data_file.seekg(m_fileIndex["[SHAPES]"], std::ios::beg);
-	skipComments(data_file,buffer);			// Ignore comments & empty lines
+	// **********************************************************************************************************************
+	// ************************ READ SHAPES ***********************************
 
-	int shapeId, numSamples;
-	float sample;
-
-	m_shapeLibrary.clear();
-	while (data_file.good() && buffer[0]=='s')
+	if (loadMode == lm_singlefile || loadMode == lm_shapes) 
 	{
-		if (2!=sscanf(buffer, "%s%d", tmpStr, &shapeId)) {
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode 'shapeId'\n" << buffer << std::endl );
-			return false;
-		}
-		getline(data_file, buffer, MAX_LINE_SIZE);
-		if (2!=sscanf(buffer, "%s%d", tmpStr, &numSamples)) {
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode 'numSamples'\n" << buffer << std::endl );
-			return false;
-		}
+		// Read shapes section
+		// ------------------------
+		m_shapeLibrary.clear();
+		if (m_fileIndex.find("[SHAPES]") != m_fileIndex.end()) {
+			data_stream.seekg(m_fileIndex["[SHAPES]"], std::ios::beg);
+			skipComments(data_stream,buffer);			// Ignore comments & empty lines
 
-		//print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Reading shape " << shapeId );
+			int shapeId, numSamples;
+			float sample;
 
-		CompressedShape shape;
-		shape.samples.clear();
-		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
-			if (buffer[0]=='s' || strlen(buffer)==0) {
-				break;
+			while (data_stream.good() && buffer[0]=='s')
+			{
+				if (2!=sscanf(buffer, "%s%d", tmpStr, &shapeId)) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode 'shapeId'\n" << buffer << std::endl );
+					return false;
+				}
+				getline(data_stream, buffer, MAX_LINE_SIZE);
+				if (2!=sscanf(buffer, "%s%d", tmpStr, &numSamples)) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode 'numSamples'\n" << buffer << std::endl );
+					return false;
+				}
+
+				//print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Reading shape " << shapeId );
+
+				CompressedShape shape;
+				shape.samples.clear();
+				while (getline(data_stream, buffer, MAX_LINE_SIZE)) {
+					if (buffer[0]=='s' || strlen(buffer)==0) {
+						break;
+					}
+					if (1!=sscanf(buffer, "%f", &sample)) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode 'sample'\n" << buffer << std::endl );
+						return false;
+					}
+					shape.samples.push_back(sample);
+				}
+				// number of samples equal to the data length is used as a non-compressed flag
+				// but only for v1.4.0 or above
+				if (version_combined >= 1004000 && numSamples==shape.samples.size())
+					shape.isCompressed=false;
+				else 
+					shape.isCompressed=true;
+				shape.numUncompressedSamples=numSamples;
+
+				print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape index " << shapeId << " has " << shape.samples.size()
+					<< " compressed and " << shape.numUncompressedSamples << " uncompressed samples" );
+
+				m_shapeLibrary[shapeId] = shape;
+
+				skipComments(data_stream,buffer);			// Ignore comments & empty lines
 			}
-			if (1!=sscanf(buffer, "%f", &sample)) {
-				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode 'sample'\n" << buffer << std::endl );
-				return false;
-			}
-			shape.samples.push_back(sample);
+			data_stream.clear();	// In case EOF reached
+
+			print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- SHAPES READ numShapes: " << m_shapeLibrary.size() );
 		}
-		// number of samples equal to the data length is used as a non-compressed flag
-		// but only for v1.4.0 or above
-		if (version_combined >= 1004000 && numSamples==shape.samples.size())
-			shape.isCompressed=false;
-		else 
-			shape.isCompressed=true;
-		shape.numUncompressedSamples=numSamples;
-
-		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape index " << shapeId << " has " << shape.samples.size()
-			<< " compressed and " << shape.numUncompressedSamples << " uncompressed samples" );
-
-		m_shapeLibrary[shapeId] = shape;
-
-		skipComments(data_file,buffer);			// Ignore comments & empty lines
+		else
+		{
+			print_msg(NORMAL_MSG, std::ostringstream().flush() << "-- No SHAPES section found, which is permisible but unusual" );
+		}
 	}
-	data_file.clear();	// In case EOF reached
-
-	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- SHAPES READ numShapes: " << m_shapeLibrary.size() );
-
 
 	// **********************************************************************************************************************
 	// ************************ READ EVENTS ********************
-	if (!isSingleFileMode) {
-		filepath = path + PATH_SEPARATOR + "events.seq";
-		data_file.close();
-		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
-		data_file.seekg(0, std::ios::beg);
+	
+	if (loadMode == lm_singlefile || loadMode == lm_events) 
+	{
+		// Read RF section
+		// ------------------------
+		if (m_fileIndex.find("[RF]") != m_fileIndex.end()) {
+			data_stream.seekg(m_fileIndex["[RF]"], std::ios::beg);
 
-		if (!data_file.good())
-		{
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
-			return false;
-		}
-		buildFileIndex(data_file);
-	}
-
-	// Read RF section
-	// ------------------------
-	if (m_fileIndex.find("[RF]") != m_fileIndex.end()) {
-		data_file.seekg(m_fileIndex["[RF]"], std::ios::beg);
-
-		int rfId;
-		m_rfLibrary.clear();
-		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
-			if (buffer[0]=='[' || strlen(buffer)==0) {
-				break;
-			}
-			RFEvent event;
-			if (version_combined<1004000L)
-			{
-				if (7!=sscanf(buffer, "%d%f%d%d%d%f%f", &rfId, &(event.amplitude),
-							&(event.magShape),&(event.phaseShape), &(event.delay),
-							&(event.freqOffset), &(event.phaseOffset)
-							)) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
-					return false;
+			int rfId;
+			m_rfLibrary.clear();
+			while (getline(data_stream, buffer, MAX_LINE_SIZE)) {
+				if (buffer[0]=='[' || strlen(buffer)==0) {
+					break;
 				}
+				RFEvent event;
+				if (version_combined<1004000L)
+				{
+					if (7!=sscanf(buffer, "%d%f%d%d%d%f%f", &rfId, &(event.amplitude),
+								&(event.magShape),&(event.phaseShape), &(event.delay),
+								&(event.freqOffset), &(event.phaseOffset)
+								)) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
+						return false;
+					}
+					event.timeShape=0;
+				}
+				else
+				{
+					if (8!=sscanf(buffer, "%d%f%d%d%d%d%f%f", &rfId, &(event.amplitude),
+								&(event.magShape),&(event.phaseShape),&(event.timeShape),&(event.delay),
+								&(event.freqOffset), &(event.phaseOffset)
+								)) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
+						return false;
+					}
+				}
+				m_rfLibrary[rfId] = event;
+			}
+		}
+		
+		// Read *arbitrary* gradient section
+		// -------------------------------
+		m_gradLibrary.clear();
+		if (m_fileIndex.find("[GRADIENTS]") != m_fileIndex.end()) {
+			data_stream.seekg(m_fileIndex["[GRADIENTS]"], std::ios::beg);
+
+			while (getline(data_stream, buffer, MAX_LINE_SIZE)) {
+				if (buffer[0]=='[' || strlen(buffer)==0) {
+					break;
+				}
+				int gradId;
+				GradEvent event;
+				if ( version_combined>=1004000L )
+				{
+					if (5!=sscanf(buffer, "%d%f%d%d%d", &gradId, &(event.amplitude), &(event.waveShape), &(event.timeShape), &(event.delay))) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode v1.4.x gradient event\n" << buffer << std::endl );
+						return false;
+					}
+				}
+				else
+				{
+					event.timeShape=0;
+					if (4!=sscanf(buffer, "%d%f%d%d", &gradId, &(event.amplitude), &(event.waveShape), &(event.delay))) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode v1.2.x gradient event\n" << buffer << std::endl );
+						return false;
+					}
+				}
+				m_gradLibrary[gradId] = event;
+			}
+		}
+
+		// Read *trapezoid* gradient section
+		// -------------------------------
+		if (m_fileIndex.find("[TRAP]") != m_fileIndex.end()) {
+			data_stream.seekg(m_fileIndex["[TRAP]"], std::ios::beg);
+
+			while (getline(data_stream, buffer, MAX_LINE_SIZE)) {
+				if (buffer[0]=='[' || strlen(buffer)==0) {
+					break;
+				}
+				int gradId;
+				GradEvent event;
+				if (6!=sscanf(buffer, "%d%f%ld%ld%ld%d", &gradId, &(event.amplitude),
+					&(event.rampUpTime),&(event.flatTime),&(event.rampDownTime),&(event.delay))) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode trapezoid gradient entry" << buffer << std::endl );
+					return false;
+				}					
+				event.waveShape=0;
 				event.timeShape=0;
+				m_gradLibrary[gradId] = event;
 			}
-			else
-			{
-				if (8!=sscanf(buffer, "%d%f%d%d%d%d%f%f", &rfId, &(event.amplitude),
-							&(event.magShape),&(event.phaseShape),&(event.timeShape),&(event.delay),
-							&(event.freqOffset), &(event.phaseOffset)
-							)) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
+		}
+
+		// Sort gradients based on index
+		// -----------------------------
+		//std::sort(m_gradLibrary.begin(),m_gradLibrary.end(),compareGradEvents);
+
+		// Read ADC section
+		// -------------------------------
+		if (m_fileIndex.find("[ADC]") != m_fileIndex.end()) {
+			data_stream.seekg(m_fileIndex["[ADC]"], std::ios::beg);
+
+			int adcId;
+			m_adcLibrary.clear();
+			while (getline(data_stream, buffer, MAX_LINE_SIZE)) {
+				if (buffer[0]=='[' || strlen(buffer)==0) {
+					break;
+				}
+				ADCEvent event;
+				if (6!=sscanf(buffer, "%d%d%d%d%f%f", &adcId, &(event.numSamples),
+							&(event.dwellTime),&(event.delay),&(event.freqOffset),&(event.phaseOffset))) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode ADC event\n" << buffer << std::endl );
 					return false;
 				}
+				m_adcLibrary[adcId] = event;
 			}
-			m_rfLibrary[rfId] = event;
 		}
-	}
-	
-	// Read *arbitrary* gradient section
-	// -------------------------------
-	m_gradLibrary.clear();
-	if (m_fileIndex.find("[GRADIENTS]") != m_fileIndex.end()) {
-		data_file.seekg(m_fileIndex["[GRADIENTS]"], std::ios::beg);
 
-		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
-			if (buffer[0]=='[' || strlen(buffer)==0) {
-				break;
-			}
-			int gradId;
-			GradEvent event;
-			if ( version_combined>=1004000L )
-			{
-				if (5!=sscanf(buffer, "%d%f%d%d%d", &gradId, &(event.amplitude), &(event.waveShape), &(event.timeShape), &(event.delay))) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode v1.4.x gradient event\n" << buffer << std::endl );
+		// Read delays section (comatibility with Pulseq version prior to 1.4.0)
+		// ---------------------------------------------------------------------
+		//std::map<int,long> tmpDelayLibrary;
+		m_tmpDelayLibrary.clear();
+		if (m_fileIndex.find("[DELAYS]") != m_fileIndex.end()) {
+			data_stream.seekg(m_fileIndex["[DELAYS]"], std::ios::beg);
+
+			int delayId;
+			long delay;
+			while (getline(data_stream, buffer, MAX_LINE_SIZE)) {
+				if (buffer[0]=='[' || strlen(buffer)==0) {
+					break;
+				}
+				if (2!=sscanf(buffer, "%d%ld", &delayId, &delay)) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode delay event\n" << buffer << std::endl );
 					return false;
 				}
+				m_tmpDelayLibrary[delayId] = delay;
 			}
-			else
+		}
+
+		// Read extensions section
+		// -------------------------------
+		m_extensionLibrary.clear();
+		m_extensionNameIDs.clear();
+		m_triggerLibrary.clear(); // clear also all known extension libraries
+		m_labelsetLibrary.clear();
+		m_labelincLibrary.clear();
+		std::map<std::string,int>::iterator itFI = m_fileIndex.find("[EXTENSIONS]");
+		if ( itFI != m_fileIndex.end()) {
+			data_stream.seekg(itFI->second, std::ios::beg);
+			std::set<int>::iterator itSFI = m_fileSections.find(itFI->second);
+			if ( itSFI==m_fileSections.end() ||
+				 (++itSFI)==m_fileSections.end() )
 			{
-				event.timeShape=0;
-				if (4!=sscanf(buffer, "%d%f%d%d", &gradId, &(event.amplitude), &(event.waveShape), &(event.delay))) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode v1.2.x gradient event\n" << buffer << std::endl );
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed find the end of the section while reading EXTENSIONS");
+				return false;
+			}
+			int sectionEnd = *itSFI;
+			// we first read in the extension list
+			int nID;
+			int nExtensionID=EXT_LIST; // EXT_LIST means we are reading the extension list
+			while ( data_stream.tellg()<sectionEnd &&
+					getline(data_stream, buffer, MAX_LINE_SIZE)) 
+			{
+				if (buffer[0]=='#' || buffer[0]=='[' || strlen(buffer)==0) {
+					continue;
+				}
+				print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "input line: " << buffer);
+				if (0==strncmp(buffer,"extension",9)) {
+					// read new extension ID from the header
+					char szStrID[MAX_LINE_SIZE];
+					int nInternalID=0;
+					int nKnownID=EXT_UNKNOWN;
+					if (2!=sscanf(buffer, "extension %s %d", szStrID, &nInternalID)) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode extension header entry\n" << buffer << std::endl );
+						return false;
+					}
+					// here is the list if extensions we currently recognize
+					if (0==strcmp("TRIGGERS",szStrID))
+						nKnownID=EXT_TRIGGER;
+					else if (0==strcmp("ROTATIONS",szStrID))
+						nKnownID=EXT_ROTATION;
+					else if (0==strcmp("LABELSET",szStrID))
+						nKnownID=EXT_LABELSET;
+					else if (0==strcmp("LABELINC",szStrID))
+						nKnownID=EXT_LABELINC;
+					if (nKnownID!=EXT_UNKNOWN)
+						m_extensionNameIDs[nInternalID]=std::make_pair(std::string(szStrID),nKnownID);
+					else {
+						print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unknown extension ignored\n" << buffer << std::endl );
+					}
+					nExtensionID=nKnownID;
+				}
+				else
+				{
+					ExtensionListEntry extEntry;
+					TriggerEvent trigger;
+					RotationEvent rotation;
+					int  nVal;					   // read label set/inc values from label set/inc extension
+					int  nRet;                     // conversion result / return value
+					char szLabelID[MAX_LINE_SIZE]; // read labels strings from label set/inc extension
+					LabelEvent	label;			   // write label event
+					switch (nExtensionID) {
+						case EXT_LIST: 
+							if (4!=sscanf(buffer, "%d%d%d%ld", &nID, &(extEntry.type), &(extEntry.ref), &(extEntry.next))) {
+								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode extension list entry\n" << buffer << std::endl );
+								return false;
+							}
+							print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "decoding extension list entry " << buffer);
+							m_extensionLibrary[nID] = extEntry;
+							print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "nID:" << nID << " type:" << extEntry.type << " ref" << extEntry.ref << " next:" << extEntry.next);
+							break;
+						case EXT_TRIGGER: 
+							if (5!=sscanf(buffer, "%d%d%d%ld%ld", &nID, &(trigger.triggerType), &(trigger.triggerChannel), &(trigger.delay), &(trigger.duration))) {
+								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode trigger event\n" << buffer << std::endl );
+								return false;
+							}
+							m_triggerLibrary[nID] = trigger;
+							break;
+						case EXT_ROTATION: 
+							if (10!=sscanf(buffer, "%d%lf%lf%lf%lf%lf%lf%lf%lf%lf", &nID, 
+										&rotation.rotMatrix[0], &rotation.rotMatrix[1], &rotation.rotMatrix[2],
+										&rotation.rotMatrix[3], &rotation.rotMatrix[4], &rotation.rotMatrix[5],
+										&rotation.rotMatrix[6], &rotation.rotMatrix[7], &rotation.rotMatrix[8])) {
+								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode rotation event\n" << buffer << std::endl );
+								return false;
+							}
+							rotation.defined=true;
+							m_rotationLibrary[nID] = rotation; 
+							break;
+						case EXT_LABELSET: 
+							if (3!=sscanf(buffer, "%d%d%s", &nID, &nVal, szLabelID)) {
+								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to load labelset event\n" << buffer << std::endl );
+								return false;
+							}
+							nRet = decodeLabel(EXT_LABELSET,nVal,szLabelID,label);
+							if (nRet<0) {
+								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelset event\n" << buffer << std::endl );
+								return false;
+							}else if(nRet>0) {
+								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** decoding labelset event returned 0\n" << buffer << std::endl );
+							} 
+							m_labelsetLibrary[nID] = label;
+							break;
+						case EXT_LABELINC: 
+							if (3!=sscanf(buffer, "%d%d%s", &nID, &nVal, szLabelID)) {
+								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
+								return false;
+							}
+							nRet = decodeLabel(EXT_LABELINC,nVal,szLabelID,label);
+							if (nRet<0) {
+								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
+								return false;
+							}else if(nRet>0) {
+								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: decoding labelinc event returnd 0\n" << buffer << std::endl );
+							}
+
+							m_labelincLibrary[nID] = label;
+							break;
+						case EXT_UNKNOWN:
+							break; // just ignore unknown extensions
+					}
+				}
+			}
+		}
+		
+		// Read gradient rotation section
+		// -------------------------------
+		/*if (m_fileIndex.find("[ROTATIONS]") != m_fileIndex.end()) {
+			data_stream.seekg(m_fileIndex["[ROTATIONS]"], std::ios::beg);
+
+			int controlId;
+			while (getline(data_stream, buffer, MAX_LINE_SIZE)) {
+				if (buffer[0]=='[' || strlen(buffer)==0) {
+					break;
+				}
+				ControlEvent event;
+				event.type = ControlEvent::ROTATION;
+				if (10!=sscanf(buffer, "%d%lf%lf%lf%lf%lf%lf%lf%lf%lf", &controlId, 
+							&event.rotMatrix[0], &event.rotMatrix[1], &event.rotMatrix[2],
+							&event.rotMatrix[3], &event.rotMatrix[4], &event.rotMatrix[5],
+							&event.rotMatrix[6], &event.rotMatrix[7], &event.rotMatrix[8])) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode rotation event\n" << buffer << std::endl );
 					return false;
 				}
+				m_controlLibrary[controlId] = event;
 			}
-			m_gradLibrary[gradId] = event;
-		}
+		}*/
+		
+		
+		print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- EVENTS READ: "
+			<<" RF: " << m_rfLibrary.size()
+			<<" GRAD: " << m_gradLibrary.size()
+			<<" ADC: " << m_adcLibrary.size()
+			<<" EXTENSIONS: " << m_extensionLibrary.size() + m_triggerLibrary.size() + m_rotationLibrary.size() + m_labelsetLibrary.size() + m_labelincLibrary.size());
 	}
-
-	// Read *trapezoid* gradient section
-	// -------------------------------
-	if (m_fileIndex.find("[TRAP]") != m_fileIndex.end()) {
-		data_file.seekg(m_fileIndex["[TRAP]"], std::ios::beg);
-
-		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
-			if (buffer[0]=='[' || strlen(buffer)==0) {
-				break;
-			}
-			int gradId;
-			GradEvent event;
-			if (6!=sscanf(buffer, "%d%f%ld%ld%ld%d", &gradId, &(event.amplitude),
-				&(event.rampUpTime),&(event.flatTime),&(event.rampDownTime),&(event.delay))) {
-				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode trapezoid gradient entry" << buffer << std::endl );
-				return false;
-			}					
-			event.waveShape=0;
-			event.timeShape=0;
-			m_gradLibrary[gradId] = event;
-		}
-	}
-
-	// Sort gradients based on index
-	// -----------------------------
-	//std::sort(m_gradLibrary.begin(),m_gradLibrary.end(),compareGradEvents);
-
-	// Read ADC section
-	// -------------------------------
-	if (m_fileIndex.find("[ADC]") != m_fileIndex.end()) {
-		data_file.seekg(m_fileIndex["[ADC]"], std::ios::beg);
-
-		int adcId;
-		m_adcLibrary.clear();
-		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
-			if (buffer[0]=='[' || strlen(buffer)==0) {
-				break;
-			}
-			ADCEvent event;
-			if (6!=sscanf(buffer, "%d%d%d%d%f%f", &adcId, &(event.numSamples),
-						&(event.dwellTime),&(event.delay),&(event.freqOffset),&(event.phaseOffset))) {
-				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode ADC event\n" << buffer << std::endl );
-				return false;
-			}
-			m_adcLibrary[adcId] = event;
-		}
-	}
-
-	// Read delays section (comatibility with Pulseq version prior to 1.4.0)
-	// ---------------------------------------------------------------------
-	std::map<int,long> tmpDelayLibrary;
-	if (m_fileIndex.find("[DELAYS]") != m_fileIndex.end()) {
-		data_file.seekg(m_fileIndex["[DELAYS]"], std::ios::beg);
-
-		int delayId;
-		long delay;
-		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
-			if (buffer[0]=='[' || strlen(buffer)==0) {
-				break;
-			}
-			if (2!=sscanf(buffer, "%d%ld", &delayId, &delay)) {
-				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode delay event\n" << buffer << std::endl );
-				return false;
-			}
-			tmpDelayLibrary[delayId] = delay;
-		}
-	}
-
-	// Read extensions section
-	// -------------------------------
-	m_extensionLibrary.clear();
-	m_extensionNameIDs.clear();
-	m_triggerLibrary.clear(); // clear also all known extension libraries
-	m_labelsetLibrary.clear();
-	m_labelincLibrary.clear();
-	std::map<std::string,int>::iterator itFI = m_fileIndex.find("[EXTENSIONS]");
-	if ( itFI != m_fileIndex.end()) {
-		data_file.seekg(itFI->second, std::ios::beg);
-		std::set<int>::iterator itSFI = m_fileSections.find(itFI->second);
-		if ( itSFI==m_fileSections.end() ||
-			 (++itSFI)==m_fileSections.end() )
-		{
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed find the end of the section while reading EXTENSIONS");
-			return false;
-		}
-		int sectionEnd = *itSFI;
-		// we first read in the extension list
-		int nID;
-		int nExtensionID=EXT_LIST; // EXT_LIST means we are reading the extension list
-		while ( data_file.tellg()<sectionEnd &&
-			    getline(data_file, buffer, MAX_LINE_SIZE)) 
-		{
-			if (buffer[0]=='#' || buffer[0]=='[' || strlen(buffer)==0) {
-				continue;
-			}
-            print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "input line: " << buffer);
-			if (0==strncmp(buffer,"extension",9)) {
-				// read new extension ID from the header
-				char szStrID[MAX_LINE_SIZE];
-				int nInternalID=0;
-				int nKnownID=EXT_UNKNOWN;
-				if (2!=sscanf(buffer, "extension %s %d", szStrID, &nInternalID)) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode extension header entry\n" << buffer << std::endl );
-					return false;
-				}
-				// here is the list if extensions we currently recognize
-				if (0==strcmp("TRIGGERS",szStrID))
-					nKnownID=EXT_TRIGGER;
-				else if (0==strcmp("ROTATIONS",szStrID))
-					nKnownID=EXT_ROTATION;
-				else if (0==strcmp("LABELSET",szStrID))
-					nKnownID=EXT_LABELSET;
-				else if (0==strcmp("LABELINC",szStrID))
-					nKnownID=EXT_LABELINC;
-				if (nKnownID!=EXT_UNKNOWN)
-					m_extensionNameIDs[nInternalID]=std::make_pair(std::string(szStrID),nKnownID);
-				else {
-					print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unknown extension ignored\n" << buffer << std::endl );
-				}
-				nExtensionID=nKnownID;
-			}
-			else
-			{
-				ExtensionListEntry extEntry;
-				TriggerEvent trigger;
-				RotationEvent rotation;
-				int  nVal;					   // read label set/inc values from label set/inc extension
-				int  nRet;                     // conversion result / return value
-				char szLabelID[MAX_LINE_SIZE]; // read labels strings from label set/inc extension
-				LabelEvent	label;			   // write label event
-				switch (nExtensionID) {
-					case EXT_LIST: 
-						if (4!=sscanf(buffer, "%d%d%d%ld", &nID, &(extEntry.type), &(extEntry.ref), &(extEntry.next))) {
-							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode extension list entry\n" << buffer << std::endl );
-							return false;
-						}
-                        print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "decoding extension list entry " << buffer);
-						m_extensionLibrary[nID] = extEntry;
-						print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "nID:" << nID << " type:" << extEntry.type << " ref" << extEntry.ref << " next:" << extEntry.next);
-						break;
-					case EXT_TRIGGER: 
-						if (5!=sscanf(buffer, "%d%d%d%ld%ld", &nID, &(trigger.triggerType), &(trigger.triggerChannel), &(trigger.delay), &(trigger.duration))) {
-							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode trigger event\n" << buffer << std::endl );
-							return false;
-						}
-						m_triggerLibrary[nID] = trigger;
-						break;
-					case EXT_ROTATION: 
-						if (10!=sscanf(buffer, "%d%lf%lf%lf%lf%lf%lf%lf%lf%lf", &nID, 
-									&rotation.rotMatrix[0], &rotation.rotMatrix[1], &rotation.rotMatrix[2],
-									&rotation.rotMatrix[3], &rotation.rotMatrix[4], &rotation.rotMatrix[5],
-									&rotation.rotMatrix[6], &rotation.rotMatrix[7], &rotation.rotMatrix[8])) {
-							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode rotation event\n" << buffer << std::endl );
-							return false;
-						}
-						rotation.defined=true;
-						m_rotationLibrary[nID] = rotation; 
-						break;
-					case EXT_LABELSET: 
-						if (3!=sscanf(buffer, "%d%d%s", &nID, &nVal, szLabelID)) {
-							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to load labelset event\n" << buffer << std::endl );
-							return false;
-						}
-						nRet = decodeLabel(EXT_LABELSET,nVal,szLabelID,label);
-						if (nRet<0) {
-							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelset event\n" << buffer << std::endl );
-							return false;
-						}else if(nRet>0) {
-							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** decoding labelset event returned 0\n" << buffer << std::endl );
-						} 
-						m_labelsetLibrary[nID] = label;
-						break;
-					case EXT_LABELINC: 
-						if (3!=sscanf(buffer, "%d%d%s", &nID, &nVal, szLabelID)) {
-							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
-							return false;
-						}
-						nRet = decodeLabel(EXT_LABELINC,nVal,szLabelID,label);
-						if (nRet<0) {
-							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
-							return false;
-						}else if(nRet>0) {
-							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: decoding labelinc event returnd 0\n" << buffer << std::endl );
-						}
-
-						m_labelincLibrary[nID] = label;
-						break;
-					case EXT_UNKNOWN:
-						break; // just ignore unknown extensions
-				}
-			}
-		}
-	}
-	
-	// Read gradient rotation section
-	// -------------------------------
-	/*if (m_fileIndex.find("[ROTATIONS]") != m_fileIndex.end()) {
-		data_file.seekg(m_fileIndex["[ROTATIONS]"], std::ios::beg);
-
-		int controlId;
-		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
-			if (buffer[0]=='[' || strlen(buffer)==0) {
-				break;
-			}
-			ControlEvent event;
-			event.type = ControlEvent::ROTATION;
-			if (10!=sscanf(buffer, "%d%lf%lf%lf%lf%lf%lf%lf%lf%lf", &controlId, 
-						&event.rotMatrix[0], &event.rotMatrix[1], &event.rotMatrix[2],
-						&event.rotMatrix[3], &event.rotMatrix[4], &event.rotMatrix[5],
-						&event.rotMatrix[6], &event.rotMatrix[7], &event.rotMatrix[8])) {
-				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode rotation event\n" << buffer << std::endl );
-				return false;
-			}
-			m_controlLibrary[controlId] = event;
-		}
-	}*/
-	
-	
-	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- EVENTS READ: "
-		<<" RF: " << m_rfLibrary.size()
-		<<" GRAD: " << m_gradLibrary.size()
-		<<" ADC: " << m_adcLibrary.size()
-		<<" EXTENSIONS: " << m_extensionLibrary.size() + m_triggerLibrary.size() + m_rotationLibrary.size() + m_labelsetLibrary.size() + m_labelincLibrary.size());
-
 
 	// **********************************************************************************************************************
 	// ************************ READ BLOCKS ********************
-	if (!isSingleFileMode) {
-		filepath = path + PATH_SEPARATOR + "blocks.seq";
-		data_file.close();
-		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
-		data_file.seekg(0, std::ios::beg);
+	if (loadMode == lm_singlefile || loadMode == lm_blocks) 
+	{
+		unsigned int numBlocks = 0;
+		
+		// Read definition section
+		// ------------------------
+		if (m_fileIndex.find("[DEFINITIONS]") != m_fileIndex.end()) {
+			data_stream.seekg(m_fileIndex["[DEFINITIONS]"], std::ios::beg);
 
-		if (!data_file.good())
+			// Read each definition line
+			m_definitions.clear();
+			m_definitions_str.clear();
+			int retgl=0;
+			while (retgl=getline(data_stream, buffer, MAX_LINE_SIZE)) {
+				if (buffer[0]=='[' || strlen(buffer)==0) {
+					break;
+				}
+				// this was not compatible with Numaris4 VB line (MSVC6)
+				/*std::istringstream ss(buffer);
+				while(retgl==gl_truncated) { // if the line was truncated read in the rest of it into the stream/buffer
+					retgl=getline(data_stream, buffer, MAX_LINE_SIZE);
+					ss.str(ss.str()+buffer); 
+				}*/
+				// stupid compatible code
+				std::string stmp(buffer);
+				while(retgl==gl_truncated) { // if the line was truncated read in the rest of it into the temporary string
+					retgl=getline(data_stream, buffer, MAX_LINE_SIZE);
+					stmp+=buffer;
+				}
+				char* tmp_buff1= new char[stmp.length()+1]; // old compilers like MSVC6 require such stupid conversions
+				strcpy(tmp_buff1,stmp.c_str());
+				print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- reading definitions, tmp_buff1=`"<<tmp_buff1<<"'"<<std::endl);
+				std::istringstream ss(tmp_buff1);
+				// delete [] tmp_buff1; // moved few lines below
+				// end of stupid compatible code (except for the delete line below)
+				std::string key;
+				ss >> key;
+				std::string str_value;
+				if (std::getline(ss,str_value)) {
+					str_value = str_trim(str_value);
+					m_definitions_str[key] = str_value; 
+					// old compilers like MSVC6 require such stupid conversions
+					char* tmp_buff2= new char[str_value.length()+1];
+					strcpy(tmp_buff2,str_value.c_str());
+					print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- reading definitions(2), tmp_buff2=`"<<tmp_buff2<<"'"<<std::endl);
+					std::istringstream ssv(tmp_buff2);
+					double value;
+					std::vector<double> values;
+					while (ssv >> value) {
+						//print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "v["<<values.size()<<"]="<<value);
+						values.push_back(value);
+					}
+					delete [] tmp_buff2;
+					m_definitions[key] = values;
+				}
+				// this 'delete' should be here because some compilers pass the buffer by reference
+				delete [] tmp_buff1;
+			}
+
+			std::ostringstream out;
+			out << "-- " << "DEFINITIONS READ: " << m_definitions.size() << " : ";
+			for (std::map<std::string,std::vector<double> >::iterator it=m_definitions.begin(); it!=m_definitions.end(); ++it)
+			{
+				out<< it->first << " ";
+				for (int i=0; i<it->second.size(); i++)
+					out << it->second[i] << " ";
+			}
+
+			print_msg(DEBUG_HIGH_LEVEL, out);
+
+		} // if definitions exist
+
+		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Starting to interpret definitions");
+
+		if (version_combined<1004000L)
 		{
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
+			// initialize default raster times
+			m_dAdcRasterTime_us=1e-1; // Siemens default: 1e-07 
+			m_dGradientRasterTime_us=10.0; // Siemens default: 1e-05 
+			m_dRadiofrequencyRasterTime_us=1.0; // Siemens default: 1e-06 
+			m_dBlockDurationRaster_us = m_dGradientRasterTime_us;
+		}
+		else
+		{
+			// for v1.4.x and later we REQUIRE definitions to be present
+			std::vector<double> def = GetDefinition("AdcRasterTime");
+			if (def.empty()){
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition AdcRasterTime is not present in the file");
+				return false;
+			}
+			m_dAdcRasterTime_us=1e6*def[0];
+			def = GetDefinition("GradientRasterTime");
+			if (def.empty()){
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition GradientRasterTime is not present in the file");
+				return false;
+			}
+			m_dGradientRasterTime_us=1e6*def[0];
+			def = GetDefinition("RadiofrequencyRasterTime");
+			if (def.empty()){
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition RadiofrequencyRasterTime is not present in the file");
+				return false;
+			}
+			m_dRadiofrequencyRasterTime_us=1e6*def[0];
+			def = GetDefinition("BlockDurationRaster");
+			if (def.empty()){
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition BlockDurationRaster is not present in the file");
+				return false;
+			}
+			m_dBlockDurationRaster_us=1e6*def[0];
+		}
+		SeqBlock::s_blockDurationRaster=m_dBlockDurationRaster_us;
+
+		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Finished reading definitions, reading blocks ...");
+
+		// Read blocks section
+		// ------------------------
+		if (m_fileIndex.find("[BLOCKS]") == m_fileIndex.end()) {
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: [BLOCKS] section");
 			return false;
 		}
-		buildFileIndex(data_file);
-	}
+		data_stream.seekg(m_fileIndex["[BLOCKS]"], std::ios::beg);
 
-	unsigned int numBlocks = 0;
-	
-	// Read definition section
-	// ------------------------
-	if (m_fileIndex.find("[DEFINITIONS]") != m_fileIndex.end()) {
-		data_file.seekg(m_fileIndex["[DEFINITIONS]"], std::ios::beg);
+		int blockIdx;
+		EventIDs events;
 
-		// Read each definition line
-		m_definitions.clear();
-		m_definitions_str.clear();
-		int retgl=0;
-		while (retgl=getline(data_file, buffer, MAX_LINE_SIZE)) {
+		// Read blocks
+		m_blocks.clear();
+		while (getline(data_stream, buffer, MAX_LINE_SIZE)) {
 			if (buffer[0]=='[' || strlen(buffer)==0) {
 				break;
 			}
-			// this was not compatible with Numaris4 VB line (MSVC6)
-			/*std::istringstream ss(buffer);
-			while(retgl==gl_truncated) { // if the line was truncated read in the rest of it into the stream/buffer
-				retgl=getline(data_file, buffer, MAX_LINE_SIZE);
-				ss.str(ss.str()+buffer); 
-			}*/
-			// stupid compatible code
-			std::string stmp(buffer);
-			while(retgl==gl_truncated) { // if the line was truncated read in the rest of it into the temporary string
-				retgl=getline(data_file, buffer, MAX_LINE_SIZE);
-				stmp+=buffer;
+
+			memset(events.id, 0, NUM_EVENTS*sizeof(int));
+			long dur_ru =0;
+
+			int ret=sscanf(buffer, "%d%d%d%d%d%d%d%d", &blockIdx,
+					&dur_ru,                                        // block duration
+					&events.id[RF],                                 // RF
+					&events.id[GX],&events.id[GY],&events.id[GZ],   // Gradients
+					&events.id[ADC],                                // ADCs
+					&events.id[EXT]                                 // Extensions
+					);
+			if (7>ret
+					) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode event table entry:\n" << buffer << std::endl );
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "***        number of fields read: " << ret << std::endl );
+				return false;
 			}
-			char* tmp_buff1= new char[stmp.length()+1]; // old compilers like MSVC6 require such stupid conversions
-			strcpy(tmp_buff1,stmp.c_str());
-			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- reading definitions, tmp_buff1=`"<<tmp_buff1<<"'"<<std::endl);
-			std::istringstream ss(tmp_buff1);
-			// delete [] tmp_buff1; // moved few lines below
-			// end of stupid compatible code (except for the delete line below)
-			std::string key;
-			ss >> key;
-			std::string str_value;
-			if (std::getline(ss,str_value)) {
-				str_value = str_trim(str_value);
-				m_definitions_str[key] = str_value; 
-				// old compilers like MSVC6 require such stupid conversions
-				char* tmp_buff2= new char[str_value.length()+1];
-				strcpy(tmp_buff2,str_value.c_str());
-				print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- reading definitions(2), tmp_buff2=`"<<tmp_buff2<<"'"<<std::endl);
-				std::istringstream ssv(tmp_buff2);
-				double value;
-				std::vector<double> values;
-				while (ssv >> value) {
-					values.push_back(value);
-				}
-				delete [] tmp_buff2;
-				m_definitions[key] = values;
+
+			if (!checkBlockReferences(events)) {
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Block " << blockIdx
+					<< " contains references to undefined events" );
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "***        RF:" << events.id[RF] << " GX:" << events.id[GX] << " GY:" << events.id[GY] << " GZ:" << events.id[GZ] << " ADC:" << events.id[ADC] << " EXT:" << events.id[EXT]);
+				return false;
 			}
-			// this 'delete' should be here because some compilers pass the buffer by reference
-			delete [] tmp_buff1;
+			// Add event IDs to list of blocks
+			m_blocks.push_back(events);
+			m_blockDurations_ru.push_back(dur_ru); // ATTENTION, for versions prior to 1.4.0 this will contain delayIDs, we fix it below
 		}
 
-		std::ostringstream out;
-		out << "-- " << "DEFINITIONS READ: " << m_definitions.size() << " : ";
-		for (std::map<std::string,std::vector<double> >::iterator it=m_definitions.begin(); it!=m_definitions.end(); ++it)
+		print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- BLOCKS READ: " << m_blocks.size());
+		// Num_Blocks definition (if defined) is used to check the correct number of blocks are read
+		if (numBlocks>0 && m_blocks.size()!=numBlocks) {
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Expected " << numBlocks
+				<< " blocks but read " << m_blocks.size() << " blocks");
+			return false;
+		}
+		
+		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Reading signature...");
+		// Read signature section
+		// ------------------------
+		if (m_fileIndex.find("[SIGNATURE]") != m_fileIndex.end()) {
+			data_stream.seekg(m_fileIndex["[SIGNATURE]"], std::ios::beg);
+
+			// Read each signature line
+			m_signatureMap.clear();
+			while (getline(data_stream, buffer, MAX_LINE_SIZE)) {
+				if (buffer[0]=='[' || strlen(buffer)==0) {
+					break;
+				}
+				if (buffer[0]=='#')
+					continue;
+				std::istringstream ss(buffer);
+				std::string key;
+				ss >> key;
+				std::string str_value;
+				if (std::getline(ss,str_value)) {
+					str_value = str_trim(str_value);
+					m_signatureMap[key] = str_value; // old compilers like MSVC6 require such stupid conversions
+				}
+			}
+
+			std::ostringstream out;
+			out << "-- " << "SIGNATURE SECTION READ with " << m_signatureMap.size() << " entries:" << std::endl;
+			for (std::map<std::string, std::string >::iterator it=m_signatureMap.begin(); it!=m_signatureMap.end(); ++it)
+				out << it->first << " : " << it->second << std::endl;		
+			print_msg(DEBUG_HIGH_LEVEL, out);
+
+			// convert the relevant field(s) into the internal structure(s)
+			if (m_signatureMap.count("Hash")>0) {
+				m_bSignatureDefined = true;
+				m_strSignature = m_signatureMap["Hash"];
+				if (m_signatureMap.count("Type")>0) 
+					m_strSignatureType = m_signatureMap["Type"];
+			}
+		} // if signature exists
+
+		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Finished reading signature");
+
+		if (version_combined<1004000L) 
 		{
-			out<< it->first << " ";
-			for (int i=0; i<it->second.size(); i++)
-				out << it->second[i] << " ";
-		}
+			print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- converting blocks from version " << version_combined);
+			// we need to calculate dutation of every block and save it in m_blockDurations_ru
 
-		print_msg(DEBUG_HIGH_LEVEL, out);
-
-	} // if definitions exist
-
-	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Starting to interpret definitions");
-
-	if (version_combined<1004000L)
-	{
-		// initialize default raster times
-		m_dAdcRasterTime_us=1e-1; // Siemens default: 1e-07 
-		m_dGradientRasterTime_us=10.0; // Siemens default: 1e-05 
-		m_dRadiofrequencyRasterTime_us=1.0; // Siemens default: 1e-06 
-		m_dBlockDurationRaster_us = m_dGradientRasterTime_us;
-	}
-	else
-	{
-		// for v1.4.x and later we REQUIRE definitions to be present
-		std::vector<double> def = GetDefinition("AdcRasterTime");
-		if (def.empty()){
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition AdcRasterTime is not present in the file");
-			return false;
-		}
-		m_dAdcRasterTime_us=1e6*def[0];
-		def = GetDefinition("GradientRasterTime");
-		if (def.empty()){
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition GradientRasterTime is not present in the file");
-			return false;
-		}
-		m_dGradientRasterTime_us=1e6*def[0];
-		def = GetDefinition("RadiofrequencyRasterTime");
-		if (def.empty()){
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition RadiofrequencyRasterTime is not present in the file");
-			return false;
-		}
-		m_dRadiofrequencyRasterTime_us=1e6*def[0];
-		def = GetDefinition("BlockDurationRaster");
-		if (def.empty()){
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition BlockDurationRaster is not present in the file");
-			return false;
-		}
-		m_dBlockDurationRaster_us=1e6*def[0];
-	}
-	SeqBlock::s_blockDurationRaster=m_dBlockDurationRaster_us;
-
-	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Finished reading definitions, reading blocks ...");
-
-	// Read blocks section
-	// ------------------------
-	if (m_fileIndex.find("[BLOCKS]") == m_fileIndex.end()) {
-		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: [BLOCKS] section");
-		return false;
-	}
-	data_file.seekg(m_fileIndex["[BLOCKS]"], std::ios::beg);
-
-    int blockIdx;
-    EventIDs events;
-
-	// Read blocks
-	m_blocks.clear();
-	while (getline(data_file, buffer, MAX_LINE_SIZE)) {
-		if (buffer[0]=='[' || strlen(buffer)==0) {
-			break;
-		}
-
-		memset(events.id, 0, NUM_EVENTS*sizeof(int));
-		long dur_ru =0;
-
-		int ret=sscanf(buffer, "%d%d%d%d%d%d%d%d", &blockIdx,
-				&dur_ru,                                        // block duration
-				&events.id[RF],                                 // RF
-				&events.id[GX],&events.id[GY],&events.id[GZ],   // Gradients
-				&events.id[ADC],                                // ADCs
-				&events.id[EXT]                                 // Extensions
-				);
-		if (7>ret
-				) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode event table entry:\n" << buffer << std::endl );
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "***        number of fields read: " << ret << std::endl );
-			return false;
-		}
-
-		if (!checkBlockReferences(events)) {
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Block " << blockIdx
-				<< " contains references to undefined events" );
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "***        RF:" << events.id[RF] << " GX:" << events.id[GX] << " GY:" << events.id[GY] << " GZ:" << events.id[GZ] << " ADC:" << events.id[ADC] << " EXT:" << events.id[EXT]);
-			return false;
-		}
-		// Add event IDs to list of blocks
-		m_blocks.push_back(events);
-		m_blockDurations_ru.push_back(dur_ru); // ATTENTION, for versions prior to 1.4.0 this will contain delayIDs, we fix it below
-	}
-
-	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- BLOCKS READ: " << m_blocks.size());
-	// Num_Blocks definition (if defined) is used to check the correct number of blocks are read
-	if (numBlocks>0 && m_blocks.size()!=numBlocks) {
-		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Expected " << numBlocks
-		    << " blocks but read " << m_blocks.size() << " blocks");
-		return false;
-	}
-	
-	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Reading signature...");
-	// Read signature section
-	// ------------------------
-	if (m_fileIndex.find("[SIGNATURE]") != m_fileIndex.end()) {
-		data_file.seekg(m_fileIndex["[SIGNATURE]"], std::ios::beg);
-
-		// Read each signature line
-		m_signatureMap.clear();
-		while (getline(data_file, buffer, MAX_LINE_SIZE)) {
-			if (buffer[0]=='[' || strlen(buffer)==0) {
-				break;
-			}
-			if (buffer[0]=='#')
-				continue;
-			std::istringstream ss(buffer);
-			std::string key;
-			ss >> key;
-			std::string str_value;
-			if (std::getline(ss,str_value)) {
-				str_value = str_trim(str_value);
-				m_signatureMap[key] = str_value; // old compilers like MSVC6 require such stupid conversions
-			}
-		}
-
-		std::ostringstream out;
-		out << "-- " << "SIGNATURE SECTION READ with " << m_signatureMap.size() << " entries:" << std::endl;
-		for (std::map<std::string, std::string >::iterator it=m_signatureMap.begin(); it!=m_signatureMap.end(); ++it)
-			out << it->first << " : " << it->second << std::endl;		
-		print_msg(DEBUG_HIGH_LEVEL, out);
-
-		// convert the relevant field(s) into the internal structure(s)
-		if (m_signatureMap.count("Hash")>0) {
-			m_bSignatureDefined = true;
-			m_strSignature = m_signatureMap["Hash"];
-			if (m_signatureMap.count("Type")>0) 
-				m_strSignatureType = m_signatureMap["Type"];
-		}
-	} // if signature exists
-
-	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Finished reading signature");
-	data_file.close();
-
-	if (version_combined<1004000L) 
-	{
-		print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- converting blocks from version " << version_combined);
-		// we need to calculate dutation of every block and save it in m_blockDurations_ru
-
-		for (int b=0; b<m_blocks.size(); ++b) 
-		{
-			SeqBlock* block=GetBlock(b);
-			// Calculate duration of block
-			long duration = 0;
-			// special processing of the delay objects (which are now eliminated)
-			if (m_blockDurations_ru[b]) // non-zero means old delay library reference
+			for (int b=0; b<m_blocks.size(); ++b) 
 			{
-				if (tmpDelayLibrary.end()==tmpDelayLibrary.find(m_blockDurations_ru[b])) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: invalid delay library reference " << m_blockDurations_ru[b] << " in block " << b << " detected while convering the Pulseq file from older version");
-					return false;
+				SeqBlock* block=GetBlock(b);
+				// Calculate duration of block
+				long duration = 0;
+				// special processing of the delay objects (which are now eliminated)
+				if (m_blockDurations_ru[b]) // non-zero means old delay library reference
+				{
+					if (m_tmpDelayLibrary.end()==m_tmpDelayLibrary.find(m_blockDurations_ru[b])) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: invalid delay library reference " << m_blockDurations_ru[b] << " in block " << b << " detected while convering the Pulseq file from older version");
+						return false;
+					}
+					duration=m_tmpDelayLibrary[m_blockDurations_ru[b]]; // we know delay is still 0, see above
 				}
-				duration=tmpDelayLibrary[m_blockDurations_ru[b]]; // we know delay is still 0, see above
-			}
-			// fairly standard code, copied from the old version of GetBlock()
-			if (block->isRF()) {
-				RFEvent &rf = block->GetRFEvent();
-				duration = MAX(duration, rf.delay+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples); // in versions prior to v 1.4.0 RF raster was 1us and there was no RF time shape
-			}
-			for (int iC=0; iC<NUM_GRADS; iC++)
-			{
-				GradEvent &grad = block->GetGradEvent(iC);
-				if (block->isArbitraryGradient(iC))
-					duration = MAX(duration, (long)(m_dGradientRasterTime_us*m_shapeLibrary[grad.waveShape].numUncompressedSamples) + grad.delay); // in versions prior to v 1.4.0 there was no time shape
-				else if (block->isTrapGradient(iC))
-					duration = MAX(duration, grad.rampUpTime + grad.flatTime + grad.rampDownTime + grad.delay); 
-				else if (block->isExtTrapGradient(iC)) {
-					// in versions prior to 1.4.0 there were no extended trapezoids (no time shape IDs) so this should never happen
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: unexpected error while converting arbitrary gradients");
-					return false;
+				// fairly standard code, copied from the old version of GetBlock()
+				if (block->isRF()) {
+					RFEvent &rf = block->GetRFEvent();
+					duration = MAX(duration, rf.delay+(long)m_shapeLibrary[rf.magShape].numUncompressedSamples); // in versions prior to v 1.4.0 RF raster was 1us and there was no RF time shape
+				}
+				for (int iC=0; iC<NUM_GRADS; iC++)
+				{
+					GradEvent &grad = block->GetGradEvent(iC);
+					if (block->isArbitraryGradient(iC))
+						duration = MAX(duration, (long)(m_dGradientRasterTime_us*m_shapeLibrary[grad.waveShape].numUncompressedSamples) + grad.delay); // in versions prior to v 1.4.0 there was no time shape
+					else if (block->isTrapGradient(iC))
+						duration = MAX(duration, grad.rampUpTime + grad.flatTime + grad.rampDownTime + grad.delay); 
+					else if (block->isExtTrapGradient(iC)) {
+						// in versions prior to 1.4.0 there were no extended trapezoids (no time shape IDs) so this should never happen
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: unexpected error while converting arbitrary gradients");
+						return false;
+					}
+				}
+				if (block->isADC()) {
+					ADCEvent &adc = block->GetADCEvent();
+					duration = MAX(duration, adc.delay + (adc.numSamples*adc.dwellTime)/1000);
+				}
+				if (block->isTrigger()) {
+					TriggerEvent &trigger = block->GetTriggerEvent();
+					duration = MAX(duration, trigger.delay+trigger.duration );
+				}
+				// clean up memory
+				delete block;
+				// convert duration to raster units and store it
+				m_blockDurations_ru[b]=ceil(duration/SeqBlock::s_blockDurationRaster - 1e-12);
+				// sanity check
+				if (fabs(m_blockDurations_ru[b]*SeqBlock::s_blockDurationRaster-duration)>1e-9) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** WARNING: rounding up block duration for block" << b);
 				}
 			}
-			if (block->isADC()) {
-				ADCEvent &adc = block->GetADCEvent();
-				duration = MAX(duration, adc.delay + (adc.numSamples*adc.dwellTime)/1000);
-			}
-			if (block->isTrigger()) {
-				TriggerEvent &trigger = block->GetTriggerEvent();
-				duration = MAX(duration, trigger.delay+trigger.duration );
-			}
-			// clean up memory
-			delete block;
-			// convert duration to raster units and store it
-			m_blockDurations_ru[b]=ceil(duration/SeqBlock::s_blockDurationRaster - 1e-12);
-			// sanity check
-			if (fabs(m_blockDurations_ru[b]*SeqBlock::s_blockDurationRaster-duration)>1e-9) {
-				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** WARNING: rounding up block duration for block" << b);
-			}
+			m_tmpDelayLibrary.clear();
 		}
 	}
 
@@ -827,7 +887,7 @@ bool ExternalSequence::load(std::string path)
 
 
 /***********************************************************/
-void ExternalSequence::skipComments(std::ifstream &fileStream, char *buffer)
+void ExternalSequence::skipComments(std::istream &fileStream, char *buffer)
 {
 	while (getline(fileStream, buffer, MAX_LINE_SIZE)) {
 		if (buffer[0]!=COMMENT_CHAR && strlen(buffer)>0) {
@@ -838,12 +898,13 @@ void ExternalSequence::skipComments(std::ifstream &fileStream, char *buffer)
 
 
 /***********************************************************/
-void ExternalSequence::buildFileIndex(std::ifstream &fileStream)
+void ExternalSequence::buildFileIndex(std::istream &fileStream)
 {
 	char buffer[MAX_LINE_SIZE];
 	
 	while (getline(fileStream, buffer, MAX_LINE_SIZE)) {
 		std::string line = std::string(buffer);
+		//ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "buildFileIndex(): read line: [" << line << "]");
 		if (line[0]=='[' && line[line.length()-1]==']') {
 			m_fileIndex[line] = fileStream.tellg();
 			m_fileSections.insert(fileStream.tellg());			
@@ -1289,9 +1350,9 @@ int ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE)
 				return (i!=0)?gl_true:gl_false;
 			default:
 				buffer[i++] = c;
-				if (i>=MAX_SIZE)
+				if (i>=MAX_SIZE-1) // -1 because we have to reserve one place for the \0 symbol
 				{
-					buffer[i-1]='\0';
+					buffer[i]='\0';
 					return gl_truncated;
 				}
 		}

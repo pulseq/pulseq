@@ -209,19 +209,23 @@ enum Flags{
 };
 const int NUM_FLAGS=FLAG_UNKNOWN;
 
+template <class T>
+struct LabelStorage 
+{
+	std::vector<T>  val;					/**< @brief current label values */
+	std::vector<bool> bValUpdated;			/**< @brief flag whether the numeric label value was updated in this block */
+	std::vector<bool> bValUsed;				/**< @brief flag whether the numeric label value was ever updated in this sequence */
+};
+
 /**
  * @brief List of MDH IDs
  *
- * Stores IDs that reference MDH headers for MDH_compat member
+ * Stores IDs/Labels/Flags that relate MDH headers 
  */
 struct DataLabelStorage 
 {
-	std::vector<int>  numVal;					/**< @brief current numeric label values */
-	std::vector<bool> bNumValUpdated;			/**< @brief flag whether the numeric label value was updated in this block */
-	std::vector<bool> bNumValUsed;				/**< @brief flag whether the numeric label value was ever updated in this sequence */
-	std::vector<bool> flagVal;					/**< @brief current flag value */
-	std::vector<bool> bFlagUpdated;				/**< @brief flag whether the flag label value was updated in this block */
-	std::vector<bool> bFlagUsed;				/**< @brief flag whether the flag label value was ever updated in this sequence */
+	LabelStorage<int>  num;						/**< @brief current numeric label values and corresponding state flags */
+	LabelStorage<bool> flag;					/**< @brief current flag value */
 };
 
 struct MinMaxLabelStorage 
@@ -619,6 +623,31 @@ class ExternalSequence
 	bool load(std::string path);
 
 	/**
+	 * @brief Load the sequence from a single stream
+	 *
+	 * Reads the sequence from a text buffer into the class members, the sequence is stored in
+	 * compressed format in a single file with all sequence definitions.
+	 *
+	 * @param  buffer
+	 */
+
+	bool load_from_buffer(char* buffer);
+
+	/**
+	 * @brief Load the sequence from a single stream
+	 *
+	 * Reads the sequence files into the class members, the sequence is stored in
+	 * compressed format. The given path refer to either:
+	 *  1. A single file with all sequence definitions
+	 *  2. One of the three files (blocks.seq, events.seq, shapes.seq)
+	 *
+	 * @param  path location of file or directory
+	 */
+
+	enum load_mode {lm_singlefile=0, lm_shapes, lm_events, lm_blocks};
+	bool load(std::istream &data_stream, load_mode loadMose = lm_singlefile);
+
+	/**
 	 * @brief Report the version of the loaded sequence
 	 *
 	 * Returns the version of the loaded PulSeq file combined to a single integer
@@ -757,7 +786,7 @@ class ExternalSequence
 	 * Searches forward in the stream for sections enclosed in square brackets
 	 * and writes to index
 	 */
-	void buildFileIndex(std::ifstream &stream);
+	void buildFileIndex(std::istream &stream);
 
 	/**
 	 * @brief Skip the comments and empty lines in the given input stream.
@@ -765,7 +794,7 @@ class ExternalSequence
 	 * @param stream the input file stream to process
 	 * @param buffer return output buffer of next non-comment line
 	 */
-	void skipComments(std::ifstream &stream, char* buffer);
+	void skipComments(std::istream &stream, char* buffer);
 
 	/**
 	 * @brief Decompress a run-length compressed shape
@@ -858,7 +887,7 @@ class ExternalSequence
 	std::map<int,RFEvent>      m_rfLibrary;       /**< @brief Library of RF events */
 	std::map<int,GradEvent>    m_gradLibrary;     /**< @brief Library of gradient events */
 	std::map<int,ADCEvent>     m_adcLibrary;      /**< @brief Library of ADC readouts */
-	//std::map<int,long>         m_delayLibrary;    /**< @brief Library of delays */
+	std::map<int,long>         m_tmpDelayLibrary;    /**< @brief Library of delays, only used for loading older files and is cleaned immediately before load() is finished*/
 	//std::map<int,ControlEvent> m_controlLibrary;  /**< @brief Library of control commands */
 	std::map<int,ExtensionListEntry> m_extensionLibrary;  /**< @brief Library of extension list entries */
 	std::map<int,std::pair<std::string,int> > m_extensionNameIDs; /**< @brief Map of extension IDs from the file to textIDs and internal known numeric IDs*/
