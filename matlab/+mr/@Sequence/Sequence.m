@@ -2024,19 +2024,25 @@ classdef Sequence < handle
             end
         end
         
-        function ok=install(seq,dest,name)
+        function ok=install(seq,param1,param2)
             %install Install sequence on RANGE system.
             %   install(seq) Install sequence by copying files to Siemens
             %   host and RANGE controller
+            % 
+            %   install(seq,'sequence_path_or_name') Auto-detect scanner
+            %   environment and install the sequence under the given file
+            %   name. If sub-directories are provided prior to the name
+            %   they will be create automatically.
             %
-            %   install(seq,'siemens') Install Siemens Numaris4 files.
-            %   install(seq,'siemensNX') Install Siemens NumarisX files.
-            %
+            %   install(seq,'siemens') Install Siemens Numaris4 file as external.seq
+            %   install(seq,'siemensNX') Install Siemens NumarisX file as external.seq
+            %   install(seq,'siemens','sequence_path_or_name') Install
+            %           Pulseq file assuming a Numaris4 Siemens system 
+            %           under the given name and optinally path.
+            %   install(seq,'siemens','sequence_path_or_name') Install
+            %           Pulseq file assuming a NumarisX Siemens system 
+            %           under the given name and optinally path.
             
-            if nargin<3
-                name='external';
-            end
-
             if ispc 
                 % windows
                 ping_command='ping -w 1000 -n 1';
@@ -2045,9 +2051,40 @@ classdef Sequence < handle
                 ping_command='ping -q -n -W1 -c1';
             end
 
+            % for compatibility with older versions
+            if nargin==3
+                name=param2;
+                dest=param1;
+            else
+                switch param1
+                    case {'siemens','siemensNX'...
+                            }
+                        name='external';
+                        dest=param1;
+                    otherwise
+                        name=param1;
+                        % auto-detect the scanner environment
+                        cmd=[ping_command ' 192.168.2.2 && ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@192.168.2.2 ls /opt/medcom/MriCustomer/CustomerSeq'];
+                        [status, ~] = system(cmd);
+                        if status == 0
+                            fprintf('Siemens NumarisX environment detected\n');
+                            dest='siemensNX';
+                        else
+                            fprintf('Assuming Siemens Numaris4 environment (not tested yet)\n');
+                            dest='siemens';
+                        end
+                end                
+            end
+
             ok = true;
             if any(strcmpi(dest, {'both', 'siemens', 'siemensNX'}))
-                seq.write('external.seq.tmp')
+                seq.write('external.seq.tmp');
+                [filepath,filename,ext] = fileparts(name);
+                filepath=strrep(filepath,'\','/'); % fix for windows users
+                if contains(filepath,'../')
+                    error('No relative path elements (like ..) are allowed.');
+                end
+                name=[filepath '/' filename]; % discard the extension
                 % we assume we are in the internal network but ICE computer
                 % on VB and VE has different IPs
                 if ~strcmpi(dest, 'siemensNX')
@@ -2073,6 +2110,9 @@ classdef Sequence < handle
                 [status, retmes] = system(['scp -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa external.seq.tmp root@' ice_ip ':' pulseq_seq_path '/external_tmp.seq']);
                 ok = ok & status == 0;
                 if ok
+                    if ~isempty(filepath)
+                        system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "mkdir -p ' pulseq_seq_path '/' filepath '"']);
+                    end
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "chmod a+rw ' pulseq_seq_path '/external_tmp.seq"']);
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "rm -f ' pulseq_seq_path '/' name '.seq"']);
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/' name '.seq"']);
@@ -2081,13 +2121,7 @@ classdef Sequence < handle
                 end
             end
             
-            
-            if strcmp(dest, 'dropbox')
-                seq.write('external.seq.tmp')
-                [status, ~] = system(['cp external.seq.tmp ~/Dropbox/inbox/maxim/' datestr(datetime, 'yyyymmddHHMMSS') '.seq']);
-                ok = ok & status == 0;
-	        end
-            
+       
             if ok
                 fprintf('Sequence installed as %s.seq\n',name)
             else
