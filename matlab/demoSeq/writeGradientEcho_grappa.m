@@ -8,11 +8,11 @@ sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
 
 seq=mr.Sequence(sys);         % Create a new sequence object
 
-fov=256e-3; Nx=256; Ny=Nx; % Define FOV and resolution
+fov=256e-3; Nx=128; Ny=Nx; % Define FOV and resolution
 phaseResoluion = fov/Nx / (fov/Ny) ;
 alpha=10;                  % flip angle
 thickness=3e-3;            % slice
-Nslices=1;
+Nslices=3;
 sliceGap = 1e-3 ;
 TR=30e-3; 
 TE=4.3e-3;
@@ -86,7 +86,7 @@ lblResetRefScan.id=seq.registerLabelEvent(lblResetRefScan);
 lblResetRefAndImaScan.id=seq.registerLabelEvent(lblResetRefAndImaScan);
 
 % Add noise scans.
-seq.addBlock(mr.makeLabel('SET', 'LIN', 0)) ;
+seq.addBlock(mr.makeLabel('SET', 'LIN', 0),mr.makeLabel('SET','SLC', 0)) ;
 seq.addBlock(adc, mr.makeLabel('SET', 'NOISE', true),lblResetRefScan,lblResetRefAndImaScan) ;
 seq.addBlock(mr.makeLabel('SET', 'NOISE', false)) ;
 
@@ -94,34 +94,36 @@ seq.addBlock(mr.makeLabel('SET', 'NOISE', false)) ;
 slicePositions=(thickness+sliceGap)*((0:(Nslices-1)) - (Nslices-1)/2);
 slicePositions=slicePositions([1:2:Nslices 2:2:Nslices]); % reorder slices for an interleaved acquisition (optional)
 
-rf.freqOffset=gz.amplitude*thickness*(1-1-(Nslices-1)/2);
-% loop over phase encodes and define sequence blocks
-for count = 1:nPEsamp
-    if ismember(PEsamp(count),PEsamp_ACS)
-        if ismember(PEsamp(count),PEsamp_u)
-            seq.addBlock(lblSetRefAndImaScan, lblSetRefScan) ;
+for s=1:Nslices
+    rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
+    % loop over phase encodes and define sequence blocks
+    for count = 1:nPEsamp
+        if ismember(PEsamp(count),PEsamp_ACS)
+            if ismember(PEsamp(count),PEsamp_u)
+                seq.addBlock(lblSetRefAndImaScan, lblSetRefScan) ;
+            else
+                seq.addBlock(lblResetRefAndImaScan, lblSetRefScan) ;
+            end
         else
-            seq.addBlock(lblResetRefAndImaScan, lblSetRefScan) ;
+            seq.addBlock(lblResetRefAndImaScan, lblResetRefScan) ;
         end
-    else
-        seq.addBlock(lblResetRefAndImaScan, lblResetRefScan) ;
+        rf.phaseOffset=rf_phase/180*pi;
+        adc.phaseOffset=rf_phase/180*pi;
+        rf_inc=mod(rf_inc+rfSpoilingInc, 360.0);
+        rf_phase=mod(rf_phase+rf_inc, 360.0);
+        %
+        seq.addBlock(rf,gz);
+        gyPre = mr.makeTrapezoid('y','Area',phaseAreas(PEsamp(count)),'Duration',mr.calcDuration(gxPre),'system',sys);
+        seq.addBlock(gxPre,gyPre,gzReph);
+        seq.addBlock(mr.makeDelay(delayTE));
+        seq.addBlock(gx,adc);
+        gyPre.amplitude=-gyPre.amplitude;
+    
+        seq.addBlock(mr.makeDelay(delayTR),gxSpoil,gyPre,gzSpoil);
+        seq.addBlock(mr.makeLabel('INC','LIN', PEsamp_INC(count)));
     end
-    rf.phaseOffset=rf_phase/180*pi;
-    adc.phaseOffset=rf_phase/180*pi;
-    rf_inc=mod(rf_inc+rfSpoilingInc, 360.0);
-    rf_phase=mod(rf_phase+rf_inc, 360.0);
-    %
-    seq.addBlock(rf,gz);
-    gyPre = mr.makeTrapezoid('y','Area',phaseAreas(PEsamp(count)),'Duration',mr.calcDuration(gxPre),'system',sys);
-    seq.addBlock(gxPre,gyPre,gzReph);
-    seq.addBlock(mr.makeDelay(delayTE));
-    seq.addBlock(gx,adc);
-    gyPre.amplitude=-gyPre.amplitude;
-
-    seq.addBlock(mr.makeDelay(delayTR),gxSpoil,gyPre,gzSpoil);
-    seq.addBlock(mr.makeLabel('INC','LIN', PEsamp_INC(count)));
+    seq.addBlock(mr.makeLabel('SET', 'LIN', 0),mr.makeLabel('INC','SLC', 1)) ;
 end
-seq.addBlock(mr.makeLabel('SET', 'LIN', 0)) ;
 
 %% check whether the timing of the sequence is correct
 [ok, error_report]=seq.checkTiming;
@@ -153,8 +155,9 @@ seq.write('gre_gt.seq')       % Write to pulseq file
 adc_lbl=seq.evalLabels('evolution','adc');
 figure; plot(adc_lbl.REF);
 hold on; plot(adc_lbl.LIN);plot(adc_lbl.IMA) ; plot(adc_lbl.NOISE);
+plot(adc_lbl.SLC) ;
 plot(adc_lbl.IMA) ;
-legend('REF','LIN', 'IMA', 'NOISE');
+legend('REF','LIN', 'IMA', 'SLC', 'NOISE');
 title('evolution of labels/counters');
 
 %% plot sequence and k-space diagrams
