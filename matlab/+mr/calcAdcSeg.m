@@ -1,8 +1,9 @@
 function [adcSegments,adcSamplesPerSegment] = calcAdcSeg(numSamples,dwell,system,mode)
 %mr.calcAdcSeg : Calculate splitting of the ADC in segments
-%    On some scanners, notably Siemens, adc should be splittable to N equal 
-%    parts, each of which aligned to the gradient raster. Each segment 
-%    however needs to have the number of samples smaller than 
+%    On some scanners, notably Siemens, ADC objects that exceed a certain 
+%    sample length (8192 samples on Siemens) should be splittable to N 
+%    equal parts, each of which aligned to the gradient raster. Each 
+%    segment, however, needs to have the number of samples smaller than 
 %    system.adcSamplesLimit and divisible by system.adcSamplesDivisor to be
 %    executable on the scanner. The optional parameter mode can be either
 %    'shorten' or 'lengthen'.
