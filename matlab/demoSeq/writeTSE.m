@@ -42,7 +42,7 @@ if (numel(rflip)==1), rflip=rflip+zeros([1 necho]); end
 sliceThickness=5e-3;
 TE1=12e-3; % echo time of the first echo in the train
 TR=2000e-3;
-TEeff=60e-3; % the desired echo time (can only be achieved approximately)
+TEeff=100e-3; % the desired echo time (can only be achieved approximately)
 
 samplingTime= 6.4e-3;
 readoutTime = samplingTime + 2*system.adcDeadTime;
