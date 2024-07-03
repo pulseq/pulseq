@@ -184,7 +184,7 @@ return;
 
 %% another manual pretty plot option for gradients
 
-lw=1;
+lw=1.2;
 %gw=seq.gradient_waveforms();
 wave_data=seq.waveforms_and_times(true); % also export RF
 gwm=max(abs([wave_data{1:3}]'));
@@ -200,7 +200,8 @@ plot([-0.01*gwm(1),1.01*gwm(1)],[2 2]*ofs,'Color',axis_clr,'LineWidth',lw/5);
 plot([-0.01*gwm(1),1.01*gwm(1)],[3 3]*ofs,'Color',axis_clr,'LineWidth',lw/5);
 
 % plot the RF waveform
-plot(wave_data{4}(1,:), abs(wave_data{4}(2,:))/rfm(2)*gwm(2)*0.75+3*ofs,'k','LineWidth',lw); 
+wave_data{4}(2,wave_data{4}(2,:)==0)=NaN; % hide 0s
+plot(wave_data{4}(1,:), real(wave_data{4}(2,:))/rfm(2)*gwm(2)*0.75+3*ofs,'k','LineWidth',lw); 
 
 % plot the entire gradient waveforms
 plot(wave_data{3}(1,:), wave_data{3}(2,:)+2*ofs,'Color',[0,0.5,0.3],'LineWidth',lw); 
