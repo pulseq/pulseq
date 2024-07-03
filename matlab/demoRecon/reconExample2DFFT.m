@@ -24,6 +24,7 @@ seq_file_path=[path D(I(end-0)).name]; % use end-1 to reconstruct the second-las
 % keep basic filename without the extension
 [p,n,e] = fileparts(seq_file_path);
 basic_file_path=fullfile(p,n);
+seq_file_path=[basic_file_path '.seq']; % sometimes necessary on Windows
 
 % try loading Matlab data
 data_file_path=[basic_file_path '.mat'];
@@ -38,7 +39,7 @@ if isfile(data_file_path)
 else
     % revert to Siemens .dat file
     data_file_path=[basic_file_path '.dat'];
-    fprintf(['loading `' data_file_path '´ ...\n']);
+    fprintf('loading `%s´ ...\n',data_file_path);
     twix_obj = mapVBVD(data_file_path);
     if iscell(twix_obj)
         data_unsorted = twix_obj{end}.image.unsorted();
