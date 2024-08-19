@@ -82,7 +82,7 @@ classdef SeqPlot < handle
 
             set(obj.f, 'Visible', 'off')
 
-            obj.ax=zeros(1,6);
+            obj.ax = gobjects(1,6);
             for i=1:6
                 obj.ax(i)=subplot(3,2,i);
             end
