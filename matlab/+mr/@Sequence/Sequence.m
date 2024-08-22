@@ -1193,7 +1193,7 @@ classdef Sequence < handle
             end
             ax=zeros(1,6);
             for i=1:6
-                ax(i)=subplot(3,2,i);
+                ax(i)=subplot(6,1,i);
             end
             ax=ax([1 3 5 2 4 6]);   % Re-order axes
             arrayfun(@(x)hold(x,'on'),ax);
