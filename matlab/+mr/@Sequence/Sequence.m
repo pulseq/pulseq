@@ -59,6 +59,10 @@ classdef Sequence < handle
         signatureType; % type of the hashing function used, currently 'md5'
         signatureFile; % which data were hashed, currently 'text' or 'bin' (used file format of the save function)
         signatureValue; % the hash of the exported Pulse sequence
+
+        rfID2NameMap;   % optional names of objects in the plot
+        adcID2NameMap;  % optional names of objects in the plot
+        gradID2NameMap; % optional names of objects in the plot
         
         sys;
     end
@@ -99,6 +103,9 @@ classdef Sequence < handle
             obj.signatureType=''; 
             obj.signatureFile=''; 
             obj.signatureValue='';
+            obj.rfID2NameMap = containers.Map('KeyType', 'int32', 'ValueType', 'char'); 
+            obj.adcID2NameMap = containers.Map('KeyType', 'int32', 'ValueType', 'char'); 
+            obj.gradID2NameMap = containers.Map('KeyType', 'int32', 'ValueType', 'char'); 
         end
         
         
@@ -120,6 +127,9 @@ classdef Sequence < handle
         
         % See calcPNS.m
         [ok, pns_norm, pns_comp, t_axis]=calcPNS(obj,hardware,doPlots,calcCNS)
+
+        %see calcMomentsBtensor.m
+        [B, m1, m2, m3] = calcMomentsBtensor(obj, calcB, calcm1, calcm2, Ndummy, calcm3)
         
         % See testReport.m
         %testReport(obj);
@@ -287,6 +297,20 @@ classdef Sequence < handle
             %setBlock(obj,size(obj.blockEvents,1)+1,varargin{:});
             setBlock(obj,length(obj.blockEvents)+1,varargin{:});            
         end
+        
+        function iB=findBlockByTime(obj,t)
+            if nargin<3
+                nonEmpty=true;
+            end
+            iB=find(cumsum(obj.blockDurations)>t,1); 
+            if iB>length(obj.blockDurations);
+                iB=[]; % or length(obj.blockDurations)
+            end
+            assert(obj.blockDurations(iB)>0);
+            %if nonEmpty && ~isempty(iB)
+            %    iB=find(obj.blockDurations(1:iB)>0,1,'last');
+            %end
+        end
                 
         function modGradAxis(obj,axis,modifier)
             %modGradAxis Invert or scale all gradinents along the corresponding
@@ -404,9 +428,9 @@ classdef Sequence < handle
         end
         
         function [id shapeIDs]=registerRfEvent(obj, event)
-            % registerRfEvent Add the event to the libraries (object,
-            % shapes, etc and retur the event's ID. This I can be stored in
-            % the object to accelerate addBlock()
+            % registerRfEvent : Add the event to the libraries (object,
+            % shapes, etc and return the event's ID. This ID should be 
+            % stored in the object to accelerate addBlock()
             
             mag = abs(event.signal);
             amplitude = max(mag);
@@ -459,9 +483,16 @@ classdef Sequence < handle
             else
                 id = obj.rfLibrary.insert(0,data,use);
             end
+
+            if isfield(event,'name')
+                obj.rfID2NameMap(id) = event.name; 
+            end
         end
         
         function [id,shapeIDs]=registerGradEvent(obj, event)
+            % registerRfEvent : Add the event to the libraries (object,
+            % shapes, etc and return the event's ID. This ID should be 
+            % stored in the object to accelerate addBlock()
             may_exist=true;
             switch event.type
                 case 'grad'
@@ -504,15 +535,29 @@ classdef Sequence < handle
             else
                 id = obj.gradLibrary.insert(0,data,event.type(1));
             end
+
+            if isfield(event,'name')
+                obj.gradID2NameMap(id) = event.name; 
+            end
         end
         
         function id=registerAdcEvent(obj, event)
+            % registerAdcEvent : Add the event to the libraries (object,
+            % shapes, etc and return the event's ID. This ID should be 
+            % stored in the object to accelerate addBlock()
             data = [event.numSamples event.dwell max(event.delay,event.deadTime) ... % MZ: replaced event.delay+event.deadTime with a max(...) because we allow for overlap of the delay and the dead time
                 event.freqOffset event.phaseOffset event.deadTime];
             id = obj.adcLibrary.find_or_insert(data);
+
+            if isfield(event,'name')
+                obj.adcID2NameMap(id) = event.name;
+            end
         end
         
         function id=registerControlEvent(obj, event)
+            % registerControlEvent : Add the event to the libraries (object,
+            % shapes, etc and return the event's ID. This ID should be 
+            % stored in the object to accelerate addBlock()
             event_type=find(strcmp(event.type,{'output','trigger'}));
             if (event_type==1)
                 event_channel=find(strcmp(event.channel,{'osc0','osc1','ext1'})); % trigger codes supported by the Siemens interpreter as of May 2019
@@ -526,6 +571,9 @@ classdef Sequence < handle
         end
         
         function id=registerLabelEvent(obj, event)
+            % registerLabelEvent : Add the event to the libraries (object,
+            % shapes, etc and return the event's ID. This ID should be 
+            % stored in the object to accelerate addBlock()
             label_id=find(strcmp(event.label,mr.getSupportedLabels()));
             data=[event.value label_id];
             switch event.type
@@ -758,6 +806,57 @@ classdef Sequence < handle
             %assert(abs(duration-block_duration)<eps); % TODO: if this never fails we should remove mr.calcDuration at the beginning
             obj.blockDurations(index)=duration;
         end
+
+        function raw_block = getRawBlockContentIDs(obj, index)
+            %getRawBlockContentIDs Return a block content of the sequence.
+            %   b=getRawBlockContentIDs(obj, index) Return the block 
+            %   content IDs specified by the index of the block.
+            %
+            %   No block events are created, only the IDs of the objects 
+            %   are returned.
+            %
+            %   See also  getBlock, setBlock, addBlock
+            
+            raw_block=struct('blockDuration', 0, 'rf', [], 'gx', [], 'gy', [], 'gz', [], 'adc', [], 'ext', [] );
+
+            eventInd = obj.blockEvents{index};
+            
+            if eventInd(7) > 0
+                % we have extensions -- triggers, labels, etc
+                % first find how many and preallocate raw_block.ext array
+                nextExtID=eventInd(7);
+                cExt=0;
+                while nextExtID~=0
+                    cExt=cExt+1;
+                    % now update nextExtID
+                    nextExtID=obj.extensionLibrary.data(nextExtID).array(3);
+                end
+                raw_block.ext=zeros(2,cExt);
+                % now scan through the list again and extract the extension data
+                nextExtID=eventInd(7);
+                cExt=0;
+                while nextExtID~=0
+                    cExt=cExt+1;
+                    extData = obj.extensionLibrary.data(nextExtID).array;
+                    % format: extType, extID, nextExtID
+                    raw_block.ext(:,cExt)=extData(1:2);                    
+                    % now update nextExtID
+                    nextExtID=extData(3);
+                end
+            end
+            if eventInd(2) > 0 
+                raw_block.rf=eventInd(2);
+            end
+            gradChannels = {'gx', 'gy', 'gz'};
+            for i = 1:length(gradChannels)
+                if eventInd(2+i) > 0
+                    raw_block.(gradChannels{i})=eventInd(2+i);
+                end
+            end
+            if eventInd(6) > 0
+                raw_block.adc = eventInd(6);
+            end
+        end        
         
         function block = getBlock(obj, index)
             %getBlock Return a block of the sequence.
@@ -769,76 +868,81 @@ classdef Sequence < handle
             %
             %   See also  setBlock, addBlock
             
-            block=struct('blockDuration', 0, 'rf', {}, 'gx', {}, 'gy', {}, 'gz', {}, 'adc', {} );
+            block=struct('blockDuration', 0, 'rf', [], 'gx', [], 'gy', [], 'gz', [], 'adc', [] );
 
-            block(1).rf = [];
-            eventInd = obj.blockEvents{index};
+            %block(1).rf = [];
+            %eventInd = obj.blockEvents{index};
+            raw_block = obj.getRawBlockContentIDs(index);
             
-            if eventInd(7) > 0
+            if ~isempty(raw_block.ext)
                 % we have extensions -- triggers, labels, etc
-                % we will eventually isolate this into a separate function
-                nextExtID=eventInd(7);
-                while nextExtID~=0
-                    extData = obj.extensionLibrary.data(nextExtID).array;
-                    % format: extType, extID, nextExtID
-                    extTypeStr=obj.getExtensionTypeString(extData(1));
-                    switch extTypeStr
-                        case 'TRIGGERS'
-                            trigger_types={'output','trigger'};
-                            data = obj.trigLibrary.data(extData(2)).array;
-                            trig.type = trigger_types{data(1)};
-                            if (data(1)==1)
-                                trigger_channels={'osc0','osc1','ext1'};
-                                trig.channel=trigger_channels{data(2)};
-                            elseif (data(1)==2)
-                                trigger_channels={'physio1','physio2'}; 
-                                trig.channel=trigger_channels{data(2)};;
-                            else
-                                error('unsupported trigger event type');
-                            end
-                            trig.delay = data(3);
-                            trig.duration = data(4);
-                            % allow for multiple triggers per block
-                            if(isfield(block, 'trig'))
-                                block.trig(length(block.trig)+1) = trig;
-                            else
-                                block.trig=trig;
-                            end
-                        case {'LABELSET','LABELINC'} 
-                            label.type=lower(extTypeStr);
-                            supported_labels=mr.getSupportedLabels();
-                            if strcmp(extTypeStr,'LABELSET')
-                                data = obj.labelsetLibrary.data(extData(2)).array;
-                            else
-                                data = obj.labelincLibrary.data(extData(2)).array;
-                            end
-                            label.label=supported_labels{data(2)};
-                            label.value=data(1);
-                            % allow for multiple labels per block
-                            if(isfield(block, 'label'))
-                                block.label(length(block.label)+1) = label;
-                            else
-                                block.label=label;
-                            end
-                        otherwise
-                            error('unknown extension ID %d', extData(1));
+                % ext field format: extType, extID
+
+                % unpack trigger(s)
+                trig_ext=raw_block.ext(2,raw_block.ext(1,:)==obj.getExtensionTypeID('TRIGGERS'));
+                if ~isempty(trig_ext)
+                    trigger_types={'output','trigger'};
+                    for i=length(trig_ext):-1:1 % backwards for preallocation
+                        data = obj.trigLibrary.data(trig_ext(i)).array;
+                        trig.type = trigger_types{data(1)};
+                        if (data(1)==1)
+                            trigger_channels={'osc0','osc1','ext1'};
+                            trig.channel=trigger_channels{data(2)};
+                        elseif (data(1)==2)
+                            trigger_channels={'physio1','physio2'}; 
+                            trig.channel=trigger_channels{data(2)};;
+                        else
+                            error('unsupported trigger event type');
+                        end
+                        trig.delay = data(3);
+                        trig.duration = data(4);
+                        % we allow for multiple triggers per block
+                        block.trig(i)=trig;
                     end
-                    % now update nextExtID
-                    nextExtID=extData(3);
+                end
+                % unpack labels
+                lid_set=obj.getExtensionTypeID('LABELSET');
+                lid_inc=obj.getExtensionTypeID('LABELINC');
+                supported_labels=mr.getSupportedLabels();
+                label_ext=raw_block.ext(:,raw_block.ext(1,:)==lid_set | raw_block.ext(1,:)==lid_inc);
+                if ~isempty(label_ext)
+                    for i=size(label_ext,2):-1:1 % backwards for preallocation
+                        if label_ext(1,i)==lid_set
+                            label.type='labelset';
+                            data = obj.labelsetLibrary.data(label_ext(2,i)).array;
+                        else
+                            label.type='labelinc';
+                            data = obj.labelincLibrary.data(label_ext(2,i)).array;
+                        end
+                        label.label=supported_labels{data(2)};
+                        label.value=data(1);
+                        block.label(i) = label;
+                    end
+                end
+                if length(trig_ext)+size(label_ext,2)~=size(raw_block.ext,2)
+                    for i=1:size(raw_block.ext,2)
+                        if raw_block.ext(1,i)~=obj.getExtensionTypeID('TRIGGERS') && ...
+                           raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET') && ...
+                           raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET')
+                            error('unknown extension ID %d', raw_block.ext(1,i));
+                        end
+                    end
                 end
             end
-            if eventInd(2) > 0 
-                if length(obj.rfLibrary.type)>=eventInd(2)
-                    block.rf = obj.rfFromLibData(obj.rfLibrary.data(eventInd(2)).array,obj.rfLibrary.type(eventInd(2)));
+            % finished extensions
+            if ~isempty(raw_block.rf) 
+                if length(obj.rfLibrary.type)>=raw_block.rf
+                    block.rf = obj.rfFromLibData(obj.rfLibrary.data(raw_block.rf).array,obj.rfLibrary.type(raw_block.rf));
                 else
-                    block.rf = obj.rfFromLibData(obj.rfLibrary.data(eventInd(2)).array); % undefined type/use
+                    block.rf = obj.rfFromLibData(obj.rfLibrary.data(raw_block.rf).array); % undefined type/use
                 end
             end
             gradChannels = {'gx', 'gy', 'gz'};
             for i = 1:length(gradChannels)
-                if eventInd(2+i) > 0
-                    type = obj.gradLibrary.type(eventInd(2+i));
-                    libData = obj.gradLibrary.data(eventInd(2+i)).array;
+                gid=raw_block.(gradChannels{i});
+                if ~isempty(gid)> 0
+                    type = obj.gradLibrary.type(gid);
+                    libData = obj.gradLibrary.data(gid).array;
                     if type == 't'
                         grad.type = 'trap';
                     else
@@ -913,8 +1017,8 @@ classdef Sequence < handle
                     block.(gradChannels{i}) = grad;
                 end
             end
-            if eventInd(6) > 0
-                libData = obj.adcLibrary.data(eventInd(6)).array;
+            if ~isempty(raw_block.adc) 
+                libData = obj.adcLibrary.data(raw_block.adc).array;
                 if length(libData) < 6
                     libData(end+1) = 0;
                 end
@@ -1157,7 +1261,7 @@ classdef Sequence < handle
             end
         end
         
-        function f = plot(obj, varargin)
+        function sp = plot(obj, varargin)
             %plot Plot the sequence in a new figure.
             %   plot(seqObj) Plot the sequence
             %
@@ -1175,260 +1279,27 @@ classdef Sequence < handle
             %   accepted as a comma-separated list.
             %
             %   plot(...,'showBlocks',1) Plot grid and tick labels at the
-            %   block boundaries. Accebts a numeric or a boolean parameter.
+            %   block boundaries. Accepts a numeric or a boolean parameter.
             %
+            %   plot(...,'stacked',1) Rearrange the plots such they are vertically
+            %   stacked and share the same x-axis. Accepts a numeric or a boolean
+            %   parameter.
+            %
+            %   plot(...,'showGuides',1) How dynamic hairline guides that follow 
+            %   the data cursor to help verifying event alignment. Accepts a 
+            %   numeric or a boolean parameter.
+            % 
             %   f=plot(...) Return the new figure handle.
             %
-            validTimeUnits = {'s','ms','us'};
-            validLabel = mr.getSupportedLabels();
-            persistent parser
-            if isempty(parser)
-                parser = inputParser;
-                parser.FunctionName = 'plot';
-                parser.addParamValue('showBlocks',false,@(x)(isnumeric(x) || islogical(x)));
-                parser.addParamValue('timeRange',[0 inf],@(x)(isnumeric(x) && length(x)==2));
-                parser.addParamValue('blockRange',[1 inf],@(x)(isnumeric(x) && length(x)==2));
-                parser.addParamValue('timeDisp',validTimeUnits{1},...
-                    @(x) any(validatestring(x,validTimeUnits)));
-                parser.addOptional('label',[]);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
-            end
-            parse(parser,varargin{:});
-            opt = parser.Results;
-                        
-            fig=figure;
-            if nargout>0
-                f=fig;
-            end
-            ax=zeros(1,6);
-            for i=1:6
-                ax(i)=subplot(3,2,i);
-            end
-            ax=ax([1 3 5 2 4 6]);   % Re-order axes
-            arrayfun(@(x)hold(x,'on'),ax);
-            arrayfun(@(x)grid(x,'on'),ax);
-            labels={'ADC/labels','RF mag (Hz)','RF/ADC ph (rad)','Gx (kHz/m)','Gy (kHz/m)','Gz (kHz/m)'};
-            arrayfun(@(x)ylabel(ax(x),labels{x}),1:6);
             
-            tFactorList = [1 1e3 1e6];
-            tFactor = tFactorList(strcmp(opt.timeDisp,validTimeUnits));
-            xlabel(ax(3),['t (' opt.timeDisp ')']);
-            xlabel(ax(6),['t (' opt.timeDisp ')']);
-            
-            t0=0;
-            label_defined=false;
-            label_indexes_2plot=[];
-            label_legend_2plot=[];
-            for i=1:length(validLabel)
-                label_store.(validLabel{i})=0;
-                if ~isempty(strfind(upper(opt.label),validLabel{i}))
-                    label_indexes_2plot=[label_indexes_2plot i];
-                    label_legend_2plot=[label_legend_2plot; validLabel{i}];
-                end
-            end 
-            if ~isempty(label_indexes_2plot)
-                label_colors_2plot=parula(length(label_indexes_2plot)+1); % need +1 because the ADC plot by itself also "eats up" one color
-                label_colors_2plot=[label_colors_2plot(end,:); label_colors_2plot(1:end-1,:)]; % we like these colors better ?
+            if nargout == 1
+                sp = mr.aux.SeqPlot(obj, varargin{:});
+            else
+                mr.aux.SeqPlot(obj, varargin{:});
             end
-            
-            % time/block range
-            timeRange=opt.timeRange;
-            blockEdges=[0 cumsum(obj.blockDurations)];
-            if opt.blockRange(1)>1 && blockEdges(opt.blockRange(1))>timeRange(1)
-                timeRange(1)=blockEdges(opt.blockRange(1));
-            end
-            if isfinite(opt.blockRange(2)) && opt.blockRange(2)<length(obj.blockDurations) && blockEdges(opt.blockRange(2)+1)<timeRange(2)
-                timeRange(2)=blockEdges(opt.blockRange(2)+1);
-            end
-            % block timings
-            blockEdgesInRange=blockEdges(logical((blockEdges>=timeRange(1)).*(blockEdges<=timeRange(2))));
-            if (opt.timeDisp=='us')
-                for i=1:6
-                    xax=get(ax(i),'XAxis');
-                    xax.ExponentMode='manual';
-                    xax.Exponent=0;
-                end
-            end
-            if opt.showBlocks
-                % show block edges in plots
-                for i=1:6
-                    xax=get(ax(i),'XAxis');
-                    xax.TickValues=unique(tFactor.*blockEdgesInRange);
-                    set(ax(i),'XTickLabelRotation',90);
-                    %xax.MinorTickValues=tFactor.*blockEdgesInRange;
-                    %set(ax(i),'XMinorTick', 'on');
-                    %set(ax(i),'XMinorGrid', 'on');
-                    %set(ax(i),'GridColor',0.8*[1 1 1]); 
-                    %set(ax(i),'MinorGridColor',0.6*[1 1 1]); 
-                    %set(ax(i),'MinorGridLineStyle','-'); 
-                end
-            end            
-            %for iB=1:size(obj.blockEvents,1)
-            for iB=1:length(obj.blockEvents)
-                block = obj.getBlock(iB);
-                isValid = t0+obj.blockDurations(iB)>timeRange(1) && t0<=timeRange(2);
-                if isValid
-                    if isfield(block,'label') %current labels, works on the curent or next adc
-                        for i=1:length(block.label)
-                            if strcmp(block.label(i).type,'labelinc')
-                                label_store.(block.label(i).label)=...
-                                    label_store.(block.label(i).label)+block.label(i).value;
-                            else
-                                label_store.(block.label(i).label)=block.label(i).value;
-                            end
-                        end
-                        label_defined=true;
-                    end                  
-                    if ~isempty(block.adc)
-                        adc=block.adc;
-                        t=adc.delay + ((0:adc.numSamples-1)+0.5)*adc.dwell; % according to the imformation from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
-                        plot(tFactor*(t0+t),zeros(size(t)),'rx','Parent',ax(1));
-                        plot(tFactor*(t0+t), angle(exp(1i*adc.phaseOffset).*exp(1i*2*pi*t*adc.freqOffset)),'b.','MarkerSize',1,'Parent',ax(3)); % plot ADC phase
-                        if label_defined && ~isempty(label_indexes_2plot)
-                            set(ax(1),'ColorOrder',label_colors_2plot);
-                            label_store_cell=struct2cell(label_store);
-                            lbl_vals=[label_store_cell{label_indexes_2plot}];
-                            t=t0+adc.delay + (adc.numSamples-1)/2*adc.dwell;
-                            p=plot(tFactor*t,lbl_vals,'.','markersize',5,'Parent',ax(1));
-                            if ~isempty(label_legend_2plot)
-                                legend(ax(1),p,label_legend_2plot,'location','Northwest','AutoUpdate','off');
-                                label_legend_2plot=[];
-                            end
-                        end
-                    end
-                    if ~isempty(block.rf)
-                        rf=block.rf;
-                        [tc,ic]=mr.calcRfCenter(rf);
-                        sc=rf.signal(ic);
-                        if max(abs(diff(rf.t)-rf.t(2)+rf.t(1)))<1e-9 && length(rf.t)>100
-                            % homogeneous sampling and long pulses -- use lower time resolution for better display and performance
-                            dt=rf.t(2)-rf.t(1);
-                            st=round(obj.sys.gradRasterTime/dt);
-                            t=rf.t(1:st:end);
-                            s=rf.signal(1:st:end);
-                        else
-                            t=rf.t;
-                            s=rf.signal;
-                        end
-                        sreal=max(abs(imag(s)))/max(abs(real(s)))<1e-6; %all(isreal(s));
-                        if abs(s(1))~=0 % fix strangely looking phase / amplitude in the beginning
-                            s=[0; s];
-                            t=[t(1); t];
-                            %ic=ic+1;
-                        end
-                        if abs(s(end))~=0 % fix strangely looking phase / amplitude in the beginning
-                            s=[s; 0];
-                            t=[t; t(end)];
-                        end
-                        if (sreal)
-                            plot(tFactor*(t0+t+rf.delay),  real(s),'Parent',ax(2));
-                            plot(tFactor*(t0+t+rf.delay),  angle(s.*sign(real(s))*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*rf.freqOffset)),'xb', 'Parent',ax(3));
-                        else
-                            plot(tFactor*(t0+t+rf.delay),  abs(s),'Parent',ax(2));
-                            plot(tFactor*(t0+t+rf.delay),  angle(s*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*rf.freqOffset)),'xb', 'Parent',ax(3));
-                        end                        
-                        %plot(tFactor*(t0+t+rf.delay),  angle(  exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(      exp(1i*rf.phaseOffset).*exp(1i*2*pi*t(ic)*rf.freqOffset)),'xb', 'Parent',ax(3));
-                    end
-                    gradChannels={'gx','gy','gz'};
-                    for j=1:length(gradChannels)
-                        grad=block.(gradChannels{j});
-                        if ~isempty(grad)
-                            if strcmp(grad.type,'grad')
-                                % we extend the shape by adding the first 
-                                % and the last points in an effort of 
-                                % making the display a bit less confusing...
-                                %t=grad.delay + [0; grad.t + (grad.t(2)-grad.t(1))/2; grad.t(end) + grad.t(2)-grad.t(1)];
-                                t= grad.delay+[0; grad.tt; grad.shape_dur];
-                                waveform=1e-3* [grad.first; grad.waveform; grad.last];
-                            else
-                                t=cumsum([0 grad.delay grad.riseTime grad.flatTime grad.fallTime]);
-                                waveform=1e-3*grad.amplitude*[0 0 1 1 0];
-                            end
-                            plot(tFactor*(t0+t),waveform,'Parent',ax(3+j));
-                        end
-                    end                
-                end
-                t0=t0+obj.blockDurations(iB);%mr.calcDuration(block);
-            end
-            
-            % Set axis limits and zoom properties
-            dispRange = tFactor*[timeRange(1) min(timeRange(2),t0)];
-            arrayfun(@(x)xlim(x,dispRange),ax);
-            linkaxes(ax(:),'x')
-            h = zoom(fig);
-            setAxesZoomMotion(h,ax(1),'horizontal');
-            % make Y-axes little bit less tight
-            arrayfun(@(x) ylim(x, ylim(x) + 0.03*[-1 1]*sum(ylim(x).*[-1 1])), ax(2:end));
-        end
-        
-        function grad_waveforms=gradient_waveforms1(obj) % currently disfunctional (feature_ExtTrap)
-            % gradient_waveforms()
-            %   Decompress the entire gradient waveform
-            %   Returns an array of gradient_axes x timepoints
-            %   gradient_axes is typically 3.
-            %
-             
-            [duration, numBlocks, ~]=obj.duration();
-            
-            wave_length = ceil(duration / obj.gradRasterTime);
-            grad_channels=3;
-            grad_waveforms=zeros(grad_channels, wave_length);
-            gradChannels={'gx','gy','gz'};
-            
-            t0=0;
-            t0_n=0;
-            for iB=1:numBlocks
-                block = obj.getBlock(iB);
-                for j=1:length(gradChannels)
-                    grad=block.(gradChannels{j});
-                    if ~isempty(block.(gradChannels{j}))
-                        if strcmp(grad.type,'grad')
-                            %nt_start=round((grad.delay+grad.t(1))/obj.gradRasterTime);
-                            nt_start=round((grad.delay)/obj.gradRasterTime);
-                            waveform=grad.waveform;
-                        else
-                            nt_start=round(grad.delay/obj.gradRasterTime);
-                            if (abs(grad.flatTime)>eps) % interp1 gets confused by triangular gradients
-                                t=cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);
-                                trapform=grad.amplitude*[0 1 1 0];
-                            else
-                                t=cumsum([0 grad.riseTime grad.fallTime]);
-                                trapform=grad.amplitude*[0 1 0];
-                            end
-                            %
-                            tn=floor(t(end)/obj.gradRasterTime);
-                            
-                            % it turns out that we need an additional zero-
-                            % padding at the end otherwise interp1() 
-                            % generates NaNs at the end of the shape
-                            t=[t t(end)+obj.gradRasterTime];
-                            trapform=[trapform 0];
-                            
-                            %fprintf('%g : %g | ', [t*1e6 ;trapform]);
-                            %fprintf('\n');
-                            
-                            if abs(grad.amplitude)>eps 
-                                % MZ: for consistency we change it to the
-                                % corresponding mr. function
-                                %waveform=interp1(t,trapform,obj.gradRasterTime*(0:tn),'linear');
-                                %waveform=interp1(t,trapform,'linear','pp');
-                                waveform=mr.pts2waveform(t,trapform,obj.gradRasterTime);
-                            else
-                                waveform=zeros(1,tn+1);
-                            end
-                        end
-                        if numel(waveform)~=sum(isfinite(waveform(:)))
-                            fprintf('Warning: not all elements of the generated waveform are finite!\n');
-                        end
-                        %plot(tFactor*(t0+t),waveform,'Parent',ax(3+j));
-                        grad_waveforms(j,(t0_n+1+nt_start):(t0_n+nt_start+length(waveform)))=waveform;
-                    end
-                end                
 
-                t0=t0+obj.blockDurations(iB);%mr.calcDuration(block);
-                t0_n=round(t0/obj.gradRasterTime);
-            end
         end
-               
+                       
         function [wave_data, tfp_excitation, tfp_refocusing, t_adc, fp_adc]=waveforms_and_times(obj, appendRF, blockRange)
             % waveforms_and_times()
             %   Decompress the entire gradient waveform
