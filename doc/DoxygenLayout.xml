@@ -17,6 +17,7 @@
       <tab type="hierarchy" visible="yes" title="" intro=""/>
       <tab type="classmembers" visible="yes" title="" intro=""/>
     </tab>
+	<tab type="user" url="@ref tutorials" title="Tutorials"/>
     <tab type="user" title="Source" url="https://github.com/pulseq/pulseq"/>
     <tab type="files" visible="no" title="">
       <tab type="filelist" visible="yes" title="" intro=""/>

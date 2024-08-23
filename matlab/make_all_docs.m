@@ -16,7 +16,6 @@ seqfiles = {'demoSeq/writeGradientEcho.m', ...
             'demoSeq/writeSpiral.m', ...
             'demoSeq/writeTrufi.m', ...
             'demoSeq/writeTSE.m', ...
-            'demoSeq/writeUTE.m', ...
             'demoSeq/writeUTE_rs.m'
            };
 
@@ -28,25 +27,25 @@ for ii = 1:length(seqfiles)
     close all
 end
 
-recfiles = {'demoRecon/reconExample2DEPI.m', ...
-            'demoRecon/reconExample2DGD.m', ...
-            'demoRecon/reconExample2DFFT.m'
-           };
-
-close all;
-for ii = 1:length(recfiles)
-    file = recfiles{ii};
-    disp(file);
-    make_matlab_doc(file, '../doc/recon/');
-    close all
-end
-
-otherfiles = {'demoSeq/demoRead.m'};
-
-close all;
-for ii = 1:length(otherfiles)
-    file = otherfiles{ii};
-    disp(file);
-    make_matlab_doc(file, '../doc/seqs/');
-    close all
-end
+% recfiles = {'demoRecon/reconExample2DEPI.m', ...
+%             'demoRecon/reconExample2DGD.m', ...
+%             'demoRecon/reconExample2DFFT.m'
+%            };
+% 
+% close all;
+% for ii = 1:length(recfiles)
+%     file = recfiles{ii};
+%     disp(file);
+%     make_matlab_doc(file, '../doc/recon/');
+%     close all
+% end
+% 
+% otherfiles = {'demoSeq/demoRead.m'};
+% 
+% close all;
+% for ii = 1:length(otherfiles)
+%     file = otherfiles{ii};
+%     disp(file);
+%     make_matlab_doc(file, '../doc/seqs/');
+%     close all
+% end
