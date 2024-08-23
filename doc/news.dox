@@ -1,0 +1,14 @@
+/**
+  \page news News
+
+## July 2024: new Pulseq Interpreter release for Siemens
+
+We finally reach a release state with our new Pulseq Release v1.4.3! Included are numerous performance improvements and bugfixes, as well as few new features. 
+
+## December 2023: new Pulseq Interpreter release for Siemens
+
+Right before the winter break we reach a release state with our new Pulseq Release v1.4.2! Included are numerous performance improvements and bugfixes, as well as few new features. To fully enjoy the wealth of the new features of this release on Siemens MR scanners, an upgrade of the Pulseq Siemens Interpreter Sequence to the corresponding version v1.4.2 is strongly recommended. 
+
+*/
+
+

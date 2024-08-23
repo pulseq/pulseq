@@ -1,0 +1,20 @@
+/**
+  \page tutorials Tutorials
+
+We work constantly on impoving our documentation. One aspect of these activities is to provide step-by-step hands-on introductions and tutorials, both both beginners and advanced users. Below is the list of such resources:
+
+## Main tutorials repository
+
+This <a href="https://github.com/pulseq/tutorials">repository</a> contains a collection of various Pulseq tutorials covering both the most initial aspects and more advanced topics. It currently contains FID, PRESS, GRE, EPI and some non-Cartesian imaging examples alsong with the Matlab source code, raw data examples and sample reconstruction scripts. Visit <a href="https://github.com/pulseq/tutorials">Pulseq Tutorials</a> repository.
+
+## MR Physics with Pulseq
+
+This <a href="https://github.com/pulseq/mr-physics-with-pulseq">repository</a> is based on materials for the Ph.D. student training program of the German Chapter of the ISMRM and is being developed further. In this course, basic and advanced concepts of MR physics are introduced through theoretical lectures by MR experts and followed by the corresponding hands-on exercises. All lecture slides are available as PDFs. The repository is focused on pyPulseq that is configured to run directly in your browser as interactive Notebooks. Visit <a href="https://github.com/pulseq/mr-physics-with-pulseq">MR Physics with Pulseq</a> repository.
+
+## ISMRM Virtual Meeting Series - November 15-17, 2023
+
+This <a href="https://github.com/pulseq/ismrm-virtual-meeting--november-15-17-2023">repository</a> contains materials of the Three-Day ISMRM Virtual Meeting Series held on November 15-17, 2023 dedicated to Vendor-Agnostic Pulse Sequence Programming with Pulseq: From Basics to Advanced Topics. The repository contains the detailed program, meeting materials, presentation slides, tailor-made tutorials and discussion boards. Recoded videos of the presentations are available to the ISMRM members and can be accesses via the ISMRM web site.
+
+*/
+
+
