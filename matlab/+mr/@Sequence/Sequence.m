@@ -1291,13 +1291,161 @@ classdef Sequence < handle
             % 
             %   f=plot(...) Return the new figure handle.
             %
-            
+
             if nargout == 1
                 sp = mr.aux.SeqPlot(obj, varargin{:});
             else
                 mr.aux.SeqPlot(obj, varargin{:});
             end
 
+        end
+
+        function sp = paperPlot(obj, varargin)
+            %paperPlot Plot the sequence in a stzle similar to that used in 
+            %          scientific papers.
+            %   paperPlot(seqObj) Plot the sequence
+            %
+            %   paperPlot(...,'blockRange',[first last]) Plot the sequence
+            %   starting from the first specified block to the last one.
+            %
+            %   paperPlot(...,'lineWidth', w) Plot the sequence
+            %   using the specified line width.
+            %
+            %   paperPlot(...,'axesColor', w) Plot the sequence
+            %   using the specified color for the horisontal axes.
+            %
+            %   paperPlot(...,'rfColor', w) Plot the sequence
+            %   using the specified color for the RF and ADC events.
+            %
+            %   paperPlot(...,'gxColor', w) Plot the sequence
+            %   using the specified color for the X gradients.
+            %
+            %   paperPlot(...,'gyColor', w) Plot the sequence
+            %   using the specified color for the Y gradients.
+            %
+            %   paperPlot(...,'gzColor', w) Plot the sequence
+            %   using the specified color for the Z gradients.
+            %
+            %   Color parameters can be provided as a common color names,
+            %   e.g. 'red', 'blue', 'black', character strings starting
+            %   from '#' followed by a hexadecimal RGB values ranging from
+            %   00 to ff or as an 1x3 vector of doubles ranging from 0 to 1
+            %   containing RGB values. 
+            %
+            %   f=paperPlot(...) Return the new figure handle.
+            %
+            
+            function c=my_validatecolor(c)
+                try 
+                    c=validatecolor(c); 
+                catch 
+                    c=[]; 
+                end
+            end
+            persistent parser
+            if isempty(parser)
+                parser = inputParser;
+                parser.FunctionName = 'paperPlot';
+                parser.addParamValue('blockRange',[1 inf],@(x)(isnumeric(x) && length(x)==2));
+                parser.addParamValue('lineWidth',1.2,@(x)(isnumeric(x)));
+                parser.addParamValue('axesColor',[0.5 0.5 0.5],@(x)~isempty(validatecolor(x)));
+                parser.addParamValue('rfColor','black',@(x)~isempty(my_validatecolor(x)));
+                parser.addParamValue('gxColor','blue',@(x)~isempty(my_validatecolor(x)));
+                parser.addParamValue('gyColor','red',@(x)~isempty(my_validatecolor(x)));
+                parser.addParamValue('gzColor',[0 0.5 0.3],@(x)~isempty(my_validatecolor(x)));
+            end
+            parse(parser,varargin{:});
+            opt = parser.Results;
+
+            lw=opt.lineWidth;
+            axes_clr=opt.axesColor;
+            
+            [wave_data,~,~,t_adc]=obj.waveforms_and_times(true,opt.blockRange); % also export RF
+            
+            gwm=max(abs([wave_data{1:3}]'));
+            rfm=max(abs([wave_data{4}]'));
+            
+            % remove horizontal lines with 0s. we detect 0 0 and insert a NaN in between
+            for i=1:4
+                j=size(wave_data{i},2);
+                while j>1
+                    if wave_data{i}(2,j)==0 && wave_data{i}(2,j-1)==0 
+                        wave_data{i}(:,j:end+1)=[ [0.5*(wave_data{i}(1,j-1)+wave_data{i}(1,j));NaN] wave_data{i}(:,j:end)];
+                    end
+                    j=j-1;
+                end
+            end
+            
+            f=figure; 
+            %f=colordef(f,'white'); %Set color scheme
+            f.Color='w'; %Set background color of figure window
+            t = tiledlayout(4,1,'TileSpacing','none');
+            ax=[];
+            
+            nexttile
+            % plot the 'axis'
+            plot([-0.01*gwm(1),1.01*gwm(1)],[0 0],'Color',axes_clr,'LineWidth',lw/5); hold on; 
+            % plot the RF waveform
+            %wave_data{4}(2,wave_data{4}(2,:)==0)=NaN; % hide 0s
+            plot(wave_data{4}(1,:), real(wave_data{4}(2,:)),'Color',opt.rfColor,'LineWidth',lw); 
+            
+            % plot ADCs
+            t_adc_x3=repmat(t_adc,[3 1]);
+            y_adc_x3=repmat([0; rfm(2)/5; NaN],[1 length(t_adc)]);
+            plot(t_adc_x3(:),y_adc_x3(:),'Color',opt.rfColor,'LineWidth',lw/4);
+            
+            xlim([-0.03*gwm(1),1.03*gwm(1)]);
+            ylim([-1.03*rfm(2),1.03*rfm(2)]);
+            set(gca, 'box','off','XTickLabel',[],'XTick',[],'YTickLabel',[],'YTick',[]);
+            set(get(gca, 'XAxis'), 'Visible', 'off');
+            set(get(gca, 'YAxis'), 'Visible', 'off');
+            ax(end+1)=gca;
+            
+            nexttile
+            % plot the 'axis'
+            plot([-0.01*gwm(1),1.01*gwm(1)],[0 0],'Color',axes_clr,'LineWidth',lw/5); hold on; 
+            % plot the entire gradient waveforms
+            plot(wave_data{3}(1,:), wave_data{3}(2,:),'Color',opt.gzColor,'LineWidth',lw); 
+            
+            xlim([-0.03*gwm(1),1.03*gwm(1)]);
+            ylim([-1.03*gwm(2),1.03*gwm(2)]);
+            set(gca, 'box','off','XTickLabel',[],'XTick',[],'YTickLabel',[],'YTick',[]);
+            set(get(gca, 'XAxis'), 'Visible', 'off');
+            set(get(gca, 'YAxis'), 'Visible', 'off');
+            ax(end+1)=gca;
+            
+            nexttile
+            % plot the 'axis'
+            plot([-0.01*gwm(1),1.01*gwm(1)],[0 0],'Color',axes_clr,'LineWidth',lw/5); hold on; 
+            % plot the entire gradient waveforms
+            plot(wave_data{2}(1,:), wave_data{2}(2,:),'Color',opt.gyColor,'LineWidth',lw);
+            
+            xlim([-0.03*gwm(1),1.03*gwm(1)]);
+            ylim([-1.03*gwm(2),1.03*gwm(2)]);
+            set(gca, 'box','off','XTickLabel',[],'XTick',[],'YTickLabel',[],'YTick',[]);
+            set(get(gca, 'XAxis'), 'Visible', 'off');
+            set(get(gca, 'YAxis'), 'Visible', 'off');
+            ax(end+1)=gca;
+            
+            nexttile
+            % plot the 'axis'
+            plot([-0.01*gwm(1),1.01*gwm(1)],[0 0],'Color',axes_clr,'LineWidth',lw/5); hold on; 
+            % plot the entire gradient waveforms
+            plot(wave_data{1}(1,:), wave_data{1}(2,:),'Color',opt.gxColor,'LineWidth',lw);
+            
+            xlim([-0.03*gwm(1),1.03*gwm(1)]);
+            ylim([-1.03*gwm(2),1.03*gwm(2)]);
+            set(gca, 'box','off','XTickLabel',[],'XTick',[],'YTickLabel',[],'YTick',[]);
+            set(get(gca, 'XAxis'), 'Visible', 'off');
+            set(get(gca, 'YAxis'), 'Visible', 'off');
+            ax(end+1)=gca;
+            
+            % link zooming on the time axis
+            linkaxes(ax(:),'x')
+            
+            if nargout == 1
+                sp = f;
+            end
         end
                        
         function [wave_data, tfp_excitation, tfp_refocusing, t_adc, fp_adc]=waveforms_and_times(obj, appendRF, blockRange)
