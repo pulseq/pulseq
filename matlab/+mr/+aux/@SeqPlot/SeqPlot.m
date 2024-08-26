@@ -315,7 +315,8 @@ classdef SeqPlot < handle
             ax=src.Host.Parent;
             % get the relevant target from the y-axes title
             at=lower(ax.YLabel.String);
-            if at(1:3) == 'adc' 
+            if strcmp(at(1:3),'adc') || ... 
+               (strcmp(at(1:6),'rf/adc') && strcmp(event.Target.LineStyle,'none') && strcmp(event.Target.Marker,'.')) % we need to check whether we are dealing with the ADC phase, which is also shown in the same panel as the RF                
                 field='adc';
             else
                 field=at(1:2);
@@ -344,7 +345,7 @@ classdef SeqPlot < handle
                         otherwise
                             name = obj.hSeq.gradID2NameMap(rb.(field));
                     end
-                    out{3}=['\bf\color{blue}blk:\rm\color{black}' num2str(iB) ' \bf\color{blue}' field '\_id:\rm\color{black}' num2str(rb.(field)) ' ''' name ''''];
+                    out{3}=['\bf\color{blue}blk:\rm\color{black}' num2str(iB) ' \bf\color{blue}' field '\_id:\rm\color{black}' num2str(rb.(field)) ' ''\bf\color{darkGreen}' name '\rm\color{black}'''];
                 catch 
                     out{3}=['\bf\color{blue}blk:\rm\color{black}' num2str(iB) ' \bf\color{blue}' field '\_id:\rm\color{black}' num2str(rb.(field))];
                 end
