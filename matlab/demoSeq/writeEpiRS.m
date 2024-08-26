@@ -26,10 +26,12 @@ sat_freq=sat_ppm*1e-6*sys.B0*sys.gamma;
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,'dwell',10e-6,...
     'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
 rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
+rf_fs.name='fat-sat'; % useful for debugging, can be seen in seq.plot
 gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',2e-3,...
     'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'use','excitation');
+rf.name='rf90'; % useful for debugging, can be seen in seq.plot
 
 % define the output trigger to play out with every slice excitatuion
 trig=mr.makeDigitalOutputPulse('osc0','duration', 100e-6); % possible channels: 'osc0','osc1','ext1'
@@ -55,6 +57,7 @@ actual_area=gx.area-gx.amplitude/gx.riseTime*blip_dur/2*blip_dur/2/2-gx.amplitud
 gx.amplitude=gx.amplitude/actual_area*kWidth;
 gx.area = gx.amplitude*(gx.flatTime + gx.riseTime/2 + gx.fallTime/2);
 gx.flatArea = gx.amplitude*gx.flatTime;
+gx.name='Gro'; % useful for debugging, can be seen in seq.plot
 
 % calculate ADC
 % we use ramp sampling, so we have to calculate the dwell time and the
