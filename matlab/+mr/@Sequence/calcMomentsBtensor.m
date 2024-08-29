@@ -1,4 +1,4 @@
-function [B, m1, m2, m3] = calcMoments_Btensor(obj, varargin)
+function [B, m1, m2, m3] = calcMomentsBtensor(obj, varargin)
 %give input arguments of calcB,calcm1,calcm2,calcm3 with true or false and
 %Ndummy with 0,1,... as the Number of Dummy scans (scans that should be
 %skipped for the calculation)
@@ -11,6 +11,7 @@ function [B, m1, m2, m3] = calcMoments_Btensor(obj, varargin)
 defaultB = true;
 defaultM = false;
 defaultD = 0;
+%temporalTolerance=1e-9; % 1ns
 
 p=inputParser;
 addRequired(p, 'obj');
@@ -55,8 +56,10 @@ gy_pp_l = gw_pp{2};
 gz_pp_l = gw_pp{3};
 %% splitting pp-functions into equal parts
 tSeq = [];
+t_echo = [];
 for i=1:R
-    tSeq = [tSeq [t_excitation(i), t_refocusing(i), (2*t_refocusing(i) - t_excitation(i))]];
+    t_echo(end+1)=(2*t_refocusing(i) - t_excitation(i)); % TODO: fixme for double-refocused sequences
+    tSeq = [tSeq [t_excitation(i), t_refocusing(i), t_echo(i)]];
 end
 
 t1 = gx_pp_l.breaks;
@@ -64,13 +67,19 @@ t2 = gy_pp_l.breaks;
 t3 = gz_pp_l.breaks;
 tn  = unique([t1,t2,t3,tSeq]);
 
+% % debuging / visualization
+% tnew = linspace(0,tn(end),10000);
+% figure; hold on;
+% plot(tnew,ppval(gx_pp_l,tnew));
+% plot(tnew,ppval(gy_pp_l,tnew));
+% plot(tnew,ppval(gz_pp_l,tnew));
+
 gx_pp_coefs=fillPpCoefs(gx_pp_l,tn);
 gx_pp_l = mkpp(tn,gx_pp_coefs);
 gy_pp_coefs=fillPpCoefs(gy_pp_l,tn);
 gy_pp_l = mkpp(tn,gy_pp_coefs);
 gz_pp_coefs=fillPpCoefs(gz_pp_l,tn);
 gz_pp_l = mkpp(tn,gz_pp_coefs);
-
 
 %% splitting pp at multiples of TR
 n = (1+Ndummy);
@@ -308,7 +317,7 @@ end
 end
 %% functions 
 function pp1_coefs=fillPpCoefs(pp1,xn)
-    idx1 = slookup(xn(1:end-1),pp1.breaks);
+    idx1 = slookup(xn(1:end-1),pp1.breaks(1:end-1));
     pp1_coefs = zeros(length(xn)-1,pp1.order);
     for i=1:size(pp1_coefs,1)
         if idx1(i)>0
