@@ -261,48 +261,22 @@ seq.write('epi_rs.seq');
 % seq.sound(); % simulate the seq's tone
 
 %% evaluate label settings
-adc_lbl=seq.evalLabels('evolution','adc');
-figure; plot(adc_lbl.SLC);
-hold on; plot(adc_lbl.LIN);
-plot(adc_lbl.SEG); plot(adc_lbl.AVG);plot(adc_lbl.REP);
-legend('slc','lin','seg','avg','rep');
-title('evolution of labels/counters');
-return;
 
-%% another manual pretty plot option for gradients
+lbls=seq.evalLabels('evolution','adc');
+lbl_names=fieldnames(lbls);
+figure; hold on;
+for n=1:length(lbl_names)
+    plot(lbls.(lbl_names{n}));
+end
+legend(lbl_names(:));
+title('evolution of labels/counters/flags');
+xlabel('adc number');
 
-lw=1;
-%gw=seq.gradient_waveforms();
-wave_data=seq.waveforms_and_times(true); % also export RF
-gwm=max(abs([wave_data{1:3}]'));
-rfm=max(abs([wave_data{4}]'));
-ofs=2.05*gwm(2);
+%% another pretty plot option e.g. for publications
 
-% plot "axes"
-figure; 
-axis_clr=[0.5,0.5,0.5];
-plot([-0.01*gwm(1),1.01*gwm(1)],[0 0]*ofs,'Color',axis_clr,'LineWidth',lw/5); hold on; 
-plot([-0.01*gwm(1),1.01*gwm(1)],[1 1]*ofs,'Color',axis_clr,'LineWidth',lw/5);
-plot([-0.01*gwm(1),1.01*gwm(1)],[2 2]*ofs,'Color',axis_clr,'LineWidth',lw/5);
-plot([-0.01*gwm(1),1.01*gwm(1)],[3 3]*ofs,'Color',axis_clr,'LineWidth',lw/5);
+seq.paperPlot('blockRange',[1 41]);
 
-% plot the RF waveform
-plot(wave_data{4}(1,:), abs(wave_data{4}(2,:))/rfm(2)*gwm(2)*0.75+3*ofs,'k','LineWidth',lw); 
-
-% plot the entire gradient waveforms
-plot(wave_data{3}(1,:), wave_data{3}(2,:)+2*ofs,'Color',[0,0.5,0.3],'LineWidth',lw); 
-plot(wave_data{2}(1,:), wave_data{2}(2,:)+1*ofs,'r','LineWidth',lw);
-plot(wave_data{1}(1,:), wave_data{1}(2,:),'b','LineWidth',lw);
-t_adc_gr=t_adc+0.5*seq.gradRasterTime; % we have to shift the time axis because it is otherwise adpted to the k-space, which is a one-sided integration of the trajectory
-gwr_adc=interp1(wave_data{1}(1,:), wave_data{1}(2,:),t_adc_gr);
-plot(t_adc_gr,gwr_adc,'b.','MarkerSize',5*lw); % and sampling points on the kx-axis
-
-xlim([-0.03*gwm(1),1.03*gwm(1)]);
-
-set(gca,'xtick',[]);
-set(gca,'xticklabel',[]);
-set(gca,'ytick',[]);
-set(gca,'yticklabel',[]);
+return
 
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits  
 

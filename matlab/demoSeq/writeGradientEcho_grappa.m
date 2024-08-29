@@ -151,14 +151,16 @@ seq.write('gre_gt.seq')       % Write to pulseq file
 %return
 
 %% evaluate label settings more specifically
-%seq.plot('timeRange', [0 32]*TRout, 'TimeDisp', 'ms', 'Label', 'LIN');
-adc_lbl=seq.evalLabels('evolution','adc');
-figure; plot(adc_lbl.REF);
-hold on; plot(adc_lbl.LIN);plot(adc_lbl.IMA) ; plot(adc_lbl.NOISE);
-plot(adc_lbl.SLC) ;
-plot(adc_lbl.IMA) ;
-legend('REF','LIN', 'IMA', 'SLC', 'NOISE');
-title('evolution of labels/counters');
+
+lbls=seq.evalLabels('evolution','adc');
+lbl_names=fieldnames(lbls);
+figure; hold on;
+for n=1:length(lbl_names)
+    plot(lbls.(lbl_names{n}));
+end
+legend(lbl_names(:));
+title('evolution of labels/counters/flags');
+xlabel('adc number');
 
 %% plot sequence and k-space diagrams
 

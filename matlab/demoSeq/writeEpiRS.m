@@ -140,7 +140,7 @@ end
 
 %% do some visualizations
 
-seq.plot();             % Plot all sequence waveforms
+seq.plot('stacked', 1);             % Plot all sequence waveforms in the new 'stacked' mode
 
 seq.plot('timeDisp','us','showBlocks',1,'timeRange',[0 25e-3]); %detailed view
 
@@ -183,44 +183,12 @@ seq.write('epi_rs.seq');
 % seq.install('siemens');
 
 % seq.sound(); % simulate the seq's tone
-return;
 
-%% another manual pretty plot option for gradients
+%% another pretty plot option e.g. for publications
 
-lw=1.2;
-%gw=seq.gradient_waveforms();
-wave_data=seq.waveforms_and_times(true); % also export RF
-gwm=max(abs([wave_data{1:3}]'));
-rfm=max(abs([wave_data{4}]'));
-ofs=2.05*gwm(2);
+seq.paperPlot('blockRange',[1 41]);
 
-% plot "axes"
-figure; 
-axis_clr=[0.5,0.5,0.5];
-plot([-0.01*gwm(1),1.01*gwm(1)],[0 0]*ofs,'Color',axis_clr,'LineWidth',lw/5); hold on; 
-plot([-0.01*gwm(1),1.01*gwm(1)],[1 1]*ofs,'Color',axis_clr,'LineWidth',lw/5);
-plot([-0.01*gwm(1),1.01*gwm(1)],[2 2]*ofs,'Color',axis_clr,'LineWidth',lw/5);
-plot([-0.01*gwm(1),1.01*gwm(1)],[3 3]*ofs,'Color',axis_clr,'LineWidth',lw/5);
-
-% plot the RF waveform
-wave_data{4}(2,wave_data{4}(2,:)==0)=NaN; % hide 0s
-plot(wave_data{4}(1,:), real(wave_data{4}(2,:))/rfm(2)*gwm(2)*0.75+3*ofs,'k','LineWidth',lw); 
-
-% plot the entire gradient waveforms
-plot(wave_data{3}(1,:), wave_data{3}(2,:)+2*ofs,'Color',[0,0.5,0.3],'LineWidth',lw); 
-plot(wave_data{2}(1,:), wave_data{2}(2,:)+1*ofs,'r','LineWidth',lw);
-plot(wave_data{1}(1,:), wave_data{1}(2,:),'b','LineWidth',lw);
-t_adc_gr=t_adc+0.5*seq.gradRasterTime; % we have to shift the time axis because it is otherwise adpted to the k-space, which is a one-sided integration of the trajectory
-gwr_adc=interp1(wave_data{1}(1,:), wave_data{1}(2,:),t_adc_gr);
-plot(t_adc_gr,gwr_adc,'b.','MarkerSize',5*lw); % and sampling points on the kx-axis
-
-xlim([-0.03*gwm(1),1.03*gwm(1)]);
-
-set(gca,'xtick',[]);
-set(gca,'xticklabel',[]);
-set(gca,'ytick',[]);
-set(gca,'yticklabel',[]);
-
+return
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits  
 
 rep = seq.testReport; 
