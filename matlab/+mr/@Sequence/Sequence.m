@@ -1326,6 +1326,9 @@ classdef Sequence < handle
             %   paperPlot(...,'gzColor', w) Plot the sequence
             %   using the specified color for the Z gradients.
             %
+            %   paperPlot(...,'rfPlot', <'abs', 'real', 'imag'>) Plot the
+            %   RF pulses as the magnitude or real or imaginary part.
+            %
             %   Color parameters can be provided as a common color names,
             %   e.g. 'red', 'blue', 'black', character strings starting
             %   from '#' followed by a hexadecimal RGB values ranging from
@@ -1342,6 +1345,7 @@ classdef Sequence < handle
                     c=[]; 
                 end
             end
+            validRfPlotValues = {'abs','real','imag'};
             persistent parser
             if isempty(parser)
                 parser = inputParser;
@@ -1352,15 +1356,21 @@ classdef Sequence < handle
                 parser.addParamValue('rfColor','black',@(x)~isempty(my_validatecolor(x)));
                 parser.addParamValue('gxColor','blue',@(x)~isempty(my_validatecolor(x)));
                 parser.addParamValue('gyColor','red',@(x)~isempty(my_validatecolor(x)));
-                parser.addParamValue('gzColor',[0 0.5 0.3],@(x)~isempty(my_validatecolor(x)));
+                parser.addParamValue('gzColor',[0 0.5 0.3],@(x)~isempty(my_validatecolor(x)));            
+                parser.addParamValue('rfPlot','abs',@(x)any(validatestring(x,validPlotRfValues)));
             end
             parse(parser,varargin{:});
             opt = parser.Results;
 
             lw=opt.lineWidth;
             axes_clr=opt.axesColor;
+
+            blockRange=opt.blockRange;
+            if ~isfinite(blockRange(2))
+                blockRange(2)=length(obj.blockDurations);
+            end
             
-            [wave_data,~,~,t_adc]=obj.waveforms_and_times(true,opt.blockRange); % also export RF
+            [wave_data,~,~,t_adc]=obj.waveforms_and_times(true,blockRange); % also export RF
             
             gwm=max(abs([wave_data{1:3}]'));
             rfm=max(abs([wave_data{4}]'));
@@ -1387,7 +1397,14 @@ classdef Sequence < handle
             plot([-0.01*gwm(1),1.01*gwm(1)],[0 0],'Color',axes_clr,'LineWidth',lw/5); hold on; 
             % plot the RF waveform
             %wave_data{4}(2,wave_data{4}(2,:)==0)=NaN; % hide 0s
-            plot(wave_data{4}(1,:), real(wave_data{4}(2,:)),'Color',opt.rfColor,'LineWidth',lw); 
+            switch opt.rfPlot
+                case 'real'
+                    plot(wave_data{4}(1,:), real(wave_data{4}(2,:)),'Color',opt.rfColor,'LineWidth',lw); 
+                case 'imag'
+                    plot(wave_data{4}(1,:), imag(wave_data{4}(2,:)),'Color',opt.rfColor,'LineWidth',lw); 
+                otherwise
+                    plot(wave_data{4}(1,:), abs(wave_data{4}(2,:)),'Color',opt.rfColor,'LineWidth',lw); 
+            end
             
             % plot ADCs
             t_adc_x3=repmat(t_adc,[3 1]);
