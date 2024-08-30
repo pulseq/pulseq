@@ -1374,6 +1374,7 @@ classdef Sequence < handle
             
             gwm=max(abs([wave_data{1:3}]'));
             rfm=max(abs([wave_data{4}]'));
+            gwm(1)=max(gwm(1),t_adc(end));
             
             % remove horizontal lines with 0s. we detect 0 0 and insert a NaN in between
             for i=1:4
