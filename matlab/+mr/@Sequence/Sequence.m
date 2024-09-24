@@ -70,9 +70,8 @@ classdef Sequence < handle
     methods
         
         function obj = Sequence(varargin)
-            obj.version_major = 1;
-            obj.version_minor = 4; % version minor 3 will now support control events (8th column in the event table) mv4 supports/expects timing vectors for arbitrary grads
-            obj.version_revision = 1;
+            [obj.version_major, obj.version_minor, obj.version_revision] = mr.aux.version();
+            % version minor 3 will now support control events (8th column in the event table) mv4 supports/expects timing vectors for arbitrary grads
             obj.definitions = containers.Map();
             obj.gradLibrary = mr.EventLibrary();
             obj.shapeLibrary = mr.EventLibrary();
