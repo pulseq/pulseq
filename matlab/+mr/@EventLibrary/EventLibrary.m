@@ -144,6 +144,17 @@ classdef EventLibrary < handle
         function update(obj, id, old_data, new_data, type)
             if length(obj.keys)>=id
                 data_string=sprintf('%.6g ', old_data); % see EventLibrary.insert()
+                % % this code eliminates the warning but is twice as slow as
+                % % a simpe 'remove'
+                % if obj.keymap.isKey(data_string(1:end-1))
+                %     obj.keymap.remove(data_string(1:end-1));
+                % else
+                %     % see if the data have been updated already
+                %     data_string_new=sprintf('%.6g ', new_data); % see EventLibrary.insert()
+                %     if ~obj.keymap.isKey(data_string_new(1:end-1))
+                %         warning('The old key (old_data) could not be found and the new key (new_data) does not exist either, looks like there is some inconsistency going');
+                %     end
+                % end
                 obj.keymap.remove(data_string(1:end-1));
             end
             if nargin>4
