@@ -211,6 +211,7 @@ for iB = 1:length(obj.blockEvents)
     %obj.blockDurations(iB)=block_duration;
     % we also need to keep track of the event IDs because some Pulseq files written by external software may contain repeated entries so searching by content will fail 
     eventIDs=obj.blockEvents{iB};
+    processedGradIDs=zeros(1,length(gradChannels));
     % update the objects by filling in the fields not contained in the
     % pulseq file
     for j=1:length(gradChannels)
@@ -255,6 +256,10 @@ for iB = 1:length(obj.blockEvents)
 %             end
             % need to recover the amplidute from the library data directly...
             id=eventIDs(j+2);
+            if j>1 && any(processedGradIDs(1:j)==id)
+                continue; % avoid repeated updates if the same gradient is applied on differen gradient axes
+            end
+            processedGradIDs(j)=id;
             amplitude=obj.gradLibrary.data(id).array(1);
             %
             if version_combined>=1004000

@@ -19,10 +19,13 @@ assert(fid ~= -1, 'Cannot open file: %s', filename);
 fprintf(fid, '# Pulseq sequence file\n');
 fprintf(fid, '# Created by MATLAB mr toolbox\n\n');
 
+% we always write files in the default current version, which may be
+% differen to one, loaded (and stored in the seq object)
+[version_major, version_minor, version_revision]=mr.aux.version('output');
 fprintf(fid, '[VERSION]\n');
-fprintf(fid, 'major %s\n', num2str(obj.version_major));
-fprintf(fid, 'minor %s\n', num2str(obj.version_minor));
-fprintf(fid, 'revision %s\n', num2str(obj.version_revision));
+fprintf(fid, 'major %s\n', num2str(version_major));
+fprintf(fid, 'minor %s\n', num2str(version_minor));
+fprintf(fid, 'revision %s\n', num2str(version_revision));
 fprintf(fid, '\n');
 
 if ~isempty(obj.definitions)
