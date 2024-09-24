@@ -253,6 +253,13 @@ melody = {
 melody=melody([1:17 2:16 18:42 19:40 43 44 ],:);
 %melody=melody([1:17 2:16 18:40],:); %b24?
 
+%% optional frequency (note) scout mode
+% use this to optimize the sound on the particular scanner by listnening to 
+% the scale or checking the gradSpectrum and forbidden lines and setting 
+% 'a_init' above appropriately 
+
+% [melody,timeSignature]=mrMusic.melodyToScale(melody,0.5); % 0.5 means go little slower
+
 %% convert to the channel-frequency table
 
 [pitches, durations] = mrMusic.melodyToPitchesAndDurations(melody,'timeSignature',timeSignature,'defaultArticulation','non-legato');
