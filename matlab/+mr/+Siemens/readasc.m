@@ -21,6 +21,9 @@ end
 for fn=1:length(filePaths)
     %%% read one asc file and convert it into a structure
     fid= fopen(filePaths{fn});
+    if fid<0
+        error('Failed to open file ''%s'', exiting',filePaths{fn});
+    end
     endOfAsc=0;
     
     %nextLine=fgetl(fid); %read next line
