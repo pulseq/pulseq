@@ -510,11 +510,11 @@ Additionally, there is a three-state flag \verb.ONCE., that is intended to contr
 
 \subsection{Shapes}
 
-The shape section is declared with the \verb.[SHAPES]. keyword. Each shape is then declared with a header followed by a list of samples values (one per line). The end of the shape definition is declared with a blank line. Pulseq export software may opt for storing \textbf{uncompressed} shapes, e.g. to avoid rounding errors during compression/decompression or to save space for shapes that cannot be effectively compressed. The reading routines must interpret the shape as \textbf{uncompressed} if the number of samples in the stored shape is equal to \verb.Num_Uncompressed.. Therefore the saving routine must save the shape in uncompressed format if the result of compression has the same length as the original shape.
+The shape section is declared with the \verb.[SHAPES]. keyword. Each shape is then declared with a header followed by a list of samples values (one per line). The end of the shape definition is declared with a blank line. Pulseq export software may opt for storing \textbf{uncompressed} shapes, e.g. to avoid rounding errors during compression/decompression or to save space for shapes that cannot be effectively compressed. The reading routines must interpret the shape as \textbf{uncompressed} if the number of samples in the stored shape is equal to \verb.num_samples.. Therefore the saving routine \textbf{must} save the shape in uncompressed format if the result of compression has the same length as the original shape.
 
 \begin{lstlisting}
-Shape_ID <id>
-Num_Uncompressed <num>
+shape_id <id>
+num_samples <num>
 <sample_1>
 <sample_2>
 ...
@@ -534,7 +534,7 @@ Tag & Type & Description & Units\\
 
 When used as amplitude shapes for gradient or RF objects, the decompressed samples must be in the normalised range of [-1, 1] (e.g. the absolute value of the shape must be normalized to the range of [0 1]). Since the purpose of this section is to define the basic shape of a gradient or RF pulse, the amplitude information is defined in the events section. This allows the same shape to be used with different amplitudes, without repeated definitions.
 
-The number of points after decompressing all samples defined in a shape must equal the number declared in \verb.<Num_Uncompressed>..
+The number of points after decompressing all samples defined in a shape \textbf{must} be equal the number declared in \verb.<num_samples>..
 
 \subsubsection{Compression}
 
