@@ -1119,8 +1119,12 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 		}
 		else
 		{
-			// compatibility mode with the older pulseq versions
-			fDwellTime_us=1.0; // old Pulseq's predefined RF raster time
+			if (version_combined >= 1004000)
+				// use defined default RF raster time
+                fDwellTime_us = m_dRadiofrequencyRasterTime_us;
+            else
+				// compatibility mode with the older pulseq versions
+				fDwellTime_us=1.0; // old Pulseq's predefined RF raster time
 		}
 		//
 		block->rfAmplitude = std::vector<float>(waveform);
