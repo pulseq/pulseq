@@ -96,7 +96,7 @@ gzReph = mr.makeTrapezoid('z',sys,'Area',-gz.area/2);
 % round-down dwell time to 10 ns
 adcTime = sys.gradRasterTime*size(spiral_grad_shape,2);
 % actually it is trickier than that: the (Siemens) interpreter sequence 
-% per default will try to split the trajectory into segments <=1000 samples
+% per default will try to split the trajectory into segments with the number of samples <8192
 % and every of these segments will have to have duration aligned to the
 % gradient raster time
 
@@ -169,7 +169,7 @@ end
 %
 seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'spiral');
-seq.setDefinition('MaxAdcSegmentLength', adcSamplesPerSegment);
+seq.setDefinition('MaxAdcSegmentLength', adcSamplesPerSegment); % this is important for making the sequence run automatically on siemens scanners without further parameter tweaking
 
 seq.write('spiral.seq');   % Output sequence for scanner
 
