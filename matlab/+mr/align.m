@@ -10,6 +10,11 @@ function [varargout] = align(varargin)
 %   the selected alignment.
 %   Possible values for align_spec are 'left', 'center', 'right'
 %   WARNING: 'center' may break graient raster alignment
+%   When a numerical parameter is passed amongst the events it is
+%   interpreted as a predefined duration of the block. If the duration of
+%   any of the events exceeds the desired duration an error will be thrown.
+%   The predified block duration is optionally returned as the last
+%   parameter in the output list
 %
 %   See also  Sequence.addBlock
 %
@@ -23,12 +28,21 @@ end
 curr_align=find(strcmp(varargin{1},alignment_options));
 iobjects=[];
 alignments=[];
+required_duration=[];
+
 for i=2:length(varargin)
     if isempty(curr_align)
         error('invalid alignment spec');
     end
     if ischar(varargin{i})
         curr_align=find(strcmp(varargin{i},alignment_options));
+        continue;
+    end
+    if isnumeric(varargin{i})
+        if ~isempty(required_duration)
+            error('More than one numeric parameter given to align()');
+        end
+        required_duration=varargin{i};
         continue;
     end
     iobjects=[iobjects i];
@@ -38,6 +52,12 @@ end
 objects={varargin{iobjects}};
 
 dur=mr.calcDuration(objects);
+if ~isempty(required_duration)
+    if dur-required_duration>eps
+        error('Required block duration is %g s but actuall block duration is %g s', required_duration, dur);
+    end
+    dur=required_duration;
+end
 
 % set new delays
 for i=1:length(objects)
@@ -61,8 +81,14 @@ end
 
 if nargout==length(objects)
     varargout=objects;
-elseif nargout==1
+elseif ~isempty(required_duration) && nargout==length(objects)+1
+    varargout=objects;
+    varargout{end+1}=required_duration;
+elseif nargout==1    
     varargout={objects};
+    if ~isempty(required_duration)
+        varargout{end+1}=required_duration;
+    end
 elseif nargout<length(objects)
     warning('not all objects can be assigned to the output argiments; we recommend using ~ to discard output arguments explicitly.');
     nout=min(nargout,length(objects));
