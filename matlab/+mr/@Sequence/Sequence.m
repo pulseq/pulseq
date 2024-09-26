@@ -184,7 +184,7 @@ classdef Sequence < handle
                 
                 % check the stored block duration
                 if abs(dur-obj.blockDurations(iB))>eps
-                    rep = [rep 'inconsistency between the stored block duration and the duration of the block content'];
+                    rep = [rep ' inconsistency between the stored block duration and the duration of the block content'];
                     is_ok = false;
                     dur=obj.blockDurations(iB);
                 end
@@ -193,18 +193,18 @@ classdef Sequence < handle
                 bd=obj.blockDurations(iB)/obj.blockDurationRaster;
                 bdr=round(bd);
                 if abs(bdr-bd)>=1e-6
-                    rep = [rep 'block duration is not aligned to the blockDurationRaster'];
+                    rep = [rep ' block duration is not aligned to the blockDurationRaster'];
                     is_ok = false;
                 end
                 
                 % check RF dead times
                 if ~isempty(b.rf)
                     if b.rf.delay-b.rf.deadTime < -eps
-                        rep = [rep 'delay of ' num2str(b.rf.delay*1e6) 'us is smaller than the RF dead time ' num2str(b.rf.deadTime*1e6) 'us'];
+                        rep = [rep ' delay of ' num2str(b.rf.delay*1e6) 'us is smaller than the RF dead time ' num2str(b.rf.deadTime*1e6) 'us'];
                         is_ok = false;
                     end
                     if b.rf.delay+b.rf.t(end)+b.rf.ringdownTime-dur > eps
-                        rep = [rep 'time between the end of the RF pulse at ' num2str((b.rf.delay+b.rf.t(end))*1e6) ' and the end of the block at ' num2str(dur*1e6) 'us is shorter than rfRingdownTime'];
+                        rep = [rep ' time between the end of the RF pulse at ' num2str((b.rf.delay+b.rf.t(end))*1e6) ' and the end of the block at ' num2str(dur*1e6) 'us is shorter than rfRingdownTime'];
                         is_ok = false;
                     end
                 end
@@ -291,6 +291,11 @@ classdef Sequence < handle
             %
             %   addBlock(obj, e1, e2, ...) Adds a block with multiple
             %   events e1, e2, etc.
+            %
+            %   addBlock(obj, duration, e1, e2, ...) Create a new block
+            %   with the given predefined duration populated with events
+            %   e1, e2, etc. If the duration of any of the events exceeds
+            %   the desired duration an error will be thrown.
             %
             %   See also  setBlock, makeAdc, makeTrapezoid, makeSincPulse
             %setBlock(obj,size(obj.blockEvents,1)+1,varargin{:});
@@ -595,13 +600,17 @@ classdef Sequence < handle
             %   setBlock(obj, index, e1, e2, ...) Create a new block from
             %   events and store at position given by index.
             %
+            %   setBlock(obj, index, duration, e1, e2, ...) Create a new 
+            %   block with the given predefined duration populated with
+            %   events e1, e2, etc. and store at position given by index.
+            %   If the duration of any of the events exceeds the desired
+            %   duration an error will be thrown.
+            %
             %   The block or events are provided in uncompressed form and
             %   will be stored in the compressed, non-redundant internal
             %   libraries.
             %
             %   See also  getBlock, addBlock
-            
-            %block_duration = mr.calcDuration(varargin);% don't seem to be needed
             
             % Convert block structure to cell array of events
             varargin=mr.block2events(varargin);    
@@ -611,110 +620,128 @@ classdef Sequence < handle
             
             check_g = {}; % cell-array containing a structure, each with the index and pairs of gradients/times
             extensions = [];
+            required_duration=[];
             
             % Loop over events adding to library if necessary and creating
             % block event structure.
             for i = 1:length(varargin)
                 event = varargin{i};
-                switch event.type
-                    case 'rf'
-                        if isfield(event,'id')
-                            id=event.id;
+                if isstruct(event)
+                    switch event(1).type % we accept multiple extensions and one of the possibilities is an array of extensions
+                        case 'rf'
+                            if isfield(event,'id')
+                                id=event.id;
+                            else
+                                id = obj.registerRfEvent(event);
+                            end
+                            obj.blockEvents{index}(2) = id;
+                            duration = max(duration, event.shape_dur + event.delay + event.ringdownTime);
+                        case 'grad'
+                            channelNum = find(strcmp(event.channel, ...
+                                                     {'x', 'y', 'z'}));
+                            idx = 2 + channelNum;
+                                            
+                            grad_start = event.delay + floor(event.tt(1)/obj.gradRasterTime+1e-10)*obj.gradRasterTime;
+                            grad_duration = event.delay + ceil(event.tt(end)/obj.gradRasterTime-1e-10)*obj.gradRasterTime;
+                            
+                            check_g{channelNum}.idx = idx;
+                            check_g{channelNum}.start = [grad_start, event.first];
+                            check_g{channelNum}.stop  = [grad_duration, event.last]; 
+                            
+    
+                            if isfield(event,'id')
+                                id=event.id;
+                            else
+                                id = obj.registerGradEvent(event);
+                            end
+                            obj.blockEvents{index}(idx) = id;
+                            duration = max(duration, grad_duration);
+    
+                        case 'trap'
+                            channelNum = find(strcmp(event.channel,{'x','y','z'}));
+                            
+                            idx = 2 + channelNum;
+                            
+                            check_g{channelNum}.idx = idx;
+                            check_g{channelNum}.start = [0, 0];
+                            check_g{channelNum}.stop  = [event.delay + ...
+                                                         event.riseTime + ...
+                                                         event.fallTime + ...
+                                                         event.flatTime, 0];
+                            
+                            if isfield(event,'id')
+                                id=event.id;
+                            else
+                                id=obj.registerGradEvent(event);
+                            end
+                            obj.blockEvents{index}(idx)=id;
+                            duration=max(duration,event.delay+event.riseTime+event.flatTime+event.fallTime);
+    
+                        case 'adc'
+                            if isfield(event,'id')
+                                id=event.id;
+                            else
+                                id=obj.registerAdcEvent(event);
+                            end
+                            obj.blockEvents{index}(6)=id;
+                            duration=max(duration,event.delay+event.numSamples*event.dwell+event.deadTime); % adcDeadTime is added after the sampling period (mr.makeADC also adds a delay before the actual sampling if it was shorter)
+                        case 'delay' 
+                            %if isfield(event,'id')
+                            %    id=event.id;
+                            %else
+                            %    id = obj.registerDelayEvent(event);
+                            %end
+                            %obj.blockEvents{index}(1)=id;
+                            % delay is not a true event any more so we account
+                            % for the duration but do not add anything
+                            duration=max(duration,event.delay);
+                        case {'output','trigger'} 
+                            for e=event % allow multiple extensions as an array
+                                if isfield(e,'id')
+                                    id=e.id;
+                                else
+                                    id=obj.registerControlEvent(e);
+                                end
+                                %obj.blockEvents{index}(7)=id; % now we just
+                                % collect the list of extension objects and we will
+                                % add it to the event table later
+                                % ext=struct('type', 1, 'ref', id);
+                                ext=struct('type', obj.getExtensionTypeID('TRIGGERS'), 'ref', id);
+                                extensions=[extensions ext];
+                                duration=max(duration,e.delay+e.duration);
+                            end
+                        case {'labelset','labelinc'}
+                            for e=event % allow multiple extensions as an array
+                                if isfield(e,'id')
+                                    id=e.id;
+                                else
+                                    id=obj.registerLabelEvent(e);
+                                end
+        % %                         label_id=find(strcmp(e.label,mr.getSupportedLabels()));
+        % %                         data=[e.value label_id];
+        % %                         [id,found] = obj.labelsetLibrary.find(data);
+        % %                         if ~found
+        % %                             obj.labelsetLibrary.insert(id,data);
+        % %                         end
+                                
+                                % collect the list of extension objects and we will
+                                % add it to the event table later
+                                %ext=struct('type', 2, 'ref', id);
+                                ext=struct('type', obj.getExtensionTypeID(upper(e.type)), 'ref', id);
+                                extensions=[extensions ext];
+                            end
+                    end
+                else
+                    if isnumeric(event)
+                        % interpret the single numeric parameter as a
+                        % requested duration, but throw an error if
+                        % multiple numbers are provided
+                        if isempty(required_duration)
+                            required_duration=event;
                         else
-                            id = obj.registerRfEvent(event);
+                            error('More than one numeric parameter given to setBlock()');
                         end
-                        obj.blockEvents{index}(2) = id;
-                        duration = max(duration, event.shape_dur + event.delay + event.ringdownTime);
-                    case 'grad'
-                        channelNum = find(strcmp(event.channel, ...
-                                                 {'x', 'y', 'z'}));
-                        idx = 2 + channelNum;
-                                        
-                        grad_start = event.delay + floor(event.tt(1)/obj.gradRasterTime+1e-10)*obj.gradRasterTime;
-                        grad_duration = event.delay + ceil(event.tt(end)/obj.gradRasterTime-1e-10)*obj.gradRasterTime;
-                        
-                        check_g{channelNum}.idx = idx;
-                        check_g{channelNum}.start = [grad_start, event.first];
-                        check_g{channelNum}.stop  = [grad_duration, event.last]; 
-                        
-
-                        if isfield(event,'id')
-                            id=event.id;
-                        else
-                            id = obj.registerGradEvent(event);
-                        end
-                        obj.blockEvents{index}(idx) = id;
-                        duration = max(duration, grad_duration);
-
-                    case 'trap'
-                        channelNum = find(strcmp(event.channel,{'x','y','z'}));
-                        
-                        idx = 2 + channelNum;
-                        
-                        check_g{channelNum}.idx = idx;
-                        check_g{channelNum}.start = [0, 0];
-                        check_g{channelNum}.stop  = [event.delay + ...
-                                                     event.riseTime + ...
-                                                     event.fallTime + ...
-                                                     event.flatTime, 0];
-                        
-                        if isfield(event,'id')
-                            id=event.id;
-                        else
-                            id=obj.registerGradEvent(event);
-                        end
-                        obj.blockEvents{index}(idx)=id;
-                        duration=max(duration,event.delay+event.riseTime+event.flatTime+event.fallTime);
-
-                    case 'adc'
-                        if isfield(event,'id')
-                            id=event.id;
-                        else
-                            id=obj.registerAdcEvent(event);
-                        end
-                        obj.blockEvents{index}(6)=id;
-                        duration=max(duration,event.delay+event.numSamples*event.dwell+event.deadTime); % adcDeadTime is added after the sampling period (mr.makeADC also adds a delay before the actual sampling if it was shorter)
-                    case 'delay' 
-                        %if isfield(event,'id')
-                        %    id=event.id;
-                        %else
-                        %    id = obj.registerDelayEvent(event);
-                        %end
-                        %obj.blockEvents{index}(1)=id;
-                        % delay is not a true event any more so we account
-                        % for the duration but do not add anything
-                        duration=max(duration,event.delay);
-                    case {'output','trigger'} 
-                        if isfield(event,'id')
-                            id=event.id;
-                        else
-                            id=obj.registerControlEvent(event);
-                        end
-                        %obj.blockEvents{index}(7)=id; % now we just
-                        % collect the list of extension objects and we will
-                        % add it to the event table later
-                        % ext=struct('type', 1, 'ref', id);
-                        ext=struct('type', obj.getExtensionTypeID('TRIGGERS'), 'ref', id);
-                        extensions=[extensions ext];
-                        duration=max(duration,event.delay+event.duration);
-                    case {'labelset','labelinc'}
-                        if isfield(event,'id')
-                            id=event.id;
-                        else
-                            id=obj.registerLabelEvent(event);
-                        end
-% %                         label_id=find(strcmp(event.label,mr.getSupportedLabels()));
-% %                         data=[event.value label_id];
-% %                         [id,found] = obj.labelsetLibrary.find(data);
-% %                         if ~found
-% %                             obj.labelsetLibrary.insert(id,data);
-% %                         end
-                        
-                        % collect the list of extension objects and we will
-                        % add it to the event table later
-                        %ext=struct('type', 2, 'ref', id);
-                        ext=struct('type', obj.getExtensionTypeID(upper(event.type)), 'ref', id);
-                        extensions=[extensions ext];
+                    end
                 end
             end
             
@@ -802,7 +829,14 @@ classdef Sequence < handle
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
             
-            %assert(abs(duration-block_duration)<eps); % TODO: if this never fails we should remove mr.calcDuration at the beginning
+            
+            if ~isempty(required_duration)
+                if duration-required_duration>eps
+                    error('Required block duration is %g s but actuall block duration is %g s', required_duration, duration);
+                end
+                duration=required_duration;
+            end
+                
             obj.blockDurations(index)=duration;
         end
 
