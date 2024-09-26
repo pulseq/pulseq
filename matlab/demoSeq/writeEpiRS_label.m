@@ -17,7 +17,7 @@ thickness=3e-3;            % slice thinckness in mm
 sliceGap=1.5e-3;             % slice gap im mm
 Nslices=48;
 Nrep = 1 ;
-TR = 3500e-3 ;
+TR = 3700e-3 ;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delay calibration
 ro_os=2;                   % oversampling factor (in contrast to the product sequence we don't really need it)
@@ -120,17 +120,18 @@ slicePositions=(thickness+sliceGap)*((0:(Nslices-1)) - (Nslices-1)/2);
 slicePositions=slicePositions([1:2:Nslices 2:2:Nslices]); % reorder slices for an interleaved acquisition (optional)
 %slicePositions=slicePositions([1:3:Nslices 2:3:Nslices 3:3:Nslices]); % reorder slices for an interleaved acquisition (optional)
 % Define sequence blocks
-TR_1slice = mr.calcDuration(gz_fs) + mr.calcDuration(gz) + mr.calcDuration(gzReph)+...
+minTR_1slice = mr.calcDuration(gz_fs) + mr.calcDuration(gz) + mr.calcDuration(gzReph)+...
     Nnav*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
     Ny_meas*mr.calcDuration(gx) ;
-TRdelay = TR - TR_1slice * Nslices ;
-TRdelay_perSlice = ceil(TRdelay / Nslices / sys.blockDurationRaster) * sys.blockDurationRaster ;
+TRdelay = TR - minTR_1slice * Nslices ;
+TRdelay_perSlice = round(TRdelay / Nslices / sys.blockDurationRaster) * sys.blockDurationRaster ;
 assert(TRdelay_perSlice>=0 ) ;
 
 TE = rf.shape_dur/2 + rf.ringdownTime + mr.calcDuration(gzReph)+...
     Nnav*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
     Ny_meas/2*mr.calcDuration(gx) - mr.calcDuration(gx)/2;
-disp(['TR = ', num2str(TR), ' s', ', TE = ', num2str(1000*TE), ' ms']) ;
+actualTR=(minTR_1slice+TRdelay_perSlice)*Nslices;
+disp(['actual TR = ', num2str(actualTR*1e3), ' ms', ', actual TE = ', num2str(1000*TE), ' ms']) ;
 
 % change orientation to match the siemens product sequence
 % reverse the polarity of all gradients in readout direction (Gx)
@@ -191,7 +192,7 @@ for r=1:Nrep
         if sign(gx.amplitude) ~= ROpolarity % if the polarity of gx is not the same as original one
             gx = mr.scaleGrad(gx, -1) ;
         end
-       % seq.addBlock(mr.makeDelay(TRdelay_perSlice)) ; % use the minimal TR
+       seq.addBlock(TRdelay_perSlice); 
     end
     seq.addBlock(mr.makeLabel('INC','REP', 1)) ;
 end
@@ -209,7 +210,7 @@ end
 
 %% do some visualizations
 
-seq.plot('Label', 'SEG,LIN,SLC') ;             % Plot all sequence waveforms
+seq.plot('Label', 'SEG,LIN,SLC', 'timeRange', [0 actualTR]) ;             % Plot all sequence waveforms
 
 seq.plot('timeDisp','us','showBlocks',1,'timeRange',[0 25e-3]); %detailed view
 

@@ -10,7 +10,7 @@ Nrep=1;
 Ndummy=0;
 adcDur=256e-3; 
 rfDurEx=3000e-6;
-rfDurRef=4000e-6;
+rfDurRef=6000e-6;
 TR=3000e-3;
 TE=120e-3;
 spA=0.6e3; % spoiler area in 1/m (=Hz/m*s)
@@ -71,10 +71,10 @@ g_spAx=mr.addGradients({g_spAx1,g_spAx2},'system', system);
 g_spBy=mr.addGradients({g_spBy1,g_spBy2},'system', system);
 g_spBx=mr.addGradients({g_spBx1,g_spBx2},'system', system);
 % update delays in g_refC1, g_refC2, rf_ref1 and rf_ref2 in case g_spAz1 is longer than g_ref1_pre
-g_refC1.delay=g_refC1.delay-mr.calcDuration(g_ref1_pre)+mr.calcDuration(g_spAz1);
-g_refC2.delay=g_refC2.delay-mr.calcDuration(g_ref2_pre)+mr.calcDuration(g_spBy1);
-rf_ref1.delay=rf_ref1.delay-mr.calcDuration(g_ref1_pre)+mr.calcDuration(g_spAz1);
-rf_ref2.delay=rf_ref2.delay-mr.calcDuration(g_ref2_pre)+mr.calcDuration(g_spBy1);
+g_refC1.delay=g_refC1.delay+max(mr.calcDuration(g_spAz1)-mr.calcDuration(g_ref1_pre),0);
+g_refC2.delay=g_refC2.delay+max(mr.calcDuration(g_spBy1)-mr.calcDuration(g_ref2_pre),0);
+rf_ref1.delay=rf_ref1.delay+max(mr.calcDuration(g_spAz1)-mr.calcDuration(g_ref1_pre),0);
+rf_ref2.delay=rf_ref2.delay+max(mr.calcDuration(g_spBy1)-mr.calcDuration(g_ref2_pre),0);
 % end spoiler
 end_sp_axes={'x','y','z'};
 for i=1:3
@@ -111,16 +111,16 @@ for i=1:3
       'delay', mr.calcDuration(rf_ws(i)), 'area', ws_sp_area);
 end
 delay_ws=[ws_tau ws_tau ws_tau]; % this is an overlapping delay withn the block
-delay_ws(end)=ws_tau + rf_ws(end).delay + mr.calcRfCenter(rf_ws(end)) - rf_ex.delay - mr.calcRfCenter(rf_ex);
+delay_ws(end)=round((ws_tau + rf_ws(end).delay + mr.calcRfCenter(rf_ws(end)) - rf_ex.delay - mr.calcRfCenter(rf_ex))/system.gradRasterTime)*system.gradRasterTime;
 % new TR delay calc
 delayTR=round((TR-max(mr.calcDuration(g_ex), mr.calcDuration(rf_ex))-mr.calcDuration(g_refC1,g_spAz,g_spAx)-delayTE1-delayTE2-mr.calcDuration(g_refC2,g_spBy,g_spBx)-mr.calcDuration(adc)-mr.calcDuration(g_spEnd(1))-sum(delay_ws))/system.gradRasterTime)*system.gradRasterTime;
 assert(delayTR>=0);
 
 %% Loop over repetitions and define sequence blocks
 for i=(1-Ndummy):Nrep
-    for w=1:3                                                     % WET
-        seq.addBlock(rf_ws(w),g_ws(w),mr.makeDelay(delay_ws(w)))  % WET
-    end                                                           % WET
+    for w=1:3                                       % WET
+        seq.addBlock(rf_ws(w),g_ws(w),delay_ws(w))  % WET
+    end                                             % WET
     seq.addBlock(rf_ex,g_ex);
     seq.addBlock(mr.makeDelay(delayTE1));
     seq.addBlock(rf_ref1,g_refC1,g_spAz,g_spAx);
@@ -156,3 +156,8 @@ seq.write('press.seq')       % Write to pulseq file
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('gradient_offset',[1500 -1200 1000]);
 
 figure; plot(t_ktraj,ktraj);title('k-space components as functions of time'); grid on;
+hold on; xline(t_excitation(1)); xline(t_refocusing(1)); xline(t_refocusing(2)); xline(t_excitation(1)+TE);
+% one we zoom in very-very much we start to notice very small errors,
+% probably related to the current inaccuracies in the calculation of the RF
+% center. These are in any case not relevant for any physical experiments. 
+% TODO: double check abter switching to v1.5.x
