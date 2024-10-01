@@ -11,7 +11,7 @@ There are two main flavours of Pulseq: **MATLAB Pulseq Toolbox**, available unde
 
 A central contribution of this project is an **open file format** to compactly
 describe MR sequences suitable for execution on an MRI scanner. The detailed file specification
-can be obtained here: <a href="specification.pdf">`specification.pdf`</a> See also Docs tab for further information.
+can be obtained here: <a href="specification.pdf">`specification.pdf`</a>; see also the Docs tab for further information.
 
 ## Source code repository
 
@@ -62,6 +62,6 @@ Alternatively, you may consider cloning the git repository directly:
 
 ### Python 
 
-<a href="https://github.com/imr-framework/pypulseq">PyPulseq</a> is an alternative implementaton of the Pulseq sequence toolbox in Python, with a very similar syntax and functionality, oricinally implemented by Sairam Geethanath and Keerthi Ravi and maintained by an active developer community. It can be clonned from the GutHub site or installed directly via pip. See <a href="https://github.com/imr-framework/pypulseq">PyPulseq</a> GitHub Repository</a> for more details. 
+<a href="https://github.com/imr-framework/pypulseq">PyPulseq</a> is an alternative implementaton of the Pulseq sequence toolbox in Python, with a very similar syntax and functionality, originally implemented by Sairam Geethanath and Keerthi Ravi and maintained by an active developer community. It can be clonned from the GutHub site or installed directly via pip. See <a href="https://github.com/imr-framework/pypulseq">PyPulseq</a> GitHub Repository</a> for more details. 
 
 */
