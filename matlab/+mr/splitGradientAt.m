@@ -22,10 +22,13 @@ if isempty(parser)
     parser.FunctionName = 'splitGradientAt';
 	parser.addRequired('grad', @isstruct);
     parser.addRequired('timepoint', @isnumeric);
-    parser.addOptional('system', mr.opts(), @isstruct);
+    parser.addOptional('system', [], @isstruct);
 end
 parse(parser, grad, timepoint, varargin{:});
 opt = parser.Results;
+if isempty(opt.system)
+    opt.system=mr.opts();
+end
 
 gradRasterTime = opt.system.gradRasterTime;
     

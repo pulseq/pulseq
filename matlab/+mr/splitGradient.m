@@ -19,10 +19,13 @@ if isempty(parser)
     parser = inputParser;
     parser.FunctionName = 'splitGradient';
 	parser.addRequired('grad', @isstruct);
-    parser.addOptional('system', mr.opts(), @isstruct);
+    parser.addOptional('system', [], @isstruct);
 end
 parse(parser, grad, varargin{:});
 opt = parser.Results;
+if isempty(opt.system)
+    opt.system=mr.opts();
+end
 
 gradRasterTime = opt.system.gradRasterTime;
 total_length = mr.calcDuration(grad);
@@ -37,7 +40,7 @@ if strcmp(grad.type, 'trap')
     % ramp up
     times = [0, grad.riseTime];
     amplitudes = [0 grad.amplitude];
-    rampup = mr.makeExtendedTrapezoid(ch, opt.system, 'times', times,...
+    rampup = mr.makeExtendedTrapezoid(ch, 'system', opt.system, 'times', times,...
                                       'amplitudes', amplitudes, ...
                                       'skip_check', true);
     rampup.delay = grad.delay;
@@ -47,7 +50,7 @@ if strcmp(grad.type, 'trap')
     % ramp down
     times = [0, grad.fallTime];
     amplitudes = [grad.amplitude 0];
-    rampdown = mr.makeExtendedTrapezoid(ch, opt.system, 'times', times,...
+    rampdown = mr.makeExtendedTrapezoid(ch, 'system', opt.system, 'times', times,...
                                         'amplitudes', amplitudes, ...
                                         'skip_check', true);
     rampdown.delay = total_length - grad.fallTime;
@@ -60,7 +63,7 @@ if strcmp(grad.type, 'trap')
 % %     flattop.delay = (grad.delay + grad.riseTime + gradRasterTime); 
     times = [0, grad.flatTime];
     amplitudes = [grad.amplitude grad.amplitude ];
-    flattop = mr.makeExtendedTrapezoid(ch, opt.system, 'times', times,...
+    flattop = mr.makeExtendedTrapezoid(ch, 'system', opt.system, 'times', times,...
                                         'amplitudes', amplitudes, ...
                                         'skip_check', true);
     flattop.delay = (grad.delay + grad.riseTime); 
