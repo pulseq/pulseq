@@ -1,52 +1,41 @@
-name: Code Scan
+name: "Custom CodeQL Analysis for MATLAB Security"
 
 on:
   push:
-    branches:
-      - master  # Change this if your default branch is different
+    branches: [ "master" ]
   pull_request:
-    branches:
-      - master
+    branches: [ "master" ]
+  schedule:
+    - cron: '0 0 * * 1'
 
 jobs:
-  build:
+  analyze:
+    name: Analyze MATLAB Code
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Set up dependencies
-        run: |
-          # Install dependencies if required
-          sudo apt-get install -y ctags gtags cscope
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: ['javascript', 'shell']  # Generic language selection
 
-      - name: Run Ctags
-        run: |
-          make ctags
+    - name: Autobuild project
+      run: echo "No build step needed for MATLAB"
 
-      - name: Run Gtags
-        run: |
-          make GTAGS
+    - name: Create CodeQL Database
+      run: |
+        codeql database create matlab-db --language=javascript --source-root=.
 
-      - name: Run Cscope
-        run: |
-          make cscope
+    - name: Run Custom CodeQL Queries
+      run: |
+        codeql query run --database=matlab-db custom-queries/matlab/*.ql
 
-      - name: Clean Cscope files
-        run: |
-          make clean-cscope
-
-      - name: Clean Tags
-        run: |
-          make distclean-tags
-
-      - name: Run CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
-        with:
-          category: 'security'
-          paths: '/.github/custom-queries/matlab/*.ql'
-          
-      - name: Clean up
-        run: |
-          make distclean
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
