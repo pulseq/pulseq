@@ -24,22 +24,23 @@ jobs:
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
       with:
-        languages: 'javascript'  # Only use supported languages
+        languages: 'javascript'  # Specify the language you want to analyze
 
     - name: Autobuild project
       run: echo "No build step needed for MATLAB"
 
     - name: Create CodeQL Database
-      run: |
-        codeql database create matlab-db --language=javascript --source-root=.
-      env:
-        CODEQL_PATH: ${{ github.workspace }}/codeql
+      uses: github/codeql-action/autobuild@v2
+      with:
+        languages: 'javascript'
+        # Note: The autobuild step automatically creates a database, so you may not need to do this step.
 
     - name: Run Custom CodeQL Queries
-      run: |
-        codeql query run --database=matlab-db custom-queries/matlab/*.ql
-      env:
-        CODEQL_PATH: ${{ github.workspace }}/codeql
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: 'security'
+        queries: custom-queries/matlab/*.ql
+        # The analyze step automatically handles database creation and running queries
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
