@@ -24,7 +24,8 @@ jobs:
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
       with:
-        languages: ['javascript', 'shell']  # Generic language selection
+        language: 'javascript'  # Generic language selection
+        
 
     - name: Autobuild project
       run: echo "No build step needed for MATLAB"
