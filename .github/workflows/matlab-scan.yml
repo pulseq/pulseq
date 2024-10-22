@@ -1,9 +1,9 @@
 name: Code Scan
 
 on:
-  #push:
-    #branches:
-      #- master  # Change this if your default branch is different
+  push:
+    branches:
+      - master  # Change this if your default branch is different
   pull_request:
     branches:
       - master
@@ -45,7 +45,7 @@ jobs:
         uses: github/codeql-action/analyze@v2
         with:
           category: 'security'
-          paths: 'path/to/your/codebase/**/*.c'
+          paths: '/.github/custom-queries/matlab/*.ql'
           
       - name: Clean up
         run: |
