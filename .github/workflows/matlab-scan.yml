@@ -1,61 +1,65 @@
-name: "MATLAB Code Scanning and CodeQL Analysis"
+# This workflow analyzes MATLAB code using Octave and uploads results as SARIF to GitHub Security
+
+name: "Octave Static Code Analysis for MATLAB"
 
 on:
   push:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
-  schedule:
-    - cron: '0 0 * * 1'
+  workflow_dispatch:  # Allows manual trigger from the Actions tab
 
 jobs:
   analyze:
-    name: Analyze MATLAB Code
+    name: Analyze MATLAB Code with Octave
     runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      # Step 1: Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Install Octave
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y octave
+      # Step 2: Install Octave
+      - name: Install Octave
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y octave
 
-    - name: Run static code analysis
-      run: |
-        echo "addpath('code'); files = dir('code/**/*.m'); results = {}; for k = 1:length(files), filePath = fullfile(files(k).folder, files(k).name); fid = fopen(filePath, 'r'); code = fread(fid, '*char')'; fclose(fid); issues = codeAnalysis(code); if ~isempty(issues), results{end+1} = {filePath, issues}; end; end; save('code-analysis-results.m', 'results');" > analyze_code.m
-        octave --no-gui analyze_code.m
+      # Step 3: Create a script for static code analysis
+      - name: Create MATLAB analysis script
+        run: |
+          echo "addpath('code'); \
+          files = dir('code/**/*.m'); \
+          results = {}; \
+          for k = 1:length(files), \
+            filePath = fullfile(files(k).folder, files(k).name); \
+            fid = fopen(filePath, 'r'); \
+            code = fread(fid, '*char')'; \
+            fclose(fid); \
+            issues = codeAnalysis(code); \
+            if ~isempty(issues), results{end+1} = {filePath, issues}; end; \
+          end; \
+          save('code-analysis-results.mat', 'results');" > analyze_code.m
 
-    - name: Convert results to text
-      run: |
-        octave --no-gui --eval "load('code-analysis-results.m'); fid = fopen('code-analysis-results.txt', 'w'); for i = 1:length(results), fprintf(fid, 'File: %s\n', results{i}{1}); fprintf(fid, '%s\n', results{i}{2}{:}); end; fclose(fid);"
+      # Step 4: Run the analysis script using Octave
+      - name: Run static code analysis
+        run: |
+          octave --no-gui analyze_code.m
 
-    - name: Upload static analysis results
-      uses: actions/upload-artifact@v3
-      with:
-        name: static-code-analysis-results
-        path: code-analysis-results.txt
+      # Step 5: Convert results to SARIF format
+      - name: Convert results to SARIF
+        run: |
+          octave --no-gui --eval "load('code-analysis-results.mat'); \
+          fid = fopen('code-analysis-results.sarif', 'w'); \
+          fprintf(fid, '{ \"version\": \"2.1.0\", \"runs\": [ { \"tool\": { \"driver\": { \"name\": \"Octave Static Analysis\", \"version\": \"1.0\" } }, \"results\": ['); \
+          for i = 1:length(results), \
+            fprintf(fid, '{ \"ruleId\": \"MATLAB001\", \"message\": { \"text\": \"%s\" }, \"locations\": [ { \"physicalLocation\": { \"artifactLocation\": { \"uri\": \"%s\" } } } ] },', results{i}{2}{:}, results{i}{1}); \
+          end; \
+          fprintf(fid, '] } ] }'); \
+          fclose(fid);"
 
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
-      with:
-        languages: 'javascript'  # Specify the language you want to analyze
-
-    - name: Create CodeQL Database
-      uses: github/codeql-action/autobuild@v2
-      with:
-        languages: 'javascript'
-
-    - name: Run Custom CodeQL Queries
-      uses: github/codeql-action/analyze@v2
-      with:
-        category: 'security'
-        queries: /.github/custom-queries/matlab/*.ql
-
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      # Step 6: Upload SARIF file to GitHub Security tab
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: code-analysis-results.sarif
