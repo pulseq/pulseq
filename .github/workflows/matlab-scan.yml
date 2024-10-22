@@ -1,0 +1,52 @@
+name: Code Scan
+
+on:
+  #push:
+    #branches:
+      #- master  # Change this if your default branch is different
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Set up dependencies
+        run: |
+          # Install dependencies if required
+          sudo apt-get install -y ctags gtags cscope
+
+      - name: Run Ctags
+        run: |
+          make ctags
+
+      - name: Run Gtags
+        run: |
+          make GTAGS
+
+      - name: Run Cscope
+        run: |
+          make cscope
+
+      - name: Clean Cscope files
+        run: |
+          make clean-cscope
+
+      - name: Clean Tags
+        run: |
+          make distclean-tags
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: 'security'
+          paths: 'path/to/your/codebase/**/*.c'
+          
+      - name: Clean up
+        run: |
+          make distclean
