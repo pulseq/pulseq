@@ -24,7 +24,7 @@ jobs:
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
       with:
-        languages: 'javascript, shell'  # Generic language selection
+        languages: 'javascript'  # Generic language selection
         
 
     - name: Autobuild project
