@@ -1,4 +1,4 @@
-name: "Custom CodeQL Analysis for MATLAB Security"
+name: "MATLAB Code Scanning and CodeQL Analysis"
 
 on:
   push:
@@ -21,26 +21,41 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
+    - name: Install Octave
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y octave
+
+    - name: Run static code analysis
+      run: |
+        echo "addpath('code'); files = dir('code/**/*.m'); results = {}; for k = 1:length(files), filePath = fullfile(files(k).folder, files(k).name); fid = fopen(filePath, 'r'); code = fread(fid, '*char')'; fclose(fid); issues = codeAnalysis(code); if ~isempty(issues), results{end+1} = {filePath, issues}; end; end; save('code-analysis-results.m', 'results');" > analyze_code.m
+        octave --no-gui analyze_code.m
+
+    - name: Convert results to text
+      run: |
+        octave --no-gui --eval "load('code-analysis-results.m'); fid = fopen('code-analysis-results.txt', 'w'); for i = 1:length(results), fprintf(fid, 'File: %s\n', results{i}{1}); fprintf(fid, '%s\n', results{i}{2}{:}); end; fclose(fid);"
+
+    - name: Upload static analysis results
+      uses: actions/upload-artifact@v3
+      with:
+        name: static-code-analysis-results
+        path: code-analysis-results.txt
+
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
       with:
         languages: 'javascript'  # Specify the language you want to analyze
 
-    - name: Autobuild project
-      run: echo "No build step needed for MATLAB"
-
     - name: Create CodeQL Database
       uses: github/codeql-action/autobuild@v2
       with:
         languages: 'javascript'
-        # Note: The autobuild step automatically creates a database, so you may not need to do this step.
 
     - name: Run Custom CodeQL Queries
       uses: github/codeql-action/analyze@v2
       with:
         category: 'security'
         queries: custom-queries/matlab/*.ql
-        # The analyze step automatically handles database creation and running queries
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
