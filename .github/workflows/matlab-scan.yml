@@ -55,7 +55,7 @@ jobs:
       uses: github/codeql-action/analyze@v2
       with:
         category: 'security'
-        queries: custom-queries/matlab/*.ql
+        queries: /.github/custom-queries/matlab/*.ql
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
