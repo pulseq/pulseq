@@ -17,22 +17,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Step 2: List repository contents for debugging
-      - name: List files in the repository
-        run: |
-          echo "Listing repository files:"
-          ls -R
-
-      # Step 3: Install Octave
+      # Step 2: Install Octave
       - name: Install Octave
         run: |
           sudo apt-get update
           sudo apt-get install -y octave
 
-      # Step 4: Create the MATLAB analysis script
+      # Step 3: Create the MATLAB analysis script
       - name: Create MATLAB analysis script
         run: |
           echo "addpath(genpath(pwd)); \
+          addpath('analysis'); % Add this line if codeAnalysis is in 'analysis' folder \
           files = dir('**/*.m'); \
           results = {}; \
           if isempty(files), disp('No MATLAB files found.'); exit; end; \
@@ -46,12 +41,12 @@ jobs:
           end; \
           save('code-analysis-results.mat', 'results');" > analyze_code.m
 
-      # Step 5: Run the analysis script using Octave
+      # Step 4: Run the analysis script using Octave
       - name: Run static code analysis
         run: |
           octave --no-gui analyze_code.m
 
-      # Step 6: Convert results to SARIF format
+      # Step 5: Convert results to SARIF format
       - name: Convert results to SARIF
         run: |
           octave --no-gui --eval "load('code-analysis-results.mat'); \
@@ -63,7 +58,7 @@ jobs:
           fprintf(fid, '] } ] }'); \
           fclose(fid);"
 
-      # Step 7: Upload SARIF file to GitHub Security tab
+      # Step 6: Upload SARIF file to GitHub Security tab
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v2
         with:
