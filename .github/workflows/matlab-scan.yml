@@ -22,7 +22,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y octave
-
+          
       # Step 3: Check for .m files in the repository
       - name: Find .m files
         id: find_files
@@ -42,22 +42,29 @@ jobs:
           echo "addpath(genpath(pwd));" >> .github/custom-queries/matlab/analyze_code.m
           echo "% Find all .m files" >> .github/custom-queries/matlab/analyze_code.m
           echo "files = dir('**/*.m');" >> .github/custom-queries/matlab/analyze_code.m
-          echo "% Initialize analysis results" >> .github/custom-queries/matlab/analyze_code.m
-          echo "results = {};" >> .github/custom-queries/matlab/analyze_code.m
-          echo "% Analyze each file" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Initialize results" >> .github/custom-queries/matlab/analyze_code.m
+          echo "results = struct('version', '2.1.0', 'runs', [], 'tool', struct('driver', struct('name', 'Octave Static Code Analyzer')));" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Loop through each file and perform analysis" >> .github/custom-queries/matlab/analyze_code.m
           echo "for k = 1:length(files)" >> .github/custom-queries/matlab/analyze_code.m
           echo "  filePath = fullfile(files(k).folder, files(k).name);" >> .github/custom-queries/matlab/analyze_code.m
           echo "  fid = fopen(filePath, 'r');" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  code = fread(fid, '*char')';" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  fclose(fid);" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  % Add any custom analysis logic here" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  if fid == -1" >> .github/custom-queries/matlab/analyze_code.m
+          echo "    disp(['Could not open file: ', filePath]);" >> .github/custom-queries/matlab/analyze_code.m
+          echo "    continue;" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  end" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  code = fread(fid, '*char')'; fclose(fid);" >> .github/custom-queries/matlab/analyze_code.m
           echo "  issues = {};" >> .github/custom-queries/matlab/analyze_code.m
+          # [Insert additional analysis checks here, as shown above]
           echo "  if ~isempty(issues)" >> .github/custom-queries/matlab/analyze_code.m
-          echo "    results{end+1} = {filePath, issues};" >> .github/custom-queries/matlab/analyze_code.m
+          echo "    result = struct();" >> .github/custom-queries/matlab/analyze_code.m
+          echo "    result.locations = struct('physicalLocation', struct('artifactLocation', struct('uri', filePath)));" >> .github/custom-queries/matlab/analyze_code.m
+          echo "    result.annotations = struct('message', struct('text', issues), 'severity', 'warning');" >> .github/custom-queries/matlab/analyze_code.m
+          echo "    results.runs(end+1) = struct('tool', struct('driver', struct('name', 'Octave Static Code Analyzer')), 'results', result);" >> .github/custom-queries/matlab/analyze_code.m
           echo "  end" >> .github/custom-queries/matlab/analyze_code.m
           echo "end" >> .github/custom-queries/matlab/analyze_code.m
-          echo "% Save the analysis results to a .mat file" >> .github/custom-queries/matlab/analyze_code.m
-          echo "save('code-analysis-results.mat', 'results');" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Save results to SARIF file" >> .github/custom-queries/matlab/analyze_code.m
+          echo "sarifFileName = 'code-analysis-results.sarif';" >> .github/custom-queries/matlab/analyze_code.m
+          echo "fid = fopen(sarifFileName, 'w'); fprintf(fid, '%s\\n', jsonencode(results)); fclose(fid);" >> .github/custom-queries/matlab/analyze_code.m
 
       # Step 5: Run the static code analysis using Octave
       - name: Run MATLAB code analysis with Octave
@@ -67,14 +74,13 @@ jobs:
       # Step 6: Verify the analysis results
       - name: Check for analysis results
         run: |
-          if [ ! -f code-analysis-results.mat ]; then
+          if [ ! -f code-analysis-results.sarif ]; then
             echo "Results file not found!"
             exit 1
           fi
 
-      # Step 7: Upload the results for review
-      - name: Upload results
-        uses: actions/upload-artifact@v3
+      # Step 7: Upload results for review
+      - name: Upload results to the Security tab
+        uses: github/codeql-action/upload-sarif@v2
         with:
-          name: code-analysis-results
-          path: code-analysis-results.mat
+          sarif_file: code-analysis-results.sarif
