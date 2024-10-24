@@ -27,7 +27,6 @@ jobs:
       - name: Create MATLAB analysis script
         run: |
           echo "addpath(genpath(pwd)); \
-          addpath('analysis'); % Add this line if codeAnalysis is in 'analysis' folder \
           files = dir('**/*.m'); \
           results = {}; \
           if isempty(files), disp('No MATLAB files found.'); exit; end; \
@@ -39,12 +38,21 @@ jobs:
             issues = codeAnalysis(code); \
             if ~isempty(issues), results{end+1} = {filePath, issues}; end; \
           end; \
-          save('code-analysis-results.mat', 'results');" > analyze_code.m
+          save('code-analysis-results.mat', 'results'); \
+          disp('Analysis results saved.');" > analyze_code.m
 
       # Step 4: Run the analysis script using Octave
       - name: Run static code analysis
         run: |
           octave --no-gui analyze_code.m
+
+      # Step 4.5: Verify the results file exists
+      - name: Verify results file exists
+        run: |
+          if [ ! -f "code-analysis-results.mat" ]; then
+            echo "code-analysis-results.mat not found, analysis may have failed.";
+            exit 1;
+          fi
 
       # Step 5: Convert results to SARIF format
       - name: Convert results to SARIF
