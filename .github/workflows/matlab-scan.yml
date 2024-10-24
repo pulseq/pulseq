@@ -23,16 +23,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y octave
 
-      # Step 3: Run all MATLAB files to catch errors
+      # Step 3: Run all MATLAB files and log errors
       - name: Run all .m files
         run: |
+          mkdir -p output
           for file in $(find . -name "*.m"); do
-            octave --no-gui $file || exit 1;
+            octave --no-gui $file >> output/octave_output.log 2>&1 || {
+              echo "Error executing $file. Check output/octave_output.log for details."
+              exit 1
+            }
           done
 
-      # Step 4: Upload run results (if you log output)
-      - name: Upload results
+      # Step 4: Upload results
+      - name: Upload output logs
         uses: actions/upload-artifact@v3
         with:
-          name: octave-execution-results
-          path: ./output.log  # You can log results to a file
+          name: octave-output
+          path: output/octave_output.log
