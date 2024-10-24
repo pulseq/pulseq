@@ -29,15 +29,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y octave
 
-      # Step 4: Check if the code directory exists and create the analysis script
-      - name: Check directory and create MATLAB analysis script
+      # Step 4: Create the MATLAB analysis script
+      - name: Create MATLAB analysis script
         run: |
-          if [ ! -d "code" ]; then
-            echo "Directory 'code' does not exist. Please add your MATLAB files to the 'code' directory."
-            exit 1
-          fi
-          echo "addpath('code'); \
-          files = dir('code/**/*.m'); \
+          echo "addpath(genpath(pwd)); \
+          files = dir('**/*.m'); \
           results = {}; \
           if isempty(files), disp('No MATLAB files found.'); exit; end; \
           for k = 1:length(files), \
