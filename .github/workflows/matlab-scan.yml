@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -22,36 +22,54 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y octave
-
-      # Step 3: Create the MATLAB analysis script
+      # Step 3: Check for .m files in the repository
+      - name: Find .m files
+        id: find_files
+        run: |
+          m_files=$(find . -name "*.m")
+          if [ -z "$m_files" ]; then
+            echo "No .m files found!"
+            exit 1
+          else
+            echo "$m_files"
+          fi
+      # Step 4: Create MATLAB analysis script in the correct location
       - name: Create MATLAB analysis script
         run: |
-          echo "Your analyze-code.m content here" > .github/custom-queries/matlab/analyze-code.m
-
-      # Step 4: Run the analysis script using Octave
-      - name: Run static code analysis
+          echo "% Add current directory and subdirectories to path" > .github/custom-queries/matlab/analyze_code.m
+          echo "addpath(genpath(pwd));" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Find all .m files" >> .github/custom-queries/matlab/analyze_code.m
+          echo "files = dir('**/*.m');" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Initialize analysis results" >> .github/custom-queries/matlab/analyze_code.m
+          echo "results = {};" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Analyze each file" >> .github/custom-queries/matlab/analyze_code.m
+          echo "for k = 1:length(files)" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  filePath = fullfile(files(k).folder, files(k).name);" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  fid = fopen(filePath, 'r');" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  code = fread(fid, '*char')';" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  fclose(fid);" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  % Add any custom analysis logic here" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  issues = {};" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  if ~isempty(issues)" >> .github/custom-queries/matlab/analyze_code.m
+          echo "    results{end+1} = {filePath, issues};" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  end" >> .github/custom-queries/matlab/analyze_code.m
+          echo "end" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Save the analysis results to a .mat file" >> .github/custom-queries/matlab/analyze_code.m
+          echo "save('code-analysis-results.mat', 'results');" >> .github/custom-queries/matlab/analyze_code.m
+      # Step 5: Run the static code analysis using Octave
+      - name: Run MATLAB code analysis with Octave
         run: |
-          octave --no-gui .github/custom-queries/matlab/analyze-code.m
-
-      # Step 5: Convert results from .mat to SARIF
-      - name: Convert MAT to SARIF
+          octave --no-gui .github/custom-queries/matlab/analyze_code.m
+      # Step 6: Verify the analysis results
+      - name: Check for analysis results
         run: |
-          # Load the .mat file and convert it to a SARIF file
-          octave --no-gui -e "
-            load('code-analysis-results.mat'); 
-            sarif = struct('version', '2.1.0', 'runs', []);
-            for i = 1:length(results)
-              fileIssues = results{i, 2}; 
-              sarif.runs(end + 1) = struct('tool', struct('driver', struct('name', 'MATLAB Static Analysis', 'version', '1.0')), ...
-                                            'results', struct('ruleId', 'MATLAB_Analysis', ...
-                                            'message', struct('text', fileIssues), ...
-                                            'locations', struct('physicalLocation', struct('artifactLocation', struct('uri', results{i, 1})))));
-            end
-            save('code-analysis-results.sarif', 'sarif', '-json');
-          "
-
-      # Step 6: Upload SARIF file to GitHub Security tab
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v2
+          if [ ! -f code-analysis-results.mat ]; then
+            echo "Results file not found!"
+            exit 1
+          fi
+      # Step 7: Upload the results for review
+      - name: Upload results
+        uses: actions/upload-artifact@v3
         with:
-          sarif_file: code-analysis-results.sarif
+          name: code-analysis-results
+          path: code-analysis-results.mat
