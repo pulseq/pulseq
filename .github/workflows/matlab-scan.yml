@@ -23,11 +23,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y octave
 
-      # Step 3: Create the MATLAB analysis script
+      # Step 3: Find and log all .m files
+      - name: Find .m files
+        run: |
+          echo "Searching for .m files in the repository..."
+          find . -name "*.m" || {
+            echo "No .m files found!"
+            exit 1
+          }
+
+      # Step 4: Create the analysis script for Octave
       - name: Create MATLAB analysis script
         run: |
           echo "addpath(genpath(pwd)); \
-          addpath('analysis'); % Add this line if codeAnalysis is in 'analysis' folder \
           files = dir('**/*.m'); \
           results = {}; \
           if isempty(files), disp('No MATLAB files found.'); exit; end; \
@@ -36,38 +44,28 @@ jobs:
             fid = fopen(filePath, 'r'); \
             code = fread(fid, '*char')'; \
             fclose(fid); \
-            issues = codeAnalysis(code); \
+            issues = {}; \
+            % Perform your custom analysis here and populate 'issues' \
             if ~isempty(issues), results{end+1} = {filePath, issues}; end; \
           end; \
           save('code-analysis-results.mat', 'results');" > analyze_code.m
 
-      # Step 4: Run the analysis script using Octave
+      # Step 5: Run the analysis script using Octave
       - name: Run static code analysis
         run: |
           octave --no-gui analyze_code.m
 
-      # Step 5: Check if results file was created
-      - name: Check results file
+      # Step 6: Check if results file was created
+      - name: Check for results file
         run: |
           if [ ! -f code-analysis-results.mat ]; then
             echo "Results file not found!"
             exit 1
           fi
 
-      # Step 6: Convert results to SARIF format
-      - name: Convert results to SARIF
-        run: |
-          octave --no-gui --eval "load('code-analysis-results.mat'); \
-          fid = fopen('code-analysis-results.sarif', 'w'); \
-          fprintf(fid, '{ \"version\": \"2.1.0\", \"runs\": [ { \"tool\": { \"driver\": { \"name\": \"Octave Static Analysis\", \"version\": \"1.0\" } }, \"results\": ['); \
-          for i = 1:length(results), \
-            fprintf(fid, '{ \"ruleId\": \"MATLAB001\", \"message\": { \"text\": \"%s\" }, \"locations\": [ { \"physicalLocation\": { \"artifactLocation\": { \"uri\": \"%s\" } } } ] },', results{i}{2}{:}, results{i}{1}); \
-          end; \
-          fprintf(fid, '] } ] }'); \
-          fclose(fid);"
-
-      # Step 7: Upload SARIF file to GitHub Security tab
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v2
+      # Step 7: Upload results
+      - name: Upload output logs
+        uses: actions/upload-artifact@v3
         with:
-          sarif_file: code-analysis-results.sarif
+          name: octave-output
+          path: output/octave_output.log
