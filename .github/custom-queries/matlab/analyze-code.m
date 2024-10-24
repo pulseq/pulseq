@@ -5,7 +5,7 @@ addpath(genpath(pwd));
 files = dir('**/*.m');
 
 % Initialize results
-results = struct('version', '2.1.0', 'runs', []);
+results = {};
 
 % Loop through each file and perform analysis
 for k = 1:length(files)
@@ -61,7 +61,7 @@ for k = 1:length(files)
     end
 
     % 2. Check for hard-coded IP addresses
-    if ~isempty(regexp(code, '(\d{1,3}\.){3}\d{1,3}', 'once')) % Regular expression for matching IP addresses
+    if contains(code, '(\d{1,3}\.){3}\d{1,3}') % Regular expression for matching IP addresses
         issues{end+1} = 'Hard-coded IP address detected. Consider using a configuration file or environment variables.';
     end
 
@@ -142,14 +142,9 @@ for k = 1:length(files)
 
     % Store file path and issues found in results
     if ~isempty(issues)
-        issueInstances = struct('ruleId', 'CustomRule', 'message', issues, 'locations', struct('physicalLocation', struct('artifactLocation', struct('uri', filePath))));
-        results.runs(end+1).results(end+1) = issueInstances;
+        results{end+1} = {filePath, issues};
     end
 end
 
-% Save results to SARIF format
-sarifFileName = 'code-analysis-results.sarif';
-fid = fopen(sarifFileName, 'w');
-fprintf(fid, '{"version": "2.1.0", "runs": [%s]}', jsonencode(results.runs));
-fclose(fid);
-disp(['Results saved to ', sarifFileName]);
+% Save results to .mat file
+save('code-analysis-results.mat', 'results');
