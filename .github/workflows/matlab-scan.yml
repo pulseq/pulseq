@@ -26,12 +26,12 @@ jobs:
       # Step 3: Create the MATLAB analysis script
       - name: Create MATLAB analysis script
         run: |
-          echo "Your analyze_code.m content here" > .github/custom-queries/matlab/analyze_code.m
+          echo "Your analyze-code.m content here" > .github/custom-queries/matlab/analyze-code.m
 
       # Step 4: Run the analysis script using Octave
       - name: Run static code analysis
         run: |
-          octave --no-gui .github/custom-queries/matlab/analyze_code.m
+          octave --no-gui .github/custom-queries/matlab/analyze-code.m
 
       # Step 5: Convert results from .mat to SARIF
       - name: Convert MAT to SARIF
