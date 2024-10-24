@@ -1,5 +1,3 @@
-# This workflow analyzes MATLAB code using Octave and uploads results as SARIF to GitHub Security
-
 name: "Octave Static Code Analysis for MATLAB"
 
 on:
@@ -25,12 +23,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y octave
 
-      # Step 3: Create a script for static code analysis
-      - name: Create MATLAB analysis script
+      # Step 3: Check if the code directory exists and create the analysis script
+      - name: Check directory and create MATLAB analysis script
         run: |
+          if [ ! -d "code" ]; then
+            echo "Directory 'code' does not exist. Please add your MATLAB files to the 'code' directory."
+            exit 1
+          fi
           echo "addpath('code'); \
           files = dir('code/**/*.m'); \
           results = {}; \
+          if isempty(files), disp('No MATLAB files found.'); exit; end; \
           for k = 1:length(files), \
             filePath = fullfile(files(k).folder, files(k).name); \
             fid = fopen(filePath, 'r'); \
