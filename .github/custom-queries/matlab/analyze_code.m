@@ -23,8 +23,7 @@ for k = 1:length(files)
     % Initialize issues for the current file
     issues = {};
 
-    % Perform various analysis checks (as before)...
-
+    % Perform various analysis checks
     % Example check: Check for improper input handling in mathematical operations
     if contains(code, '+') || contains(code, '-') || contains(code, '*') || contains(code, '/') || ...
         contains(code, '^') || contains(code, 'sqrt') || contains(code, 'log')
@@ -42,7 +41,40 @@ end
 % Save results as a .mat file
 save('code-analysis-results.mat', 'results');
 
+% Custom function to convert results to JSON format
+function jsonStr = custom_jsonencode(data)
+    % Convert cell array to JSON string manually
+    jsonStr = '[';
+    for i = 1:length(data)
+        filePath = data{i}{1};
+        issues = data{i}{2};
+        
+        jsonStr = [jsonStr, '{'];
+        jsonStr = [jsonStr, '"filePath": "', filePath, '",'];
+        jsonStr = [jsonStr, '"issues": ['];
+        
+        for j = 1:length(issues)
+            issue = issues{j};
+            jsonStr = [jsonStr, '{'];
+            jsonStr = [jsonStr, '"ruleId": "', issue.ruleId, '",'];
+            jsonStr = [jsonStr, '"message": "', issue.message, '"'];
+            jsonStr = [jsonStr, '}'];
+            
+            if j < length(issues)
+                jsonStr = [jsonStr, ', ']; % Add a comma for other issues
+            end
+        end
+        
+        jsonStr = [jsonStr, ']}'];
+        
+        if i < length(data)
+            jsonStr = [jsonStr, ', ']; % Add a comma for other files
+        end
+    end
+    jsonStr = [jsonStr, ']']; % Close the JSON array
+end
+
 % Save results as JSON file
 fid = fopen('code-analysis-results.json', 'w');
-fwrite(fid, jsonencode(results));
+fwrite(fid, custom_jsonencode(results), 'char');
 fclose(fid);
