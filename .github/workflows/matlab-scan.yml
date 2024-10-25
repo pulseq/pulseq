@@ -1,58 +1,37 @@
-name: "Octave Static Code Analysis for MATLAB"
+name: Octave Static Code Analysis
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
-  workflow_dispatch:
+    branches:
+      - master
 
 jobs:
   analyze:
-    name: Analyze MATLAB Code with Octave
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout repository
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-      # Step 2: Install Octave
+      # Step 2: Set up Octave
       - name: Install Octave
         run: |
           sudo apt-get update
           sudo apt-get install -y octave
 
-      # Step 3: Create Octave analysis script
-      - name: Create Octave analysis script
+      # Step 3: Install Python and required packages
+      - name: Install Python
         run: |
-          echo "% Add current directory and subdirectories to path" > analyze_code.m
-          echo "addpath(genpath(pwd));" >> analyze_code.m
-          echo "% Find all .m files" >> analyze_code.m
-          echo "files = dir('**/*.m');" >> analyze_code.m
-          echo "% Initialize analysis results" >> analyze_code.m
-          echo "results = struct();" >> analyze_code.m
-          echo "% Analyze each file" >> analyze_code.m
-          echo "for k = 1:length(files)" >> analyze_code.m
-          echo "  filePath = fullfile(files(k).folder, files(k).name);" >> analyze_code.m
-          echo "  % Insert analysis logic here; store any issues found" >> analyze_code.m
-          echo "  results(k).file = filePath;" >> analyze_code.m
-          echo "  results(k).issues = 'Example issue description';" >> analyze_code.m
-          echo "end" >> analyze_code.m
-          echo "% Save the results to a JSON file" >> analyze_code.m
-          echo "jsonwrite('code-analysis-results.json', results);" >> analyze_code.m
+          sudo apt-get install -y python3 python3-pip
+          pip3 install sarif-om
 
       # Step 4: Run the static code analysis using Octave
       - name: Run Octave analysis
         run: |
           octave --no-gui analyze_code.m
 
-      # Step 5: Install SARIF Conversion Library
-      - name: Install SARIF Conversion Library
-        run: |
-          pip install sarif-om
-
-      # Step 6: Convert JSON to SARIF
+      # Step 5: Convert JSON to SARIF
       - name: Convert JSON to SARIF
         run: |
           python3 -c "
@@ -62,33 +41,28 @@ jobs:
           with open('code-analysis-results.json') as f:
               issues = json.load(f)
 
-          runs = [
-              sarif.Run(
-                  tool=sarif.Tool(name='Octave Analysis'),
-                  results=[
-                      sarif.Result(
-                          ruleId='example-rule',
-                          message=sarif.Message(text=issue['issues']),
-                          locations=[
-                              sarif.Location(
-                                  physicalLocation=sarif.PhysicalLocation(
-                                      artifactLocation=sarif.ArtifactLocation(uri=issue['file'])
-                                  )
-                              )
-                          ]
-                      ) for issue in issues
-                  ]
-              )
-          ]
+          runs = [sarif.Run(
+              tool=sarif.Tool(name='Octave Analysis'),
+              results=[
+                  sarif.Result(
+                      ruleId=issue[1][i]['ruleId'],
+                      message=sarif.Message(text=issue[1][i]['message']),
+                      locations=[sarif.Location(
+                          physicalLocation=sarif.PhysicalLocation(
+                              artifactLocation=sarif.ArtifactLocation(uri=issue[0])
+                          )
+                      )]
+                  ) for i in range(len(issue[1]))
+              ]
+          ) for issue in issues]
 
           sarif_log = sarif.SarifLog(schemaVersion='2.1.0', runs=runs)
           with open('code-analysis-results.sarif', 'w') as sarif_file:
-              sarif_file.write(sarif_log.json(exclude_None=True))
+              sarif_file.write(sarif_log.json(exclude_none=True))
           "
 
-      # Step 7: Upload the SARIF results
+      # Step 6: Upload the SARIF results
       - name: Upload SARIF results
-        uses: actions/upload-artifact@v3
+        uses: github/codeql-action/upload-sarif@v1
         with:
-          name: code-analysis-results
-          path: code-analysis-results.sarif
+          sarif_file: code-analysis-results.sarif
