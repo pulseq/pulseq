@@ -1,4 +1,5 @@
 name: "Octave Static Code Analysis for MATLAB"
+
 on:
   push:
     branches: [ "master" ]
@@ -10,6 +11,7 @@ jobs:
   analyze:
     name: Analyze MATLAB Code with Octave
     runs-on: ubuntu-latest
+
     steps:
       # Step 1: Checkout repository
       - name: Checkout repository
@@ -20,7 +22,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y octave
-
       # Step 3: Check for .m files in the repository
       - name: Find .m files
         id: find_files
@@ -32,26 +33,47 @@ jobs:
           else
             echo "$m_files"
           fi
-
       # Step 4: Create MATLAB analysis script in the correct location
       - name: Create MATLAB analysis script
         run: |
           echo "% Add current directory and subdirectories to path" > .github/custom-queries/matlab/analyze_code.m
-          # ... (rest of the code)
-
+          echo "addpath(genpath(pwd));" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Find all .m files" >> .github/custom-queries/matlab/analyze_code.m
+          echo "files = dir('**/*.m');" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Initialize analysis results" >> .github/custom-queries/matlab/analyze_code.m
+          echo "results = {};" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Analyze each file" >> .github/custom-queries/matlab/analyze_code.m
+          echo "for k = 1:length(files)" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  filePath = fullfile(files(k).folder, files(k).name);" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  fid = fopen(filePath, 'r');" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  code = fread(fid, '*char')';" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  fclose(fid);" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  % Add any custom analysis logic here" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  issues = {};" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  if ~isempty(issues)" >> .github/custom-queries/matlab/analyze_code.m
+          echo "    results{end+1} = {filePath, issues};" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  end" >> .github/custom-queries/matlab/analyze_code.m
+          echo "end" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Save the analysis results to a .mat file" >> .github/custom-queries/matlab/analyze_code.m
+          echo "save('code-analysis-results.mat', 'results');" >> .github/custom-queries/matlab/analyze_code.m
       # Step 5: Run the static code analysis using Octave
       - name: Run MATLAB code analysis with Octave
         run: |
           octave --no-gui .github/custom-queries/matlab/analyze_code.m
-
-      # Step 6: Install json2csv (if not already installed)
-      - name: Install json2csv package
+      # Step 6: Verify the analysis results
+      - name: Check for analysis results
         run: |
-          npm install -g json2csv
+          if [ ! -f code-analysis-results.mat ]; then
+            echo "Results file not found!"
+            exit 1
+          fi
+      # Step 7: Upload the results for review
+      - name: Upload results
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-analysis-results
+          path: code-analysis-results.mat
 
-      # Step 7: Convert JSON to CSV
-      - name: Convert JSON to CSV
+      - name: Convert .mat results to SARIF
         run: |
-          json2csv code-analysis-results.json code-analysis-results.csv
-
-      # ... (rest of your steps for SARIF conversion and upload)
+          python .github/custom-queries/matlab/convert_to_sarif.py
