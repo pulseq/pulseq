@@ -11,21 +11,21 @@ results = {};
 for k = 1:length(files)
     filePath = fullfile(files(k).folder, files(k).name);
     fid = fopen(filePath, 'r');
-
+    
     if fid == -1
         disp(['Could not open file: ', filePath]);
         continue;
     end
-
+    
     code = fread(fid, '*char')'; % Read file contents
     fclose(fid);
-
+    
     % Initialize issues for the current file
     issues = {};
 
     % Check for improper input handling in mathematical operations
     if contains(code, '+') || contains(code, '-') || contains(code, '*') || contains(code, '/') || ...
-        contains(code, '^') || contains(code, 'sqrt') || contains(code, 'log')
+       contains(code, '^') || contains(code, 'sqrt') || contains(code, 'log')
         if ~contains(code, 'validate') && ~contains(code, 'sanitize')
             issues{end+1} = 'Improper input handling in mathematical operations detected.';
         end
@@ -54,7 +54,7 @@ for k = 1:length(files)
 
     % 1. Check for hard-coded credentials
     if contains(code, 'password') || contains(code, 'passwd') || contains(code, 'apiKey') || ...
-        contains(code, 'secret') || contains(code, 'token')
+       contains(code, 'secret') || contains(code, 'token')
         if ~contains(code, 'validate') && ~contains(code, 'sanitize')
             issues{end+1} = 'Hard-coded credentials detected. Avoid hard-coding sensitive information.';
         end
@@ -148,33 +148,3 @@ end
 
 % Save results to .mat file
 save('code-analysis-results.mat', 'results');
-
-% Convert results to SARIF format using jsonlab
-addpath('jsonlab'); % Assuming jsonlab is in the same directory or on the path
-
-% Create SARIF report structure
-sarif_report = struct('version', '2.1.0', 'runs', {});
-
-% Populate SARIF report with analysis results
-for i = 1:length(results)
-    filePath = results{i}{1};
-    issues = results{i}{2};
-
-    % Create SARIF result object
-    sarif_result = struct('toolName', 'MATLAB Code Analyzer', 'toolVersion', '1.0', 'results', {});
-
-    % Create SARIF location object
-    sarif_location = struct('path', filePath, 'startLine', 1, 'endLine', 1); % Adjust startLine and endLine as needed
-
-    % Create SARIF message object
-    for j = 1:length(issues)
-        sarif_message = struct('text', issues{j}, 'kind', 'issue', 'level', 'warning'); % Adjust level as needed
-        sarif_message.locations = {sarif_location}; % Add more locations if necessary
-        sarif_result.results = [sarif_result.results, sarif_message];
-    end
-
-    sarif_report.runs = [sarif_report.runs, sarif_result];
-end
-
-% Save SARIF report to a JSON file
-savejson('sarif_report.json', sarif_report);
