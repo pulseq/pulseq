@@ -1,6 +1,6 @@
 name: MATLAB Code Analysis
 
-on: 
+on: 
   push:
     branches:
       - master  # Adjust as necessary
