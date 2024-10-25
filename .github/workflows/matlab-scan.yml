@@ -1,36 +1,29 @@
 name: MATLAB Code Analysis
 
-on:
+on: 
   push:
     branches:
-      - master  # Adjust the branch as needed
+      - master  # Adjust as necessary
   pull_request:
+    branches:
+      - master  # Adjust as necessary
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Set up Octave
+      - name: Install Octave
         run: sudo apt-get install -y octave
 
-      - name: Run Octave code analysis
+      - name: Run Octave Analysis
         run: |
+          export DISPLAY=""
           cd .github/custom-queries/matlab  # Change to the directory containing the script
           octave --no-gui analyze_code.m
-
-      - name: List generated files (optional)
-        run: |
-          cd .github/custom-queries/matlab  # Ensure you're in the correct directory
-          ls -la  # List files to confirm the JSON file is created
-
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          pip install sarif-om
 
       - name: Convert results to SARIF
         run: |
@@ -61,9 +54,14 @@ jobs:
           ]
 
           # Create a SARIF log
-          sarif_log = sarif.SarifLog(schemaVersion='2.1.0', runs=runs)
+          sarif_log = sarif.SarifLog(runs=runs)  # Removed schemaVersion here
 
           # Write the SARIF log to a file
           with open('.github/custom-queries/matlab/code-analysis-results.sarif', 'w') as sarif_file:
-              sarif_file.write(sarif_log.json(exclude_none=True))
+              sarif_file.write(sarif_log.json(exclude_none=True, schema_version='2.1.0'))  # Specify schema_version here
           "
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v1
+        with:
+          sarif_file: '.github/custom-queries/matlab/code-analysis-results.sarif'
