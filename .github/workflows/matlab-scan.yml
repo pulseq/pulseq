@@ -17,11 +17,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Step 2: Install Octave
-      - name: Install Octave
+      # Step 2: Install Octave and required dependencies
+      - name: Install Octave and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y octave
+          sudo apt-get install -y octave libsarif-dev
+
       # Step 3: Check for .m files in the repository
       - name: Find .m files
         id: find_files
@@ -33,6 +34,7 @@ jobs:
           else
             echo "$m_files"
           fi
+
       # Step 4: Create MATLAB analysis script in the correct location
       - name: Create MATLAB analysis script
         run: |
@@ -56,20 +58,20 @@ jobs:
           echo "end" >> .github/custom-queries/matlab/analyze_code.m
           echo "% Save the analysis results to a .mat file" >> .github/custom-queries/matlab/analyze_code.m
           echo "save('code-analysis-results.mat', 'results');" >> .github/custom-queries/matlab/analyze_code.m
+
       # Step 5: Run the static code analysis using Octave
       - name: Run MATLAB code analysis with Octave
         run: |
           octave --no-gui .github/custom-queries/matlab/analyze_code.m
-      # Step 6: Verify the analysis results
-      - name: Check for analysis results
+
+      # Step 6: Convert the .mat file to SARIF
+      - name: Convert .mat to SARIF
         run: |
-          if [ ! -f code-analysis-results.mat ]; then
-            echo "Results file not found!"
-            exit 1
-          fi
-      # Step 7: Upload the results for review
-      - name: Upload results
+          matlab -nodisplay -nosplash -r "convertMatToSarif('code-analysis-results.mat', 'code-analysis-results.sarif')"
+
+      # Step 7: Upload the SARIF results for review
+      - name: Upload SARIF results
         uses: actions/upload-artifact@v3
         with:
           name: code-analysis-results
-          path: code-analysis-results.mat
+          path: code-analysis-results.sarif
