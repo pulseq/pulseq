@@ -23,12 +23,120 @@ for k = 1:length(files)
     % Initialize issues for the current file
     issues = {};
 
-    % Perform various analysis checks
-    % Example check: Check for improper input handling in mathematical operations
+    % Check for improper input handling in mathematical operations
     if contains(code, '+') || contains(code, '-') || contains(code, '*') || contains(code, '/') || ...
         contains(code, '^') || contains(code, 'sqrt') || contains(code, 'log')
         if ~contains(code, 'validate') && ~contains(code, 'sanitize')
-            issues{end+1} = struct('ruleId', 'ImproperInputHandling', 'message', 'Improper input handling in mathematical operations detected.');
+            issues{end+1} = 'Improper input handling in mathematical operations detected.';
+        end
+    end
+
+    % Check for improper use of cd command
+    if contains(code, 'cd')
+        if ~contains(code, 'exist') && ~contains(code, 'isdir')
+            issues{end+1} = 'Improper use of cd command without validating the directory path.';
+        end
+    end
+
+    % Check for unsafe mkdir usage
+    if contains(code, 'mkdir')
+        if ~contains(code, 'exist') && ~contains(code, 'isdir')
+            issues{end+1} = 'Unsafe use of mkdir without checking for directory existence or permissions.';
+        end
+    end
+
+    % Check for deprecated functions usage
+    if contains(code, 'str2num') || contains(code, 'input') || contains(code, 'addpath')
+        issues{end+1} = 'Deprecated function usage detected. Consider updating to supported alternatives.';
+    end
+
+    % Additional Checks
+
+    % 1. Check for hard-coded credentials
+    if contains(code, 'password') || contains(code, 'passwd') || contains(code, 'apiKey') || ...
+        contains(code, 'secret') || contains(code, 'token')
+        if ~contains(code, 'validate') && ~contains(code, 'sanitize')
+            issues{end+1} = 'Hard-coded credentials detected. Avoid hard-coding sensitive information.';
+        end
+    end
+
+    % 2. Check for hard-coded IP addresses
+    if contains(code, '(\d{1,3}\.){3}\d{1,3}') % Regular expression for matching IP addresses
+        issues{end+1} = 'Hard-coded IP address detected. Consider using a configuration file or environment variables.';
+    end
+
+    % 3. Check for improper use of pause function
+    if contains(code, 'pause')
+        if ~contains(code, 'check') && ~contains(code, 'validate')
+            issues{end+1} = 'Improper use of pause function detected without timing checks.';
+        end
+    end
+
+    % 4. Check for improper use of rmdir
+    if contains(code, 'rmdir')
+        if ~contains(code, 'exist') && ~contains(code, 'isdir')
+            issues{end+1} = 'Improper use of rmdir without validating the directory path.';
+        end
+    end
+
+    % 5. Check for missing fclose after fopen
+    if contains(code, 'fopen')
+        if ~contains(code, 'fclose')
+            issues{end+1} = 'Missing fclose after fopen. Ensure to close files to prevent resource leaks.';
+        end
+    end
+
+    % 6. Check for insecure file permissions
+    if contains(code, 'chmod') || contains(code, 'chown')
+        issues{end+1} = 'Insecure file permissions command detected. Review file permission handling.';
+    end
+
+    % 7. Check for insecure random number generation
+    if contains(code, 'rand')
+        issues{end+1} = 'Insecure random number generation detected. Consider using a cryptographically secure alternative.';
+    end
+
+    % 8. Check for insecure save function usage
+    if contains(code, 'save') && ~contains(code, '-v7.3')
+        issues{end+1} = 'Insecure save function usage detected. Consider using the -v7.3 option for saving files.';
+    end
+
+    % 9. Check for insecure use of eval
+    if contains(code, 'eval')
+        issues{end+1} = 'Potentially unsafe use of eval detected. Avoid using eval for executing arbitrary code.';
+    end
+
+    % 10. Check for unclosed figures
+    if contains(code, 'figure') && ~contains(code, 'close')
+        issues{end+1} = 'Figures created but not closed. Ensure to close figures to free up system resources.';
+    end
+
+    % 11. Check for lack of error handling
+    if contains(code, 'try') && ~contains(code, 'catch')
+        issues{end+1} = 'Try without catch. Ensure proper error handling is implemented.';
+    end
+
+    % 12. Check for usage of global variables
+    if contains(code, 'global')
+        issues{end+1} = 'Use of global variables detected. Minimize the use of global variables for better encapsulation.';
+    end
+
+    % 13. Check for comments not matching code
+    if contains(code, '%')
+        % Check for comment length versus code length
+        lines = strsplit(code, '\n');
+        for line = lines
+            if length(line{1}) < 20 && contains(line{1}, '%') % Short comments
+                issues{end+1} = 'Comments should provide sufficient context; consider expanding short comments.';
+            end
+        end
+    end
+
+    % 14. Check for excessively long lines
+    lines = strsplit(code, '\n');
+    for i = 1:length(lines)
+        if length(lines{i}) > 80
+            issues{end+1} = sprintf('Line %d exceeds 80 characters. Consider breaking it into multiple lines.', i);
         end
     end
 
@@ -38,43 +146,35 @@ for k = 1:length(files)
     end
 end
 
-% Save results as a .mat file
+% Save results to .mat file
 save('code-analysis-results.mat', 'results');
 
-% Custom function to convert results to JSON format
-function jsonStr = custom_jsonencode(data)
-    % Convert cell array to JSON string manually
-    jsonStr = '[';
-    for i = 1:length(data)
-        filePath = data{i}{1};
-        issues = data{i}{2};
-        
-        jsonStr = [jsonStr, '{'];
-        jsonStr = [jsonStr, '"filePath": "', filePath, '",'];
-        jsonStr = [jsonStr, '"issues": ['];
-        
-        for j = 1:length(issues)
-            issue = issues{j};
-            jsonStr = [jsonStr, '{'];
-            jsonStr = [jsonStr, '"ruleId": "', issue.ruleId, '",'];
-            jsonStr = [jsonStr, '"message": "', issue.message, '"'];
-            jsonStr = [jsonStr, '}'];
-            
-            if j < length(issues)
-                jsonStr = [jsonStr, ', ']; % Add a comma for other issues
-            end
-        end
-        
-        jsonStr = [jsonStr, ']}'];
-        
-        if i < length(data)
-            jsonStr = [jsonStr, ', ']; % Add a comma for other files
-        end
+% Convert results to SARIF format using jsonlab
+addpath('jsonlab'); % Assuming jsonlab is in the same directory or on the path
+
+% Create SARIF report structure
+sarif_report = struct('version', '2.1.0', 'runs', {});
+
+% Populate SARIF report with analysis results
+for i = 1:length(results)
+    filePath = results{i}{1};
+    issues = results{i}{2};
+
+    % Create SARIF result object
+    sarif_result = struct('toolName', 'MATLAB Code Analyzer', 'toolVersion', '1.0', 'results', {});
+
+    % Create SARIF location object
+    sarif_location = struct('path', filePath, 'startLine', 1, 'endLine', 1); % Adjust startLine and endLine as needed
+
+    % Create SARIF message object
+    for j = 1:length(issues)
+        sarif_message = struct('text', issues{j}, 'kind', 'issue', 'level', 'warning'); % Adjust level as needed
+        sarif_message.locations = {sarif_location}; % Add more locations if necessary
+        sarif_result.results = [sarif_result.results, sarif_message];
     end
-    jsonStr = [jsonStr, ']']; % Close the JSON array
+
+    sarif_report.runs = [sarif_report.runs, sarif_result];
 end
 
-% Save results as JSON file
-fid = fopen('code-analysis-results.json', 'w');
-fwrite(fid, custom_jsonencode(results), 'char');
-fclose(fid);
+% Save SARIF report to a JSON file
+savejson('sarif_report.json', sarif_report);
