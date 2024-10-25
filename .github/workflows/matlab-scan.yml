@@ -5,7 +5,7 @@ on:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
-  workflow_dispatch:  # Allows manual trigger from the Actions tab
+  workflow_dispatch:
 
 jobs:
   analyze:
@@ -17,65 +17,51 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Step 2: Install Octave and required dependencies
-      - name: Install Octave and dependencies
+      # Step 2: Install Octave
+      - name: Install Octave
         run: |
           sudo apt-get update
           sudo apt-get install -y octave
 
-          # Add the SARIF repository (adjust as needed)
-          sudo add-apt-repository ppa:sarif/ppa
-
-          sudo apt-get update
-          sudo apt-get install -y libsarif-dev
-
-      # Step 3: Check for .m files in the repository
-      - name: Find .m files
-        id: find_files
+      # Step 3: Create Octave analysis script
+      - name: Create Octave analysis script
         run: |
-          m_files=$(find . -name "*.m")
-          if [ -z "$m_files" ]; then
-            echo "No .m files found!"
-            exit 1
-          else
-            echo "$m_files"
-          fi
+          echo "% Add current directory and subdirectories to path" > analyze_code.m
+          echo "addpath(genpath(pwd));" >> analyze_code.m
+          echo "% Find all .m files" >> analyze_code.m
+          echo "files = dir('**/*.m');" >> analyze_code.m
+          echo "% Initialize analysis results" >> analyze_code.m
+          echo "results = struct();" >> analyze_code.m
+          echo "% Analyze each file" >> analyze_code.m
+          echo "for k = 1:length(files)" >> analyze_code.m
+          echo "  filePath = fullfile(files(k).folder, files(k).name);" >> analyze_code.m
+          echo "  % Insert analysis logic here; store any issues found" >> analyze_code.m
+          echo "  results(k).file = filePath;" >> analyze_code.m
+          echo "  results(k).issues = 'Example issue description';" >> analyze_code.m
+          echo "end" >> analyze_code.m
+          echo "% Save the results to a JSON file" >> analyze_code.m
+          echo "jsonwrite('code-analysis-results.json', results);" >> analyze_code.m
 
-      # Step 4: Create MATLAB analysis script in the correct location
-      - name: Create MATLAB analysis script
+      # Step 4: Run the static code analysis using Octave
+      - name: Run Octave analysis
         run: |
-          echo "% Add current directory and subdirectories to path" > .github/custom-queries/matlab/analyze_code.m
-          echo "addpath(genpath(pwd));" >> .github/custom-queries/matlab/analyze_code.m
-          echo "% Find all .m files" >> .github/custom-queries/matlab/analyze_code.m
-          echo "files = dir('**/*.m');" >> .github/custom-queries/matlab/analyze_code.m
-          echo "% Initialize analysis results" >> .github/custom-queries/matlab/analyze_code.m
-          echo "results = {};" >> .github/custom-queries/matlab/analyze_code.m
-          echo "% Analyze each file" >> .github/custom-queries/matlab/analyze_code.m
-          echo "for k = 1:length(files)" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  filePath = fullfile(files(k).folder, files(k).name);" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  fid = fopen(filePath, 'r');" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  code = fread(fid, '*char')';" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  fclose(fid);" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  % Add any custom analysis logic here" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  issues = {};" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  if ~isempty(issues)" >> .github/custom-queries/matlab/analyze_code.m
-          echo "    results{end+1} = {filePath, issues};" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  end" >> .github/custom-queries/matlab/analyze_code.m
-          echo "end" >> .github/custom-queries/matlab/analyze_code.m
-          echo "% Save the analysis results to a .mat file" >> .github/custom-queries/matlab/analyze_code.m
-          echo "save('code-analysis-results.mat', 'results');" >> .github/custom-queries/matlab/analyze_code.m
+          octave --no-gui analyze_code.m
 
-      # Step 5: Run the static code analysis using Octave
-      - name: Run MATLAB code analysis with Octave
+      # Step 5: Convert JSON to SARIF
+      - name: Convert JSON to SARIF
         run: |
-          octave --no-gui .github/custom-queries/matlab/analyze_code.m
+          python3 -c "
+import json
+import sarif_om as sarif
+with open('code-analysis-results.json') as f:
+    issues = json.load(f)
+runs = [sarif.Run(tool=sarif.Tool(name='Octave Analysis'), results=[sarif.Result(ruleId='example-rule', message=sarif.Message(text=issue['issues']), locations=[sarif.Location(physicalLocation=sarif.PhysicalLocation(artifactLocation=sarif.ArtifactLocation(uri=issue['file'])))]) for issue in issues])]
+sarif_log = sarif.SarifLog(schemaVersion='2.1.0', runs=runs)
+with open('code-analysis-results.sarif', 'w') as sarif_file:
+    sarif_file.write(sarif_log.json(exclude_none=True))
+          "
 
-      # Step 6: Convert the .mat file to SARIF
-      - name: Convert .mat to SARIF
-        run: |
-          matlab -nodisplay -nosplash -r "convertMatToSarif('code-analysis-results.mat', 'code-analysis-results.sarif')"
-
-      # Step 7: Upload the SARIF results for review
+      # Step 6: Upload the SARIF results
       - name: Upload SARIF results
         uses: actions/upload-artifact@v3
         with:
