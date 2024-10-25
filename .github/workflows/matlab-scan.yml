@@ -38,46 +38,46 @@ jobs:
       # Step 4: Create MATLAB analysis script in the correct location
       - name: Create MATLAB analysis script
         run: |
-          echo "% Add current directory and subdirectories to path" > .github/custom-queries/matlab/analyze_code.m
-          echo "addpath(genpath(pwd));" >> .github/custom-queries/matlab/analyze_code.m
-          echo "% Find all .m files" >> .github/custom-queries/matlab/analyze_code.m
-          echo "files = dir('**/*.m');" >> .github/custom-queries/matlab/analyze_code.m
-          echo "% Initialize analysis results" >> .github/custom-queries/matlab/analyze_code.m
-          echo "results = {};" >> .github/custom-queries/matlab/analyze_code.m
-          echo "% Analyze each file" >> .github/custom-queries/matlab/analyze_code.m
-          echo "for k = 1:length(files)" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  filePath = fullfile(files(k).folder, files(k).name);" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  fid = fopen(filePath, 'r');" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  code = fread(fid, '*char')';" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  fclose(fid);" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  % Add any custom analysis logic here" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  issues = {};" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  if ~isempty(issues)" >> .github/custom-queries/matlab/analyze_code.m
-          echo "    results{end+1} = {filePath, issues};" >> .github/custom-queries/matlab/analyze_code.m
-          echo "  end" >> .github/custom-queries/matlab/analyze_code.m
-          echo "end" >> .github/custom-queries/matlab/analyze_code.m
-          echo "% Save the analysis results to a .mat file" >> .github/custom-queries/matlab/analyze_code.m
-          echo "save('code-analysis-results.mat', 'results');" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Add current directory and subdirectories to path" > analyze_code.m
+          echo "addpath(genpath(pwd));" >> analyze_code.m
+          echo "% Find all .m files" >> analyze_code.m
+          echo "files = dir('**/*.m');" >> analyze_code.m
+          echo "% Initialize analysis results" >> analyze_code.m
+          echo "results = {};" >> analyze_code.m
+          echo "% Analyze each file" >> analyze_code.m
+          echo "for k = 1:length(files)" >> analyze_code.m
+          echo "  filePath = fullfile(files(k).folder, files(k).name);" >> analyze_code.m
+          echo "  fid = fopen(filePath, 'r');" >> analyze_code.m
+          echo "  code = fread(fid, '*char')';" >> analyze_code.m
+          echo "  fclose(fid);" >> analyze_code.m
+          echo "  % Add any custom analysis logic here" >> analyze_code.m
+          echo "  issues = {};" >> analyze_code.m
+          echo "  if ~isempty(issues)" >> analyze_code.m
+          echo "    results{end+1} = {filePath, issues};" >> analyze_code.m
+          echo "  end" >> analyze_code.m
+          echo "end" >> analyze_code.m
+          echo "% Save the analysis results to a .mat file" >> analyze_code.m
+          echo "save('code-analysis-results.mat', 'results');" >> analyze_code.m
 
       # Step 5: Run the static code analysis using Octave
       - name: Run MATLAB code analysis with Octave
         run: |
-          octave --no-gui .github/custom-queries/matlab/analyze_code.m
+          octave --no-gui analyze_code.m
 
-      # Step 6: Verify the analysis results
-      - name: Check for analysis results
+      # Verify the .mat file was created successfully
+      - name: Confirm .mat file creation
         run: |
           if [ ! -f code-analysis-results.mat ]; then
-            echo "Results file not found!"
+            echo "Analysis results (.mat file) were not generated."
             exit 1
           fi
 
-      # Step 7: Convert .mat results to SARIF format
+      # Step 6: Convert .mat results to SARIF format
       - name: Convert results to SARIF
         run: |
-          octave --no-gui --eval "run('.github/custom-queries/matlab/convert_to_sarif.m')"
+          octave --no-gui --eval "run('convert_to_sarif.m')"
 
-      # Step 8: Upload the SARIF results for review
+      # Step 7: Upload the SARIF results for review
       - name: Upload SARIF results
         uses: actions/upload-artifact@v3
         with:
