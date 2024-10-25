@@ -22,6 +22,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y octave
+
       # Step 3: Check for .m files in the repository
       - name: Find .m files
         id: find_files
@@ -33,6 +34,7 @@ jobs:
           else
             echo "$m_files"
           fi
+
       # Step 4: Create MATLAB analysis script in the correct location
       - name: Create MATLAB analysis script
         run: |
@@ -56,10 +58,12 @@ jobs:
           echo "end" >> .github/custom-queries/matlab/analyze_code.m
           echo "% Save the analysis results to a .mat file" >> .github/custom-queries/matlab/analyze_code.m
           echo "save('code-analysis-results.mat', 'results');" >> .github/custom-queries/matlab/analyze_code.m
+
       # Step 5: Run the static code analysis using Octave
       - name: Run MATLAB code analysis with Octave
         run: |
           octave --no-gui .github/custom-queries/matlab/analyze_code.m
+
       # Step 6: Verify the analysis results
       - name: Check for analysis results
         run: |
@@ -67,13 +71,15 @@ jobs:
             echo "Results file not found!"
             exit 1
           fi
-      # Step 7: Upload the results for review
-      - name: Upload results
+
+      # Step 7: Convert .mat results to SARIF format
+      - name: Convert results to SARIF
+        run: |
+          octave --no-gui --eval "run('.github/custom-queries/matlab/convert_to_sarif.m')"
+
+      # Step 8: Upload the SARIF results for review
+      - name: Upload SARIF results
         uses: actions/upload-artifact@v3
         with:
-          name: code-analysis-results
-          path: code-analysis-results.mat
-
-      - name: Convert .mat results to SARIF
-        run: |
-          python .github/custom-queries/matlab/convert_to_sarif.py
+          name: code-analysis-results-sarif
+          path: code-analysis-results.sarif
