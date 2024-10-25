@@ -3,7 +3,7 @@ name: MATLAB Code Analysis
 on:
   push:
     branches:
-      - main  # Adjust the branch as needed
+      - master  # Adjust the branch as needed
   pull_request:
 
 jobs:
