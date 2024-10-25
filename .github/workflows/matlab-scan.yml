@@ -62,17 +62,20 @@ jobs:
         run: |
           octave --no-gui .github/custom-queries/matlab/analyze_code.m
 
-      # Step 6: Verify the analysis results
-      - name: Check for analysis results
+      # Step 6: Convert JSON to CSV
+      - name: Convert JSON to CSV
         run: |
-          if [ ! -f code-analysis-results.mat ]; then
-            echo "Results file not found!"
-            exit 1
-          fi
+          json2csv code-analysis-results.json code-analysis-results.csv
 
-      # Step 7: Upload the SARIF report
+      # Step 7: Convert CSV to SARIF (using a third-party tool)
+      - name: Convert CSV to SARIF
+        run: |
+          # Replace with the command to run your chosen SARIF conversion tool
+          sarif-converter code-analysis-results.csv sarif-report.sarif
+
+      # Step 8: Upload the SARIF report
       - name: Upload SARIF report
         uses: actions/upload-artifact@v3
         with:
           name: sarif-report
-          path: sarif_report.json
+          path: sarif-report.sarif
