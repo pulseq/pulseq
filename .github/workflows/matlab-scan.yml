@@ -5,7 +5,7 @@ on:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
-  workflow_dispatch:  # Allows manual trigger from the Actions tab
+  workflow_dispatch:
 
 jobs:
   analyze:
@@ -35,52 +35,62 @@ jobs:
             echo "$m_files"
           fi
 
-      # Step 4: Create MATLAB analysis script in the correct location
+      # Step 4: Create MATLAB analysis script
       - name: Create MATLAB analysis script
         run: |
-          echo "% Add current directory and subdirectories to path" > analyze_code.m
-          echo "addpath(genpath(pwd));" >> analyze_code.m
-          echo "% Find all .m files" >> analyze_code.m
-          echo "files = dir('**/*.m');" >> analyze_code.m
-          echo "% Initialize analysis results" >> analyze_code.m
-          echo "results = {};" >> analyze_code.m
-          echo "% Analyze each file" >> analyze_code.m
-          echo "for k = 1:length(files)" >> analyze_code.m
-          echo "  filePath = fullfile(files(k).folder, files(k).name);" >> analyze_code.m
-          echo "  fid = fopen(filePath, 'r');" >> analyze_code.m
-          echo "  code = fread(fid, '*char')';" >> analyze_code.m
-          echo "  fclose(fid);" >> analyze_code.m
-          echo "  % Add any custom analysis logic here" >> analyze_code.m
-          echo "  issues = {};" >> analyze_code.m
-          echo "  if ~isempty(issues)" >> analyze_code.m
-          echo "    results{end+1} = {filePath, issues};" >> analyze_code.m
-          echo "  end" >> analyze_code.m
-          echo "end" >> analyze_code.m
-          echo "% Save the analysis results to a .mat file" >> analyze_code.m
-          echo "save('code-analysis-results.mat', 'results');" >> analyze_code.m
+          mkdir -p .github/custom-queries/matlab
+          echo "% Add current directory and subdirectories to path" > .github/custom-queries/matlab/analyze_code.m
+          echo "addpath(genpath(pwd));" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Find all .m files" >> .github/custom-queries/matlab/analyze_code.m
+          echo "files = dir('**/*.m');" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Initialize analysis results" >> .github/custom-queries/matlab/analyze_code.m
+          echo "results = {};" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Analyze each file" >> .github/custom-queries/matlab/analyze_code.m
+          echo "for k = 1:length(files)" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  filePath = fullfile(files(k).folder, files(k).name);" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  fid = fopen(filePath, 'r');" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  code = fread(fid, '*char')';" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  fclose(fid);" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  % Add any custom analysis logic here" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  issues = {};" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  if ~isempty(issues)" >> .github/custom-queries/matlab/analyze_code.m
+          echo "    results{end+1} = {filePath, issues};" >> .github/custom-queries/matlab/analyze_code.m
+          echo "  end" >> .github/custom-queries/matlab/analyze_code.m
+          echo "end" >> .github/custom-queries/matlab/analyze_code.m
+          echo "% Save the analysis results to a .mat file" >> .github/custom-queries/matlab/analyze_code.m
+          echo "save('code-analysis-results.mat', 'results');" >> .github/custom-queries/matlab/analyze_code.m
 
       # Step 5: Run the static code analysis using Octave
       - name: Run MATLAB code analysis with Octave
         run: |
-          octave --no-gui analyze_code.m
+          octave --no-gui .github/custom-queries/matlab/analyze_code.m
 
-      # Verify the .mat file was created successfully
-      - name: Confirm .mat file creation
+      # Step 6: Verify the contents of the .mat file
+      - name: Verify .mat file contents
         run: |
-          if [ ! -f code-analysis-results.mat ]; then
-            echo "Analysis results (.mat file) were not generated."
-            exit 1
-          fi
+          octave --eval "load('code-analysis-results.mat'); whos"
 
-      # Step 6: Display .mat file results
-      - name: Display analysis results
+      # Step 7: Create display results script to show output
+      - name: Create display results script
         run: |
           echo "% Load and display .mat file contents" > display_results.m
-          echo "load('code-analysis-results.mat');" >> display_results.m
-          echo "if isempty(results)" >> display_results.m
-          echo "    disp('Code analysis completed: No vulnerabilities or issues found.')" >> display_results.m
-          echo "else" >> display_results.m
-          echo "    disp('Analysis Results:');" >> display_results.m
-          echo "    disp(results);" >> display_results.m
+          echo "try" >> display_results.m
+          echo "  load('code-analysis-results.mat');" >> display_results.m
+          echo "  if exist('results', 'var')" >> display_results.m
+          echo "    if isempty(results)" >> display_results.m
+          echo "      disp('Code analysis completed: No vulnerabilities or issues found.');" >> display_results.m
+          echo "    else" >> display_results.m
+          echo "      disp('Analysis Results:');" >> display_results.m
+          echo "      disp(results);" >> display_results.m
+          echo "    end" >> display_results.m
+          echo "  else" >> display_results.m
+          echo "    disp('Error: Variable ''results'' not found in the .mat file.');" >> display_results.m
+          echo "  end" >> display_results.m
+          echo "catch" >> display_results.m
+          echo "  disp('Error loading the .mat file or executing the script.');" >> display_results.m
           echo "end" >> display_results.m
 
+      # Step 8: Run display results script
+      - name: Run display results script
+        run: |
+          octave --no-gui display_results.m
