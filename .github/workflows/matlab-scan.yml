@@ -63,7 +63,7 @@ jobs:
 
           # Write the SARIF log to a file
           with open('.github/custom-queries/matlab/code-analysis-results.sarif', 'w') as sarif_file:
-              sarif_file.write(sarif_log.json(exclude_none=True))  # Use serialize method
+              sarif_file.write(sarif_log.serialize(exclude_none=True))  # Use serialize method
           "
 
       - name: Upload SARIF results
