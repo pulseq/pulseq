@@ -72,14 +72,11 @@ jobs:
             exit 1
           fi
 
-      # Step 6: Convert .mat results to SARIF format
-      - name: Convert results to SARIF
+      # Step 6: Display .mat file results
+      - name: Display analysis results
         run: |
-          octave --no-gui --eval "run('convert_to_sarif.m')"
-
-      # Step 7: Upload the SARIF results for review
-      - name: Upload SARIF results
-        uses: actions/upload-artifact@v3
-        with:
-          name: code-analysis-results-sarif
-          path: code-analysis-results.sarif
+          echo "% Load and display .mat file contents" > display_results.m
+          echo "load('code-analysis-results.mat');" >> display_results.m
+          echo "disp('Analysis Results:');" >> display_results.m
+          echo "disp(results);" >> display_results.m
+          octave --no-gui display_results.m
