@@ -21,7 +21,13 @@ jobs:
       - name: Install Octave and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y octave libsarif-dev
+          sudo apt-get install -y octave
+
+          # Add the SARIF repository (adjust as needed)
+          sudo add-apt-repository ppa:sarif/ppa
+
+          sudo apt-get update
+          sudo apt-get install -y libsarif-dev
 
       # Step 3: Check for .m files in the repository
       - name: Find .m files
