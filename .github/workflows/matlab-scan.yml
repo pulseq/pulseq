@@ -3,7 +3,7 @@ name: MATLAB Code Analysis
 on:
   push:
     branches:
-      - master  # Adjust the branch as needed
+      - main  # Adjust the branch as needed
   pull_request:
 
 jobs:
@@ -22,6 +22,11 @@ jobs:
           cd .github/custom-queries/matlab  # Change to the directory containing the script
           octave --no-gui analyze_code.m
 
+      - name: List generated files (optional)
+        run: |
+          cd .github/custom-queries/matlab  # Ensure you're in the correct directory
+          ls -la  # List files to confirm the JSON file is created
+
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip
@@ -34,7 +39,7 @@ jobs:
           import sarif_om as sarif
 
           # Load the JSON results from the analysis
-          with open('code-analysis-results.json') as f:
+          with open('.github/custom-queries/matlab/code-analysis-results.json') as f:
               issues = json.load(f)
 
           # Build SARIF runs from the loaded issues
@@ -59,6 +64,6 @@ jobs:
           sarif_log = sarif.SarifLog(schemaVersion='2.1.0', runs=runs)
 
           # Write the SARIF log to a file
-          with open('code-analysis-results.sarif', 'w') as sarif_file:
+          with open('.github/custom-queries/matlab/code-analysis-results.sarif', 'w') as sarif_file:
               sarif_file.write(sarif_log.json(exclude_none=True))
           "
