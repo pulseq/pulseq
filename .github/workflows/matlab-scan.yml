@@ -47,18 +47,21 @@ jobs:
         run: |
           octave --no-gui analyze_code.m
 
-      # Step 5: Convert JSON to SARIF
+      # Step 5: Install SARIF Conversion Library
       - name: Install SARIF Conversion Library
         run: |
           pip install sarif-om
 
+      # Step 6: Convert JSON to SARIF
       - name: Convert JSON to SARIF
         run: |
           python3 -c "
 import json
 import sarif_om as sarif
+
 with open('code-analysis-results.json') as f:
     issues = json.load(f)
+
 runs = [sarif.Run(
     tool=sarif.Tool(name='Octave Analysis'), 
     results=[
@@ -76,11 +79,12 @@ runs = [sarif.Run(
     ]
 )]
 sarif_log = sarif.SarifLog(schemaVersion='2.1.0', runs=runs)
+
 with open('code-analysis-results.sarif', 'w') as sarif_file:
     sarif_file.write(sarif_log.json(exclude_none=True))
           "
 
-      # Step 6: Upload the SARIF results
+      # Step 7: Upload the SARIF results
       - name: Upload SARIF results
         uses: actions/upload-artifact@v3
         with:
