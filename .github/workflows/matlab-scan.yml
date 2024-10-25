@@ -77,6 +77,10 @@ jobs:
         run: |
           echo "% Load and display .mat file contents" > display_results.m
           echo "load('code-analysis-results.mat');" >> display_results.m
-          echo "disp('Analysis Results:');" >> display_results.m
-          echo "disp(results);" >> display_results.m
-          octave --no-gui display_results.m
+          echo "if isempty(results)" >> display_results.m
+          echo "    disp('Code analysis completed: No vulnerabilities or issues found.')" >> display_results.m
+          echo "else" >> display_results.m
+          echo "    disp('Analysis Results:');" >> display_results.m
+          echo "    disp(results);" >> display_results.m
+          echo "end" >> display_results.m
+
