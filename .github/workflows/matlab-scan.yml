@@ -1,12 +1,14 @@
 name: MATLAB Code Analysis
 
-on: 
+on: 
   push:
     branches:
-      - master  # Adjusted to master branch
+      - master  # Adjust as necessary
   pull_request:
     branches:
-      - master  # Adjusted to master branch
+      - master  # Adjust as necessary
+
+
 
 jobs:
   analyze:
