@@ -29,6 +29,8 @@ jobs:
       # Step 4: Run the static code analysis using Octave
       - name: Run Octave analysis
         run: |
+          export DISPLAY=""
+          cd .github/custom-queries/matlab # Change to the directory containing the script
           octave --no-gui analyze_code.m
 
       # Step 5: Convert JSON to SARIF
@@ -42,17 +44,17 @@ jobs:
               issues = json.load(f)
 
           runs = [sarif.Run(
-              tool=sarif.Tool(name='Octave Analysis'),
+              tool=sarif.Tool(name='Octave Analysis'), 
               results=[
                   sarif.Result(
-                      ruleId=issue[1][i]['ruleId'],
-                      message=sarif.Message(text=issue[1][i]['message']),
+                      ruleId=issue[1][i]['ruleId'], 
+                      message=sarif.Message(text=issue[1][i]['message']), 
                       locations=[sarif.Location(
                           physicalLocation=sarif.PhysicalLocation(
                               artifactLocation=sarif.ArtifactLocation(uri=issue[0])
                           )
                       )]
-                  ) for i in range(len(issue[1]))
+                  ) for i in range(len(issue[1])) 
               ]
           ) for issue in issues]
 
