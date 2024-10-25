@@ -1,14 +1,12 @@
 name: MATLAB Code Analysis
 
-on: 
+on:
   push:
     branches:
       - master  # Adjust as necessary
   pull_request:
     branches:
       - master  # Adjust as necessary
-
-
 
 jobs:
   analyze:
@@ -61,11 +59,11 @@ jobs:
           ]
 
           # Create a SARIF log
-          sarif_log = sarif.SarifLog(runs=runs)  # Removed schemaVersion here
+          sarif_log = sarif.SarifLog(version='2.1.0', runs=runs)  # Added schema version
 
           # Write the SARIF log to a file
           with open('.github/custom-queries/matlab/code-analysis-results.sarif', 'w') as sarif_file:
-              sarif_file.write(sarif_log.json(exclude_none=True, schema_version='2.1.0'))  # Specify schema_version here
+              sarif_file.write(sarif_log.json(exclude_none=True))
           "
 
       - name: Upload SARIF results
