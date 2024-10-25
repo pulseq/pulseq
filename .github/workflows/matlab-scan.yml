@@ -56,32 +56,34 @@ jobs:
       - name: Convert JSON to SARIF
         run: |
           python3 -c "
-import json
-import sarif_om as sarif
+          import json
+          import sarif_om as sarif
 
-with open('code-analysis-results.json') as f:
-    issues = json.load(f)
+          with open('code-analysis-results.json') as f:
+              issues = json.load(f)
 
-runs = [sarif.Run(
-    tool=sarif.Tool(name='Octave Analysis'), 
-    results=[
-        sarif.Result(
-            ruleId='example-rule', 
-            message=sarif.Message(text=issue['issues']), 
-            locations=[
-                sarif.Location(
-                    physicalLocation=sarif.PhysicalLocation(
-                        artifactLocation=sarif.ArtifactLocation(uri=issue['file'])
-                    )
-                )
-            ]
-        ) for issue in issues
-    ]
-)]
-sarif_log = sarif.SarifLog(schemaVersion='2.1.0', runs=runs)
+          runs = [
+              sarif.Run(
+                  tool=sarif.Tool(name='Octave Analysis'),
+                  results=[
+                      sarif.Result(
+                          ruleId='example-rule',
+                          message=sarif.Message(text=issue['issues']),
+                          locations=[
+                              sarif.Location(
+                                  physicalLocation=sarif.PhysicalLocation(
+                                      artifactLocation=sarif.ArtifactLocation(uri=issue['file'])
+                                  )
+                              )
+                          ]
+                      ) for issue in issues
+                  ]
+              )
+          ]
 
-with open('code-analysis-results.sarif', 'w') as sarif_file:
-    sarif_file.write(sarif_log.json(exclude_none=True))
+          sarif_log = sarif.SarifLog(schemaVersion='2.1.0', runs=runs)
+          with open('code-analysis-results.sarif', 'w') as sarif_file:
+              sarif_file.write(sarif_log.json(exclude_None=True))
           "
 
       # Step 7: Upload the SARIF results
