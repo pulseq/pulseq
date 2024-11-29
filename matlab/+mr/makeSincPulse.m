@@ -27,7 +27,7 @@ if isempty(parser)
     
     % RF params
     addRequired(parser, 'flipAngle', @isnumeric);
-    addOptional(parser, 'system', mr.opts(), @isstruct);
+    addOptional(parser, 'system', [], @isstruct);
     addParamValue(parser, 'duration', 0, @isnumeric);
     addParamValue(parser, 'freqOffset', 0, @isnumeric);
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
@@ -41,13 +41,19 @@ if isempty(parser)
     addParamValue(parser, 'delay', 0, @isnumeric);
     addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
-    addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
+    addParamValue(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
 end
 parse(parser, flip, varargin{:});
 opt = parser.Results;
 
+if isempty(opt.system)
+    system=mr.opts();
+else
+    system=opt.system;
+end
+
 if opt.dwell==0
-    opt.dwell=opt.system.rfRasterTime;
+    opt.dwell=system.rfRasterTime;
 end
 
 if opt.duration<=0
@@ -70,8 +76,8 @@ rf.t = t;
 rf.shape_dur=N*opt.dwell;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
-rf.deadTime = opt.system.rfDeadTime;
-rf.ringdownTime = opt.system.rfRingdownTime;
+rf.deadTime = system.rfDeadTime;
+rf.ringdownTime = system.rfRingdownTime;
 rf.delay = opt.delay;
 if ~isempty(opt.use)
     rf.use=opt.use;
@@ -79,23 +85,24 @@ end
 if rf.deadTime > rf.delay
     rf.delay = rf.deadTime;
 end
+rf.center=mr.calcRfCenter(rf);
 
 if nargout > 1
     assert(opt.sliceThickness > 0,'SliceThickness must be provided');
     if opt.maxGrad > 0
-        opt.system.maxGrad = opt.maxGrad;
+        system.maxGrad = opt.maxGrad;
     end
     if opt.maxSlew > 0
-        opt.system.maxSlew = opt.maxSlew;
+        system.maxSlew = opt.maxSlew;
     end
     
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
-    gz = mr.makeTrapezoid('z', opt.system, 'flatTime', opt.duration, ...
+    gz = mr.makeTrapezoid('z', system, 'flatTime', opt.duration, ...
                           'flatArea', area);
-    gzr= mr.makeTrapezoid('z', opt.system, 'Area', -area*(1-opt.centerpos)-0.5*(gz.area-area));
+    gzr= mr.makeTrapezoid('z', system, 'Area', -area*(1-opt.centerpos)-0.5*(gz.area-area));
     if rf.delay > gz.riseTime
-        gz.delay = ceil((rf.delay - gz.riseTime)/opt.system.gradRasterTime)*opt.system.gradRasterTime; % round-up to gradient raster
+        gz.delay = ceil((rf.delay - gz.riseTime)/system.gradRasterTime)*system.gradRasterTime; % round-up to gradient raster
     end
     if rf.delay < (gz.riseTime+gz.delay)
         rf.delay = gz.riseTime+gz.delay; % these are on the grad raster already which is coarser 
@@ -114,8 +121,8 @@ end
 
 % RF amplitude check
 rf_amplitude=max(abs(rf.signal));
-if rf_amplitude>opt.system.maxB1
-    warning('WARNING: system maximum RF amplitude exceeded (%.01f%%)', rf_amplitude/opt.system.maxB1*100);
+if rf_amplitude>system.maxB1
+    warning('WARNING: system maximum RF amplitude exceeded (%.01f%%)', rf_amplitude/system.maxB1*100);
 end
 
 function y = sinc(x)

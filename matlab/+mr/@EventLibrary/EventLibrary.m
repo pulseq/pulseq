@@ -160,7 +160,7 @@ classdef EventLibrary < handle
             if nargin>4
                 insert(obj, id, new_data, type);
             else
-                insert(obj, id, new_data)
+                insert(obj, id, new_data);
             end
         end
         

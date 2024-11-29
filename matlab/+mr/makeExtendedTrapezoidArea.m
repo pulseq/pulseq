@@ -45,8 +45,14 @@ end
 assert(Tp>=0); % this was a nasty error condition when some of the above did not converge
 
 if Tp>0
-    times=cumsum([0 Tru Tp Trd]);
-    amplitudes=[Gs Gp Gp Ge];
+    if Tru>0
+        times=cumsum([0 Tru Tp Trd]);
+        amplitudes=[Gs Gp Gp Ge];
+    else
+        %assert(Gs==Gp); % this is wrong!!! do not commit!
+        times=cumsum([0 Tp Trd]);
+        amplitudes=[Gs Gp Ge];
+    end        
 else
     Tru=ceil(abs(Gp-Gs)/SR/sys.gradRasterTime)*sys.gradRasterTime;
     Trd=ceil(abs(Gp-Ge)/SR/sys.gradRasterTime)*sys.gradRasterTime;
