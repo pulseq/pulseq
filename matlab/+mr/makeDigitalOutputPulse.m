@@ -12,9 +12,9 @@ if isempty(parser)
     parser = inputParser;
     parser.FunctionName = 'makeDigitalOutputPulse';
     
-    addOptional(parser, 'delay', 0, @isnumeric);
-    addOptional(parser, 'duration', 0, @isnumeric); % will replace with gradRadterTime below
-    addOptional(parser, 'system', mr.opts(), @isstruct); 
+    addParamValue(parser, 'delay', 0, @isnumeric);
+    addParamValue(parser, 'duration', 0, @isnumeric); % will replace with gradRadterTime below
+    addParamValue(parser, 'system', [], @isstruct); 
 end
 
 if nargin<1
@@ -24,6 +24,12 @@ end
 parse(parser, varargin{:});
 opt = parser.Results;
 
+if isempty(opt.system)
+    system=mr.opts();
+else
+    system=opt.system;
+end
+
 channel_num=find(strcmp(channel,{'osc0','osc1','ext1'}));
 assert(~isempty(channel_num) && channel_num>0,'makeDigitalOutputPulse:invalidChannel',...
     'Channel (%s) is invalid',channel);
@@ -31,8 +37,8 @@ trig.type = 'output';
 trig.channel=channel;
 trig.delay = opt.delay;
 trig.duration = opt.duration;
-if (trig.duration<=opt.system.gradRasterTime)
-    trig.duration=opt.system.gradRasterTime;
+if (trig.duration<=system.gradRasterTime)
+    trig.duration=system.gradRasterTime;
 end
 
 end
