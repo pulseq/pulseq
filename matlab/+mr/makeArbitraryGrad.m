@@ -17,7 +17,7 @@ if isempty(parser)
     parser.addRequired('channel',...
         @(x) any(validatestring(x,validChannels)));
     parser.addRequired('waveform');
-    parser.addOptional('system', mr.opts(), @isstruct);
+    parser.addOptional('system', [], @isstruct);
     parser.addParamValue('maxGrad',0,@isnumeric);
     parser.addParamValue('maxSlew',0,@isnumeric);
     parser.addParamValue('delay',0,@isnumeric);
@@ -27,8 +27,14 @@ end
 parse(parser,channel,varargin{:});
 opt = parser.Results;
 
-maxSlew=opt.system.maxSlew;
-maxGrad=opt.system.maxGrad; % TODO: use this when no duration is supplied
+if isempty(opt.system)
+    system=mr.opts();
+else
+    system=opt.system;
+end
+
+maxSlew=system.maxSlew;
+maxGrad=system.maxGrad; % TODO: use this when no duration is supplied
 if opt.maxGrad>0
     maxGrad=opt.maxGrad;
 end
@@ -37,7 +43,7 @@ if opt.maxSlew>0
 end
 
 g=opt.waveform;
-slew=(g(2:end)-g(1:end-1))./opt.system.gradRasterTime;
+slew=(g(2:end)-g(1:end-1))./system.gradRasterTime;
 if ~isempty(slew) && max(abs(slew))>maxSlew
     error('Slew rate violation (%.0f%%)',max(abs(slew))/maxSlew*100);
 end
@@ -49,10 +55,10 @@ grad.type = 'grad';
 grad.channel = opt.channel;
 grad.waveform = g;
 grad.delay = opt.delay;
-grad.area=sum(grad.waveform)*opt.system.gradRasterTime; % QC: Take gradient raster time into account. 20230719
+grad.area=sum(grad.waveform)*system.gradRasterTime; % QC: Take gradient raster time into account. 20230719
 % true timing and aux shape data
-grad.tt = ((1:length(g))-0.5)*opt.system.gradRasterTime;
-grad.shape_dur = length(g)*opt.system.gradRasterTime;
+grad.tt = ((1:length(g))-0.5)*system.gradRasterTime;
+grad.shape_dur = length(g)*system.gradRasterTime;
 
 if isfinite(opt.first)
     grad.first = opt.first;
