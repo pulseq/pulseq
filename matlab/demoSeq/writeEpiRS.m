@@ -3,13 +3,14 @@
 % gradients combined with ramp-samping
 
 % Set system limits
-sys = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
+system = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
     'MaxSlew',130,'SlewUnit','T/m/s',...
     'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6,...
-    'adcDeadTime', 10e-6, 'B0', 2.89 ... % this is Siemens' 3T
+    'adcDeadTime', 10e-6, 'B0', 2.89, ... % this is Siemens' 3T
+    'setAsDefault', true ... % new way of handing over the system parameters implicitly
 );  
 
-seq=mr.Sequence(sys);      % Create a new sequence object
+seq=mr.Sequence(system);      % Create a new sequence object
 fov=256e-3; Nx=64; Ny=Nx;  % Define FOV and resolution
 thickness=4e-3;            % slice thinckness in mm
 sliceGap=1e-3;             % slice gap im mm
@@ -22,14 +23,14 @@ partFourierFactor=1;       % partial Fourier factor: 1: full sampling 0: start w
 
 % Create fat-sat pulse 
 sat_ppm=-3.45;
-sat_freq=sat_ppm*1e-6*sys.B0*sys.gamma;
-rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,'dwell',10e-6,...
+sat_freq=sat_ppm*1e-6*system.B0*system.gamma;
+rf_fs = mr.makeGaussPulse(110*pi/180,'Duration',8e-3,'dwell',10e-6,...
     'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
 rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
 rf_fs.name='fat-sat'; % useful for debugging, can be seen in seq.plot
-gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
+gz_fs = mr.makeTrapezoid('z','delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
 % Create 90 degree slice selection pulse and gradient
-[rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',2e-3,...
+[rf, gz, gzReph] = mr.makeSincPulse(pi/2,'Duration',2e-3,...
     'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'use','excitation');
 rf.name='rf90'; % useful for debugging, can be seen in seq.plot
 
@@ -41,9 +42,9 @@ deltak=1/fov;
 kWidth = Nx*deltak;
 
 % Phase blip in shortest possible time
-blip_dur = ceil(2*sqrt(deltak/sys.maxSlew)/10e-6/2)*10e-6*2; % we round-up the duration to 2x the gradient raster time
+blip_dur = ceil(2*sqrt(deltak/system.maxSlew)/10e-6/2)*10e-6*2; % we round-up the duration to 2x the gradient raster time
 % the split code below fails if this really makes a trpezoid instead of a triangle...
-gy = mr.makeTrapezoid('y',sys,'Area',-deltak,'Duration',blip_dur); % we use negative blips to save one k-space line on our way towards the k-space center
+gy = mr.makeTrapezoid('y','Area',-deltak,'Duration',blip_dur); % we use negative blips to save one k-space line on our way towards the k-space center
 %gy = mr.makeTrapezoid('y',lims,'amplitude',deltak/blip_dur*2,'riseTime',blip_dur/2, 'flatTime', 0);
 
 % readout gradient is a truncated trapezoid with dead times at the beginnig
@@ -51,8 +52,8 @@ gy = mr.makeTrapezoid('y',sys,'Area',-deltak,'Duration',blip_dur); % we use nega
 % the area between the blips should be defined by kWidth
 % we do a two-step calculation: we first increase the area assuming maximum
 % slewrate and then scale down the amlitude to fix the area 
-extra_area=blip_dur/2*blip_dur/2*sys.maxSlew; % check unit!;
-gx = mr.makeTrapezoid('x',sys,'Area',kWidth+extra_area,'duration',readoutTime+blip_dur);
+extra_area=blip_dur/2*blip_dur/2*system.maxSlew; % check unit!;
+gx = mr.makeTrapezoid('x','Area',kWidth+extra_area,'duration',readoutTime+blip_dur);
 actual_area=gx.area-gx.amplitude/gx.riseTime*blip_dur/2*blip_dur/2/2-gx.amplitude/gx.fallTime*blip_dur/2*blip_dur/2/2;
 gx.amplitude=gx.amplitude/actual_area*kWidth;
 gx.area = gx.amplitude*(gx.flatTime + gx.riseTime/2 + gx.fallTime/2);
@@ -79,9 +80,9 @@ adc.delay=round((gx.riseTime+gx.flatTime/2-time_to_center)*1e6)*1e-6; % we adjus
 % FOV positioning requires alignment to grad. raster... -> TODO
 
 % split the blip into two halves and produce a combined synthetic gradient
-gy_parts = mr.splitGradientAt(gy, blip_dur/2, sys);
+gy_parts = mr.splitGradientAt(gy, blip_dur/2, system);
 [gy_blipup, gy_blipdown,~]=mr.align('right',gy_parts(1),'left',gy_parts(2),gx);
-gy_blipdownup=mr.addGradients({gy_blipdown, gy_blipup}, sys);
+gy_blipdownup=mr.addGradients({gy_blipdown, gy_blipup}, system);
 
 % pe_enable support
 gy_blipup.waveform=gy_blipup.waveform*pe_enable;
@@ -95,11 +96,11 @@ Ny_post=round(Ny/2+1); % PE lines after the k-space center including the central
 Ny_meas=Ny_pre+Ny_post;
 
 % Pre-phasing gradients
-gxPre = mr.makeTrapezoid('x',sys,'Area',-gx.area/2);
-gyPre = mr.makeTrapezoid('y',sys,'Area',Ny_pre*deltak);
+gxPre = mr.makeTrapezoid('x','Area',-gx.area/2);
+gyPre = mr.makeTrapezoid('y','Area',Ny_pre*deltak);
 [gxPre,gyPre,gzReph]=mr.align('right',gxPre,'left',gyPre,gzReph);
 % relax the PE prepahser to reduce stimulation
-gyPre = mr.makeTrapezoid('y',sys,'Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre,gzReph));
+gyPre = mr.makeTrapezoid('y','Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre,gzReph));
 gyPre.amplitude=gyPre.amplitude*pe_enable;
 
 % slice positions
