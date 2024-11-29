@@ -139,8 +139,9 @@ big_delta=delayTE1+mr.calcDuration(rf180,gz180n);
 g=sqrt(bFactor*1e6/bFactCalc(1,small_delta,big_delta)); % for now it looks too large!
 gr=ceil(g/lims.maxSlew/lims.gradRasterTime)*lims.gradRasterTime;
 gDiff=mr.makeTrapezoid('z','amplitude',g,'riseTime',gr,'flatTime',small_delta-gr,'system',lims);
-assert(mr.calcDuration(gDiff)<=delayTE1);
-assert(mr.calcDuration(gDiff)<=delayTE2);
+%assert(mr.calcDuration(gDiff)<=delayTE1); % not needed as we now use the
+%new feature by setting the required block duration 
+%assert(mr.calcDuration(gDiff)<=delayTE2); % dito
 
 
 % Define sequence blocks
@@ -151,9 +152,9 @@ for s=1:Nslices
     rf180.freqOffset=gz180.amplitude*thickness*(s-1-(Nslices-1)/2);
     rf180.phaseOffset=-2*pi*rf180.freqOffset*mr.calcRfCenter(rf180); % compensate for the slice-offset induced phase
     seq.addBlock(rf,gz,trig);
-    seq.addBlock(mr.makeDelay(delayTE1),gDiff);
+    seq.addBlock(delayTE1,gDiff);
     seq.addBlock(rf180,gz180n);
-    seq.addBlock(mr.makeDelay(delayTE2),gDiff);
+    seq.addBlock(delayTE2,gDiff);
     seq.addBlock(gxPre,gyPre);
     for i=1:Ny_meas
         if i==1
