@@ -4,7 +4,7 @@ sys = mr.opts('MaxGrad', 22, 'GradUnit', 'mT/m', ...
     'rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 seq=mr.Sequence(sys);           % Create a new sequence object
-fov=256e-3; Nx=256; Ny=256;     % Define FOV and resolution
+fov=256e-3; Nx=128; Ny=Nx;      % Define FOV and resolution
 alpha=10;                       % flip angle
 sliceThickness=3e-3;            % slice
 TR=12e-3;                       % repetition time TR
@@ -25,23 +25,23 @@ roDuration=3.2e-3;              % ADC duration
 % gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create alpha-degree slice selection pulse and gradient
-[rf, gz] = mr.makeSincPulse(alpha*pi/180,'Duration',3e-3,...
-    'SliceThickness',sliceThickness,'apodization',0.42,'timeBwProduct',4,'system',sys);
+[rf, gz] = mr.makeSincPulse(alpha*pi/180,sys,'Duration',3e-3,...
+    'SliceThickness',sliceThickness,'apodization',0.42,'timeBwProduct',4);
 
 % Define other gradients and ADC events
 deltak=1/fov;
-gx = mr.makeTrapezoid('x','FlatArea',Nx*deltak,'FlatTime',roDuration,'system',sys);
-adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime,'system',sys);
-gxPre = mr.makeTrapezoid('x','Area',-gx.area/2,'Duration',1e-3,'system',sys);
-gzReph = mr.makeTrapezoid('z','Area',-gz.area/2,'Duration',1e-3,'system',sys);
+gx = mr.makeTrapezoid('x',sys,'FlatArea',Nx*deltak,'FlatTime',roDuration);
+adc = mr.makeAdc(Nx,sys,'Duration',gx.flatTime,'Delay',gx.riseTime);
+gxPre = mr.makeTrapezoid('x',sys,'Area',-gx.area/2,'Duration',1e-3);
+gzReph = mr.makeTrapezoid('z',sys,'Area',-gz.area/2,'Duration',1e-3);
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
-gyPre = mr.makeTrapezoid('y','Area',max(abs(phaseAreas)),'Duration',mr.calcDuration(gxPre),'system',sys);
+gyPre = mr.makeTrapezoid('y',sys,'Area',max(abs(phaseAreas)),'Duration',mr.calcDuration(gxPre));
 peScales=phaseAreas/gyPre.area;
         
 
 % gradient spoiling
-gxSpoil=mr.makeTrapezoid('x','Area',2*Nx*deltak,'system',sys);
-gzSpoil=mr.makeTrapezoid('z','Area',4/sliceThickness,'system',sys);
+gxSpoil=mr.makeTrapezoid('x',sys,'Area',2*Nx*deltak);
+gzSpoil=mr.makeTrapezoid('z',sys,'Area',4/sliceThickness);
 
 % Calculate timing
 delayTE=ceil((TE - mr.calcDuration(gxPre) - gz.fallTime - gz.flatTime/2 ...
