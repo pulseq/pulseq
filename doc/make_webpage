@@ -1,6 +1,8 @@
 #!/bin/bash
+# this script is out-of-date, use 'make html' instead
+# see also README.md for instructions 
 
-mkdir html
+test -d html || mkdir html
 cp -r seqs/* html/
 cp -r recon/* html/
 cp matlab.css html/

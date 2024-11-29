@@ -83,5 +83,17 @@ clean-local:
 	if test -f doxy.conf; then rm -f doxy.conf; fi
 	rm -f *.log *.aux *.synctex *.bbl *.blg *.toc *.out
 
-install-html-local: $(EXTRA_DIST)
+install-html-local: html $(EXTRA_DIST)
 	cp -r html/* ../../pulseq_website/
+
+html: 
+	test -d html || mkdir html
+	test -d seq || cp -r seqs/* html/
+	test -d recon || cp -r recon/* html/
+	cp matlab.css html/
+	cp specification.pdf html/
+	cp images/overview.png html/
+	cp images/gre.png html/
+	cp images/demoRead_03.png html/
+	doxygen doxy.conf.in
+	mogrify -gamma 1.7 html/tab_?.png
