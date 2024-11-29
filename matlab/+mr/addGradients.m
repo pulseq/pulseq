@@ -15,15 +15,21 @@ if isempty(parser)
     parser = inputParser;
     parser.FunctionName = 'addGradients';
 	parser.addRequired('grads');
-    parser.addOptional('system', mr.opts(), @isstruct);
+    parser.addOptional('system', [], @isstruct);
     parser.addParamValue('maxGrad', 0, @isnumeric);
     parser.addParamValue('maxSlew', 0, @isnumeric);
 end
 parse(parser, grads, varargin{:});
 opt = parser.Results;
 
-maxSlew = opt.system.maxSlew;
-maxGrad = opt.system.maxGrad;
+if isempty(opt.system)
+    system=mr.opts();
+else
+    system=opt.system;
+end
+
+maxSlew = system.maxSlew;
+maxGrad = system.maxGrad;
 if opt.maxGrad > 0
     maxGrad = opt.maxGrad;
 end
@@ -54,16 +60,20 @@ for ii = 1:length(grads)
         error('cannot add gradients on different channels');
     end
     delays = [delays, grads{ii}.delay];
-    firsts = [firsts, grads{ii}.first];
-    lasts = [lasts, grads{ii}.last];
     durs = [durs, mr.calcDuration(grads{ii})];
     is_trap = [is_trap, strcmp(grads{ii}.type,'trap')];
     if is_trap(end)
         is_arb = [is_arb, false];
+        % remember first/last
+        firsts = [firsts, 0];
+        lasts = [lasts, 0];
     else
         % check if this is an extended trapezoid
-        tt_rast=grads{ii}.tt/opt.system.gradRasterTime+0.5;
-        is_arb = [is_arb, all(abs(tt_rast-(1:length(tt_rast)))<1e-6)];
+        tt_rast=grads{ii}.tt/system.gradRasterTime+0.5;
+        is_arb = [is_arb, all(abs(tt_rast(:)'-(1:length(tt_rast)))<1e-6)];
+        % remember first/last
+        firsts = [firsts, grads{ii}.first];
+        lasts = [lasts, grads{ii}.last];    
     end
 end
 common_delay = min(delays);
@@ -97,11 +107,11 @@ if all(is_trap | ~is_arb)
         if is_trap(ii)
             times = [times cumsum([g.delay g.riseTime g.flatTime g.fallTime])];
         else
-            times = [times g.delay+g.tt];
+            times = [times g.delay+g.tt(:)'];
         end
     end
     times=unique(times); % unique() also sorts the array
-    %times=unique(round(times/opt.system.gradRasterTime)*opt.system.gradRasterTime); % rounding to raster would be too crude here
+    %times=unique(round(times/system.gradRasterTime)*system.gradRasterTime); % rounding to raster would be too crude here
     dt=times(2:end)-times(1:end-1);
     ieps=find(dt<eps);
     if ~isempty(ieps)
@@ -138,7 +148,7 @@ if all(is_trap | ~is_arb)
         end
         amplitudes=amplitudes+interp1(tt,g.waveform,times,'linear',0);
     end
-    grad=mr.makeExtendedTrapezoid(channel,'amplitudes',amplitudes,'times',times,'system',opt.system);
+    grad=mr.makeExtendedTrapezoid(channel,'amplitudes',amplitudes,'times',times,'system',system);
     return;
 end
 
@@ -151,7 +161,7 @@ for ii = 1:length(grads)
         if is_arb(ii)
             waveforms{ii} = g.waveform;
         else
-            waveforms{ii} = mr.pts2waveform(g.tt, g.waveform, opt.system.gradRasterTime);
+            waveforms{ii} = mr.pts2waveform(g.tt, g.waveform, system.gradRasterTime);
         end
     else
         if (g.flatTime>0) % triangle or trapezoid
@@ -166,11 +176,11 @@ for ii = 1:length(grads)
                      g.delay - common_delay + g.riseTime + g.fallTime];
             amplitudes = [0 g.amplitude 0];
         end
-        waveforms{ii} = mr.pts2waveform(times, amplitudes, opt.system.gradRasterTime);
+        waveforms{ii} = mr.pts2waveform(times, amplitudes, system.gradRasterTime);
     end
     %warning('addGradient(): potentially incorrect handling of delays... TODO: fixme!');
     if g.delay - common_delay > 0
-        t_delay = 0:opt.system.gradRasterTime:g.delay-common_delay-opt.system.gradRasterTime;
+        t_delay = 0:system.gradRasterTime:g.delay-common_delay-system.gradRasterTime;
         waveforms{ii} = [t_delay*0 waveforms{ii}];
     end
     max_length = max(max_length, length(waveforms{ii}));
@@ -186,7 +196,7 @@ for ii = 1:length(grads)
     w(1:length(waveforms{ii})) = w(1:length(waveforms{ii})) + waveforms{ii};
 end
 
-grad = mr.makeArbitraryGrad(channel, w, opt.system, ...
+grad = mr.makeArbitraryGrad(channel, w, system, ...
                             'maxSlew', maxSlew,...
                             'maxGrad', maxGrad,...
                             'delay', common_delay,...
