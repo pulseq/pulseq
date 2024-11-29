@@ -17,7 +17,7 @@ if isempty(parser)
     parser = inputParser;
     parser.FunctionName = 'addRamps';
     parser.addRequired('k',@(x)(isnumeric(x)||iscell(x)));
-    parser.addOptional('system',mr.opts(),@isstruct);
+    parser.addOptional('system',[],@isstruct);
     parser.addParamValue('rf',[],@isnumeric);
     parser.addParamValue('maxGrad',0,@isnumeric);
     parser.addParamValue('maxSlew',0,@isnumeric);
@@ -26,11 +26,17 @@ end
 parse(parser,k,varargin{:});
 opt = parser.Results;
 
+if isempty(opt.system)
+    system=mr.opts();
+else
+    system=opt.system;
+end
+
 if opt.maxGrad>0
-    opt.system.maxGrad=opt.maxGrad;
+    system.maxGrad=opt.maxGrad;
 end
 if opt.maxSlew>0
-    opt.system.maxSlew=opt.maxSlew;
+    system.maxSlew=opt.maxSlew;
 end
 
 if iscell(opt.k)
@@ -42,8 +48,8 @@ end
 nChannels=size(k,1);
 k=[k; zeros(3-nChannels,size(k,2))];    % Pad out with zeros if needed
 
-[kUp, ok1]   = mr.calcRamp(zeros(3,2),k(:,1:2),opt.system);
-[kDown, ok2] = mr.calcRamp(k(:,end-1:end),zeros(3,2),opt.system);
+[kUp, ok1]   = mr.calcRamp(zeros(3,2),k(:,1:2),system);
+[kDown, ok2] = mr.calcRamp(k(:,end-1:end),zeros(3,2),system);
 assert(ok1 & ok2,'Failed to calculate gradient ramps');
 
 kUp = [zeros(3,2), kUp];            % Add start and end points to ramps
