@@ -27,10 +27,16 @@ if isempty(defaultStandardOpts)
         'B0',1.5...
     );
 end
+
 if ~isempty(defaultUserOpts)
     defaultOpts=defaultUserOpts;
 else
     defaultOpts=defaultStandardOpts;
+end
+
+if isempty(varargin) % accelerate default constructor calls
+    out=defaultOpts;
+    return
 end
 
 persistent parser
