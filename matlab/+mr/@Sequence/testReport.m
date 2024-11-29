@@ -111,12 +111,27 @@ if (k_scale~=0)
     k_storage=zeros(1,k_len);
     k_storage_next=1;
     % containers.Map only supports string as a key... (in older matlabs)
-    %kmap = containers.Map('KeyType', 'char', 'ValueType', 'int32');
-    kmap = java.util.HashMap;
-    for i=1:k_len
+    % in Octave we use the built-in, in Matlab the Java version
+    if mr.aux.isOctave()
+      kmap = containers.Map('KeyType', 'char', 'ValueType', 'int32');
+      for i=1:k_len
         key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold))); 
         % containers.Map does not have a proper find function so we use direct
         % access and catch the possible error
+        try
+          k_storage_ind = kmap(key_string);
+        catch
+          k_storage_ind=k_storage_next;
+          kmap(key_string)=k_storage_ind;
+          k_storage_next=k_storage_next+1;
+        end
+        k_storage(k_storage_ind)=k_storage(k_storage_ind)+1;
+        k_repeat(i) = k_storage(k_storage_ind);
+      end
+    else
+      kmap = java.util.HashMap;
+      for i=1:k_len
+        key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold))); 
         k_storage_ind = kmap.get(key_string);
         if isempty(k_storage_ind)
             k_storage_ind=k_storage_next;
@@ -125,6 +140,7 @@ if (k_scale~=0)
         end
         k_storage(k_storage_ind)=k_storage(k_storage_ind)+1;
         k_repeat(i) = k_storage(k_storage_ind);
+      end
     end
     % at this point k_storage(1:(k_storage_next-1)) is our visit frequency map
     Repeats_max=max(k_storage(1:(k_storage_next-1)));
@@ -150,33 +166,67 @@ if (k_scale~=0)
     k_counters=zeros(size(ktraj_rep1));
     dims=size(ktraj_rep1,1);
     %ordering=cell(1,dims);
-    kmap = java.util.HashMap;
-    for j=1:dims
-        %kmap = containers.Map('KeyType', 'int32', 'ValueType', 'int32');
-        k_storage=zeros(1,k_len);
-        k_storage_next=1; 
-        kmap.clear();
-        for i=1:size(ktraj_rep1,2)
-            key=int32(round(ktraj_rep1(j,i)/k_threshold));
-            k_storage_ind = kmap.get(key);
-            if isempty(k_storage_ind) % attempt to account for rounding errors
-                k_storage_ind = kmap.get(key+1);
-            end
-            if isempty(k_storage_ind) % attempt to account for rounding errors
-                k_storage_ind = kmap.get(key-1);
-            end
-            if isempty(k_storage_ind)
-                k_storage_ind=k_storage_next;
-                kmap.put(key,k_storage_ind);
-                k_storage_next=k_storage_next+1;
-                k_storage(k_storage_ind)=ktraj_rep1(j,i);
-                %fprintf('%d:%d(%g) ',k_storage_ind,key,ktraj_rep1(j,i));
-            end
-            %assert(k_storage_ind==k_storage(k_storage_ind));
-            k_counters(j,i) = k_storage_ind;
-        end
-        %ordering{j}=cell2mat(kmap.values);
-        %fprintf('\n');
+    if mr.aux.isOctave()
+      for j=1:dims
+          kmap = containers.Map('KeyType', 'int32', 'ValueType', 'int32');
+          k_storage=zeros(1,k_len);
+          k_storage_next=1; 
+          for i=1:size(ktraj_rep1,2)
+              key=int32(round(ktraj_rep1(j,i)/k_threshold));
+              try
+                k_storage_ind = kmap(key);
+              catch
+                % attempt to account for rounding errors
+                try
+                  k_storage_ind = kmap(key+1);
+                catch
+                  % attempt to account for rounding errors
+                  try
+                    k_storage_ind = kmap(key-1);
+                  catch
+                    k_storage_ind=k_storage_next;
+                    kmap(key)=k_storage_ind;
+                    k_storage_next=k_storage_next+1;
+                    k_storage(k_storage_ind)=ktraj_rep1(j,i);
+                    %fprintf('%d:%d(%g) ',k_storage_ind,key,ktraj_rep1(j,i));
+                  end
+                end
+              end
+              %assert(k_storage_ind==k_storage(k_storage_ind));
+              k_counters(j,i) = k_storage_ind;
+          end
+          %ordering{j}=cell2mat(kmap.values);
+          %fprintf('\n');
+      end
+    else
+      kmap = java.util.HashMap;
+      for j=1:dims
+          %kmap = containers.Map('KeyType', 'int32', 'ValueType', 'int32');
+          k_storage=zeros(1,k_len);
+          k_storage_next=1; 
+          kmap.clear();
+          for i=1:size(ktraj_rep1,2)
+              key=int32(round(ktraj_rep1(j,i)/k_threshold));
+              k_storage_ind = kmap.get(key);
+              if isempty(k_storage_ind) % attempt to account for rounding errors
+                  k_storage_ind = kmap.get(key+1);
+              end
+              if isempty(k_storage_ind) % attempt to account for rounding errors
+                  k_storage_ind = kmap.get(key-1);
+              end
+              if isempty(k_storage_ind)
+                  k_storage_ind=k_storage_next;
+                  kmap.put(key,k_storage_ind);
+                  k_storage_next=k_storage_next+1;
+                  k_storage(k_storage_ind)=ktraj_rep1(j,i);
+                  %fprintf('%d:%d(%g) ',k_storage_ind,key,ktraj_rep1(j,i));
+              end
+              %assert(k_storage_ind==k_storage(k_storage_ind));
+              k_counters(j,i) = k_storage_ind;
+          end
+          %ordering{j}=cell2mat(kmap.values);
+          %fprintf('\n');
+      end
     end
     unique_kpositions=max(k_counters,[],2);
     isCartesian=(prod(unique_kpositions)==size(ktraj_rep1,2));
