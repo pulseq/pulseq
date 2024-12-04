@@ -1083,7 +1083,15 @@ classdef Sequence < handle
                                 error('mr.decompressShape() failed for shapeId %d', shapeIdPhaseModulation);
                             end
                             assert(length(grad.waveform) == length(grad.tt));
-                            t_end=grad.tt(end);                            
+                            % we need to differentiate here between the
+                            % oversampled shaped gradient and the extended
+                            % trapezoid. the difference is that the
+                            % vertices of the extended trapezoid are on the
+                            % gradient raster edges, whereas the first and
+                            % the last points for the sampled shape are on
+                            % half-raster, but rounding up is a good
+                            % solution                            
+                            t_end=ceil(grad.tt(end)/obj.gradRasterTime)*obj.gradRasterTime;
                         end
                         grad.shape_id=shapeIdPhaseModulation; % needed for the second pass of read()
                         grad.time_id=timeId; % needed for the second pass of read()
@@ -1646,26 +1654,33 @@ classdef Sequence < handle
                     grad=block.(gradChannels{j});
                     if ~isempty(block.(gradChannels{j}))
                         if strcmp(grad.type,'grad')
-                            % check if we have an extended trapezoid or an arbitrary gradient on a regular raster
-                            tt_rast=grad.tt/obj.gradRasterTime+0.5;
-                            if all(abs(tt_rast-(1:length(tt_rast))')<1e-6)
-                                % arbitrary gradient
-                                % restore shape: if we had a
-                                % trapezoid converted to shape we have to find
-                                % the "corners" and we can eliminate internal
-                                % samples on the straight segments
-                                % but first we have to restore samples on the
-                                % edges of the gradient raster intervals
-                                % for that we need the first sample
+                            % check if we have an extended trapezoid or an arbitrary gradient 
+                            % on a regular raster. Arbitrary gradient on a pure centers raster 
+                            % (shifted by 0.5) needs special processing
+                            tt_rast=grad.tt/obj.gradRasterTime;
+                            if all(abs(tt_rast-((1:length(tt_rast))-0.5)')<1e-6)
+                                % arbitrary gradient on a centers raster (no oversampling)
+                                % restore shape: if we had a trapezoid converted to shape we 
+                                % have to find the "corners" and we can eliminate internal
+                                % samples on the straight segments but first we have to 
+                                % restore samples on the edges of the gradient raster 
+                                % intervals - for that we need the first sample
                                 
                                 [tt_chg, waveform_chg] = mr.restoreAdditionalShapeSamples(grad.tt,grad.waveform,grad.first,grad.last,obj.gradRasterTime,iBc);
                                 
                                 out_len(j)=out_len(j)+length(tt_chg);
                                 shape_pieces{j,iP}=[curr_dur+grad.delay+tt_chg; waveform_chg];%curr_dur+grad.delay+tgc;
                             else
-                                % extended trapezoid (the easy case!)
-                                out_len(j)=out_len(j)+length(grad.tt);
-                                shape_pieces{j,iP}=[curr_dur+grad.delay+grad.tt'; grad.waveform'];
+                                % extended trapezoid or sampled gradient with oversampling (the easy case!)
+                                % the only caveat is that we need to add the first and last poins to the 
+                                % shape in case of the oversampled rasterized gradient
+                                if abs(tt_rast(1)-0.5)<1e-6 % rasterized gradient's first sample is always on half-raster, extended trapezoid is always on a raster edje
+                                    out_len(j)=out_len(j)+length(grad.tt)+2;
+                                    shape_pieces{j,iP}=[curr_dur+grad.delay+[0 grad.tt' grad.shape_dur]; [grad.first grad.waveform' grad.last]];
+                                else
+                                    out_len(j)=out_len(j)+length(grad.tt);
+                                    shape_pieces{j,iP}=[curr_dur+grad.delay+grad.tt'; grad.waveform'];
+                                end
                             end
                         else
                             if (abs(grad.flatTime)>eps) % interp1 gets confused by triangular gradients (repeating sample)
@@ -1739,7 +1754,7 @@ classdef Sequence < handle
                                     wave_data{j}(:,wave_cnt(j)+1)=[wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime/2; 0]; % this is likely to cause memory reallocations
                                     wave_cnt(j)=wave_cnt(j)+1;
                                 else
-                                    % we are wihin the tolorance, just set it to 0 quaietly
+                                    % we are within the tolorance, just set it to 0 quietly
                                     wave_data{j}(2,wave_cnt(j))=0.0;
                                 end
                             end
