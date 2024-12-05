@@ -178,7 +178,7 @@ if ~isempty(obj.labelsetLibrary.keys) || ~isempty(obj.labelincLibrary.keys)
     end
     if ~isempty(obj.labelincLibrary.keys)
         fprintf(fid, '# Extension specification for increasing labels:\n');
-        fprintf(fid, '# id set labelstring\n');
+        fprintf(fid, '# id inc labelstring\n');
         tid=obj.getExtensionTypeID('LABELINC');
         fprintf(fid, ['extension LABELINC ',num2str(tid),'\n']);
         lbls=mr.getSupportedLabels();
@@ -189,6 +189,10 @@ if ~isempty(obj.labelsetLibrary.keys) || ~isempty(obj.labelincLibrary.keys)
         end
         fprintf(fid, '\n');
     end
+end
+
+if ~isempty(obj.softDelayLibrary.keys)
+    warning('WARNING! The sequence in memory uses ''soft delay'' extension, which is incompatible with the file format v1.4.1. The produced Pulseq file is only partially valid and may fail to load or operate in come cases');
 end
 
 if ~isempty(obj.shapeLibrary.keys)

@@ -53,6 +53,9 @@ classdef Sequence < handle
         labelincLibrary;  % Library of Label(inc) events ( reference from the extensions library )
         extensionLibrary; % Library of extension events. Extension events form single-linked zero-terminated lists
         shapeLibrary;     % Library of compressed shapes
+        softDelayLibrary; % Library of 'soft delay' extension events.
+        softDelayHints1;  % Map of string hints that are the part of the 'soft delay' extension objects
+        softDelayHints2;  % cell array of string hints that are the part of the 'soft delay' extension objects
         extensionStringIDs;  % string IDs of the used extensions (cell array)
         extensionNumericIDs; % numeric IDs of the used extensions (numeric array)
 
@@ -85,6 +88,9 @@ classdef Sequence < handle
             obj.extensionLibrary = mr.EventLibrary();
             obj.extensionStringIDs={};
             obj.extensionNumericIDs=[];
+            obj.softDelayLibrary = mr.EventLibrary();
+            obj.softDelayHints1 = containers.Map();
+            obj.softDelayHints2 = {};
             obj.blockEvents = {};
             
             if nargin<1
@@ -623,6 +629,21 @@ classdef Sequence < handle
             end
         end
         
+        function id=registerSoftDelayEvent(obj, event)
+            % registerDeleyEvent : Add the event to the libraries (object,
+            % shapes, etc and return the event's ID. This ID should be 
+            % stored in the object to accelerate addBlock()
+            try
+                hintID=obj.softDelayHints1(event.hint);
+            catch
+                hintID=obj.softDelayHints1.length()+1;
+                obj.softDelayHints1(event.hint)=hintID;
+                obj.softDelayHints2{hintID}=event.hint;
+            end
+            data = [event.num event.offset hintID];
+            id = obj.softDelayLibrary.find_or_insert(data);
+        end
+
         %TODO: Replacing blocks in the middle of sequence can cause unused
         %events in the libraries. These can be detected and pruned.
         function setBlock(obj, index, varargin)
@@ -762,6 +783,19 @@ classdef Sequence < handle
                                 ext=struct('type', obj.getExtensionTypeID(upper(e.type)), 'ref', id);
                                 extensions=[extensions ext];
                             end
+                        case 'softDelay'
+                            if isfield(event,'id')
+                                id=event.id;
+                            else
+                                id=obj.registerSoftDelayEvent(event);
+                            end
+                            % collect the list of extension objects and
+                            % add it to the event table later
+                            % ext=struct('type', 1, 'ref', id);
+                            ext=struct('type', obj.getExtensionTypeID('DELAYS'), 'ref', id);
+                            extensions=[extensions ext];
+                        otherwise
+                            error('Attempting to add an unknown event to the block.');
                     end
                 else
                     if isnumeric(event)
@@ -807,6 +841,19 @@ classdef Sequence < handle
                         if ~found
                             obj.extensionLibrary.insert(id,data);
                         end 
+                    end
+                end
+                % sanity checks for the softDelay
+                nSoftDelays=sum([extensions(:).type]==obj.getExtensionTypeID('DELAYS'));
+                if nSoftDelays
+                    if nSoftDelays>1
+                        error('Only one ''softDelay'' extension event can be added per block');
+                    end
+                    if duration==0 && isempty(required_duration)
+                        error('Soft delay extension can only be used in conjunstion with blocks of non-zero duration'); % otherwise the gradient checks get tedious
+                    end
+                    if any(obj.blockEvents{index}(2:6)~=0)
+                        error('Soft delay extension can only be used in empty blocks (blocks containing no conventional events such as RF, adc or gradients).')
                     end
                 end
                 % now we add the ID
@@ -1015,12 +1062,26 @@ classdef Sequence < handle
                         block.label(i) = label;
                     end
                 end
+                % unpack delay
+                delay_ext=raw_block.ext(:,raw_block.ext(1,:)==obj.getExtensionTypeID('DELAYS'));
+                if ~isempty(delay_ext)
+                    if size(delay_ext,2)>1
+                        error('Only one soft delay extension object per block is allowed');
+                    end
+                    data = obj.softDelayLibrary.data(delay_ext(2,1)).array;
+                    if addIDs
+                        block.softDelay=struct('type','softDelay','num',data(1),'offset',data(2),'hint',obj.softDelayHints2{data(3)},'id',delay_ext(2,1));
+                    else
+                        block.softDelay=struct('type','softDelay','num',data(1),'offset',data(2),'hint',obj.softDelayHints2{data(3)});
+                    end
+                end
                 if length(trig_ext)+size(label_ext,2)~=size(raw_block.ext,2)
                     for i=1:size(raw_block.ext,2)
                         if raw_block.ext(1,i)~=obj.getExtensionTypeID('TRIGGERS') && ...
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET') && ...
-                           raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET')
-                            error('unknown extension ID %d', raw_block.ext(1,i));
+                           raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET') && ...
+                           raw_block.ext(1,i)~=obj.getExtensionTypeID('DELAYS')
+                            warning('unknown extension ID %d', raw_block.ext(1,i));
                         end
                     end
                 end

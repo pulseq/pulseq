@@ -181,7 +181,7 @@ if ~isempty(obj.labelsetLibrary.keys) || ~isempty(obj.labelincLibrary.keys)
     end
     if ~isempty(obj.labelincLibrary.keys)
         fprintf(fid, '# Extension specification for increasing labels:\n');
-        fprintf(fid, '# id set labelstring\n');
+        fprintf(fid, '# id inc labelstring\n');
         tid=obj.getExtensionTypeID('LABELINC');
         fprintf(fid, ['extension LABELINC ',num2str(tid),'\n']);
         lbls=mr.getSupportedLabels();
@@ -192,6 +192,19 @@ if ~isempty(obj.labelsetLibrary.keys) || ~isempty(obj.labelincLibrary.keys)
         end
         fprintf(fid, '\n');
     end
+end
+
+if ~isempty(obj.softDelayLibrary.keys)
+    fprintf(fid, '# Extension specification for soft delays:\n');
+    fprintf(fid, '# id num offset hint\n');
+    fprintf(fid, ['extension DELAYS ',num2str(obj.getExtensionTypeID('DELAYS')),'\n']);
+
+    keys = obj.softDelayLibrary.keys;
+    for k = keys
+        fprintf(fid, '%d %d %d %s\n', ...
+                [k obj.softDelayLibrary.data(k).array(1:2)], obj.softDelayHints2{obj.softDelayLibrary.data(k).array(3)}); 
+    end
+    fprintf(fid, '\n');
 end
 
 if ~isempty(obj.shapeLibrary.keys)

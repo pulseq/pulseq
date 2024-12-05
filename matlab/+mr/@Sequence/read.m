@@ -139,18 +139,30 @@ while true
         case '[EXTENSIONS]'
             obj.extensionLibrary = readEvents(fid);
         otherwise
-            if     strncmp('extension TRIGGERS', section, 18) 
-                id=str2num(section(19:end));
-                obj.setExtensionStringAndID('TRIGGERS',id);
-                obj.trigLibrary = readEvents(fid, [1 1 1e-6 1e-6]);
-            elseif strncmp('extension LABELSET', section, 18) 
-                id=str2num(section(19:end));
-                obj.setExtensionStringAndID('LABELSET',id);
-                obj.labelsetLibrary = readAndParseEvents(fid,@str2num,@(s)find(strcmp(mr.getSupportedLabels,s)));
-            elseif strncmp('extension LABELINC', section, 18) 
-                id=str2num(section(19:end));
-                obj.setExtensionStringAndID('LABELINC',id);
-                obj.labelincLibrary = readAndParseEvents(fid,@str2num,@(s)find(strcmp(mr.getSupportedLabels,s)));
+            if strncmp('extension', section, 9)
+                extension=section(11:end);                    
+                if strncmp('TRIGGERS', extension, 8) 
+                    id=str2num(extension(9:end));
+                    obj.setExtensionStringAndID('TRIGGERS',id);
+                    obj.trigLibrary = readEvents(fid, [1 1 1e-6 1e-6]);
+                elseif strncmp('LABELSET', extension, 8) 
+                    id=str2num(extension(9:end));
+                    obj.setExtensionStringAndID('LABELSET',id);
+                    obj.labelsetLibrary = readAndParseEvents(fid,@str2num,@(s)find(strcmp(mr.getSupportedLabels,s)));
+                elseif strncmp('LABELINC', extension, 8) 
+                    id=str2num(extension(9:end));
+                    obj.setExtensionStringAndID('LABELINC',id);
+                    obj.labelincLibrary = readAndParseEvents(fid,@str2num,@(s)find(strcmp(mr.getSupportedLabels,s)));
+                elseif strncmp('DELAYS', extension, 6) 
+                    id=str2num(extension(7:end));
+                    obj.setExtensionStringAndID('DELAYS',id);
+                    obj.softDelayLibrary = readAndParseEvents(fid,@str2num,@str2num,@(s) parseSoftDelayHint(s, obj));
+                else
+                    warning('Ignoring unknown extension, input string: %s', extension);
+                    exts=regexp(extension, '(\s+)','split');                    
+                    obj.setExtensionStringAndID(exts{1}, str2num(exts{2}));
+                    skipSection(fid);
+                end
             else
                 error('Unknown section code: %s', section);
             end
@@ -562,6 +574,16 @@ return
         end
     end
 
+    function skipSection(fid)
+        %skipSection Read an event section of a sequence file without 
+        %   interpreting it.
+        %
+        line = fgetl(fid);
+        while ischar(line) && ~(isempty(line) || line(1) == '#')
+            line=fgetl(fid);
+        end
+    end
+
     function shapeLibrary = readShapes(fid, forceConvertUncompressed)
         %readShapes Read the [SHAPES] section of a sequence file.
         %   library=readShapes(fid) Read shapes from file identifier of an
@@ -623,6 +645,16 @@ return
             end
         else
             nextLine = -1;
+        end
+    end
+
+    function id=parseSoftDelayHint(s, seq) 
+        try
+            id=seq.softDelayHints1(s);
+        catch
+            id=seq.softDelayHints1.length()+1;
+            seq.softDelayHints1(s)=id;
+            seq.softDelayHints2{id}=s;
         end
     end
     
