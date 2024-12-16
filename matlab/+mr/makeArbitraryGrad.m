@@ -36,7 +36,7 @@ if opt.maxSlew>0
     maxSlew=opt.maxSlew;
 end
 
-g=opt.waveform;
+g=opt.waveform(:);
 slew=(g(2:end)-g(1:end-1))./opt.system.gradRasterTime;
 if ~isempty(slew) && max(abs(slew))>maxSlew
     error('Slew rate violation (%.0f%%)',max(abs(slew))/maxSlew*100);
