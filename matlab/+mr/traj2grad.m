@@ -40,7 +40,7 @@ g=[(k(:,2:end)-k(:,1:end-1))/opt.RasterTime]; % MZ: no zero-padding!
 % Compute the slew rate (time derivative of the gradient)
 sr0=(g-[opt.first g(:,1:end-1)])/opt.RasterTime;
 if opt.firstGradStepHalfRaster
-    sr0(:,1)=sr0(:,1)/2; % account for the half-step in the beginning of the shape
+    sr0(:,1)=sr0(:,1)*2; % account for the half-step in the beginning of the shape
 end
 
 % now we think how to post-process the results 
