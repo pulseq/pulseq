@@ -196,13 +196,14 @@ end
 
 if ~isempty(obj.softDelayLibrary.keys)
     fprintf(fid, '# Extension specification for soft delays:\n');
-    fprintf(fid, '# id num offset hint\n');
+    fprintf(fid, '# id num offset factor hint\n');
+    fprintf(fid, '# ..  ..     us     ..   ..\n');
     fprintf(fid, ['extension DELAYS ',num2str(obj.getExtensionTypeID('DELAYS')),'\n']);
 
     keys = obj.softDelayLibrary.keys;
     for k = keys
-        fprintf(fid, '%d %d %d %s\n', ...
-                [k obj.softDelayLibrary.data(k).array(1:2)], obj.softDelayHints2{obj.softDelayLibrary.data(k).array(3)}); 
+        fprintf(fid, '%d %d %g %g %s\n', ...
+                k, obj.softDelayLibrary.data(k).array(1), obj.softDelayLibrary.data(k).array(2)*1e6, obj.softDelayLibrary.data(k).array(3), obj.softDelayHints2{obj.softDelayLibrary.data(k).array(4)});
     end
     fprintf(fid, '\n');
 end

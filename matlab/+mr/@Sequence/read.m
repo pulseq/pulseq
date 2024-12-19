@@ -156,7 +156,7 @@ while true
                 elseif strncmp('DELAYS', extension, 6) 
                     id=str2num(extension(7:end));
                     obj.setExtensionStringAndID('DELAYS',id);
-                    obj.softDelayLibrary = readAndParseEvents(fid,@str2num,@str2num,@(s) parseSoftDelayHint(s, obj));
+                    obj.softDelayLibrary = readAndParseEvents(fid,@str2num,@(s) 1e-6*str2num(s),@str2num,@(s) parseSoftDelayHint(s, obj));
                 else
                     warning('Ignoring unknown extension, input string: %s', extension);
                     exts=regexp(extension, '(\s+)','split');                    
