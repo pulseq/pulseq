@@ -86,9 +86,9 @@ else
     %
     grad.type = 'grad';
     grad.channel = opt.channel;
-    grad.waveform = opt.amplitudes;
+    grad.waveform = opt.amplitudes(:);
     grad.delay = round(opt.times(1)/system.gradRasterTime)*system.gradRasterTime;
-    grad.tt = opt.times - grad.delay;
+    grad.tt = opt.times(:) - grad.delay;
     grad.shape_dur = round(opt.times(end)/system.gradRasterTime)*system.gradRasterTime;
     grad.area=0.5*sum((grad.tt(2:end)-grad.tt(1:end-1)).*(grad.waveform(2:end)+grad.waveform(1:end-1)));
 end
