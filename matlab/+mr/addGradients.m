@@ -55,6 +55,7 @@ lasts = [];
 durs=[];
 is_trap=[];
 is_arb=[];
+is_osa=[]; % oversampled arbitrary grad
 for ii = 1:length(grads)
     if grads{ii}.channel~=channel
         error('cannot add gradients on different channels');
@@ -69,8 +70,9 @@ for ii = 1:length(grads)
         lasts = [lasts, 0];
     else
         % check if this is an extended trapezoid
-        tt_rast=grads{ii}.tt/system.gradRasterTime+0.5;
-        is_arb = [is_arb, all(abs(tt_rast(:)'-(1:length(tt_rast)))<1e-6)];
+        tt_rast=grads{ii}.tt/system.gradRasterTime;
+        is_arb = [is_arb, all(abs(tt_rast(:)'+0.5-(1:length(tt_rast)))<1e-6)];
+        is_osa = [is_osa, all(abs(tt_rast(:)'-0.5*(1:length(tt_rast)))<1e-6)];
         % remember first/last
         firsts = [firsts, grads{ii}.first];
         lasts = [lasts, grads{ii}.last];    
@@ -78,6 +80,7 @@ for ii = 1:length(grads)
 end
 common_delay = min(delays);
 total_duration = max(durs);
+is_etrap=(~is_trap)&(~is_arb)&(~is_osa);
 
 % check if we have a set of traps with the same timing
 if all(is_trap)
@@ -99,15 +102,15 @@ end
 
 % check if we only have arbitrary grads on irregular time samplings
 % optionally mixed with trapezoids
-if all(is_trap | ~is_arb)
+if all(is_trap | is_etrap)
     % we can do quite efficient calculations and keep the shapes still rather simple
     times=[];
     for ii = 1:length(grads)
         g=grads{ii};
         if is_trap(ii)
-            times = [times cumsum([g.delay g.riseTime g.flatTime g.fallTime])];
+            times = [times; cumsum([g.delay; g.riseTime; g.flatTime; g.fallTime])];
         else
-            times = [times g.delay+g.tt(:)'];
+            times = [times; g.delay+g.tt];
         end
     end
     times=unique(times); % unique() also sorts the array
@@ -115,7 +118,7 @@ if all(is_trap | ~is_arb)
     dt=times(2:end)-times(1:end-1);
     ieps=find(dt<eps);
     if ~isempty(ieps)
-        dtx=[times(1) dt];
+        dtx=[times(1); dt];
         dtx(ieps)=dtx(ieps)+dtx(ieps+1); % this assumes that no more than two too similar values can occur
         dtx(ieps+1)=[];
         times=cumsum(dtx);
@@ -125,11 +128,11 @@ if all(is_trap | ~is_arb)
         g=grads{ii};
         if strcmp(g.type,'trap')
             if g.flatTime>0 % trapezoid or triange
-                g.tt=cumsum([0 g.riseTime g.flatTime g.fallTime]);
-                g.waveform=[0 g.amplitude g.amplitude 0];
+                g.tt=cumsum([0; g.riseTime; g.flatTime; g.fallTime]);
+                g.waveform=[0 g.amplitude; g.amplitude 0];
             else
-                g.tt=cumsum([0 g.riseTime g.fallTime]);
-                g.waveform=[0 g.amplitude 0];
+                g.tt=cumsum([0; g.riseTime; g.fallTime]);
+                g.waveform=[0; g.amplitude; 0];
             end
         end
         tt=g.delay+g.tt;
@@ -155,32 +158,44 @@ end
 % OK, here we convert everything to a regularly-sampled waveform
 waveforms = {};
 max_length = 0;
+some_osa=any(is_osa);
+if some_osa 
+    target_raster=system.gradRasterTime/2;
+else
+    target_raster=system.gradRasterTime;
+end
 for ii = 1:length(grads)
     g = grads{ii};
     if ~is_trap(ii)
-        if is_arb(ii)
-            waveforms{ii} = g.waveform;
+        if is_arb(ii)||is_osa(ii)
+            if some_osa && is_arb(ii)
+                % interpolate missing samples
+                waveforms{ii} = (g.waveform(floor(1:0.5:end))+g.waveform(ceil(1:0.5:end)))*0.5;
+            else
+                waveforms{ii} = g.waveform;
+            end
         else
-            waveforms{ii} = mr.pts2waveform(g.tt, g.waveform, system.gradRasterTime);
+            waveforms{ii} = mr.pts2waveform(g.tt, g.waveform, target_raster);
         end
     else
         if (g.flatTime>0) % triangle or trapezoid
-            times = [g.delay - common_delay ...
-                     g.delay - common_delay + g.riseTime ...
-                     g.delay - common_delay + g.riseTime + g.flatTime ...
+            times = [g.delay - common_delay; ...
+                     g.delay - common_delay + g.riseTime; ...
+                     g.delay - common_delay + g.riseTime + g.flatTime; ...
                      g.delay - common_delay + g.riseTime + g.flatTime + g.fallTime];
-            amplitudes = [0 g.amplitude g.amplitude 0];
+            amplitudes = [0; g.amplitude; g.amplitude; 0];
         else
-            times = [g.delay - common_delay ...
-                     g.delay - common_delay + g.riseTime ...
+            times = [g.delay - common_delay; ...
+                     g.delay - common_delay + g.riseTime; ...
                      g.delay - common_delay + g.riseTime + g.fallTime];
-            amplitudes = [0 g.amplitude 0];
+            amplitudes = [0; g.amplitude; 0];
         end
-        waveforms{ii} = mr.pts2waveform(times, amplitudes, system.gradRasterTime);
+        waveforms{ii} = mr.pts2waveform(times, amplitudes, target_raster);
     end
     %warning('addGradient(): potentially incorrect handling of delays... TODO: fixme!');
     if g.delay - common_delay > 0
-        t_delay = 0:system.gradRasterTime:g.delay-common_delay-system.gradRasterTime;
+        warning('addGradient(): zerofilling the shape, running unchecked code...');
+        t_delay = 0:target_raster:g.delay-common_delay-target_raster;
         waveforms{ii} = [t_delay*0 waveforms{ii}];
     end
     max_length = max(max_length, length(waveforms{ii}));
@@ -200,6 +215,7 @@ grad = mr.makeArbitraryGrad(channel, w, system, ...
                             'maxSlew', maxSlew,...
                             'maxGrad', maxGrad,...
                             'delay', common_delay,...
+                            'oversampling',some_osa,...
                             'first',sum(firsts(delays==common_delay)),...
                             'last',sum(lasts(durs==total_duration)));
 % first is defined by the sum of firsts with the minimal delay (common_delay)
