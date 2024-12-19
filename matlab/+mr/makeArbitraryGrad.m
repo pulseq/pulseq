@@ -43,7 +43,7 @@ if opt.maxSlew>0
     maxSlew=opt.maxSlew;
 end
 
-g=opt.waveform;
+g=opt.waveform(:);
 
 if isfinite(opt.first)
     first = opt.first;
@@ -68,9 +68,9 @@ else
 end
 
 if opt.oversampling
-    slew=[(first-g(1)) (g(2:end)-g(1:end-1)) (g(end)-last)]./system.gradRasterTime;
+    slew=[(first-g(1)); (g(2:end)-g(1:end-1)); (last-g(end))]./system.gradRasterTime*2;
 else
-    slew=[(first-g(1))*2 (g(2:end)-g(1:end-1)) (g(end)-last)*2]./system.gradRasterTime;
+    slew=[(first-g(1))*2; (g(2:end)-g(1:end-1)); (g(end)-last)*2]./system.gradRasterTime;
 end
 if ~isempty(slew) && max(abs(slew))>maxSlew
     error('Slew rate violation (%.0f%%)',max(abs(slew))/maxSlew*100);
@@ -89,10 +89,10 @@ if opt.oversampling
     if (mod(length(g),2)~=1)
         error('when oversampling is active the gradient shape vector must contain an odd number of samples');
     end
-    grad.tt = (1:length(g))*0.5*system.gradRasterTime;
+    grad.tt = (1:length(g))'*0.5*system.gradRasterTime;
     grad.shape_dur = (length(g)+1)*0.5*system.gradRasterTime;    
 else
-    grad.tt = ((1:length(g))-0.5)*system.gradRasterTime;
+    grad.tt = ((1:length(g))'-0.5)*system.gradRasterTime;
     grad.shape_dur = length(g)*system.gradRasterTime;
 end
 grad.first = first;
