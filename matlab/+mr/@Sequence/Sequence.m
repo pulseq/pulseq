@@ -640,7 +640,7 @@ classdef Sequence < handle
                 obj.softDelayHints1(event.hint)=hintID;
                 obj.softDelayHints2{hintID}=event.hint;
             end
-            data = [event.num event.offset hintID];
+            data = [event.num event.offset event.factor hintID];
             id = obj.softDelayLibrary.find_or_insert(data);
         end
 
@@ -1070,9 +1070,9 @@ classdef Sequence < handle
                     end
                     data = obj.softDelayLibrary.data(delay_ext(2,1)).array;
                     if addIDs
-                        block.softDelay=struct('type','softDelay','num',data(1),'offset',data(2),'hint',obj.softDelayHints2{data(3)},'id',delay_ext(2,1));
+                        block.softDelay=struct('type','softDelay','num',data(1),'offset',data(2),'factor',data(3),'hint',obj.softDelayHints2{data(4)},'id',delay_ext(2,1));
                     else
-                        block.softDelay=struct('type','softDelay','num',data(1),'offset',data(2),'hint',obj.softDelayHints2{data(3)});
+                        block.softDelay=struct('type','softDelay','num',data(1),'offset',data(2),'factor',data(3),'hint',obj.softDelayHints2{data(4)});
                     end
                 end
                 if length(trig_ext)+size(label_ext,2)~=size(raw_block.ext,2)
@@ -1114,17 +1114,17 @@ classdef Sequence < handle
                     grad.channel = gradChannels{i}(2);
                     if strcmp(grad.type,'grad')
                         amplitude = libData(1);
-                        shapeIdPhaseModulation = libData(4); % change in v150
+                        shapeId = libData(4); % change in v150
                         timeId = libData(5);  % change in v150
                         delay = libData(6);   % change in v150
-                        shapeData = obj.shapeLibrary.data(shapeIdPhaseModulation).array;
+                        shapeData = obj.shapeLibrary.data(shapeId).array;
                         compressed.num_samples = shapeData(1);
                         compressed.data = shapeData(2:end);
                         try
                             g = mr.decompressShape(compressed);
                         catch
-                            fprintf('  mr.decompressShape() failed for shapeId %d\n', shapeIdPhaseModulation);
-                            error('mr.decompressShape() failed for shapeId %d', shapeIdPhaseModulation);
+                            fprintf('  mr.decompressShape() failed for shapeId %d\n', shapeId);
+                            error('mr.decompressShape() failed for shapeId %d', shapeId);
                         end
                         grad.waveform = amplitude*g;
                         % SK: This looks like a bug to me.
@@ -1140,8 +1140,8 @@ classdef Sequence < handle
                             try
                                 grad.tt = mr.decompressShape(compressed)*obj.gradRasterTime;
                             catch
-                                fprintf('  mr.decompressShape() failed for shapeId %d\n', shapeIdPhaseModulation);
-                                error('mr.decompressShape() failed for shapeId %d', shapeIdPhaseModulation);
+                                fprintf('  mr.decompressShape() failed for shapeId %d\n', shapeId);
+                                error('mr.decompressShape() failed for shapeId %d', shapeId);
                             end
                             assert(length(grad.waveform) == length(grad.tt));
                             % we need to differentiate here between the
@@ -1150,18 +1150,21 @@ classdef Sequence < handle
                             % vertices of the extended trapezoid are on the
                             % gradient raster edges, whereas the first and
                             % the last points for the sampled shape are on
-                            % half-raster, but rounding up is a good
-                            % solution                            
-                            t_end=ceil(grad.tt(end)/obj.gradRasterTime)*obj.gradRasterTime;
+                            % half-raster. Unfortunately simply rounding up is
+                            % not a good solution because the double data type
+                            % may be little bit off, so we first round it
+                            % to half-raster and then round up to full
+                            % raster
+                            t_end=ceil(round(grad.tt(end)/obj.gradRasterTime*2)/2)*obj.gradRasterTime;
                         end
-                        grad.shape_id=shapeIdPhaseModulation; % needed for the second pass of read()
+                        grad.shape_id=shapeId; % needed for the second pass of read()
                         grad.time_id=timeId; % needed for the second pass of read()
                         grad.delay = delay;
                         grad.shape_dur = t_end;
                         grad.first = libData(2); % change in v150 - we always have first/last now
                         grad.last = libData(3);  % change in v150 - we always have first/last now                       
                         if addIDs
-                            grad.shapeIDs = [shapeIdPhaseModulation timeId];
+                            grad.shapeIDs = [shapeId timeId];
                         end
                     else
                         grad.amplitude = libData(1);
