@@ -60,7 +60,7 @@ end
 
 BW = 1/(4*opt.duration);
 N = round(opt.duration/system.rfRasterTime);
-t = [0 N]*system.rfRasterTime; % CHECKME whether we start at 0 or at 0.5 or at 1 
+t = [0; N]*system.rfRasterTime; % CHECKME whether we start at 0 or at 0.5 or at 1 
 signal = opt.flipAngle/(2*pi)/opt.duration*ones(size(t));
 
 rf.type = 'rf';
@@ -72,6 +72,7 @@ rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = system.rfDeadTime;
 rf.ringdownTime = system.rfRingdownTime;
 rf.delay = opt.delay;
+rf.center = opt.duration/2;
 if ~isempty(opt.use)
     rf.use=opt.use;
 end

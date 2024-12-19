@@ -63,7 +63,7 @@ end
 BW = opt.timeBwProduct/opt.duration;
 alpha = opt.apodization;
 N = round(opt.duration/opt.dwell);
-t = ((1:N)-0.5)*opt.dwell;
+t = ((1:N)-0.5)'*opt.dwell;
 tt = t - opt.duration*opt.centerpos;
 window = (1.0-alpha+alpha*cos(2*pi*tt/opt.duration));
 signal = window.*sinc(BW*tt);

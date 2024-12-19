@@ -59,10 +59,10 @@ end
 
 N=  length(signal);
 duration = N*opt.dwell;
-t = ((1:N)-0.5)*opt.dwell;
+t = ((1:N)'-0.5)*opt.dwell;
 
 rf.type = 'rf';
-rf.signal = signal;
+rf.signal = signal(:);
 rf.t = t;
 rf.shape_dur=duration;
 rf.freqOffset = opt.freqOffset;
