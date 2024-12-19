@@ -149,7 +149,7 @@ for ii = 1:length(grads)
     g = grads{ii};
     if ~is_trap(ii)
         if is_arb(ii)
-            waveforms{ii} = g.waveform(:);
+            waveforms{ii} = g.waveform;
         else
             waveforms{ii} = mr.pts2waveform(g.tt, g.waveform, opt.system.gradRasterTime);
         end
