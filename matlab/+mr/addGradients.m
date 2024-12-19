@@ -149,7 +149,7 @@ for ii = 1:length(grads)
     g = grads{ii};
     if ~is_trap(ii)
         if is_arb(ii)
-            waveforms{ii} = g.waveform;
+            waveforms{ii} = g.waveform(:);
         else
             waveforms{ii} = mr.pts2waveform(g.tt, g.waveform, opt.system.gradRasterTime);
         end
@@ -167,6 +167,9 @@ for ii = 1:length(grads)
             amplitudes = [0 g.amplitude 0];
         end
         waveforms{ii} = mr.pts2waveform(times, amplitudes, opt.system.gradRasterTime);
+    end
+    if size(waveforms{ii})==1 
+        waveforms{ii}=waveforms{ii}';
     end
     %warning('addGradient(): potentially incorrect handling of delays... TODO: fixme!');
     if g.delay - common_delay > 0
