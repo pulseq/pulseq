@@ -243,6 +243,36 @@ classdef Sequence < handle
                     end
                 end
 
+                % check soft delays
+                if isfield(b, 'softDelay') && ~isempty(b.softDelay)
+                    if ~exist('softDelayState','var')
+                        softDelayState={};
+                    end
+                    if b.softDelay.factor==0
+                        errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' soft delay ' b.softDelay.hint '/' num2str(b.softDelay.num) ' has factor parameter of 0 which is invalid\n' ] };
+                        is_ok=false;
+                    end
+                    % calculate the default delay value based on the current block duration
+                    def_del=(obj.blockDurations(iB)-b.softDelay.offset)*b.softDelay.factor;
+                    if (b.softDelay.num>=0)
+                        % remember or check for consistency
+                        if length(softDelayState)<b.softDelay.num+1 || isempty(softDelayState{b.softDelay.num+1})
+                            softDelayState{b.softDelay.num+1}=struct('def',def_del,'hint',b.softDelay.hint, 'blk', iB);
+                        else
+                            if abs(def_del-softDelayState{b.softDelay.num+1}.def)>1e-7 % what is the reasonable threshold?
+                                errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' soft delay ' b.softDelay.hint '/' num2str(b.softDelay.num) ': default duration derived from this block (' num2str(def_del*1e6) 'us) is inconsistent with the previous default (' num2str(softDelayState{b.softDelay.num+1}.def*1e6) 'us) that was derived from block ' num2str(softDelayState{b.softDelay.num+1}.blk) '\n' ] };
+                                is_ok=false;
+                            end
+                            if ~strcmp(b.softDelay.hint, softDelayState{b.softDelay.num+1}.hint) 
+                                errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' soft delay ' b.softDelay.hint '/' num2str(b.softDelay.num) ': soft delays with the same numeric ID are expected to share the same text hint but previous hint recorded in block ' num2str(softDelayState{b.softDelay.num+1}.blk) ' is ' softDelayState{b.softDelay.num+1}.hint '\n' ] };
+                                is_ok=false;
+                            end
+                        end
+                    else
+                        errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' contains a soft delay ' b.softDelay.hint ' with an invalid numeric ID' num2str(b.softDelay.num) '\n' ] };
+                        is_ok=false;
+                    end
+                end
                 % update report
                 if ~isempty(rep)
                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' rep '\n' ] };
@@ -409,8 +439,9 @@ classdef Sequence < handle
 
             rf.center = libData(5); % new in v150
             rf.delay = libData(6); % changed in v150
-            rf.freqOffset = libData(7); % changed in v150
-            rf.phaseOffset = libData(8); % new changed v150
+            rf.ppmOffset = libData(7); % new in v150
+            rf.freqOffset = libData(8); % changed in v150
+            rf.phaseOffset = libData(9); % new changed v150
             
             rf.deadTime = obj.sys.rfDeadTime;
             rf.ringdownTime = obj.sys.rfRingdownTime;
@@ -498,7 +529,7 @@ classdef Sequence < handle
             end
 
             data = [amplitude shapeIDs(1) shapeIDs(2) shapeIDs(3) ...
-                    event.center event.delay event.freqOffset event.phaseOffset ];%...
+                    event.center event.delay event.ppmOffset event.freqOffset event.phaseOffset ];%...
                     %event.deadTime event.ringdownTime];
             if may_exist
                 id = obj.rfLibrary.find_or_insert(data,use);
@@ -512,7 +543,7 @@ classdef Sequence < handle
         end
         
         function [id,shapeIDs]=registerGradEvent(obj, event)
-            % registerRfEvent : Add the event to the libraries (object,
+            % registerGradEvent : Add the event to the libraries (object,
             % shapes, etc and return the event's ID. This ID should be 
             % stored in the object to accelerate addBlock()
             may_exist=true;
@@ -538,7 +569,15 @@ classdef Sequence < handle
                         [shapeIDs(1),found] = obj.shapeLibrary.find_or_insert(s_data);
                         may_exist=may_exist & found;
                         c_time = mr.compressShape(event.tt/obj.gradRasterTime);
-                        if ~(length(c_time.data)==4 && all(c_time.data == [0.5 1 1 c_time.num_samples-3])) 
+                        if (length(c_time.data)==4 && all(c_time.data == [0.5 1 1 c_time.num_samples-3])) 
+                            % conventional grad on standard raster: shapeID
+                            % is readily 0, nothing needs to be done
+                            %shapeIDs(2)=0;
+                        elseif (length(c_time.data)==3 && all(c_time.data == [0.5 0.5 c_time.num_samples-2])) 
+                            % grad on a half-raster (oversampling): shapeID
+                            % needs to be set to -1 as a flag for oversampling
+                            shapeIDs(2)=-1;
+                        else
                             t_data = [c_time.num_samples c_time.data];
                             [shapeIDs(2),found] = obj.shapeLibrary.find_or_insert(t_data);
                             may_exist=may_exist & found;
@@ -585,7 +624,7 @@ classdef Sequence < handle
             end
 
             data = [event.numSamples event.dwell max(event.delay,event.deadTime), ... % MZ: replaced event.delay+event.deadTime with a max(...) because we allow for overlap of the delay and the dead time
-                event.freqOffset event.phaseOffset shapeID]; % event.deadTime];
+                event.ppmOffset event.freqOffset event.phaseOffset shapeID]; % event.deadTime];
             if surely_new
                 id = obj.adcLibrary.insert(0,data);
             else
@@ -1133,6 +1172,12 @@ classdef Sequence < handle
                             grad.tt = ((1:length(g))-0.5)'*obj.gradRasterTime; % TODO: evetually we may remove these true-times
                             t_end=length(g)*obj.gradRasterTime;
                             %grad.t = (0:length(g)-1)'*obj.gradRasterTime;
+                        elseif (timeId==-1)
+                            % gradient with oversampling by a factor of 2
+                            grad.tt = ((1:length(g)))'/2*obj.gradRasterTime; 
+                            assert(length(grad.tt)==length(grad.waveform));
+                            assert(mod(length(g),2)==1);
+                            t_end=(length(g)+1)/2*obj.gradRasterTime;
                         else
                             tShapeData = obj.shapeLibrary.data(timeId).array;
                             compressed.num_samples = tShapeData(1);
@@ -1144,18 +1189,7 @@ classdef Sequence < handle
                                 error('mr.decompressShape() failed for shapeId %d', shapeId);
                             end
                             assert(length(grad.waveform) == length(grad.tt));
-                            % we need to differentiate here between the
-                            % oversampled shaped gradient and the extended
-                            % trapezoid. the difference is that the
-                            % vertices of the extended trapezoid are on the
-                            % gradient raster edges, whereas the first and
-                            % the last points for the sampled shape are on
-                            % half-raster. Unfortunately simply rounding up is
-                            % not a good solution because the double data type
-                            % may be little bit off, so we first round it
-                            % to half-raster and then round up to full
-                            % raster
-                            t_end=ceil(round(grad.tt(end)/obj.gradRasterTime*2)/2)*obj.gradRasterTime;
+                            t_end=grad.tt(end);
                         end
                         grad.shape_id=shapeId; % needed for the second pass of read()
                         grad.time_id=timeId; % needed for the second pass of read()
@@ -1200,7 +1234,7 @@ classdef Sequence < handle
                 end
                 adc = cell2struct(num2cell([libData(1:end-1) 0 obj.sys.adcDeadTime]), ...
                                   {'numSamples', 'dwell', 'delay', ...
-                                   'freqOffset', 'phaseOffset', ...
+                                   'ppmOffset', 'freqOffset', 'phaseOffset', ...
                                    'phaseModulation','deadTime'}, 2);
                 if shapeIdPhaseModulation
                     adc.phaseModulation=phaseShape;
@@ -1771,10 +1805,11 @@ classdef Sequence < handle
                     rf=block.rf;
                     tc=mr.calcRfCenter(rf);
                     t=rf.delay+tc;
-                    if (~isfield(block.rf,'use') || strcmp(block.rf.use,'excitation') || strcmp(block.rf.use,'undefined'))
-                        tfp_excitation(:,end+1) = [curr_dur+t; block.rf.freqOffset; block.rf.phaseOffset+block.rf.freqOffset*tc];
-                    elseif strcmp(block.rf.use,'refocusing')
-                        tfp_refocusing(:,end+1) = [curr_dur+t; block.rf.freqOffset; block.rf.phaseOffset+block.rf.freqOffset*tc];
+                    full_freqOffset=rf.freqOffset+rf.ppmOffset*1e-6*obj.sys.gamma*obj.sys.B0;
+                    if (~isfield(rf,'use') || strcmp(rf.use,'excitation') || strcmp(rf.use,'undefined'))
+                        tfp_excitation(:,end+1) = [curr_dur+t; full_freqOffset; rf.phaseOffset+2*pi*full_freqOffset*tc];
+                    elseif strcmp(rf.use,'refocusing')
+                        tfp_refocusing(:,end+1) = [curr_dur+t; full_freqOffset; rf.phaseOffset+2*pi*full_freqOffset*tc];
                     end
                     if appendRF
                         pre=[];
@@ -1788,13 +1823,17 @@ classdef Sequence < handle
 %                         pre=[curr_dur+rf.delay+rf.t(1)-eps;NaN];
 %                         post=[curr_dur+rf.delay+rf.t(end)+eps;NaN];
                         out_len(end)=out_len(j)+length(rf.t)+size(pre,2)+size(post,2);
-                        shape_pieces{end,iP}=[pre [curr_dur+rf.delay+rf.t'; (rf.signal.*exp(1i*(rf.phaseOffset+2*pi*rf.freqOffset*rf.t)))'] post];
+                        shape_pieces{end,iP}=[pre [curr_dur+rf.delay+rf.t'; (rf.signal.*exp(1i*(rf.phaseOffset+2*pi*full_freqOffset*rf.t)))'] post];
                     end
                 end
                 if ~isempty(block.adc)
                     ta=block.adc.dwell*((0:(block.adc.numSamples-1))+0.5); % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell) % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
                     t_adc((end+1):(end+block.adc.numSamples)) = ta + block.adc.delay + curr_dur;
-                    fp_adc(:,(end+1):(end+block.adc.numSamples)) = [block.adc.freqOffset*ones(1,block.adc.numSamples); block.adc.phaseOffset+block.adc.freqOffset*ta];
+                    full_freqOffset=block.adc.freqOffset+block.adc.ppmOffset*1e-6*obj.sys.gamma*obj.sys.B0;
+                    if isempty(block.adc.phaseModulation)
+                        block.adc.phaseModulation=0;
+                    end                        
+                    fp_adc(:,(end+1):(end+block.adc.numSamples)) = [full_freqOffset*ones(1,block.adc.numSamples); block.adc.phaseOffset+block.adc.phaseModulation+full_freqOffset*ta];
                 end
                 curr_dur=curr_dur+obj.blockDurations(iBc);%mr.calcDuration(block);
             end
@@ -2203,6 +2242,141 @@ classdef Sequence < handle
             else
                 mean_pwr=total_energy/dur;
                 rf_rms=sqrt(rf_ms/dur);
+            end
+        end
+
+        function applySoftDelay(obj, varargin) 
+            % applies soft delays to the sequence by modifying the block
+            % durations of the respective blocks. Input parameters are
+            % pairs of soft delays and values, whereas the soft delay is
+            % identified by its string hint and the value is the duration
+            % in seconds. Not all soft delays defined in the sequence  need 
+            % to be specified. Examples: 
+            %
+            %    seq.applySoftDelay('TE',40e-3); % set TE to 40ms
+            %    seq.applySoftDelay('TE',50e-3,'TR',2); % set TE to 50ms and TR to 2 s
+            %
+            % See also: mr.makeSoftDelay()
+
+            % parse arguments manually
+            sdm_input=containers.Map('KeyType', 'char', 'ValueType', 'double');
+            for i=1:2:length(varargin)
+                if ~ischar(varargin{i})
+                    error('Argument at the position %d must be a character string ID of the soft delay',i);
+                end
+                if i>length(varargin) || ~isnumeric(varargin{i+1})
+                    error('Argument at the position %d must be the value of the soft delay ''%s''',i+1,varargin{i});
+                end
+                sdm_input(varargin{i})=varargin{i+1};
+            end
+            % go through all the blocks and update durations, at the same time 
+            % checking the consistency of the soft delays 
+            sdm_Str2numIDs=containers.Map('KeyType', 'char', 'ValueType', 'double');
+            sdm_num2hint=containers.Map('KeyType', 'double', 'ValueType', 'char');
+            sdm_warnings=containers.Map('KeyType', 'double', 'ValueType', 'logical');
+            for iBc=1:length(obj.blockDurations)
+                b = obj.getBlock(iBc);
+                if isfield(b, 'softDelay') && ~isempty(b.softDelay)
+                    % check the numeric ID consistency 
+                    if ~sdm_Str2numIDs.isKey(b.softDelay.hint)
+                        sdm_Str2numIDs(b.softDelay.hint)=b.softDelay.num;
+                    else
+                        if sdm_Str2numIDs(b.softDelay.hint)~=b.softDelay.num
+                            error('Soft delay in block %d with numeric ID %d and string hint ''%s'' is inconsistent with the previous occurences of the same string hint', iBc, b.softDelay.num, b.softDelay.hint);
+                        end
+                    end
+                    if ~sdm_num2hint.isKey(b.softDelay.num)
+                        sdm_num2hint(b.softDelay.num)=b.softDelay.hint;
+                    else
+                        if ~strcmp(sdm_num2hint(b.softDelay.num),b.softDelay.hint)
+                            error('Soft delay in block %d with numeric ID %d and string hint ''%s'' is inconsistent with the previous occurences of the same numeric ID', iBc, b.softDelay.num, b.softDelay.hint);
+                        end
+                    end
+                    if sdm_input.isKey(b.softDelay.hint)
+                        % calculate the new block duration 
+                        new_dur_ru=(sdm_input(b.softDelay.hint)/b.softDelay.factor + b.softDelay.offset)/obj.sys.blockDurationRaster;
+                        new_dur=round(new_dur_ru)*obj.sys.blockDurationRaster;
+                        if abs(new_dur-new_dur_ru*obj.sys.blockDurationRaster)>0.5e-6 && ~sdm_warnings.isKey(b.softDelay.num)                            
+                            warning('Block duration for block %d, soft delay ''%s'', had to be substantially rounded to become aligned to the raster time. This warning is only displayed for the first block where it occurs.', iBc, b.softDelay.hint);
+                            sdm_warnings(b.softDelay.num)=true;
+                        end
+                        if new_dur<0 
+                            error('Calculated new duration of the block %i, soft delay %s/%d is negative (%g s)', iBc, b.softDelay.hint, b.softDelay.num, new_dur);
+                        end
+                        obj.blockDurations(iBc)=new_dur;
+                    end
+                end
+            end
+            % now check if there are some input soft delays which haven't been found in the sequence
+            all_input_hints=sdm_input.keys;
+            for i=1:length(all_input_hints)
+                if ~sdm_Str2numIDs.isKey(all_input_hints{i})
+                    error('Specified soft delay ''%s'' does not exist in the sequence', all_input_hints{i});
+                end
+            end
+        end
+
+        function [easyStruct, errorReport, softDelayState] =getDefaultSoftDelayValues(obj) 
+            % go through all the blocks checking the consistency of the soft delays 
+            % the code below is copied from checkTiming; we should merge
+            % the functionality eventually... TODO/FIXME
+            errorReport={};
+            softDelayState={};
+            for iB=1:length(obj.blockDurations)
+                b = obj.getBlock(iB);
+                % check soft delays
+                if isfield(b, 'softDelay') && ~isempty(b.softDelay)
+                    if b.softDelay.factor==0
+                        errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' soft delay ' b.softDelay.hint '/' num2str(b.softDelay.num) ' has factor parameter of 0 which is invalid\n' ] };
+                        is_ok=false;
+                    end                    
+                    % calculate the default delay value based on the current block duration
+                    def_del=(obj.blockDurations(iB)-b.softDelay.offset)*b.softDelay.factor;                    
+                    if (b.softDelay.num>=0)
+                        % remember or check for consistency
+                        if length(softDelayState)<b.softDelay.num+1 || isempty(softDelayState{b.softDelay.num+1})
+                            softDelayState{b.softDelay.num+1}=struct('def',def_del,'hint',b.softDelay.hint, 'blk', iB, 'min', 0.0, 'max', +Inf);
+                        else
+                            if abs(def_del-softDelayState{b.softDelay.num+1}.def)>1e-7 % what is the reasonable threshold?
+                                errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' soft delay ' b.softDelay.hint '/' num2str(b.softDelay.num) ': default duration derived from this block (' num2str(def_del*1e6) 'us) is inconsistent with the previous default (' num2str(softDelayState{b.softDelay.num+1}.def*1e6) 'us) that was derived from block ' num2str(softDelayState{b.softDelay.num+1}.blk) '\n' ] };
+                                is_ok=false;
+                            end
+                            if ~strcmp(b.softDelay.hint, softDelayState{b.softDelay.num+1}.hint) 
+                                errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' soft delay ' b.softDelay.hint '/' num2str(b.softDelay.num) ': soft delays with the same numeric ID are expected to share the same text hint but previous hint recorded in block ' num2str(softDelayState{b.softDelay.num+1}.blk) ' is ' softDelayState{b.softDelay.num+1}.hint '\n' ] };
+                                is_ok=false;
+                            end
+                        end
+                        % calculate the delay value that would make the block duration of 0, which correponds to min/max
+                        lim_del=(-b.softDelay.offset)*b.softDelay.factor;
+                        if b.softDelay.factor>0
+                            % lim_del corresponds to a minimum
+                            if lim_del>softDelayState{b.softDelay.num+1}.min
+                                softDelayState{b.softDelay.num+1}.min=lim_del;
+                            end
+                        else
+                            % lim_del corresponds to a maximum
+                            if lim_del<softDelayState{b.softDelay.num+1}.max
+                                softDelayState{b.softDelay.num+1}.max=lim_del;
+                            end
+                        end
+                    else
+                        errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' contains a soft delay ' b.softDelay.hint ' with an invalid numeric ID' num2str(b.softDelay.num) '\n' ] };
+                        is_ok=false;
+                    end
+                end
+            end
+            % re-package softDelayState into easyStruct
+            easyStruct=struct;
+            for i=1:length(softDelayState)
+                if isempty(softDelayState{i}) 
+                    warning('SoftDelay numeric ID %d is unused, we expect contiguous numbering of soft delays',i-1);
+                    continue;
+                end
+                if isfield(easyStruct,softDelayState{i}.hint)
+                    error('SoftDelay with numeric ID %d uses the rame hint ''%s'' as some previous SoftDelay',i-1,softDelayState{i}.hint);
+                    continue;
+                end
+                easyStruct.(softDelayState{i}.hint)=softDelayState{i}.def;
             end
         end
         

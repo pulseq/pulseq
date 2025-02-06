@@ -26,6 +26,7 @@ if isempty(parser)
     addParamValue(parser,'dwell',0,@isnumeric);
     addParamValue(parser,'duration',0,@isnumeric);
     addParamValue(parser,'delay',0,@isnumeric);
+    addParamValue(parser,'ppmOffset', 0, @isnumeric);
     addParamValue(parser,'freqOffset',0,@isnumeric);
     addParamValue(parser,'phaseOffset',0,@isnumeric);
     addParamValue(parser,'phaseModulation',[],@isnumeric);
@@ -44,6 +45,7 @@ adc.type = 'adc';
 adc.numSamples = num;
 adc.dwell = opt.dwell;
 adc.delay = opt.delay;
+adc.ppmOffset = opt.ppmOffset;
 adc.freqOffset = opt.freqOffset;
 adc.phaseOffset = opt.phaseOffset;
 adc.deadTime = system.adcDeadTime;

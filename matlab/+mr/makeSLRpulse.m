@@ -43,6 +43,7 @@ if isempty(parser)
     addRequired(parser, 'flipAngle', @isnumeric);
     addOptional(parser, 'system', [], @isstruct);
     addParamValue(parser, 'duration', 1e-3, @isnumeric);
+    addParamValue(parser, 'ppmOffset', 0, @isnumeric);
     addParamValue(parser, 'freqOffset', 0, @isnumeric);
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
     addParamValue(parser, 'timeBwProduct', 4, @isnumeric);
@@ -175,11 +176,13 @@ rf.type = 'rf';
 rf.signal = signal;
 rf.t = t;
 rf.shape_dur=N*opt.dwell;
+rf.ppmOffset = opt.ppmOffset;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = sys.rfDeadTime;
 rf.ringdownTime = sys.rfRingdownTime;
 rf.delay = opt.delay;
+rf.center = rf.shape_dur/2 ;
 if ~isempty(opt.use)
     rf.use=opt.use;
 end

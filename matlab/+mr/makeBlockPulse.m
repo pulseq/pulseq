@@ -7,8 +7,13 @@ function [rf, delay] = makeBlockPulse(flip,varargin)
 %   with given flip angle and bandwidth (Hz). The duration is calculated as
 %   1/(4*bw)
 %
-%   rf=makeBlockPulse(..., 'FreqOffset', f,'PhaseOffset',p)
+%   rf=makeBlockPulse(..., 'freqOffset', f,'phaseOffset',p)
 %   Create block pulse with frequency offset and phase offset.
+%
+%   rf=makeBlockPulse(..., 'ppmOffset')
+%   Create block RF pulse with frequency offset specified in PPM (e.g.
+%   actual frequency offset proportional to the true Larmor frequency); can
+%   be combined with the 'freqOffset' specified in Hz.
 %
 %   [rf, delay]=makeBlockPulse(...) returns the corresponding delay object 
 %   that takes care of the RF ringdown time.
@@ -26,6 +31,7 @@ if isempty(parser)
     addRequired(parser, 'flipAngle', @isnumeric);
     addOptional(parser, 'system', [], @isstruct); % for slice grad
     addParamValue(parser, 'duration', 0, @isnumeric);
+    addParamValue(parser, 'ppmOffset', 0, @isnumeric);
     addParamValue(parser, 'freqOffset', 0, @isnumeric);
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
     addParamValue(parser, 'timeBwProduct', 0, @isnumeric);
@@ -67,12 +73,13 @@ rf.type = 'rf';
 rf.signal = signal;
 rf.t = t;
 rf.shape_dur=t(end);
+rf.ppmOffset = opt.ppmOffset;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = system.rfDeadTime;
 rf.ringdownTime = system.rfRingdownTime;
 rf.delay = opt.delay;
-rf.center = opt.duration/2;
+rf.center = rf.shape_dur/2;
 if ~isempty(opt.use)
     rf.use=opt.use;
 end

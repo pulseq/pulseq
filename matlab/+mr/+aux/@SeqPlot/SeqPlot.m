@@ -201,7 +201,8 @@ classdef SeqPlot < handle
                         if isempty(adc.phaseModulation)
                             adc.phaseModulation=0;
                         end
-                        p2=plot(tFactor*(t0+t), angle(exp(1i*(adc.phaseOffset+adc.phaseModulation)).*exp(1i*2*pi*t*adc.freqOffset)),'b.','MarkerSize',1,'Parent',obj.ax(3)); % plot ADC phase 
+                        full_freqOffset=adc.freqOffset+adc.ppmOffset*1e-6*seq.sys.gamma*seq.sys.B0;
+                        p2=plot(tFactor*(t0+t), angle(exp(1i*(adc.phaseOffset+adc.phaseModulation)).*exp(1i*2*pi*t*full_freqOffset)),'b.','MarkerSize',1,'Parent',obj.ax(3)); % plot ADC phase 
                         % labels/counters/flags
                         if label_defined && ~isempty(label_indexes_2plot)
                             set(obj.ax(1),'ColorOrder',label_colors_2plot);
@@ -244,12 +245,13 @@ classdef SeqPlot < handle
                             s=[s; 0];
                             t=[t; t(end)];
                         end
+                        full_freqOffset=rf.freqOffset+rf.ppmOffset*1e-6*seq.sys.gamma*seq.sys.B0;
                         if (sreal)
                             p1=plot(tFactor*(t0+t+rf.delay),  real(s),'Parent',obj.ax(2));
-                            p2=plot(tFactor*(t0+t+rf.delay),  angle(s.*sign(real(s))*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*rf.freqOffset)),'xb', 'Parent',obj.ax(3));
+                            p2=plot(tFactor*(t0+t+rf.delay),  angle(s.*sign(real(s))*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *full_freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*full_freqOffset)),'xb', 'Parent',obj.ax(3));
                         else
                             p1=plot(tFactor*(t0+t+rf.delay),  abs(s),'Parent',obj.ax(2));
-                            p2=plot(tFactor*(t0+t+rf.delay),  angle(s*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*rf.freqOffset)),'xb', 'Parent',obj.ax(3));
+                            p2=plot(tFactor*(t0+t+rf.delay),  angle(s*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *full_freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*full_freqOffset)),'xb', 'Parent',obj.ax(3));
                         end                        
                     end
                     for j=1:length(gradChannels)

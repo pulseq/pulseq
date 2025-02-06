@@ -65,6 +65,7 @@ if isempty(parser)
     addRequired(parser, 'type', @(x) any(validatestring(x,validPulseTypes)));
     addOptional(parser, 'system', [], @isstruct);
     addParamValue(parser, 'duration', 10e-3, @isnumeric);
+    addParamValue(parser, 'ppmOffset', 0, @isnumeric);
     addParamValue(parser, 'freqOffset', 0, @isnumeric);
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
     addParamValue(parser, 'beta', 800, @isnumeric);
@@ -229,11 +230,13 @@ rf.type = 'rf';
 rf.signal = signal;
 rf.t = t;
 rf.shape_dur=N*opt.dwell;
+rf.ppmOffset = opt.ppmOffset;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = sys.rfDeadTime;
 rf.ringdownTime = sys.rfRingdownTime;
 rf.delay = opt.delay;
+rf.center = rf.shape_dur/2 ;
 if ~isempty(opt.use)
     rf.use=opt.use;
 else

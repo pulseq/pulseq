@@ -3,8 +3,13 @@ function [rf, gz, gzr, delay] = makeArbitraryRf(signal,flip,varargin)
 %   rf=makeArbitraryRf(singal, flip) Create RF pulse with complex signal 
 %   and given flip angle (in radians)
 %
-%   rf=makeArbitraryRf(..., 'FreqOffset', f,'PhaseOffset',p)
-%   Create block pulse with frequency offset and phase offset.
+%   rf=makeArbitraryRf(..., 'freqOffset', f,'phaseOffset',p)
+%   Create arbitrary RF pulse with frequency offset and phase offset.
+%
+%   rf=makeArbitraryRf(..., 'ppmOffset')
+%   Create arbitrary RF pulse with frequency offset specified in PPM (e.g.
+%   actual frequency offset proportional to the true Larmor frequency); can
+%   be combined with the 'freqOffset' specified in Hz.
 %
 %   [rf, gz]=makeArbitraryRf(..., 'Bandwidth', bw, 'SliceThickness', st) 
 %   Create RF pulse and corresponding slice select gradient. The bandwidth
@@ -23,6 +28,7 @@ if isempty(parser)
     addRequired(parser, 'signal', @isnumeric);
     addRequired(parser, 'flipAngle', @isnumeric);
     addOptional(parser, 'system', [], @isstruct);
+    addParamValue(parser, 'ppmOffset', 0, @isnumeric);
     addParamValue(parser, 'freqOffset', 0, @isnumeric);
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
     addParamValue(parser, 'timeBwProduct', 0, @isnumeric);
@@ -65,6 +71,7 @@ rf.type = 'rf';
 rf.signal = signal(:);
 rf.t = t;
 rf.shape_dur=duration;
+rf.ppmOffset = opt.ppmOffset;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = system.rfDeadTime;
@@ -81,6 +88,8 @@ if isfinite(opt.center)
     rf.center=opt.center;
     if rf.center < 0, rf.center = 0; end
     if rf.center > rf.shape_dur, rf.center = rf.shape_dur; end
+else
+    rf.center = rf.shape_dur ; % QC: rf.center is the time point when the magnetization vector reaches the peak? remain to check. 2025.01.02.
 end
 
 if opt.timeBwProduct>0

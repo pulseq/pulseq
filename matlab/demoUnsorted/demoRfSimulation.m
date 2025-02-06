@@ -4,7 +4,7 @@
 
 %% Create a system object
 % we need it here to create fat-sat pulses
-sys = mr.opts('B0', 2.89); 
+sys = mr.opts('B0', 2.89,'setAsDefault', true); 
 %seq=mr.Sequence(sys);
 thickness_mm=5;
 
@@ -162,9 +162,15 @@ sat_ppm=-3.45;
 sat_freq=sat_ppm*1e-6*sys.B0*sys.gamma;
 fs_dur= 8e-3;
 fs_bw_mul=1.4;
+% % old explicit frequency offset setting
+% rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',fs_dur,...
+%     'bandwidth',fs_bw_mul*abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
+
+% new (v1.5.0+) ppm offset setting
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',fs_dur,...
-    'bandwidth',fs_bw_mul*abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
-rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
+    'bandwidth',fs_bw_mul*abs(sat_freq),'ppmOffset',sat_ppm,'use','saturation');
+
+rf_fs.phaseOffset=-2*pi*(rf_fs.freqOffset+rf_fs.ppmOffset*1e-6*sys.gamma*sys.B0)*rf_fs.center; % compensate for the frequency-offset induced phase    
 
 [M_z,M_xy,F2]=mr.simRf(rf_fs);
 

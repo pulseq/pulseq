@@ -94,7 +94,8 @@ while true
                 warning('Loading older Pulseq format file (version %d.%d.%d) some code may function not as expected', version_major, version_minor, version_revision);
             end
             if version_combined >= 1005000 && detectRFuse
-                error('The option detectRFuse is not supported for version %d.%d.%d and above', version_major, version_minor, version_revision);
+                warning('Option ''detectRFuse'' is not supported for file format version 1.5.0 and above');
+                detectRFuse=false;
             end
         case '[BLOCKS]'
             if ~exist('version_major')
@@ -103,7 +104,7 @@ while true
             [obj.blockEvents,obj.blockDurations,delayInd_tmp] = readBlocks(fid, obj.blockDurationRaster, version_combined);
         case '[RF]'
             if version_combined >= 1005000 
-                obj.rfLibrary = readEvents(fid, [1 1 1 1 1e-6 1e-6 1 1 NaN]); % this is 1.5.x format 
+                obj.rfLibrary = readEvents(fid, [1 1 1 1 1e-6 1e-6 1 1 1 NaN]); % this is 1.5.x format 
             elseif version_combined >= 1004000 
                 obj.rfLibrary = readEvents(fid, [1 1 1 1 1e-6 1 1]); % this is 1.4.x format 
                 % we fix it below
@@ -123,7 +124,7 @@ while true
             obj.gradLibrary = readEvents(fid, [1 1e-6 1e-6 1e-6 1e-6], 't', obj.gradLibrary);
         case '[ADC]'
             if version_combined >= 1005000 
-                obj.adcLibrary = readEvents(fid, [1 1e-9 1e-6 1 1 1]); % this is 1.5.x format 
+                obj.adcLibrary = readEvents(fid, [1 1e-9 1e-6 1 1 1 1]); % this is 1.5.x format 
             else
                 obj.adcLibrary=readEvents(fid, [1 1e-9 1e-6 1 1]); % this is 1.4.x and older format
                 % for now we don't have the phase vector in the ADC library
@@ -182,13 +183,13 @@ if version_combined < 1005000
         obj.adcLibrary.update_data(...
             obj.adcLibrary.keys(i), ...
             obj.adcLibrary.data(i).array, ...
-            [obj.adcLibrary.data(i).array 0]); % add the empty phase_id field
+            [obj.adcLibrary.data(i).array(1:3) 0  obj.adcLibrary.data(i).array(4:5) 0]); % add empty ppmOffset and phase_id fields
     end
 end
 % fix blocks, gradients and RF objects imported from older versions (< v1.4.0)
 if version_combined < 1004000  
     % scan through the RF objects
-    obj.rfLibrary.type(obj.rfLibrary.keys) = 'u'; % undefined for now, we'll attemp the type detection later (see below)
+    obj.rfLibrary.type(obj.rfLibrary.keys) = 'u'; % undefined for now, we'll attempt the type detection later (see below)
     for i=1:length(obj.rfLibrary.data)
         % % need to (partially) decode the magnitude shape to find out the pulse duration
         %magSamples = obj.shapeLibrary.data(obj.rfLibrary.data(i).array(2)).array(1);
@@ -196,12 +197,12 @@ if version_combined < 1004000
         %timeShape = mr.compressShape((1:magSamples)-0.5); % time shape is stored in units of RF raster
         %data = [timeShape.num_samples timeShape.data];
         %timeID = obj.shapeLibrary.find_or_insert(data);
-        rf=rmfield(obj.rfFromLibData([obj.rfLibrary.data(i).array(1:3) 0 0 obj.rfLibrary.data(i).array(4:6)],'u'),'center');
+        rf=rmfield(obj.rfFromLibData([obj.rfLibrary.data(i).array(1:3) 0 0 obj.rfLibrary.data(i).array(4) 0 obj.rfLibrary.data(i).array(5:6)],'u'),'center');
         center=mr.calcRfCenter(rf);
         obj.rfLibrary.update_data(...
             obj.rfLibrary.keys(i), ...
             obj.rfLibrary.data(i).array, ...
-            [obj.rfLibrary.data(i).array(1:3) 0 center obj.rfLibrary.data(i).array(4:6)]); 
+            [obj.rfLibrary.data(i).array(1:3) 0 center obj.rfLibrary.data(i).array(4) 0 obj.rfLibrary.data(i).array(5:6)]); % 0 between (4) and (5:6) is the ppmOffset 
     end
     
     % scan through the gradient objects and update 't'-s (trapezoids) und 'g'-s (free-shape gradients)
@@ -256,16 +257,16 @@ elseif version_combined < 1005000
     % port from v1.4.x : RF, ADC and GRAD objects need to be updated
     % this needs to be done on the level of the libraries, because getBlock will fail
     
-    % scan though the RFs and add center and use fields
+    % scan though the RFs and add center, ppmOffset and use fields
     obj.rfLibrary.type(obj.rfLibrary.keys) = 'u'; % undefined for now, we'll attemp the type detection later (see below)
     for i=1:length(obj.rfLibrary.data)
         % use goes into the type field, and this is done separately
-        rf=rmfield(obj.rfFromLibData([obj.rfLibrary.data(i).array(1:4) 0 obj.rfLibrary.data(i).array(5:7)],'u'),'center');
+        rf=rmfield(obj.rfFromLibData([obj.rfLibrary.data(i).array(1:4) 0 obj.rfLibrary.data(i).array(5) 0 obj.rfLibrary.data(i).array(6:7)],'u'),'center');
         center=mr.calcRfCenter(rf);
         obj.rfLibrary.update_data(...
             obj.rfLibrary.keys(i), ...
             obj.rfLibrary.data(i).array, ...
-            [obj.rfLibrary.data(i).array(1:4) center obj.rfLibrary.data(i).array(5:7)]); 
+            [obj.rfLibrary.data(i).array(1:4) center obj.rfLibrary.data(i).array(5) 0 obj.rfLibrary.data(i).array(6:7)]); % 0 between (5) and (6:7) is the ppmOffset 
     end
     % scan through the gradient objects and update 'g'-s (free-shape gradients)
     for i=1:length(obj.gradLibrary.data)
@@ -377,7 +378,7 @@ if detectRFuse
     % that the RF pulse use is not stored in the file
     for k=obj.rfLibrary.keys
         libData=obj.rfLibrary.data(k).array;
-        rf=obj.rfFromLibData(libData);
+        rf=obj.rfFromLibData(libData,'u');
         %flipAngleDeg=abs(sum(rf.signal))*rf.t(1)*360; %we use rfex.t(1) in place of opt.system.rfRasterTime
         flipAngleDeg=abs(sum(rf.signal(1:end-1).*(rf.t(2:end)-rf.t(1:end-1))))*360;
         offresonance_ppm=1e6*rf.freqOffset/obj.sys.B0/obj.sys.gamma;

@@ -69,7 +69,8 @@ if ~isempty(obj.rfLibrary.keys)
     keys = obj.rfLibrary.keys;
     for k = keys
         libData1 = obj.rfLibrary.data(k).array(1:4);
-        libData2 = obj.rfLibrary.data(k).array(7:8);
+        full_freqOffset=obj.rfLibrary.data(k).array(8)+obj.rfLibrary.data(k).array(7)*1e-6*obj.sys.gamma*obj.sys.B0;
+        libData2 = [full_freqOffset obj.rfLibrary.data(k).array(9)];
         delay = round(obj.rfLibrary.data(k).array(6)/obj.rfRasterTime)*obj.rfRasterTime*1e6; % a bit of a hack: round the delay
         fprintf(fid, '%d %12g %d %d %d %g %g %g\n', [k libData1 delay libData2]);
     end
@@ -87,6 +88,9 @@ if any(arbGradMask)
     fprintf(fid, '[GRADIENTS]\n');
     keys = obj.gradLibrary.keys;
     for k = keys(arbGradMask)
+        if obj.gradLibrary.data(k).array(5)<0
+            error("Current sequence contains arbitrary gradients with oversampling, which are not compatible with the format 1.4.1");
+        end
         fprintf(fid, '%d %12g %d %d %d\n', ...
                 [k obj.gradLibrary.data(k).array([1 4 5]) ...
                  round(obj.gradLibrary.data(k).array(6)*1e6)]);
@@ -115,7 +119,7 @@ if ~isempty(obj.adcLibrary.keys)
     fprintf(fid, '[ADC]\n');
     keys = obj.adcLibrary.keys;
     for k = keys
-        data = obj.adcLibrary.data(k).array(1:5).*[1 1e9 1e6 1 1];
+        data = [obj.adcLibrary.data(k).array(1:3) obj.adcLibrary.data(k).array(5)+obj.adcLibrary.data(k).array(4)*1e-6*obj.sys.gamma*obj.sys.B0 obj.adcLibrary.data(k).array(6)].*[1 1e9 1e6 1 1]; % convert ppmOffset to a fix offset
         fprintf(fid, '%d %d %.0f %.0f %g %g\n', [k data]);
     end
     fprintf(fid, '\n');
@@ -192,7 +196,7 @@ if ~isempty(obj.labelsetLibrary.keys) || ~isempty(obj.labelincLibrary.keys)
 end
 
 if ~isempty(obj.softDelayLibrary.keys)
-    warning('WARNING! The sequence in memory uses ''soft delay'' extension, which is incompatible with the file format v1.4.1. The produced Pulseq file is only partially valid and may fail to load or operate in come cases');
+    warning('WARNING! The sequence in memory uses ''soft delay'' extension, which is incompatible with the file format v1.4.1. The produced Pulseq file is only partially valid and may fail to load or operate in some cases');
 end
 
 if ~isempty(obj.shapeLibrary.keys)
