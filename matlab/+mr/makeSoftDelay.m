@@ -13,7 +13,7 @@ function sd = makeSoftDelay(varargin)
 %                         negative. The 'hint' parameter is expected to be
 %                         for identical 'numID'. 
 %
-%   See also  Sequence.addBlock
+%   See also  Sequence.addBlock() Sequence.applySoftDelay()
 
 persistent parser
 if isempty(parser)
