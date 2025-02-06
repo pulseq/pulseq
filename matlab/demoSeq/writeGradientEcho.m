@@ -26,7 +26,8 @@ roDuration=3.2e-3;              % ADC duration
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(alpha*pi/180,sys,'Duration',3e-3,...
-    'SliceThickness',sliceThickness,'apodization',0.42,'timeBwProduct',4);
+    'SliceThickness',sliceThickness,'apodization',0.42,'timeBwProduct',4,...
+    'use','excitation');
 
 % Define other gradients and ADC events
 deltak=1/fov;

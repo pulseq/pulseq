@@ -23,7 +23,8 @@ rfSpoilingInc=117;              % RF spoiling increment
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(alpha*pi/180,'Duration',400e-6,...
-    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',2,'system',sys);
+    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',2,'system',sys,...
+    'use','excitation');
 gzReph.delay=mr.calcDuration(gz);
 gzComb=mr.addGradients({gz, gzReph}, 'system', sys);
 
@@ -111,7 +112,7 @@ hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'gre_rad');
 
-seq.write('gre_rad.seq')       % Write to pulseq file
+seq.write('fast_gre_rad_rot3d.seq')       % Write to pulseq file
 
 %seq.install('siemens');
 

@@ -24,7 +24,7 @@ spB=2.0e3; % spoiler area in 1/m (=Hz/m*s)
 % [rf_ref2, g_ref2] = mr.makeSincPulse(pi,'Duration',rfDurRef,'PhaseOffset',pi/2,...
 %     'SliceThickness',voxel(3),'apodization',0.6,'timeBwProduct',8,'system',system,'use','refocusing');
 [rf_ex, g_ex, g_exReph] = mr.makeSLRpulse(pi/2,'Duration',rfDurEx,...
-    'SliceThickness',voxel(1),'timeBwProduct',6,'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',system);
+    'SliceThickness',voxel(1),'timeBwProduct',6,'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',system, 'use', 'excitation');
 [rf_ref1, g_ref1] = mr.makeSLRpulse(pi,'Duration',rfDurRef,'PhaseOffset',pi/2,...
     'SliceThickness',voxel(2),'timeBwProduct',6,'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',system,'use','refocusing');
 [rf_ref2, g_ref2] = mr.makeSLRpulse(pi,'Duration',rfDurRef,'PhaseOffset',pi/2,...
@@ -160,4 +160,4 @@ hold on; xline(t_excitation(1)); xline(t_refocusing(1)); xline(t_refocusing(2));
 % one we zoom in very-very much we start to notice very small errors,
 % probably related to the current inaccuracies in the calculation of the RF
 % center. These are in any case not relevant for any physical experiments. 
-% TODO: double check abter switching to v1.5.x
+% TODO: double check after switching to v1.5.x

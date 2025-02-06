@@ -1,4 +1,4 @@
-% this is an diffusion/weighted EPI based on the experimentaal high-
+% this is an diffusion/weighted EPI based on the experimental high-
 % performance EPI sequence which uses split gradients to overlap blips with
 % the readout gradients combined with ramp-samping
 % it further features diffusion weighting using the standard 
@@ -37,7 +37,8 @@ gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4);
 
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',tRFex,...
-    'SliceThickness',thickness,'PhaseOffset',pi/2,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',thickness,'PhaseOffset',pi/2,'apodization',0.5,'timeBwProduct',4,...
+    'use', 'excitation');
 
 % Create 180 degree slice refocusing pulse and gradients
 [rf180, gz180] = mr.makeSincPulse(pi,'system',lims,'Duration',tRFref,...

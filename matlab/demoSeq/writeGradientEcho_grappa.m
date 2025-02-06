@@ -11,9 +11,9 @@ seq=mr.Sequence(sys);         % Create a new sequence object
 fov=256e-3; Nx=128; Ny=Nx; % Define FOV and resolution
 phaseResoluion = fov/Nx / (fov/Ny) ;
 alpha=10;                  % flip angle
-thickness=3e-3;            % slice
+thickness=3.555e-3;            % slice
 Nslices=3;
-sliceGap = 1e-3 ;
+sliceGap = 1.111e-3 ;
 TR=30e-3; 
 TE=4.3e-3;
 
@@ -23,7 +23,8 @@ roDuration=3.2e-3;              % ADC duration
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(alpha*pi/180,'Duration',3e-3,...
-    'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'system',sys);
+    'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'system',sys,...
+    'use','excitation');
 
 % Define other gradients and ADC events
 deltak=1/fov;
@@ -138,14 +139,16 @@ end
 
 %% prepare sequence export
 seq.setDefinition('FOV', [fov fov max(slicePositions)-min(slicePositions)+thickness]);
-seq.setDefinition('Name', 'gre_gt');
+seq.setDefinition('Name', 'gre_p2');
 % the following definitions have effect in conjunction with LABELs 
 seq.setDefinition('SlicePositions', slicePositions);
 seq.setDefinition('SliceThickness', thickness);
 seq.setDefinition('SliceGap', sliceGap);
+seq.setDefinition('TE', TE) ;
+seq.setDefinition('TR', TR) ;
 seq.setDefinition('kSpaceCenterLine', centerLineIdx - 1) ;
 seq.setDefinition('PhaseResolution', phaseResoluion) ;
-seq.write('gre_gt.seq')       % Write to pulseq file
+seq.write('gre_grappa_lbl.seq')       % Write to pulseq file
 
 %seq.install('siemens');
 %return

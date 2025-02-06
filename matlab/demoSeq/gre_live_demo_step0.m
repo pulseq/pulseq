@@ -20,7 +20,8 @@ seq=mr.Sequence(sys);
 % Create slice selection alpha-pulse and corresponding gradients
 [rf, gz, gzReph] = mr.makeSincPulse(alpha*pi/180, 'Duration', 4e-3,...
     'SliceThickness', sliceThickness, 'apodization', 0.5,'timeBwProduct', 4, ...
-    'system' ,sys);
+    'system' ,sys,...
+    'use', 'excitation');
 
 % Define other gradients and ADC events
 deltak = 1/fov; % Pulseq toolbox defaults to k-space units of m^-1

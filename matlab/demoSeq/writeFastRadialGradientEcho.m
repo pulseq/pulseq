@@ -24,7 +24,8 @@ rfTimeBwProd = 2;              % time-bandwidth product for the RF pulse
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(alpha*pi/180,'Duration',400e-6,...
-    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',rfTimeBwProd,'system',sys);
+    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',rfTimeBwProd,'system',sys,...
+    'use','excitation');
 % gradient spoiling in slice direction
 if sl_spoil>0
     sp_area_needed=sl_spoil/sliceThickness*rfTimeBwProd-gz.flatArea/2;
@@ -123,7 +124,7 @@ hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'gre_rad');
 
-seq.write('gre_rad.seq')       % Write to pulseq file
+seq.write('fast_gre_rad.seq')       % Write to pulseq file
 
 %seq.install('siemens');
 
