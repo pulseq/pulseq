@@ -71,8 +71,8 @@ if strcmp(grad.type, 'grad')
         return; % early return
     else
         % we have an extended trapezoid -- excellent choice!
-        times      = grad.tt;
-        amplitudes = grad.waveform;
+        times      = grad.tt';
+        amplitudes = grad.waveform'; % QC: to match the matrix size for times1 and amplitudes1 below. 2025.01.02
     end
 elseif strcmp(grad.type, 'trap')    
     grad.delay    = round(grad.delay   /gradRasterTime)*gradRasterTime; % MZ: was ceil
