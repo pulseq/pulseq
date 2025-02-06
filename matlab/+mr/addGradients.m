@@ -65,6 +65,7 @@ for ii = 1:length(grads)
     is_trap = [is_trap, strcmp(grads{ii}.type,'trap')];
     if is_trap(end)
         is_arb = [is_arb, false];
+        is_osa = [is_osa, false];
         % remember first/last
         firsts = [firsts, 0];
         lasts = [lasts, 0];
@@ -127,9 +128,9 @@ if all(is_trap | is_etrap)
     for ii = 1:length(grads)
         g=grads{ii};
         if strcmp(g.type,'trap')
-            if g.flatTime>0 % trapezoid or triange
+            if g.flatTime>0 % trapezoid or triangle
                 g.tt=cumsum([0; g.riseTime; g.flatTime; g.fallTime]);
-                g.waveform=[0 g.amplitude; g.amplitude 0];
+                g.waveform=[0; g.amplitude; g.amplitude; 0];
             else
                 g.tt=cumsum([0; g.riseTime; g.fallTime]);
                 g.waveform=[0; g.amplitude; 0];

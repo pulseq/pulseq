@@ -21,6 +21,7 @@ if isempty(parser)
     parser.addParamValue('rf',[],@isnumeric);
     parser.addParamValue('maxGrad',0,@isnumeric);
     parser.addParamValue('maxSlew',0,@isnumeric);
+    parser.addParamValue('gradOversampling',false,@islogical);
     
 end
 parse(parser,k,varargin{:});
@@ -48,8 +49,8 @@ end
 nChannels=size(k,1);
 k=[k; zeros(3-nChannels,size(k,2))];    % Pad out with zeros if needed
 
-[kUp, ok1]   = mr.calcRamp(zeros(3,2),k(:,1:2),system);
-[kDown, ok2] = mr.calcRamp(k(:,end-1:end),zeros(3,2),system);
+[kUp, ok1]   = mr.calcRamp(zeros(3,2),k(:,1:2),system,'gradOversampling',opt.gradOversampling);
+[kDown, ok2] = mr.calcRamp(k(:,end-1:end),zeros(3,2),system,'gradOversampling',opt.gradOversampling);
 assert(ok1 & ok2,'Failed to calculate gradient ramps');
 
 kUp = [zeros(3,2), kUp];            % Add start and end points to ramps

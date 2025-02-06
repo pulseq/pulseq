@@ -30,7 +30,7 @@ if isempty(opt.RasterTime)
     opt.RasterTime=opt.system.gradRasterTime;
 end
 if isempty(opt.first)
-    opt.first=zeros(size(k,1),1);
+    opt.first=zeros(size(k,1),1); % QC: if the first gradient point is not given, set it to zero. 2025.01.03
 end
 
 % Compute finite difference for gradients in Hz/m
