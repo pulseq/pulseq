@@ -7,6 +7,7 @@
 #include <fstream>
 #include <set>
 #include <map>
+#include <limits>	    // for std::numeric_limits<...>::quiet_NaN()
 
 #ifndef _EXTERNAL_SEQUENCE_H_
 #define _EXTERNAL_SEQUENCE_H_
@@ -25,6 +26,12 @@
 #define MAX(a,b) ( (a)>(b) ? (a) : (b) )
 #endif
 
+template<typename T> bool local_isnan(T arg)
+{
+    return !(arg == arg && 
+             arg != std::numeric_limits<T>::quiet_NaN());
+}
+
 // Define the path separator depending on the compile target
 // it is different on host and scanner MPCU
 #if defined(VXWORKS) 
@@ -34,6 +41,10 @@
 #else
 #define PATH_SEPARATOR "\\"
 #endif
+
+// Advance declaration(s)
+class SeqBlock;
+class ExternalSequence;
 
 /**
  * @brief Output message types
@@ -81,9 +92,11 @@ struct RFEvent
 	int magShape;        /**< @brief ID of shape for magnitude */
 	int phaseShape;      /**< @brief ID of shape for phase */
 	int timeShape;       /**< @brief ID of shape for time sampling points */
+	float center;        /**< @brief Effective RF center of the pulse shape measured from the start of the shape (us) */
 	float freqOffset;    /**< @brief Frequency offset of transmitter (Hz) */
 	float phaseOffset;   /**< @brief Phase offset of transmitter (rad) */
 	int delay;           /**< @brief Delay prior to the pulse (us) */
+	char use;            /**< @brief Single character indicating the intended use of the pulse, e.g. e,r,etc... */
 };
 
 
@@ -105,7 +118,9 @@ struct GradEvent
 	long rampDownTime;    /**< @brief Ramp down time of trapezoid (us) */
 	// Arbitrary:
 	int waveShape;        /**< @brief whave shape ID for arbitrary gradient */
-	int timeShape;        /**< @brief time shaoeID for arbitrary gradient; 0 means regular sampling */
+	int timeShape;        /**< @brief time shapeID for arbitrary gradient; 0 means regular sampling with the default step */
+	float first;          /**< @brief amplitude at the start of the shape for arbitrary gradient */
+	float last;           /**< @brief amplitude at the end of the shape for arbitrary gradient */
 };
 
 
@@ -118,11 +133,12 @@ struct GradEvent
  */
 struct ADCEvent
 {
-	int numSamples;     /**< @brief Number of samples */
-	int dwellTime;      /**< @brief Dwell time of ADC readout (ns) */
-	int delay;          /**< @brief Delay before first sample (us) */
-	float freqOffset;   /**< @brief Frequency offset of receiver (Hz) */
-	float phaseOffset;  /**< @brief Phase offset of receiver (rad) */
+	int numSamples;           /**< @brief Number of samples */
+	int dwellTime;            /**< @brief Dwell time of ADC readout (ns) */
+	int delay;                /**< @brief Delay before first sample (us) */
+	float freqOffset;         /**< @brief Frequency offset of receiver (Hz) */
+	float phaseOffset;        /**< @brief Phase offset of receiver (rad) */
+	int phaseModulationShape; /**< @brief Phase modulation shape of receiver (rad) */
 };
 
 /**
@@ -146,6 +162,7 @@ enum ExtType {
 	EXT_ROTATION,
 	EXT_LABELSET,
 	EXT_LABELINC,
+	EXT_DELAY,
 	EXT_UNKNOWN /* marks the end of the enum, should always be the last */
 };
 
@@ -160,6 +177,21 @@ struct TriggerEvent
 	long delay;             /**< @brief Delay prior to the trigger event (us) */
 	int triggerType;        /**< @brief Type of trigger (system dependent). 0: undefined / unused */
 	int triggerChannel;     /**< @brief channel of trigger (system dependent). 0: undefined / unused */
+};
+
+
+/**
+ * @brief Trigger event (extension)
+ *
+ * Stores trigger, type, duration
+ */
+#define SOFT_DELAY_HINT_LENGTH 32
+struct SoftDelayEvent
+{
+	long numID;                        /**< @brief Numeric index of the soft delay to help the intepreter (together with the hint string) to identify the delay and allocate it to the UI element*/
+	long offset;                       /**< @brief Offset (positive or negative) added to the delay after the division by the factor (us) */
+	long factor;                       /**< @brief Factor by which the value on the user interface needs to be divided for calculating the final delay applied to the sequence */
+	char hint[SOFT_DELAY_HINT_LENGTH]; /**< @brief Text hint corresponding to this soft delay, e.g. TE */
 };
 
 /**
@@ -186,11 +218,12 @@ enum Labels {
 	SET,
 	ACQ,
 	LIN, 
-	PAR,
+	PAR, // LAST_ADC_RELEVANT_LABEL
 	ONCE,
 	LABEL_UNKNOWN // this entry should be the last in the list
 };
 const int NUM_LABELS=LABEL_UNKNOWN;
+const int LAST_ADC_RELEVANT_LABEL = PAR;
 /**
  * @brief all supported flags
  */
@@ -200,7 +233,7 @@ enum Flags{
 	SMS, 
 	REF,
 	IMA,
-	NOISE,
+	NOISE, // LAST_ADC_RELEVANT_FLAG
 	PMC, 
 	NOPOS,
 	NOROT,
@@ -208,13 +241,14 @@ enum Flags{
 	FLAG_UNKNOWN
 };
 const int NUM_FLAGS=FLAG_UNKNOWN;
+const int LAST_ADC_RELEVANT_FLAG = NOISE;
 
 template <class T>
 struct LabelStorage 
 {
-	std::vector<T>  val;					/**< @brief current label values */
-	std::vector<bool> bValUpdated;			/**< @brief flag whether the numeric label value was updated in this block */
-	std::vector<bool> bValUsed;				/**< @brief flag whether the numeric label value was ever updated in this sequence */
+	std::vector<T>  val;							/**< @brief current label values */
+	std::vector<bool> bValUpdated;					/**< @brief flag whether the numeric label value was updated in this block */
+	std::vector<bool> bValUsed;						/**< @brief flag whether the numeric label value was ever updated in this sequence */
 };
 
 /**
@@ -222,10 +256,11 @@ struct LabelStorage
  *
  * Stores IDs/Labels/Flags that relate MDH headers 
  */
-struct DataLabelStorage 
+struct LabelValueStorage 
 {
-	LabelStorage<int>  num;						/**< @brief current numeric label values and corresponding state flags */
-	LabelStorage<bool> flag;					/**< @brief current flag value */
+	LabelStorage<int>  num;     /**< @brief current numeric label values and corresponding state flags */
+    LabelStorage<bool> flag;    /**< @brief current flag value */
+    std::vector<int> getAdcCounters();
 };
 
 struct MinMaxLabelStorage 
@@ -245,6 +280,98 @@ struct MinMaxLabelStorage
 	int numRefPar;
 	int numRefImaPar;
 };
+
+class LabelStateAndBookkeeping
+{
+  public:
+    LabelStateAndBookkeeping() { 
+		initBookkeeping();
+        initCurrState();
+	}
+
+    void initBookkeeping();
+	void initBookkeepingADC();
+    void initCurrState();
+
+    // * ------------------------------------------------------------------ *
+    // *                                                                    *
+    // * Name        :  GetMinMaxDataLabelStorageADC						*
+    // *                                                                    *
+    // * Description :  Get minimum and maximum of the  values in the       *
+    // *                LabelStorage that were used for an ADC event        *
+    // * Return      :  MinMaxLabelStorage                                  *
+    // *                                                                    *
+    // * ------------------------------------------------------------------ *
+    const MinMaxLabelStorage& GetMinMaxDataLabelStorageADC();
+
+	// * ------------------------------------------------------------------ *
+    // *                                                                    *
+    // * Name        :  updateLabelValues							        *
+    // *                                                                    *
+    // * Description :  Update the current global label values              *
+    // * Return      :  bool                                                *
+    // *                                                                    *
+    // * ------------------------------------------------------------------ *
+    void updateLabelValues(SeqBlock* pBlock);
+    
+	bool checkLabelValuesADC();         // called for each ADC event during sequence execution
+    void updateBookkeepingRecordsADC(); // called for each ADC event during sequence preparation
+    
+	bool isFirstScanInSlice();
+    bool isLastScanInSlice();
+    bool isLastScanInMeas();
+
+	bool anyLabelsInUse();
+    bool nonAdcLabelsInUse();
+    bool adcLabelsInUse();
+
+    int currVal(Labels lbl);
+    int  maxVal(Labels lbl);
+    int  minVal(Labels lbl);
+    bool currFlag(Flags lbl);
+    bool isFlagInUse(Flags lbl);
+
+	void dump(const char* szMsg = NULL, bool bMinMax = true, bool bCurr = true);
+
+  private:
+    void dump_internal(const std::vector<int>& numVal, const std::vector<bool>& flagVal, const char* szMsg);
+    void finalizeBookkeepingRecordsADC();
+
+	bool m_bAdcLabelsInUse;
+    bool m_bNonAdcLabelsInUse;
+
+    LabelValueStorage m_currLabelValueStorage;
+    MinMaxLabelStorage m_MinMaxLabelBookkeepingADC; // this only store min/max values in the context of the ADC, the conters
+                                                    // may run out of counds temporarily but can be reset again before the ADC
+    std::map<int, std::vector<int> > m_mapFirstInSlc;
+    std::map<int, std::vector<int> > m_mapLastInSlc;
+    std::vector<int>                m_lastInMeas;
+    std::set<std::vector<int> > m_setFirstInSlc;
+    std::set<std::vector<int> > m_setLastInSlc;
+};
+
+inline std::vector<int> LabelValueStorage::getAdcCounters() { return std::vector<int>(num.val.begin(), num.val.begin()+LAST_ADC_RELEVANT_FLAG+1); }
+inline int  LabelStateAndBookkeeping::currVal(Labels id) { return m_currLabelValueStorage.num.val[id]; }
+inline bool LabelStateAndBookkeeping::currFlag(Flags id) { return m_currLabelValueStorage.flag.val[id]; }
+inline bool LabelStateAndBookkeeping::isFlagInUse(Flags id) { return m_currLabelValueStorage.flag.bValUsed[id]; }
+inline int LabelStateAndBookkeeping::maxVal(Labels lbl) { return m_MinMaxLabelBookkeepingADC.numValMax[lbl]; }
+inline int LabelStateAndBookkeeping::minVal(Labels lbl) { return m_MinMaxLabelBookkeepingADC.numValMin[lbl]; }
+inline const MinMaxLabelStorage& LabelStateAndBookkeeping::GetMinMaxDataLabelStorageADC() { return m_MinMaxLabelBookkeepingADC; }
+inline bool LabelStateAndBookkeeping::anyLabelsInUse()    { return m_bAdcLabelsInUse || m_bNonAdcLabelsInUse; }
+inline bool LabelStateAndBookkeeping::nonAdcLabelsInUse() { return m_bNonAdcLabelsInUse; }
+inline bool LabelStateAndBookkeeping::adcLabelsInUse()    { return m_bAdcLabelsInUse; }
+inline bool LabelStateAndBookkeeping::isFirstScanInSlice() { 
+	if (m_setFirstInSlc.empty() && !m_mapFirstInSlc.empty())
+        finalizeBookkeepingRecordsADC();
+    return m_setFirstInSlc.end() != m_setFirstInSlc.find(m_currLabelValueStorage.getAdcCounters());
+}
+inline bool LabelStateAndBookkeeping::isLastScanInSlice() {
+    if (m_setLastInSlc.empty() && !m_mapLastInSlc.empty())
+        finalizeBookkeepingRecordsADC();
+    return m_setLastInSlc.end() != m_setLastInSlc.find(m_currLabelValueStorage.getAdcCounters());
+}
+inline bool LabelStateAndBookkeeping::isLastScanInMeas(){ return m_lastInMeas == m_currLabelValueStorage.getAdcCounters(); }
+
 
 /**
  * @brief Label event (extension)
@@ -307,9 +434,15 @@ public:
 	bool    isTrapGradient(int channel);
 
 	/**
-	 * @brief Return `true` if block has arbitrary event on given channel
+	 * @brief Return `true` if block has arbitrary gradient event on given channel
 	 */
 	bool    isArbitraryGradient(int channel);
+
+	/**
+	 * @brief Return `true` if block has arbitrary gradient event on given channel and it is oversampled by a factor of 2
+	 */
+	bool    isArbGradWithOversampling(int channel);
+
 
 	/**
 	 * @brief Return `true` if block has extended trapezoid event on given channel
@@ -335,6 +468,11 @@ public:
 	 * @brief Return `true` if block has a gradient rotation command
 	 */
 	bool    isRotation();
+
+	/**
+	 * @brief Return `true` if block has a soft delay extension 
+	 */
+	bool    isSoftDelay();
 	
 	/**
 	 * @brief Return index of this block
@@ -353,14 +491,24 @@ public:
 	//long    GetDelay();
 
 	/**
-	 * @brief Return duration of block in units of us
+	 * @brief Return duration of block in units of us. If soft delay is defined in the block, it overrides the stored value
 	 */
 	double GetDuration();
 
 	/**
-	 * @brief Return duration of block in the units of duration raster
+	 * @brief Return duration of block in the units of duration raster. If soft delay is defined in the block, it overrides the stored value
 	 */
 	long    GetDuration_ru();
+
+	/**
+	 * @brief Return the stored duration of block in units of us, irrespective whether soft delay is defined
+	 */
+	double GetStoredDuration();
+
+	/**
+	 * @brief Return the stored duration of block in the units of duration raster, irrespective whether soft delay is defined
+	 */
+	long    GetStoredDuration_ru();
 
 	/**
 	 * @brief Return the number of samples of the arbitrary gradient on the given gradient channel.
@@ -424,6 +572,21 @@ public:
 	 * @brief Return the trigger command event
 	 */
 	TriggerEvent& GetTriggerEvent();
+
+	/**
+	 * @brief Return the soft delay extension event
+	 */
+	SoftDelayEvent&  GetSoftDelayEvent();
+
+	/**
+	 * @brief set the actual soft delay for the current block calculated based on the extension event
+	 */
+	void setActualSoftDelay_ru(long softDelay_ru);
+	
+	/**
+	 * @brief get the actual soft delay of the current block calculated based on the extension event
+	 */
+	long getActualSoftDelay_ru();
 	
 	/**
 	 * @brief Return the trigger command event
@@ -453,6 +616,8 @@ public:
 	 */
 	bool     isLabel();
 
+	static double getBlockDurationRaster();
+
 protected:
 	int index;          /**< @brief Index of this block */
 
@@ -467,6 +632,8 @@ protected:
 	ADCEvent adc;               /**< @brief ADC event  */
 	TriggerEvent trigger;       /**< @brief trigger event (just one per block) */
 	RotationEvent rotation;     /**< @brief optional rotation event */
+	SoftDelayEvent softDelay;   /**< @brief optional soft delay event */
+	long actualSoftDelay_ru;    /**< @brief actual soft delay to be applied in the block > */
 	std::vector<LabelEvent> labelinc; /**< @brief labelinc event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
 	std::vector<LabelEvent> labelset; /**< @brief labelset event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
 	// Below is only valid once decompressed:
@@ -493,15 +660,19 @@ inline int       SeqBlock::GetIndex() { return index; }
 
 inline bool      SeqBlock::isRF() { return (events[RF]>0); }
 inline bool      SeqBlock::isTrapGradient(int channel) { return ((events[channel+GX]>0) && (grad[channel].waveShape==0)); }
-inline bool      SeqBlock::isExtTrapGradient(int channel) { return ((events[channel+GX]>0) && (grad[channel].waveShape!=0) && (grad[channel].timeShape!=0)); }
-inline bool      SeqBlock::isArbitraryGradient(int channel) { return ((events[channel+GX]>0) && (grad[channel].waveShape!=0) && (grad[channel].timeShape==0)); }
+inline bool      SeqBlock::isExtTrapGradient(int channel) { return ((events[channel+GX]>0) && (grad[channel].waveShape!=0) && (grad[channel].timeShape>0)); }
+inline bool      SeqBlock::isArbitraryGradient(int channel) { return ((events[channel+GX]>0) && (grad[channel].waveShape!=0) && (grad[channel].timeShape<=0)); }
+inline bool      SeqBlock::isArbGradWithOversampling(int channel) { return ((events[channel+GX]>0) && (grad[channel].waveShape!=0) && (grad[channel].timeShape==-1)); }
 inline bool      SeqBlock::isADC() { return (events[ADC]>0); }
-//inline bool      SeqBlock::isDelay() { return (events[DELAY]>0); }
 inline bool      SeqBlock::isRotation() { return (events[EXT]>0 && rotation.defined); }
 inline bool      SeqBlock::isTrigger() { return (events[EXT]>0) && trigger.triggerType!=0; }
-//inline long      SeqBlock::GetDelay() { return delay; }
-inline double    SeqBlock::GetDuration() { return duration_ru * SeqBlock::s_blockDurationRaster; }
-inline long      SeqBlock::GetDuration_ru() { return duration_ru; }
+inline bool      SeqBlock::isSoftDelay() { return (events[EXT]>0) && softDelay.numID>=0; }
+inline double    SeqBlock::GetDuration() { return ( (actualSoftDelay_ru<0) ? duration_ru : actualSoftDelay_ru) * SeqBlock::s_blockDurationRaster; }
+inline long      SeqBlock::GetDuration_ru() { return (actualSoftDelay_ru<0) ? duration_ru : actualSoftDelay_ru; }
+inline void      SeqBlock::setActualSoftDelay_ru(long softDelay_ru) {actualSoftDelay_ru=softDelay_ru;}
+inline long      SeqBlock::getActualSoftDelay_ru() {return actualSoftDelay_ru;}
+inline double    SeqBlock::GetStoredDuration() { return duration_ru * SeqBlock::s_blockDurationRaster; }
+inline long      SeqBlock::GetStoredDuration_ru() { return duration_ru; }
 
 inline int       SeqBlock::GetEventIndex(Event type) { return events[type]; }
 
@@ -509,6 +680,7 @@ inline GradEvent& SeqBlock::GetGradEvent(int channel) { return grad[channel]; }
 inline RFEvent&   SeqBlock::GetRFEvent() { return rf; }
 inline ADCEvent&  SeqBlock::GetADCEvent() { return adc; }
 inline TriggerEvent&  SeqBlock::GetTriggerEvent() { return trigger; }
+inline SoftDelayEvent&  SeqBlock::GetSoftDelayEvent() { return softDelay; }
 inline RotationEvent&  SeqBlock::GetRotationEvent() { return rotation; }
 
 inline std::vector<LabelEvent>&  SeqBlock::GetLabelSetEvents() { return labelset; }
@@ -528,9 +700,9 @@ inline std::string SeqBlock::GetTypeString() {
 	if (isArbitraryGradient(1)) type += " ArbY";
 	if (isArbitraryGradient(2)) type += " ArbZ";
 	if (isADC()) type += " ADC";
-	//if (isDelay()) type += " Delay";
 	if (isRotation()) type = type + " Rot";
 	if (isTrigger()) type = type + " Trig";
+	if (isSoftDelay()) type = type + " SoftDelay";
 	
 	return type;
 }
@@ -545,6 +717,7 @@ inline float*    SeqBlock::GetRFAmplitudePtr() { return &rfAmplitude[0]; }
 inline float*    SeqBlock::GetRFPhasePtr() { return &rfPhase[0]; }
 inline int       SeqBlock::GetRFLength() { return rfAmplitude.size(); }
 inline float     SeqBlock::GetRFDwellTime() { return rfDwellTime_us; }
+inline double SeqBlock::getBlockDurationRaster() {return SeqBlock::s_blockDurationRaster; }
 
 inline void      SeqBlock::free() {
 	// Force the memory to be freed
@@ -708,6 +881,16 @@ class ExternalSequence
 	std::string GetDefinitionStr(std::string key);
 
 	/**
+     * @brief Return a vector of all definitions (keys)
+     *
+     * Return the list of user-specified definitions through the [DEFINITIONS] section.
+     * If no definitions present, an empty vector is returned.
+     *
+     * @return a list of strings (or empty vector)
+     */
+    std::vector<std::string> GetAllDefinitions();
+    
+	/**
 	 * @brief Return number of sequence blocks
 	 */
 	int  GetNumberOfBlocks(void);
@@ -755,6 +938,8 @@ class ExternalSequence
 	std::string getSignature();
 	std::string getSignatureType();
 
+	bool isSignatureCheckSucceeded();
+
   private:
 
 	static const int MAX_LINE_SIZE;	/**< @brief Maximum length of line */
@@ -778,7 +963,7 @@ class ExternalSequence
 	// MZ: VC2008 / VD13 do not seem to properly handle the errors streams
 	//static std::istream& 
 	enum gl_ret {gl_false=0, gl_true, gl_truncated};
-	static int getline(std::istream& stream, char *buffer, const int MAX_SIZE);
+    static int getline(std::istream& stream, char* buffer, const int MAX_SIZE, bool bRaw=false);
 
 	/**
 	 * @brief Search the file stream for section headers e.g. [RF], [GRAD] etc
@@ -795,6 +980,14 @@ class ExternalSequence
 	 * @param buffer return output buffer of next non-comment line
 	 */
 	void skipComments(std::istream &stream, char* buffer);
+
+	/**
+	 * @brief Strip any empty characters at th beginning or at the end of the string.
+	 *
+	 * @param buffer input line
+	 * @return modified string
+	 */
+	char* stripWhiteSpace(char *buffer);
 
 	/**
 	 * @brief Decompress a run-length compressed shape
@@ -877,11 +1070,15 @@ class ExternalSequence
 	std::map<std::string, std::string >m_definitions_str;  /**< @brief Custom definitions provided through [DEFINITIONS] section (stored as strings) */
 	std::map<std::string, std::vector<double> >m_definitions;  /**< @brief Custom definitions provided through [DEFINITIONS] section (converted to doubles) */
 
-	// pulseq file signature
-	std::map<std::string, std::string >m_signatureMap;  /**< @brief A hash of the internal sequence data structures stored in the [SIGNATURE] section along with auxilarz pieces of information */
+	// pulseq file signature (read from file)
+	std::map<std::string, std::string >m_signatureMap;  /**< @brief A hash of the internal sequence data structures stored in the [SIGNATURE] section along with auxilary pieces of information */
 	bool m_bSignatureDefined;
 	std::string m_strSignature;
 	std::string m_strSignatureType;
+
+	// pulseq file MD5 signature calculated during file loading
+	std::string m_strCalculatedMD5Signature;
+	bool m_bSignatureCheckSucceeded;
 
 	// List of events (referenced by blocks)
 	std::map<int,RFEvent>      m_rfLibrary;       /**< @brief Library of RF events */
@@ -891,11 +1088,12 @@ class ExternalSequence
 	//std::map<int,ControlEvent> m_controlLibrary;  /**< @brief Library of control commands */
 	std::map<int,ExtensionListEntry> m_extensionLibrary;  /**< @brief Library of extension list entries */
 	std::map<int,std::pair<std::string,int> > m_extensionNameIDs; /**< @brief Map of extension IDs from the file to textIDs and internal known numeric IDs*/
-	std::map<int, TriggerEvent>  m_triggerLibrary;  /**< @brief Library of trigger events */
-	std::map<int, RotationEvent> m_rotationLibrary; /**< @brief Library of rotation events */
-	std::map<int, LabelEvent>    m_labelsetLibrary;	/**< @brief Library of labelset events */
-	std::map<int, LabelEvent>    m_labelincLibrary;	/**< @brief Library of labelinc events */	
-    LabelMap                     m_labelMap;        /**< @brief labelMap is useful for loading labels or damping/visualising values */
+	std::map<int, TriggerEvent>   m_triggerLibrary;   /**< @brief Library of trigger events */
+	std::map<int, RotationEvent>  m_rotationLibrary;  /**< @brief Library of rotation events */
+	std::map<int, LabelEvent>     m_labelsetLibrary;  /**< @brief Library of labelset events */
+	std::map<int, LabelEvent>     m_labelincLibrary;  /**< @brief Library of labelinc events */
+	std::map<int, SoftDelayEvent> m_softDelayLibrary; /**< @brief Library of soft delay events */
+    LabelMap                      m_labelMap;        /**< @brief labelMap is useful for loading labels or damping/visualising values */
 
 	// List of basic shapes (referenced by events)
 	std::map<int,CompressedShape> m_shapeLibrary;    /**< @brief Library of compressed shapes */
@@ -911,6 +1109,7 @@ class ExternalSequence
 // * ------------------------------------------------------------------ *
 
 inline int ExternalSequence::GetNumberOfBlocks(void){return m_blocks.size();}
+
 inline std::vector<double>	ExternalSequence::GetDefinition(std::string key){
 	if (m_definitions.count(key)>0)
 		return m_definitions[key];
@@ -931,5 +1130,7 @@ inline void ExternalSequence::SetPrintFunction(PrintFunPtr fun) { print_fun=fun;
 inline bool ExternalSequence::isSigned() { return m_bSignatureDefined; }
 inline std::string ExternalSequence::getSignature() { return m_strSignature; }
 inline std::string ExternalSequence::getSignatureType() { return m_strSignatureType; }
+
+inline bool ExternalSequence::isSignatureCheckSucceeded() { return m_bSignatureDefined && m_bSignatureCheckSucceeded; }
 
 #endif	//_EXTERNAL_SEQUENCE_H_

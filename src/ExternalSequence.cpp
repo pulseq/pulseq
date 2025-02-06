@@ -1,4 +1,7 @@
 #include "ExternalSequence.h"
+extern "C" {
+	#include "md5.h"
+}
 
 #include <stdio.h>		// sscanf
 #include <cstring>		// strlen etc
@@ -15,6 +18,7 @@ ExternalSequence::PrintFunPtr ExternalSequence::print_fun = &ExternalSequence::d
 const int ExternalSequence::MAX_LINE_SIZE = 256;
 const char ExternalSequence::COMMENT_CHAR = '#';
 std::string& str_trim(std::string& str);
+std::string str_tolower(std::string str);
 double SeqBlock::s_blockDurationRaster = 10.0;
 
 /***********************************************************/
@@ -26,6 +30,7 @@ ExternalSequence::ExternalSequence()
 	version_revision=0;
 	version_combined=0;
 	m_bSignatureDefined=false;
+	m_bSignatureCheckSucceeded=false;
 }
 
 /***********************************************************/
@@ -56,6 +61,10 @@ void ExternalSequence::reset()
 	m_blockDurations_ru.clear();
 	m_blocks.clear();
 	m_bSignatureDefined=false;
+	m_strSignature.clear();
+	m_strSignature.clear();
+	m_bSignatureCheckSucceeded=false;
+	m_strCalculatedMD5Signature.clear();
 	m_definitions.clear();
 	m_definitions_str.clear();
 	m_extensionLibrary.clear();
@@ -93,11 +102,12 @@ bool ExternalSequence::load(std::string path)
 	if (filepath.substr(filepath.size()-4) != std::string(".seq")) {
 		filepath = path + PATH_SEPARATOR + "external.seq";
 	}
+	print_msg(NORMAL_MSG, std::ostringstream().flush() << "Opening " << filepath);			
 	// Open in binary mode to ensure all end-of-line characters are processed
 	data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
 	data_file.seekg(0, std::ios::beg);
 
-	if (!data_file.good())
+	if (!data_file.is_open() || !data_file.good())
 	{
 		// Try separate file mode (blocks.seq, events.seq, shapes.seq)
 		// not really logical, but the current code expects [VERSION] to be defined in every file, 
@@ -109,7 +119,7 @@ bool ExternalSequence::load(std::string path)
 		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
 		data_file.seekg(0, std::ios::beg);
 		
-		if (!data_file.good())
+		if (!data_file.is_open() || !data_file.good())
 		{
 			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
 			return false;
@@ -125,7 +135,7 @@ bool ExternalSequence::load(std::string path)
 		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
 		data_file.seekg(0, std::ios::beg);
 
-		if (!data_file.good())
+		if (!data_file.is_open() || !data_file.good())
 		{
 			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
 			return false;
@@ -141,7 +151,7 @@ bool ExternalSequence::load(std::string path)
 		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
 		data_file.seekg(0, std::ios::beg);
 
-		if (!data_file.good())
+		if (!data_file.is_open() || !data_file.good())
 		{
 			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
 			return false;
@@ -328,6 +338,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 				RFEvent event;
 				if (version_combined<1004000L)
 				{
+					// pre v1.4.0
 					if (7!=sscanf(buffer, "%d%f%d%d%d%f%f", &rfId, &(event.amplitude),
 								&(event.magShape),&(event.phaseShape), &(event.delay),
 								&(event.freqOffset), &(event.phaseOffset)
@@ -336,18 +347,35 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						return false;
 					}
 					event.timeShape=0;
+					event.use='u'; // undefined use
+					event.center=-1.0; // mark as invalid
 				}
-				else
+				else if (version_combined < 1005000) 
 				{
+					// 1.4.0
 					if (8!=sscanf(buffer, "%d%f%d%d%d%d%f%f", &rfId, &(event.amplitude),
-								&(event.magShape),&(event.phaseShape),&(event.timeShape),&(event.delay),
-								&(event.freqOffset), &(event.phaseOffset)
+								&(event.magShape), &(event.phaseShape), &(event.timeShape),
+								&(event.delay), &(event.freqOffset), &(event.phaseOffset)
+								)) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
+						return false;
+					}
+					event.use='u'; // undefined use
+					event.center=-1.0; // mark as invalid
+				}
+				else 
+				{
+					// 1.5.0
+					if (10!=sscanf(buffer, "%d%f%d%d%d%f%d%f%f %c", &rfId, &(event.amplitude),
+								&(event.magShape),&(event.phaseShape), &(event.timeShape), &(event.center),
+								&(event.delay), &(event.freqOffset), &(event.phaseOffset), &(event.use)
 								)) {
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
 						return false;
 					}
 				}
 				m_rfLibrary[rfId] = event;
+                ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "m_rfLibrary["<<rfId<<"].use="<<event.use);
 			}
 		}
 		
@@ -363,20 +391,34 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 				}
 				int gradId;
 				GradEvent event;
-				if ( version_combined>=1004000L )
+				if ( version_combined>=1005000L )
 				{
-					if (5!=sscanf(buffer, "%d%f%d%d%d", &gradId, &(event.amplitude), &(event.waveShape), &(event.timeShape), &(event.delay))) {
+					// v1.5.0
+					if (7!=sscanf(buffer, "%d%f%f%f%d%d%d", &gradId, &(event.amplitude), &(event.first), &(event.last), &(event.waveShape), &(event.timeShape), &(event.delay))) {
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode v1.4.x gradient event\n" << buffer << std::endl );
 						return false;
 					}
 				}
+				else if ( version_combined>=1004000L )
+				{
+					// v1.4.0
+					if (5!=sscanf(buffer, "%d%f%d%d%d", &gradId, &(event.amplitude), &(event.waveShape), &(event.timeShape), &(event.delay))) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode v1.4.x gradient event\n" << buffer << std::endl );
+						return false;
+					}
+					event.first=std::numeric_limits<float>::quiet_NaN();
+					event.last=std::numeric_limits<float>::quiet_NaN();
+				}
 				else
 				{
+					// pre v1.4.0
 					event.timeShape=0;
 					if (4!=sscanf(buffer, "%d%f%d%d", &gradId, &(event.amplitude), &(event.waveShape), &(event.delay))) {
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode v1.2.x gradient event\n" << buffer << std::endl );
 						return false;
 					}
+					event.first=std::numeric_limits<double>::quiet_NaN();
+					event.last=std::numeric_limits<double>::quiet_NaN();
 				}
 				m_gradLibrary[gradId] = event;
 			}
@@ -420,11 +462,26 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 					break;
 				}
 				ADCEvent event;
-				if (6!=sscanf(buffer, "%d%d%d%d%f%f", &adcId, &(event.numSamples),
-							&(event.dwellTime),&(event.delay),&(event.freqOffset),&(event.phaseOffset))) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode ADC event\n" << buffer << std::endl );
-					return false;
+				if ( version_combined>=1005000L )
+				{
+					// v1.5.0
+					if (7!=sscanf(buffer, "%d%d%d%d%f%f%d", &adcId, &(event.numSamples),
+								&(event.dwellTime),&(event.delay),&(event.freqOffset),&(event.phaseOffset),&(event.phaseModulationShape))) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode ADC event\n" << buffer << std::endl );
+						return false;
+					}
 				}
+				else
+				{
+					// v1.4.0 and older
+					if (6!=sscanf(buffer, "%d%d%d%d%f%f", &adcId, &(event.numSamples),
+								&(event.dwellTime),&(event.delay),&(event.freqOffset),&(event.phaseOffset))) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode ADC event\n" << buffer << std::endl );
+						return false;
+					}
+					event.phaseModulationShape=0; // no phase modulation shape provided 
+				}
+				
 				m_adcLibrary[adcId] = event;
 			}
 		}
@@ -496,6 +553,8 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						nKnownID=EXT_LABELSET;
 					else if (0==strcmp("LABELINC",szStrID))
 						nKnownID=EXT_LABELINC;
+					else if (0==strcmp("DELAYS",szStrID))
+						nKnownID=EXT_DELAY;
 					if (nKnownID!=EXT_UNKNOWN)
 						m_extensionNameIDs[nInternalID]=std::make_pair(std::string(szStrID),nKnownID);
 					else {
@@ -508,6 +567,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 					ExtensionListEntry extEntry;
 					TriggerEvent trigger;
 					RotationEvent rotation;
+					SoftDelayEvent delay;
 					int  nVal;					   // read label set/inc values from label set/inc extension
 					int  nRet;                     // conversion result / return value
 					char szLabelID[MAX_LINE_SIZE]; // read labels strings from label set/inc extension
@@ -569,7 +629,21 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 
 							m_labelincLibrary[nID] = label;
 							break;
+						case EXT_DELAY: 
+							{
+								int n=0;
+								if (4!=sscanf(buffer, "%d%d%d%d%n", &nID, &(delay.numID), &(delay.offset), &(delay.factor), &n)) {
+									print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode soft delay event\n" << buffer << std::endl );
+									return false;
+								}
+								strncpy(delay.hint,stripWhiteSpace(buffer+n),SOFT_DELAY_HINT_LENGTH);
+								delay.hint[SOFT_DELAY_HINT_LENGTH-1]=0;
+								print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "decoded soft delay " << delay.numID << " with the hint:" << delay.hint);
+								m_softDelayLibrary[nID] = delay;
+							}
+							break;
 						case EXT_UNKNOWN:
+							print_msg(WARNING_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
 							break; // just ignore unknown extensions
 					}
 				}
@@ -810,13 +884,30 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 			// convert the relevant field(s) into the internal structure(s)
 			if (m_signatureMap.count("Hash")>0) {
 				m_bSignatureDefined = true;
-				m_strSignature = m_signatureMap["Hash"];
+				m_strSignature = str_tolower(m_signatureMap["Hash"]);
 				if (m_signatureMap.count("Type")>0) 
-					m_strSignatureType = m_signatureMap["Type"];
+					m_strSignatureType = str_tolower(m_signatureMap["Type"]);
 			}
 		} // if signature exists
 
 		print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "--- Finished reading signature");
+
+		m_bSignatureCheckSucceeded=false;
+		if (!m_bSignatureDefined) {
+			print_msg(NORMAL_MSG, std::ostringstream().flush() << "signature block not found");
+		}
+		else
+		{
+			if (m_strSignatureType!="md5") {
+				print_msg(NORMAL_MSG, std::ostringstream().flush() << "signature validation is not supported for " << m_strSignatureType);
+			}
+			else {
+				m_bSignatureCheckSucceeded=(m_strSignature==m_strCalculatedMD5Signature);
+				if (!m_bSignatureCheckSucceeded){
+					print_msg(WARNING_MSG, std::ostringstream().flush() << "WARNING: signature validation failed! stored signature: " << m_strSignature << "; calculated hash: " << m_strCalculatedMD5Signature);
+				}
+			}
+		}
 
 		if (version_combined<1004000L) 
 		{
@@ -898,22 +989,86 @@ void ExternalSequence::skipComments(std::istream &fileStream, char *buffer)
 
 
 /***********************************************************/
+char* ExternalSequence::stripWhiteSpace(char *buffer)
+{
+	while (*buffer && (*buffer==' ' || *buffer=='\t')) 
+		buffer+=1;
+	int n=strlen(buffer);
+	while (n>0 && (buffer[n]==' ' || buffer[n]=='\t' || buffer[n]=='\r' || buffer[n]=='\n')) {
+		buffer[n]=0;
+		n-=1;
+	}
+	return buffer;
+};
+
+
+/***********************************************************/
 void ExternalSequence::buildFileIndex(std::istream &fileStream)
 {
 	char buffer[MAX_LINE_SIZE];
-	
-	while (getline(fileStream, buffer, MAX_LINE_SIZE)) {
-		std::string line = std::string(buffer);
+    char* pBr;
+    struct MD5Context mdc;
+    unsigned char dg[16];
+    MD5Init(&mdc);
+    bool bSignatureSectionFound = false;
+    std::string strippedLine;
+    		
+	while (getline(fileStream, buffer, MAX_LINE_SIZE, true)) {		
 		//ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "buildFileIndex(): read line: [" << line << "]");
-		if (line[0]=='[' && line[line.length()-1]==']') {
-			m_fileIndex[line] = fileStream.tellg();
-			m_fileSections.insert(fileStream.tellg());			
+		if (buffer[0]=='[' ) {
+            //print_msg(NORMAL_MSG, std::ostringstream().flush() << "opening bracket found in " << buffer);
+            pBr=strchr(buffer+1,']');
+			if (pBr) {
+                std::string line  = std::string(buffer, pBr - buffer + 1);
+                //print_msg(NORMAL_MSG, std::ostringstream().flush() << "closing bracket found, line " << line);
+                m_fileIndex[line] = fileStream.tellg();
+                m_fileSections.insert(fileStream.tellg());
+                if (line == "[SIGNATURE]") {
+                    bSignatureSectionFound = true;
+                    strippedLine.clear();
+					//print_msg(NORMAL_MSG, std::ostringstream().flush() << "signature block found");
+				}
+			}
 		}
+        if (!bSignatureSectionFound) {
+            if (!strippedLine.empty())
+                MD5Update(&mdc, (unsigned char*)strippedLine.c_str(), strippedLine.length());
+            if (0==strcmp(buffer, "\n") || 0==strcmp(buffer, "\r\n"))
+                strippedLine = buffer;
+			else {
+                MD5Update(&mdc, (unsigned char*)buffer, strlen(buffer));
+                strippedLine.clear();
+			}
+		}
+			
 	}
 	m_fileSections.insert(fileStream.tellg()); // add the end-of-file (+1?)
 	fileStream.clear();		// reset EOF flag
 	fileStream.seekg(0, std::ios::beg);
+    if (!strippedLine.empty())
+        MD5Update(&mdc, (unsigned char*)strippedLine.c_str(), strippedLine.length());
+    // finalize the MD5 hash calculation
+	MD5Final(dg, &mdc);
+    char hash[33];
+    sprintf(hash,"%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",dg[0],dg[1],dg[2],dg[3],dg[4],dg[5],dg[6],dg[7],dg[8],dg[9],dg[10],dg[11],dg[12],dg[13],dg[14],dg[15]);
+    print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "calculated md5 hash of the current pulseq file is: " << hash);
+	m_strCalculatedMD5Signature=hash;    
 };
+
+
+std::vector<std::string> ExternalSequence::GetAllDefinitions()
+{
+    assert(m_definitions_str.size() == m_definitions.size());
+    int n = m_definitions_str.size();
+    std::vector<std::string> keys(n);
+    std::map<std::string, std::string>::iterator it = m_definitions_str.begin();
+    for (int i = 0; i < n; ++i)
+    {
+        keys[i] = it->first;
+        ++it;
+	}
+    return keys;
+}
 
 /***********************************************************/
 SeqBlock*	ExternalSequence::GetBlock(int index) {
@@ -934,6 +1089,8 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 	block->rotation.defined=false;
 	block->labelset.clear();
 	block->labelinc.clear();
+	block->softDelay.numID=-1;
+	block->actualSoftDelay_ru=-1;
 	// Set event structures (if applicable) so e.g. gradient type can be determined
 	if (events.id[RF]>0)     block->rf      = m_rfLibrary[events.id[RF]];
 	if (events.id[ADC]>0)    block->adc     = m_adcLibrary[events.id[ADC]];
@@ -982,6 +1139,15 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 						//do we have to check anything ? //MZ: TODO: check that we find the evet in the library TODO: check for conflicts between set and inc
 							// ok, lets find the labelinc in the library
 							block->labelinc.push_back(m_labelincLibrary[itEL->second.ref]); // do we have to check whether it can be found?
+						break;
+					case EXT_DELAY:
+						if (block->softDelay.numID>=0) {
+							print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: only one soft delay per block is supported; error block: " << index );
+						}
+						else {
+							// ok, lets find the soft delay in the library
+							block->softDelay=m_softDelayLibrary[itEL->second.ref]; // do we have to check whether it can be found?
+						}
 						break;
 					default:
 						print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unimplemented extension type " << itEN->second.first << " in block " << index );
@@ -1158,7 +1324,20 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 				return false;
 			}
 
-			block->gradWaveforms[iC-GX] = std::vector<float>(waveform);
+			if (block->isArbGradWithOversampling(iC-GX))	// oversampling?
+			{
+				block->gradWaveforms[iC-GX] = std::vector<float>((waveform.size()+1)/2);
+				std::vector<float>::iterator it_os=waveform.begin();
+				for (std::vector<float>::iterator it=block->gradWaveforms[iC-GX].begin(); it !=block->gradWaveforms[iC-GX].end(); ++it){
+					*it=*it_os;
+					// std::advance(it_os,2); // this doen't work because of the odd number of elements 
+					++it_os;
+					if (it_os!=waveform.end())
+						++it_os;
+				}
+			}
+			else
+				block->gradWaveforms[iC-GX] = std::vector<float>(waveform);
 		}
 	}
 
@@ -1324,7 +1503,7 @@ void ExternalSequence::checkRF(SeqBlock& block)
 
 
 /***********************************************************/
-int ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE)
+int ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE, bool bRaw)
 {
 	//std::cout << "ExternalSequence::getline()" << std::endl;
 
@@ -1332,20 +1511,25 @@ int ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE)
 	for(;;) {
 		char c = (char)is.get();
 
-		switch (c) {
-			case '\n':
-				buffer[i]='\0';
-				//std::cout << "ExternalSequence::getline() EOL i:" << i << std::endl;
-				//std::cout << "buffer: " << buffer << std::endl;
-				return gl_true;
-			case '\r':
-				if(is.peek() == '\n') {
-					is.get();       // Discard character
-				}
-				buffer[i]='\0';
-				//std::cout << "ExternalSequence::getline() CR i:" << i << std::endl;
-				//std::cout << "buffer: " << buffer << std::endl;
-				return gl_true;
+		if (!bRaw) {
+            switch (c) {
+                case '\n':
+                    buffer[i] = '\0';
+                    // std::cout << "ExternalSequence::getline() EOL i:" << i << std::endl;
+                    // std::cout << "buffer: " << buffer << std::endl;
+                    return gl_true;
+                case '\r':
+                    if (is.peek() == '\n')
+                    {
+                        is.get(); // Discard character
+                    }
+                    buffer[i] = '\0';
+                    // std::cout << "ExternalSequence::getline() CR i:" << i << std::endl;
+                    // std::cout << "buffer: " << buffer << std::endl;
+                    return gl_true;
+            }
+		}
+        switch (c) {
 			case EOF:
 				if(i==0)
 					is.seekg(-1);   // Create error on stream
@@ -1354,11 +1538,16 @@ int ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE)
 				return (i!=0)?gl_true:gl_false;
 			default:
 				buffer[i++] = c;
-				if (i>=MAX_SIZE-1) // -1 because we have to reserve one place for the \0 symbol
+				if (i>=MAX_SIZE-1 || // -1 because we have to reserve one place for the \0 symbol
+					c=='\n' )        // we are in the *raw* mode
 				{
 					buffer[i]='\0';
-					return gl_truncated;
+                    if (c == '\n')
+                        return gl_true;
+                    else
+						return gl_truncated;
 				}
+				
 		}
 	}
 }
@@ -1471,6 +1660,12 @@ bool ExternalSequence::isGradientInBlockStartAtNonZero(SeqBlock *block, int chan
 		//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isGradientInBlockStartAtNonZero() returns FALSE because there is delay in channel " << channel);
 		return false;
 	}
+	// new since v1.5.0 : first/last
+    if (local_isnan(block->grad[channel].first))
+    {
+		return block->grad[channel].first>0;
+	}
+	// older formats
 	if (!block->gradWaveforms[channel].empty()) { 
 		//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isGradientInBlockStartAtNonZero() uses decompressed shape and returns " << (fabs(block->gradWaveforms[channel].front())>0));
 		return fabs(block->gradWaveforms[channel].front())>0;
@@ -1506,3 +1701,358 @@ std::string& str_trim(std::string& str)
     return str_ltrim(str_rtrim(str));
 }
 
+std::string str_tolower(std::string str)
+{
+	for (std::string::iterator it=str.begin(); it!=str.end(); ++it)
+		if ((*it)<='Z' && (*it)>='A')
+			*it += 'a'-'A';
+    return str;
+}
+
+
+void LabelStateAndBookkeeping::initBookkeeping()
+{
+    m_bAdcLabelsInUse=false;
+    m_bNonAdcLabelsInUse=false;
+    initBookkeepingADC();
+}
+
+void LabelStateAndBookkeeping::initBookkeepingADC()
+{
+    // TRACE_PUT0(TC_INFO,TF_SEQ,">>> PULSEQ-DEBUG: initializing the MinMaxLabelStorage...");
+    m_MinMaxLabelBookkeepingADC.flagValMin.assign(NUM_FLAGS, false);
+    m_MinMaxLabelBookkeepingADC.flagValMax.assign(NUM_FLAGS, false);
+    m_MinMaxLabelBookkeepingADC.bFlagMinMaxValid.assign(NUM_FLAGS, false);
+    m_MinMaxLabelBookkeepingADC.numValMin.assign(NUM_LABELS, 0);
+    m_MinMaxLabelBookkeepingADC.numValMax.assign(NUM_LABELS, 0);
+    m_MinMaxLabelBookkeepingADC.bNumMinMaxValid.assign(NUM_LABELS, false);
+    // parallel imaging flags
+    m_MinMaxLabelBookkeepingADC.minRefLin    = -1;
+    m_MinMaxLabelBookkeepingADC.numRefLin    = 0;
+    m_MinMaxLabelBookkeepingADC.numRefImaLin = 0;
+    m_MinMaxLabelBookkeepingADC.minRefPar    = -1;
+    m_MinMaxLabelBookkeepingADC.numRefPar    = 0;
+    m_MinMaxLabelBookkeepingADC.numRefImaPar = 0;
+	// first/last
+    m_mapFirstInSlc.clear();
+    m_mapLastInSlc.clear();
+    m_lastInMeas.clear();
+    m_setFirstInSlc.clear();
+    m_setLastInSlc.clear();
+}
+
+void LabelStateAndBookkeeping::initCurrState()
+{
+    m_currLabelValueStorage.flag.val.assign(NUM_FLAGS, false);
+    m_currLabelValueStorage.flag.bValUpdated.assign(NUM_FLAGS, false);
+    m_currLabelValueStorage.flag.bValUsed.assign(NUM_FLAGS, false);
+    m_currLabelValueStorage.num.val.assign(NUM_LABELS, 0);
+    m_currLabelValueStorage.num.bValUpdated.assign(NUM_LABELS, false);
+    m_currLabelValueStorage.num.bValUsed.assign(NUM_LABELS, false);
+}
+
+// * ------------------------------------------------------------------ *
+// *                                                                    *
+// * Name        :  UpdateDataLabelStorage
+// *
+// * Description :  Update the current/maximum global DataLabelStorage
+// *
+// * Return      :  bool
+// *
+// * ------------------------------------------------------------------ *
+void LabelStateAndBookkeeping::updateLabelValues(SeqBlock* pBlock)
+{
+    // update m_currLabelValueStorage according to labelinc/labelset from the block
+    // for each block, we first check labelset then labelinc, which means labelinc will affect labelset, not the other
+    // way around.
+    static const char*      ptModule     = {"ARBITRARY_SBB::updateLabelValueStorage"};
+    std::vector<LabelEvent> Tmp_labelset = pBlock->GetLabelSetEvents();
+    int                     id;
+    m_currLabelValueStorage.flag.bValUpdated.assign(NUM_FLAGS, false);
+    m_currLabelValueStorage.num.bValUpdated.assign(NUM_LABELS, false);
+    for (id = 0; id < Tmp_labelset.size(); ++id)
+    {
+        // if (Tmp_labelset[id].defined){
+        if (Tmp_labelset[id].numVal.first != LABEL_UNKNOWN)
+        {
+            m_currLabelValueStorage.num.val[Tmp_labelset[id].numVal.first] = Tmp_labelset[id].numVal.second;
+            if (Tmp_labelset[id].numVal.second)
+                m_currLabelValueStorage.num.bValUsed[Tmp_labelset[id].numVal.first]= true; // only mark as used if non-zero
+            m_currLabelValueStorage.num.bValUpdated[Tmp_labelset[id].numVal.first] = true;
+            if (Tmp_labelset[id].numVal.first <= LAST_ADC_RELEVANT_LABEL)
+                m_bAdcLabelsInUse = true;
+            else
+                m_bNonAdcLabelsInUse = true;
+        }
+        if (Tmp_labelset[id].flagVal.first != FLAG_UNKNOWN)
+        {
+            m_currLabelValueStorage.flag.val[Tmp_labelset[id].flagVal.first] = Tmp_labelset[id].flagVal.second;
+            if (Tmp_labelset[id].flagVal.second)
+                m_currLabelValueStorage.flag.bValUsed[Tmp_labelset[id].flagVal.first]
+                    = true; // only mark as used if non-zero
+            m_currLabelValueStorage.flag.bValUpdated[Tmp_labelset[id].flagVal.first] = true;
+            if (Tmp_labelset[id].numVal.first <= LAST_ADC_RELEVANT_FLAG)
+                m_bAdcLabelsInUse = true;
+            else
+                m_bNonAdcLabelsInUse = true;
+        }
+    }
+    std::vector<LabelEvent> Tmp_labelinc = pBlock->GetLabelIncEvents();
+    for (id = 0; id < Tmp_labelinc.size(); ++id)
+    {
+        if (Tmp_labelinc[id].numVal.first != LABEL_UNKNOWN)
+        {
+            m_currLabelValueStorage.num.val[Tmp_labelinc[id].numVal.first] += Tmp_labelinc[id].numVal.second;
+            m_currLabelValueStorage.num.bValUsed[Tmp_labelinc[id].numVal.first]
+                = true; // always mark as used because it is always non-zero
+            m_currLabelValueStorage.num.bValUpdated[Tmp_labelinc[id].numVal.first] = true;
+        }
+        if (Tmp_labelinc[id].numVal.first <= LAST_ADC_RELEVANT_LABEL)
+            m_bAdcLabelsInUse = true;
+        else
+            m_bNonAdcLabelsInUse = true;
+    }
+}
+
+bool LabelStateAndBookkeeping::checkLabelValuesADC()
+{
+    if (m_currLabelValueStorage.flag.val[NOISE]) // noise scans are not included in first/last/min/max and therefore cannot be checked
+		return true;
+
+    // label boundary check
+    int id;
+    for (id = 0; id < m_currLabelValueStorage.num.val.size(); ++id)
+    {
+        if (m_MinMaxLabelBookkeepingADC.bNumMinMaxValid[id])
+        {
+            if ((m_currLabelValueStorage.num.val[id] > m_MinMaxLabelBookkeepingADC.numValMax[id])
+                || (m_currLabelValueStorage.num.val[id] < m_MinMaxLabelBookkeepingADC.numValMin[id]))
+            {
+                ExternalSequence::print_msg(
+                    NORMAL_MSG,
+                    std::ostringstream().flush()
+                        << "ERROR: Current data label (counter) " << id << " with value "
+                        << m_currLabelValueStorage.num.val[id] << " is either below the min boundary "
+                        << m_MinMaxLabelBookkeepingADC.numValMin[id] << " or above the max boundary "
+                        << m_MinMaxLabelBookkeepingADC.numValMax[id]);
+                dump_internal(m_currLabelValueStorage.num.val, m_currLabelValueStorage.flag.val, "current: ");
+                dump_internal(m_MinMaxLabelBookkeepingADC.numValMin, m_MinMaxLabelBookkeepingADC.flagValMin, "min: ");
+                dump_internal(m_MinMaxLabelBookkeepingADC.numValMax, m_MinMaxLabelBookkeepingADC.flagValMax, "max: ");
+                return false;
+            }
+        }
+    }
+    for (id = 0; id < m_currLabelValueStorage.flag.val.size(); ++id)
+    {
+        if (m_MinMaxLabelBookkeepingADC.bFlagMinMaxValid[id])
+        {
+            if (m_currLabelValueStorage.flag.val[id] < m_MinMaxLabelBookkeepingADC.flagValMin[id]
+                || m_currLabelValueStorage.flag.val[id] > m_MinMaxLabelBookkeepingADC.flagValMax[id])
+            {
+                ExternalSequence::print_msg(
+                    NORMAL_MSG,
+                    std::ostringstream().flush()
+                            << "ERROR: Current data label (flag) " << id << " with value " << m_currLabelValueStorage.flag.val[id]
+                            << " is either below the min boundary "
+							<< m_MinMaxLabelBookkeepingADC.flagValMin[id] << " or above the max boundary " << m_MinMaxLabelBookkeepingADC.flagValMax[id]);
+                dump_internal(m_currLabelValueStorage.num.val, m_currLabelValueStorage.flag.val, "current: ");
+                dump_internal(m_MinMaxLabelBookkeepingADC.numValMin, m_MinMaxLabelBookkeepingADC.flagValMin, "min: ");
+                dump_internal(m_MinMaxLabelBookkeepingADC.numValMax, m_MinMaxLabelBookkeepingADC.flagValMax, "max: ");
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+void LabelStateAndBookkeeping::updateBookkeepingRecordsADC()
+{
+    // label boundary evaluation
+    // data flags for LastLine/LastSlice/LastPar, etc are analyzed father below
+    if (!m_currLabelValueStorage.flag.val[NOISE]) // noise scans are not included in first/last/min/max
+    {
+		int id;
+		// flags
+		for (id = 0; id < m_currLabelValueStorage.flag.val.size(); ++id)
+		{
+			/*if (m_currLabelValueStorage.bFlagUsed[id])*/ {
+				if (m_MinMaxLabelBookkeepingADC.bFlagMinMaxValid[id])
+				{
+					if (m_MinMaxLabelBookkeepingADC.flagValMin[id] > m_currLabelValueStorage.flag.val[id])
+						m_MinMaxLabelBookkeepingADC.flagValMin[id] = m_currLabelValueStorage.flag.val[id];
+					if (m_MinMaxLabelBookkeepingADC.flagValMax[id] < m_currLabelValueStorage.flag.val[id])
+						m_MinMaxLabelBookkeepingADC.flagValMax[id] = m_currLabelValueStorage.flag.val[id];
+				}
+				else
+				{
+					m_MinMaxLabelBookkeepingADC.flagValMin[id]       = m_currLabelValueStorage.flag.val[id];
+					m_MinMaxLabelBookkeepingADC.flagValMax[id]       = m_currLabelValueStorage.flag.val[id];
+					m_MinMaxLabelBookkeepingADC.bFlagMinMaxValid[id] = true;
+				}
+			}
+		}
+		// numeric values
+		for (id = 0; id < m_currLabelValueStorage.num.val.size(); ++id)
+		{
+			/*if (m_currLabelValueStorage.bNumValUsed[id])*/ {
+				if (m_MinMaxLabelBookkeepingADC.bNumMinMaxValid[id])
+				{
+					if (m_MinMaxLabelBookkeepingADC.numValMin[id] > m_currLabelValueStorage.num.val[id])
+						m_MinMaxLabelBookkeepingADC.numValMin[id] = m_currLabelValueStorage.num.val[id];
+					if (m_MinMaxLabelBookkeepingADC.numValMax[id] < m_currLabelValueStorage.num.val[id])
+						m_MinMaxLabelBookkeepingADC.numValMax[id] = m_currLabelValueStorage.num.val[id];
+				}
+				else
+				{
+					m_MinMaxLabelBookkeepingADC.numValMin[id]       = m_currLabelValueStorage.num.val[id];
+					m_MinMaxLabelBookkeepingADC.numValMax[id]       = m_currLabelValueStorage.num.val[id];
+					m_MinMaxLabelBookkeepingADC.bNumMinMaxValid[id] = true;
+				}
+			}
+		}
+		// counter & flags tracking for parallel imaging
+		// QC: always correct by using bookkeeping? e.g. in unregular or random samping case. 2024.12.20
+		if (m_currLabelValueStorage.flag.bValUsed[REF])
+		{
+			if (m_currLabelValueStorage.flag.val[REF])
+			{
+				if (m_MinMaxLabelBookkeepingADC.minRefLin < 0
+					|| m_MinMaxLabelBookkeepingADC.minRefLin > m_currLabelValueStorage.num.val[LIN])
+				{
+					m_MinMaxLabelBookkeepingADC.minRefLin = m_currLabelValueStorage.num.val[LIN];
+					// reset counters because we only want to count once (e.g. for minPar and minLin)
+					m_MinMaxLabelBookkeepingADC.numRefLin    = 0;
+					m_MinMaxLabelBookkeepingADC.numRefImaLin = 0;
+					m_MinMaxLabelBookkeepingADC.numRefPar    = 0;
+					m_MinMaxLabelBookkeepingADC.numRefImaPar = 0;
+				}
+				if (m_MinMaxLabelBookkeepingADC.minRefPar < 0
+					|| m_MinMaxLabelBookkeepingADC.minRefPar > m_currLabelValueStorage.num.val[PAR])
+				{
+					m_MinMaxLabelBookkeepingADC.minRefPar = m_currLabelValueStorage.num.val[PAR];
+					// reset counters because we only want to count once (e.g. for minPar and minLin)
+					m_MinMaxLabelBookkeepingADC.numRefLin    = 0;
+					m_MinMaxLabelBookkeepingADC.numRefImaLin = 0;
+					m_MinMaxLabelBookkeepingADC.numRefPar    = 0;
+					m_MinMaxLabelBookkeepingADC.numRefImaPar = 0;
+				}
+				// this is a tricky part: which labels do we require to be 0 for the bookkeeping?
+				// SEG and AVG can be non-zero
+				if (m_currLabelValueStorage.num.val[SLC] == 0 && m_currLabelValueStorage.num.val[REP] == 0
+					&& m_currLabelValueStorage.num.val[AVG] == 0 && m_currLabelValueStorage.num.val[ECO] == 0
+					&& m_currLabelValueStorage.num.val[PHS] == 0 && m_currLabelValueStorage.num.val[SET] == 0)
+				{
+					if (m_MinMaxLabelBookkeepingADC.minRefLin == m_currLabelValueStorage.num.val[LIN])
+					{
+						++m_MinMaxLabelBookkeepingADC.numRefPar;
+						if (m_currLabelValueStorage.flag.val[IMA])
+							++m_MinMaxLabelBookkeepingADC.numRefImaPar;
+					}
+					if (m_MinMaxLabelBookkeepingADC.minRefPar == m_currLabelValueStorage.num.val[PAR])
+					{
+						++m_MinMaxLabelBookkeepingADC.numRefLin;
+						if (m_currLabelValueStorage.flag.val[IMA])
+							++m_MinMaxLabelBookkeepingADC.numRefImaLin;
+					}
+				}
+			}
+		}
+		// track first/last scan in slice, etc
+        int nCurSlc = m_currLabelValueStorage.num.val[SLC]; 
+		// last tracking is easy: we just use the current as the last candidate and the finalize call will make it right
+        m_lastInMeas = m_currLabelValueStorage.getAdcCounters();
+        m_mapLastInSlc[nCurSlc] = m_lastInMeas; // m_lastInMeas actually contains the current counters, see above
+		// first tracking: inly update if this slice has no record
+        if (m_mapFirstInSlc.find(nCurSlc) == m_mapFirstInSlc.end())
+        {
+            m_mapFirstInSlc[nCurSlc] = m_lastInMeas; // m_lastInMeas actually contains the current counters, see above
+        }
+    }
+}
+
+void LabelStateAndBookkeeping::finalizeBookkeepingRecordsADC()
+{
+    std::map<int, std::vector<int>>::iterator it;
+    for (it = m_mapFirstInSlc.begin(); it != m_mapFirstInSlc.end(); ++it)
+    {
+        m_setFirstInSlc.insert(it->second);
+    }
+    for (it = m_mapLastInSlc.begin(); it != m_mapLastInSlc.end(); ++it)
+    {
+        m_setLastInSlc.insert(it->second);
+    }
+}
+
+void LabelStateAndBookkeeping::dump(const char* szMsg /*=NULL*/, bool bMinMax /*=true*/, bool bCurr /*=true*/)
+{
+    if (bMinMax)
+    {
+        ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "Min Values:");
+        dump_internal(m_MinMaxLabelBookkeepingADC.numValMin, m_MinMaxLabelBookkeepingADC.flagValMin, szMsg);
+        ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "Max Values:");
+        dump_internal(m_MinMaxLabelBookkeepingADC.numValMax, m_MinMaxLabelBookkeepingADC.flagValMax, szMsg);
+    }
+    if (bCurr)
+    {
+        ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "Current Values:");
+        dump_internal(m_currLabelValueStorage.num.val, m_currLabelValueStorage.flag.val, szMsg);
+    }
+}
+
+void LabelStateAndBookkeeping::dump_internal(const std::vector<int>& numVal, const std::vector<bool>& flagVal, const char* szMsg)
+{
+    const char* szSpe = ""; 
+	char* szSpe0=NULL;
+    if (szMsg == NULL)
+        szMsg ="";
+    else
+    {
+        int nLen = strlen(szMsg);
+        szSpe0  = new (char[nLen + 1]);
+        memset(szSpe0, ' ', nLen);
+        szSpe0[nLen] = '\0';
+        szSpe = szSpe0;
+    }
+    ExternalSequence::print_msg(
+        NORMAL_MSG,
+        std::ostringstream().flush() << szMsg << " SLC " << numVal[SLC] << " SEG " << numVal[SEG] << " REP "
+                                     << numVal[REP]);
+    ExternalSequence::print_msg(
+        NORMAL_MSG,
+        std::ostringstream().flush() << szSpe << " AVG " << numVal[AVG] << " ECO " << numVal[ECO] << " PHS "
+                                     << numVal[PHS]);
+    ExternalSequence::print_msg(
+        NORMAL_MSG,
+        std::ostringstream().flush() << szSpe << " SET " << numVal[SET] << " LIN " << numVal[LIN] << " PAR "
+                                     << numVal[PAR]);
+    ExternalSequence::print_msg(
+        NORMAL_MSG, std::ostringstream().flush() << szSpe << " NAV " << flagVal[NAV] << " REV " << flagVal[REV]);
+    ExternalSequence::print_msg(
+        NORMAL_MSG, std::ostringstream().flush() << szSpe << " SMS " << flagVal[SMS] << " PMC " << flagVal[PMC]);
+    ExternalSequence::print_msg(
+        NORMAL_MSG,
+        std::ostringstream().flush() << szSpe << " REF " << flagVal[REF] << " IMA " << flagVal[IMA] << " NOISE "
+                                     << flagVal[NOISE]);
+    ExternalSequence::print_msg(
+        NORMAL_MSG,
+        std::ostringstream().flush() << szSpe << " NOPOS " << flagVal[NOPOS] << " NOROT " << flagVal[NOROT] << " NOSCL "
+                                     << flagVal[NOSCL]);
+    ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << szSpe << " ONCE " << numVal[ONCE]);
+    /*int c=0, r=0;
+    int i;
+    for (l=0;i<NUM_LABELS;++i)
+    {
+        if (c==0) {
+            ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << (r ? szSpe : szMsg) );
+        }
+        ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << " " << ... <-- we have a problem here
+    because this is a static function if (++c>3) {
+            ++r;
+            c=0;
+            <-- we have another problem here because print_msg always adds a newline...
+        }
+    }
+    if (c)
+        <-- print new line */
+    delete szSpe0;
+}
