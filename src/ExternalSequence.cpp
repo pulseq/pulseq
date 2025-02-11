@@ -1879,7 +1879,14 @@ bool LabelStateAndBookkeeping::checkLabelValuesADC()
     return true;
 }
 
-std::string vec2str(const std::vector<int>& vec) {
+// some older compilers (or environments) do not know vec.cbegin()...
+#if defined(VXWORKS) || (defined(_MSC_VER) && _MSC_VER<=1600) || (defined(__GNUC__) && (__GNUC__<4 || (__GNUC__==4 && __GNUC_MINOR__<=6)))
+#define cbegin begin
+#define cend end 
+#endif //VXWORKS //_MSC_VER //__GNUC__
+
+std::string vec2str(const std::vector<int>& vec) 
+{
 	std::ostringstream os;
 	for (std::vector<int>::const_iterator it = vec.cbegin(); it != vec.cend(); ++it) {
 		os << *it;
