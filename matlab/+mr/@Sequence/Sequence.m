@@ -181,6 +181,7 @@ classdef Sequence < handle
             is_ok=true;
             errorReport={};
             totalDuration=0;
+            gradBook=struct();
             for iB=1:numBlocks
                 b=obj.getBlock(iB);
                 % assemble cell array of events
@@ -243,6 +244,32 @@ classdef Sequence < handle
                     end
                 end
 
+                % check shaped gradients that may potentially end/start at non-zero values
+                gradBookCurr=struct();
+                if ~isempty(ev) && iscell(ev)
+                    for en=1:length(ev)
+                        if length(ev{en})==1 && isstruct(ev{en}) && strcmp(ev{en}.type,'grad') % length(ev{en})==1 excludes arrays of extensions 
+                            g=ev{en};
+                            if g.first~=0 
+                                if g.delay~=0
+                                    errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient starts at a non-zero value but defines a delay\n' ] };
+                                end
+                                if ~isfield(gradBook, g.channel) || gradBook.(g.channel)~=g.first
+                                    errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient''s start value ' num2str(g.first) ' differs from the previous block end value\n' ] };
+                                else
+                                    gradBook.(g.channel)=0; % reset as properly consumed
+                                end
+                            end
+                            if g.last~=0 
+                                if g.delay+g.shape_dur ~= dur
+                                    errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient ends at a non-zero value but does not last until the end of the block\n' ] };
+                                end
+                                gradBookCurr.(g.channel)=g.last; % update bookkeeping
+                            end
+                        end
+                    end
+                end
+
                 % check soft delays
                 if isfield(b, 'softDelay') && ~isempty(b.softDelay)
                     if ~exist('softDelayState','var')
@@ -273,6 +300,15 @@ classdef Sequence < handle
                         is_ok=false;
                     end
                 end
+
+                % check whether all gradient bookkeeping values have been properly consumed
+                if dur~=0 
+                    if any(0~=struct2array(gradBook))
+                        errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' some gradients in the previous non-empty block are ending at non-zero values but are not continued here\n' ] };
+                    end
+                    gradBook=gradBookCurr;
+                end
+
                 % update report
                 if ~isempty(rep)
                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' rep '\n' ] };
@@ -282,9 +318,9 @@ classdef Sequence < handle
             end
             
             % check whether all gradients in the last block are ramped down properly
-            if ~isempty(ev) && isstruct(ev)
+            if ~isempty(ev) && iscell(ev)
                 for en=1:length(ev)
-                    if length(ev{en})==1 && strcmp(ev{en}.type,'grad') % length(ev{en})==1 excludes arrays of extensions 
+                    if length(ev{en})==1 && isstruct(ev{en}) && strcmp(ev{en}.type,'grad') % length(ev{en})==1 excludes arrays of extensions 
                         if ev{en}.last~=0 % must be > sys.slewRate*sys.gradRasterTime
                             errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' gradients do not ramp to 0 at the end of the sequence\n' ] };
                         end
