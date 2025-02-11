@@ -29,6 +29,7 @@ end
 % Clear sequence data
 %obj.blockEvents = [];
 obj.blockEvents = {};
+old_definitions = obj.definitions;
 obj.definitions = containers.Map();
 obj.gradLibrary = mr.EventLibrary();
 obj.shapeLibrary = mr.EventLibrary();
@@ -171,10 +172,11 @@ while true
 end
 fclose(fid);
 
-%
+% fix sequence data imported from older verisons
 if version_combined < 1002000 
     error('Unsupported version %07d, only file format revision 1.2.0 (1002000) and above are supported', version_combined);
 end
+
 % a special case for ADCs as the format for them has only been updated once (in v1.5.0)
 % we have to do it first because seq.getBlock is used in the next version porting code section (version_combined < 1004000)
 if version_combined < 1005000 
@@ -186,8 +188,23 @@ if version_combined < 1005000
             [obj.adcLibrary.data(i).array(1:3) 0  obj.adcLibrary.data(i).array(4:5) 0]); % add empty ppmOffset and phase_id fields
     end
 end
+
 % fix blocks, gradients and RF objects imported from older versions (< v1.4.0)
 if version_combined < 1004000  
+    % fix definitions which are be missing in older files
+    if ~obj.definitions.isKey('GradientRasterTime') 
+        obj.setDefinition('GradientRasterTime', obj.gradRasterTime);
+    end
+    if ~obj.definitions.isKey('RadiofrequencyRasterTime') 
+        obj.setDefinition('RadiofrequencyRasterTime', obj.rfRasterTime);
+    end
+    if ~obj.definitions.isKey('AdcRasterTime') 
+        obj.setDefinition('AdcRasterTime', obj.adcRasterTime);
+    end
+    if ~obj.definitions.isKey('BlockDurationRaster') 
+        obj.setDefinition('BlockDurationRaster', obj.blockDurationRaster);
+    end
+    
     % scan through the RF objects
     obj.rfLibrary.type(obj.rfLibrary.keys) = 'u'; % undefined for now, we'll attempt the type detection later (see below)
     for i=1:length(obj.rfLibrary.data)
