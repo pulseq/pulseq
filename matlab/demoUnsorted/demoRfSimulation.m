@@ -158,7 +158,7 @@ ylabel('magnetisation');
 title('Real and imag. parts of transverse magnetisation, 60° hard pulse');
 
 %% fat-sat pulse 
-sat_ppm=-3.45;
+sat_ppm=-3.45; % Siemens uses -3.3
 sat_freq=sat_ppm*1e-6*sys.B0*sys.gamma;
 fs_dur= 8e-3;
 fs_bw_mul=1.4;
@@ -182,11 +182,13 @@ ylabel('magnetisation');
 title('Simulation, Gaussian fat-sat pulse');
 
 %% SLR fat-sat pulse 
-sat_ppm=-3.45;
+sat_ppm=-3.45; % Siemens uses -3.3
 sat_freq=sat_ppm*1e-6*sys.B0*sys.gamma;
 fs_dur= 12e-3; % duration of 8 ms is sufficient for Gauss but is insufficinet for SLR
 fs_bw_mul=1.2;
-rf_fs = mr.makeSLRpulse(110*pi/180,'duration',fs_dur,'timeBwProduct',fs_bw_mul*abs(sat_freq)*fs_dur,'freqOffset',sat_freq,'use','saturation',...
+%rf_fs = mr.makeSLRpulse(110*pi/180,'duration',fs_dur,'timeBwProduct',fs_bw_mul*abs(sat_freq)*fs_dur,'freqOffset',sat_freq,'use','saturation',...
+%    'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',sys); 
+rf_fs = mr.makeSLRpulse(110*pi/180,'duration',fs_dur,'timeBwProduct',fs_bw_mul*abs(sat_freq)*fs_dur,'ppmOffset',sat_ppm,'use','saturation',...
     'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',sys); 
 rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
 
