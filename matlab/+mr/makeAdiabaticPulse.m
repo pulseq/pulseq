@@ -80,7 +80,7 @@ if isempty(parser)
     addParamValue(parser, 'delay', 0, @isnumeric);
     addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
-    addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
+    addParamValue(parser, 'use', 'u', @(x) any(validatestring(x,validPulseUses)));
     % optional Python command 
     addParamValue(parser, 'pythonCmd', '', @(x)isstring(x)||ischar(x));
 end

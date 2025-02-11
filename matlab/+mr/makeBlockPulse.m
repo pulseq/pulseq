@@ -43,7 +43,7 @@ if isempty(parser)
     % Delay
     addParamValue(parser, 'delay', 0, @isnumeric);
     % whether it is a refocusing pulse (for k-space calculation)
-    addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
+    addParamValue(parser, 'use', 'u', @(x) any(validatestring(x,validPulseUses)));
 end
 parse(parser, flip, varargin{:});
 opt = parser.Results;
