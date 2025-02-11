@@ -26,12 +26,6 @@
 #define MAX(a,b) ( (a)>(b) ? (a) : (b) )
 #endif
 
-template<typename T> bool local_isnan(T arg)
-{
-    return !(arg == arg && 
-             arg != std::numeric_limits<T>::quiet_NaN());
-}
-
 // Define the path separator depending on the compile target
 // it is different on host and scanner MPCU
 #if defined(VXWORKS) 
@@ -93,7 +87,8 @@ struct RFEvent
 	int phaseShape;      /**< @brief ID of shape for phase */
 	int timeShape;       /**< @brief ID of shape for time sampling points */
 	float center;        /**< @brief Effective RF center of the pulse shape measured from the start of the shape (us) */
-	float freqOffset;    /**< @brief Frequency offset of transmitter (Hz) */
+    float ppmOffset;     /**< @brief B0-dependent frequency offset of transmitter (ppm) */
+    float freqOffset;    /**< @brief Constant frequency offset of transmitter (Hz) */
 	float phaseOffset;   /**< @brief Phase offset of transmitter (rad) */
 	int delay;           /**< @brief Delay prior to the pulse (us) */
 	char use;            /**< @brief Single character indicating the intended use of the pulse, e.g. e,r,etc... */
@@ -123,6 +118,7 @@ struct GradEvent
 	float last;           /**< @brief amplitude at the end of the shape for arbitrary gradient */
 };
 
+#define FLOAT_UNDEFINED 1.18e-38
 
 /**
  * @brief ADC readout event
@@ -136,7 +132,8 @@ struct ADCEvent
 	int numSamples;           /**< @brief Number of samples */
 	int dwellTime;            /**< @brief Dwell time of ADC readout (ns) */
 	int delay;                /**< @brief Delay before first sample (us) */
-	float freqOffset;         /**< @brief Frequency offset of receiver (Hz) */
+    float ppmOffset;            /**< @brief B0-dependent frequency offset of receiver (ppm) */
+    float freqOffset;           /**< @brief Constant frequency offset of receiver (Hz) */
 	float phaseOffset;        /**< @brief Phase offset of receiver (rad) */
 	int phaseModulationShape; /**< @brief Phase modulation shape of receiver (rad) */
 };
@@ -188,9 +185,9 @@ struct TriggerEvent
 #define SOFT_DELAY_HINT_LENGTH 32
 struct SoftDelayEvent
 {
-	long numID;                        /**< @brief Numeric index of the soft delay to help the intepreter (together with the hint string) to identify the delay and allocate it to the UI element*/
-	long offset;                       /**< @brief Offset (positive or negative) added to the delay after the division by the factor (us) */
-	long factor;                       /**< @brief Factor by which the value on the user interface needs to be divided for calculating the final delay applied to the sequence */
+	int numID;                        /**< @brief Numeric index of the soft delay to help the intepreter (together with the hint string) to identify the delay and allocate it to the UI element*/
+	int offset;                       /**< @brief Offset (positive or negative) added to the delay after the division by the factor (us) */
+	int factor;                       /**< @brief Factor by which the value on the user interface needs to be divided for calculating the final delay applied to the sequence */
 	char hint[SOFT_DELAY_HINT_LENGTH]; /**< @brief Text hint corresponding to this soft delay, e.g. TE */
 };
 
@@ -211,19 +208,19 @@ struct RotationEvent
 enum Labels {
 	SLC, 
 	SEG, 
-	REP, 
-	AVG, 
 	ECO, 
 	PHS, 
 	SET,
 	ACQ,
 	LIN, 
-	PAR, // LAST_ADC_RELEVANT_LABEL
-	ONCE,
+	PAR, 
+    AVG,
+    REP, // LAST_ADC_RELEVANT_LABEL
+    ONCE,
 	LABEL_UNKNOWN // this entry should be the last in the list
 };
 const int NUM_LABELS=LABEL_UNKNOWN;
-const int LAST_ADC_RELEVANT_LABEL = PAR;
+const int LAST_ADC_RELEVANT_LABEL = REP;
 /**
  * @brief all supported flags
  */
@@ -260,7 +257,7 @@ struct LabelValueStorage
 {
 	LabelStorage<int>  num;     /**< @brief current numeric label values and corresponding state flags */
     LabelStorage<bool> flag;    /**< @brief current flag value */
-    std::vector<int> getAdcCounters();
+    std::vector<int>   getAdcCounters(bool bIgnoreREP, bool bAlsoIgnoreAVG); /**< @brief current ADC-relevant numeric label values as a simple vector */
 };
 
 struct MinMaxLabelStorage 
@@ -350,7 +347,7 @@ class LabelStateAndBookkeeping
     std::set<std::vector<int> > m_setLastInSlc;
 };
 
-inline std::vector<int> LabelValueStorage::getAdcCounters() { return std::vector<int>(num.val.begin(), num.val.begin()+LAST_ADC_RELEVANT_FLAG+1); }
+//inline std::vector<int> LabelValueStorage::getAdcCounters() { return std::vector<int>(num.val.begin(), num.val.begin()+LAST_ADC_RELEVANT_LABEL+1); }
 inline int  LabelStateAndBookkeeping::currVal(Labels id) { return m_currLabelValueStorage.num.val[id]; }
 inline bool LabelStateAndBookkeeping::currFlag(Flags id) { return m_currLabelValueStorage.flag.val[id]; }
 inline bool LabelStateAndBookkeeping::isFlagInUse(Flags id) { return m_currLabelValueStorage.flag.bValUsed[id]; }
@@ -360,17 +357,7 @@ inline const MinMaxLabelStorage& LabelStateAndBookkeeping::GetMinMaxDataLabelSto
 inline bool LabelStateAndBookkeeping::anyLabelsInUse()    { return m_bAdcLabelsInUse || m_bNonAdcLabelsInUse; }
 inline bool LabelStateAndBookkeeping::nonAdcLabelsInUse() { return m_bNonAdcLabelsInUse; }
 inline bool LabelStateAndBookkeeping::adcLabelsInUse()    { return m_bAdcLabelsInUse; }
-inline bool LabelStateAndBookkeeping::isFirstScanInSlice() { 
-	if (m_setFirstInSlc.empty() && !m_mapFirstInSlc.empty())
-        finalizeBookkeepingRecordsADC();
-    return m_setFirstInSlc.end() != m_setFirstInSlc.find(m_currLabelValueStorage.getAdcCounters());
-}
-inline bool LabelStateAndBookkeeping::isLastScanInSlice() {
-    if (m_setLastInSlc.empty() && !m_mapLastInSlc.empty())
-        finalizeBookkeepingRecordsADC();
-    return m_setLastInSlc.end() != m_setLastInSlc.find(m_currLabelValueStorage.getAdcCounters());
-}
-inline bool LabelStateAndBookkeeping::isLastScanInMeas(){ return m_lastInMeas == m_currLabelValueStorage.getAdcCounters(); }
+inline bool LabelStateAndBookkeeping::isLastScanInMeas(){ return m_lastInMeas == m_currLabelValueStorage.getAdcCounters(false,false); }
 
 
 /**

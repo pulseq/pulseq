@@ -1,11 +1,18 @@
 #ifndef MD5_H
 #define MD5_H
 
-#ifdef __alpha
-typedef unsigned int uint32;
+//#ifdef __alpha
+//typedef unsigned int uint32;
+//#else
+//typedef unsigned long uint32;
+//#endif
+
+#if defined(_MSC_VER) && _MSC_VER<=1600
+typedef unsigned __int32 uint32;
 #else
-typedef unsigned long uint32;
-#endif
+#include <stdint.h>
+typedef uint32_t uint32;
+#endif //_MSC_VER
 
 struct MD5Context
 {

@@ -324,6 +324,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 	
 	if (loadMode == lm_singlefile || loadMode == lm_events) 
 	{
+		print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "reading RF section");
 		// Read RF section
 		// ------------------------
 		if (m_fileIndex.find("[RF]") != m_fileIndex.end()) {
@@ -346,6 +347,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
 						return false;
 					}
+                    event.ppmOffset=0.0;
 					event.timeShape=0;
 					event.use='u'; // undefined use
 					event.center=-1.0; // mark as invalid
@@ -360,15 +362,16 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
 						return false;
 					}
-					event.use='u'; // undefined use
+                    event.ppmOffset = 0.0;
+                    event.use       = 'u';  // undefined use
 					event.center=-1.0; // mark as invalid
 				}
 				else 
 				{
 					// 1.5.0
-					if (10!=sscanf(buffer, "%d%f%d%d%d%f%d%f%f %c", &rfId, &(event.amplitude),
+					if (11!=sscanf(buffer, "%d%f%d%d%d%f%d%f%f%f %c", &rfId, &(event.amplitude),
 								&(event.magShape),&(event.phaseShape), &(event.timeShape), &(event.center),
-								&(event.delay), &(event.freqOffset), &(event.phaseOffset), &(event.use)
+								&(event.delay), &(event.ppmOffset), &(event.freqOffset), &(event.phaseOffset), &(event.use)
 								)) {
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
 						return false;
@@ -381,6 +384,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 		
 		// Read *arbitrary* gradient section
 		// -------------------------------
+		print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "reading arbitrary gradient section");
 		m_gradLibrary.clear();
 		if (m_fileIndex.find("[GRADIENTS]") != m_fileIndex.end()) {
 			data_stream.seekg(m_fileIndex["[GRADIENTS]"], std::ios::beg);
@@ -389,6 +393,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 				if (buffer[0]=='[' || strlen(buffer)==0) {
 					break;
 				}
+				print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "got line: " << buffer);
 				int gradId;
 				GradEvent event;
 				if ( version_combined>=1005000L )
@@ -406,8 +411,8 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode v1.4.x gradient event\n" << buffer << std::endl );
 						return false;
 					}
-					event.first=std::numeric_limits<float>::quiet_NaN();
-					event.last=std::numeric_limits<float>::quiet_NaN();
+					event.first=FLOAT_UNDEFINED; // std::numeric_limits<float>::quiet_NaN(); <- did not work with older MSVC
+					event.last=FLOAT_UNDEFINED; // std::numeric_limits<float>::quiet_NaN(); <- did not work with older MSVC
 				}
 				else
 				{
@@ -417,15 +422,18 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode v1.2.x gradient event\n" << buffer << std::endl );
 						return false;
 					}
-					event.first=std::numeric_limits<double>::quiet_NaN();
-					event.last=std::numeric_limits<double>::quiet_NaN();
+					event.first=FLOAT_UNDEFINED; // std::numeric_limits<float>::quiet_NaN(); <- did not work with older MSVC
+					event.last=FLOAT_UNDEFINED; // std::numeric_limits<float>::quiet_NaN(); <- did not work with older MSVC
 				}
+				print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "assigning the event to the library under the ID " << gradId);
 				m_gradLibrary[gradId] = event;
+				print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "done");
 			}
 		}
 
 		// Read *trapezoid* gradient section
 		// -------------------------------
+		print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "reading trapezoids section");
 		if (m_fileIndex.find("[TRAP]") != m_fileIndex.end()) {
 			data_stream.seekg(m_fileIndex["[TRAP]"], std::ios::beg);
 
@@ -452,6 +460,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 
 		// Read ADC section
 		// -------------------------------
+		print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "reading ADC section");
 		if (m_fileIndex.find("[ADC]") != m_fileIndex.end()) {
 			data_stream.seekg(m_fileIndex["[ADC]"], std::ios::beg);
 
@@ -465,8 +474,8 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 				if ( version_combined>=1005000L )
 				{
 					// v1.5.0
-					if (7!=sscanf(buffer, "%d%d%d%d%f%f%d", &adcId, &(event.numSamples),
-								&(event.dwellTime),&(event.delay),&(event.freqOffset),&(event.phaseOffset),&(event.phaseModulationShape))) {
+					if (8!=sscanf(buffer, "%d%d%d%d%f%f%f%d", &adcId, &(event.numSamples),
+								&(event.dwellTime),&(event.delay),&(event.ppmOffset),&(event.freqOffset),&(event.phaseOffset),&(event.phaseModulationShape))) {
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode ADC event\n" << buffer << std::endl );
 						return false;
 					}
@@ -479,6 +488,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode ADC event\n" << buffer << std::endl );
 						return false;
 					}
+                    event.ppmOffset=0.0; // no ppmOffset in older formats
 					event.phaseModulationShape=0; // no phase modulation shape provided 
 				}
 				
@@ -491,6 +501,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 		//std::map<int,long> tmpDelayLibrary;
 		m_tmpDelayLibrary.clear();
 		if (m_fileIndex.find("[DELAYS]") != m_fileIndex.end()) {
+			print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "reading DELAYS section (compatibility)");
 			data_stream.seekg(m_fileIndex["[DELAYS]"], std::ios::beg);
 
 			int delayId;
@@ -509,6 +520,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 
 		// Read extensions section
 		// -------------------------------
+		print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "reading and processing extensions");
 		m_extensionLibrary.clear();
 		m_extensionNameIDs.clear();
 		m_triggerLibrary.clear(); // clear also all known extension libraries
@@ -1661,9 +1673,9 @@ bool ExternalSequence::isGradientInBlockStartAtNonZero(SeqBlock *block, int chan
 		return false;
 	}
 	// new since v1.5.0 : first/last
-    if (local_isnan(block->grad[channel].first))
+    if (version_combined >= 1005000 && block->grad[channel].first!=FLOAT_UNDEFINED )
     {
-		return block->grad[channel].first>0;
+		return fabs(block->grad[channel].first)>0;
 	}
 	// older formats
 	if (!block->gradWaveforms[channel].empty()) { 
@@ -1715,6 +1727,8 @@ void LabelStateAndBookkeeping::initBookkeeping()
     m_bAdcLabelsInUse=false;
     m_bNonAdcLabelsInUse=false;
     initBookkeepingADC();
+    m_currLabelValueStorage.flag.bValUsed.assign(NUM_FLAGS, false);
+    m_currLabelValueStorage.num.bValUsed.assign(NUM_LABELS, false);
 }
 
 void LabelStateAndBookkeeping::initBookkeepingADC()
@@ -1745,10 +1759,10 @@ void LabelStateAndBookkeeping::initCurrState()
 {
     m_currLabelValueStorage.flag.val.assign(NUM_FLAGS, false);
     m_currLabelValueStorage.flag.bValUpdated.assign(NUM_FLAGS, false);
-    m_currLabelValueStorage.flag.bValUsed.assign(NUM_FLAGS, false);
+    //m_currLabelValueStorage.flag.bValUsed.assign(NUM_FLAGS, false);
     m_currLabelValueStorage.num.val.assign(NUM_LABELS, 0);
     m_currLabelValueStorage.num.bValUpdated.assign(NUM_LABELS, false);
-    m_currLabelValueStorage.num.bValUsed.assign(NUM_LABELS, false);
+    //m_currLabelValueStorage.num.bValUsed.assign(NUM_LABELS, false);
 }
 
 // * ------------------------------------------------------------------ *
@@ -1816,7 +1830,7 @@ void LabelStateAndBookkeeping::updateLabelValues(SeqBlock* pBlock)
 
 bool LabelStateAndBookkeeping::checkLabelValuesADC()
 {
-    if (m_currLabelValueStorage.flag.val[NOISE]) // noise scans are not included in first/last/min/max and therefore cannot be checked
+    if (m_currLabelValueStorage.flag.val[NOISE] || m_currLabelValueStorage.flag.val[NAV]) // noise scans and navigator scans are not included in first/last/min/max and therefore cannot be checked
 		return true;
 
     // label boundary check
@@ -1865,25 +1879,34 @@ bool LabelStateAndBookkeeping::checkLabelValuesADC()
     return true;
 }
 
+std::string vec2str(const std::vector<int>& vec) {
+	std::ostringstream os;
+	for (std::vector<int>::const_iterator it = vec.cbegin(); it != vec.cend(); ++it) {
+		os << *it;
+		if (it + 1 != vec.cend()) os << ' ';
+	}
+	return os.str();
+}
+
 void LabelStateAndBookkeeping::updateBookkeepingRecordsADC()
 {
     // label boundary evaluation
-    // data flags for LastLine/LastSlice/LastPar, etc are analyzed father below
-    if (!m_currLabelValueStorage.flag.val[NOISE]) // noise scans are not included in first/last/min/max
+    // data flags for LastLine/LastSlice/LastPar, etc are analyzed further below
+    if (!m_currLabelValueStorage.flag.val[NOISE] && !m_currLabelValueStorage.flag.val[NAV]) // noise scans and navigator scans are not included in first/last/min/max QC: FIRSTSCANINSLICE==false for navigator scans. 2025.01.31
     {
 		int id;
 		// flags
 		for (id = 0; id < m_currLabelValueStorage.flag.val.size(); ++id)
 		{
 			/*if (m_currLabelValueStorage.bFlagUsed[id])*/ {
-				if (m_MinMaxLabelBookkeepingADC.bFlagMinMaxValid[id])
+				if (m_MinMaxLabelBookkeepingADC.bFlagMinMaxValid[id]) // QC: if the min & max for the current flag is already set, then check and update the min and max. 2025.01.31
 				{
 					if (m_MinMaxLabelBookkeepingADC.flagValMin[id] > m_currLabelValueStorage.flag.val[id])
 						m_MinMaxLabelBookkeepingADC.flagValMin[id] = m_currLabelValueStorage.flag.val[id];
 					if (m_MinMaxLabelBookkeepingADC.flagValMax[id] < m_currLabelValueStorage.flag.val[id])
 						m_MinMaxLabelBookkeepingADC.flagValMax[id] = m_currLabelValueStorage.flag.val[id];
 				}
-				else
+				else // QC: otherwise, set the min and & max to the current value and set the flag up. 2025.01.31
 				{
 					m_MinMaxLabelBookkeepingADC.flagValMin[id]       = m_currLabelValueStorage.flag.val[id];
 					m_MinMaxLabelBookkeepingADC.flagValMax[id]       = m_currLabelValueStorage.flag.val[id];
@@ -1960,28 +1983,61 @@ void LabelStateAndBookkeeping::updateBookkeepingRecordsADC()
 		// track first/last scan in slice, etc
         int nCurSlc = m_currLabelValueStorage.num.val[SLC]; 
 		// last tracking is easy: we just use the current as the last candidate and the finalize call will make it right
-        m_lastInMeas = m_currLabelValueStorage.getAdcCounters();
-        m_mapLastInSlc[nCurSlc] = m_lastInMeas; // m_lastInMeas actually contains the current counters, see above
-		// first tracking: inly update if this slice has no record
-        if (m_mapFirstInSlc.find(nCurSlc) == m_mapFirstInSlc.end())
+		m_lastInMeas = m_currLabelValueStorage.getAdcCounters(false,false);
+		//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "updating m_lastInMeas to " << vec2str(m_lastInMeas));
+        m_mapLastInSlc[nCurSlc] = m_currLabelValueStorage.getAdcCounters(true, false); // fixing the lastInSlice behaviour for REP!=0
+		// first tracking: only update if this slice has no record
+        if (m_mapFirstInSlc.find(nCurSlc) == m_mapFirstInSlc.end()) //QC: if firstScanInSlice is empty, then set it to the current ADC counter. 2025.01.31
         {
-            m_mapFirstInSlc[nCurSlc] = m_lastInMeas; // m_lastInMeas actually contains the current counters, see above
+            m_mapFirstInSlc[nCurSlc] = m_mapLastInSlc[nCurSlc]; // m_mapLastInSlc[nCurSlc] actually contains the current counters, see above
         }
     }
 }
 
+std::vector<int> LabelValueStorage::getAdcCounters(bool bIgnoreREP, bool bAlsoIgnoreAVG)
+{
+	//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "LabelValueStorage::getAdcCounters() called for " << vec2str(num.val));
+    if (bAlsoIgnoreAVG && !bIgnoreREP)
+    {
+        ExternalSequence::print_msg(WARNING_MSG, std::ostringstream().flush() << "WARNING: LabelValueStorage::getAdcCounters() was called with bAlsoIgnoreAVG, fixing bIgnoreREP");
+        bIgnoreREP = bAlsoIgnoreAVG;
+	}
+    std::vector<int> r(num.val.begin(), num.val.begin() + LAST_ADC_RELEVANT_LABEL + 1 - int(bIgnoreREP) - int(bAlsoIgnoreAVG));
+    //ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "returning " << vec2str(r));
+	return r;
+}
+
+
 void LabelStateAndBookkeeping::finalizeBookkeepingRecordsADC()
 {
-    std::map<int, std::vector<int>>::iterator it;
+	ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "Entering LabelStateAndBookkeeping::finalizeBookkeepingRecordsADC()...");
+	std::map<int, std::vector<int> >::iterator it;
     for (it = m_mapFirstInSlc.begin(); it != m_mapFirstInSlc.end(); ++it)
     {
+		ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "Adding " << vec2str(it->second) << " as FirstInSlc");
         m_setFirstInSlc.insert(it->second);
     }
     for (it = m_mapLastInSlc.begin(); it != m_mapLastInSlc.end(); ++it)
     {
-        m_setLastInSlc.insert(it->second);
+		ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "Adding " << vec2str(it->second) << " as LastInSlc");
+		m_setLastInSlc.insert(it->second);
     }
 }
+
+bool LabelStateAndBookkeeping::isFirstScanInSlice() 
+{
+	if (m_setFirstInSlc.empty() && !m_mapFirstInSlc.empty())
+		finalizeBookkeepingRecordsADC();
+	return m_setFirstInSlc.end() != m_setFirstInSlc.find(m_currLabelValueStorage.getAdcCounters(true,false));
+}
+
+bool LabelStateAndBookkeeping::isLastScanInSlice() 
+{
+	if (m_setLastInSlc.empty() && !m_mapLastInSlc.empty())
+		finalizeBookkeepingRecordsADC();
+	return m_setLastInSlc.end() != m_setLastInSlc.find(m_currLabelValueStorage.getAdcCounters(true,false));
+}
+
 
 void LabelStateAndBookkeeping::dump(const char* szMsg /*=NULL*/, bool bMinMax /*=true*/, bool bCurr /*=true*/)
 {
