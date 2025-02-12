@@ -19,8 +19,11 @@ seq_name='spiral.seq';
 %seq_name='../tests/epi_rs.seq';
 %seq_name='/home/zaitsev/pulseq_home/open_sequence/ufr-collab/tmp/gre.seq';
 %seq_name='historical_format_tests/gre_example_120.seq';
-
-sys = mr.opts('B0', 2.89); % we need system here if we want 'detectRFuse' to detect fat-sat pulses
+%seq_name='/home/zaitsev/range_software/pulseq/matlab/user_seq/test592_MSE_vFA_T2-45ms_nEchos-1_nSlices-1_TE-8ms_TR-4133ms_FOV-256mm_Nx-262_Ny-1_gm-32_sm-120_sTexc-3mm_sTrefoc-9mm_acc_noAcc.seq'
+%sys = mr.opts('B0', 2.89); % we need system here if we want 'detectRFuse' to detect fat-sat pulses
+sys = mr.opts('B0', 2.89, 'MaxGrad', 22, 'GradUnit', 'mT/m', ...
+    'MaxSlew', 120, 'SlewUnit', 'T/m/s', ... 
+    'rfRingdownTime', 10e-6, 'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 seq2=mr.Sequence(sys);
 %seq.read(seq_name,'detectRFuse');
 seq2.read(seq_name);
