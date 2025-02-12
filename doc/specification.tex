@@ -23,8 +23,8 @@
 
 %\def\myversion{1.01 }
 \def\myversionmajor{1}
-\def\myversionminor{4}
-\def\myversionrevision{1}
+\def\myversionminor{5}
+\def\myversionrevision{0}
 \def\myversion{\myversionmajor.\myversionminor.\myversionrevision }
 %\def\myversion{1.0.2 }
 
@@ -37,6 +37,7 @@
 
 \lstset{% general command to set parameter(s)
 %basicstyle=\small, % print whole listing small
+basicstyle=\fontsize{7}{9}\selectfont\ttfamily,
 % underlined bold black keywords
 identifierstyle=, % nothing happens
 %stringstyle=\ttfamily, % typewriter type for strings
@@ -109,24 +110,32 @@ Version & Date & Description \\
 \\
 1.3.1 & 25 Sept 2020 & \makecell{Added support for the LABEL extension, updated figures. } 
 \\
-1.4.0 & 7 Jul 2021 & \makecell{Substantial revisions of the file format: \\ added required definitions; \\ we now explicitly specify sampling and raster alignment conventions; \\ flexible shape timing for arbitrary gradients and RF pulses; \\ explicit block duration; \\ removed [DELAYS]; \\ added uncompressed shape option; \\ added signature section. } 
+1.4.0 & 7 Jul 2021 & \makecell{Substantial revisions of the file format: \\ added required definitions; \\ we now explicitly specify sampling and raster alignment \\ 
+conventions; \\ flexible shape timing for arbitrary gradients and RF pulses; \\ explicit block duration; \\ removed [DELAYS]; \\ added uncompressed shape option; \\ added signature section. } 
 \\
-1.4.1 & 16 Feb 2023 & \makecell{New flags to the LABEL extension added; \\ TODO: update figures and examples. } \\
+1.4.1 & 16 Feb 2023 & \makecell{New flags to the LABEL extension added.} \\ 
+1.5.0 & 12 Feb 2025 & \makecell{Substantial format revision, including: \\
+RF pulses define RF center and untended use fields; \\
+RF and ADC objects declare an additional frequency \\ offset in units of PPM; \\
+ADC objects optinally declare phase offset per sample \\ as a vector; \\
+Extension "Soft Delay" is introduced. \\
+TODO: update figures and examples.  \\
+} \\
 \bottomrule
 \end{tabular}
 
 
 \section{Introduction}
-The purpose of this file format is to compactly represent a magnetic resonance (MR) sequence in an open and vendor independent manner. Sequences for both NMR spectroscopy and MRI can be represented. The format is intended for research and educational purposes and currently omits complex sequence features such as physiological triggering or logical coordinate-frame transformations. The format has been developed with the following \textbf{design goals}:
+The purpose of this file format is to compactly represent a magnetic resonance (MR) sequence in an open and vendor independent manner. Sequences for both NMR spectroscopy and MRI can be represented. The format is intended for research and educational purposes and currently omits complex sequence features such as logical coordinate-frame transformations. The format has been developed with the following \textbf{design goals}:
 \begin{enumerate}
 \item \textbf{Human-readable:} The basic sequence structure should be easily understood without processing.
 \item \textbf{Easily parsed:} The format should be easy for a computer program to parse without the need for external libraries.
-\item \textbf{Vendor independent:} The sequence format must not contain definitions specific to a particular hardware manufacturer.
-\item \textbf{Compact:} The sequence must not contain redundant definitions. As such, re-use of existing definitions at different times is inherent in the sequence format.
+\item \textbf{Vendor independent:} The sequence format must not contain constructs specific to a particular hardware manufacturer.
+\item \textbf{Compact:} The sequence should avoid redundant definitions. As such, re-use of existing definitions at different times is inherent in the sequence format.
 \item \textbf{Low-level:} The format should be sufficiently low-level. This allows for maximum flexibility of sequence specifications and does not limit the high-level design tools.
 \end{enumerate}
 
-The first goal of human readability necessitates a text-file format. The file format is intended to describe a sequence that can be run on scanner hardware. Therefore, the second goal of machine readability ensures that the file can be read and interpreted without the use of external libraries that might be unavailable on different platforms. This prohibits the use of an existing markup language like XML, which are not straightforward to parse. Further, units  that are inherently hardware dependent have been avoided, such as `Volts' or `Tesla'. 
+The first goal of human readability necessitates a text-file format. The file format is intended to describe a sequence that can be run on scanner hardware. Therefore, the second goal of machine readability ensures that the file can be read and interpreted without the use of external libraries that might be unavailable on different platforms. This prohibits the use of an existing markup language like XML, which are not straightforward to parse. Further, units  that are inherently hardware dependent have been avoided, such as `Volts', `Tesla' or  `DAC units'. 
 
 
 \subsection{Example}
@@ -145,7 +154,7 @@ Before defining the detailed specification, a simple example is presented to dem
 \caption{Visualisation of the hierarchical structure of the file format for an FID example. \label{fig:block_diagram}}
 \end{figure}
 
-The sequence description consists of a three-level hierarchical structure as demonstrated in Figure~\ref{fig:block_diagram}. This ensures the most compact representation, since repeating events (or shapes) are only declared once.
+The sequence description consists of a three-level hierarchical structure as demonstrated in Figure~\ref{fig:block_diagram}. This ensures a compact representation, since repeating events (or shapes) are only declared once.
 \begin{description}
 \item[Blocks] At the top level the sequence is specified by a number of blocks. Each block refers to one or more event(s) to be executed simultaneously.
 \item[Events] The definition of events are dependent on the type (e.g. gradient, ADC) but some types may refer to one or more basic shapes.
@@ -165,7 +174,7 @@ A key idea of the hierarchical sequence structure is the use of ID numbers to re
 \item IDs must be positive integers.
 \item The ID of each shape must be unique.
 \item The ID of events within a single class must be unique. For example, an RF event and delay event may both use an ID of 1, since the events are of a different class. An exception is the \verb.[GRADIENTS]. and \verb.[TRAP]. events where the union of these sets must contain unique event IDs.
-\item The ID of 0 for a time shape corresponds to the "default", meaning an incremental time sampling with the corresponding time raster.
+\item The ID of 0 for a time shape corresponds to the "default", meaning an incremental time sampling with the corresponding default time raster.
 \item There are no restrictions on the ordering of IDs, although sequential ordering is often implemented.
 \item There are no restrictions on the first ID of an event class.
 \end{itemize}
@@ -232,7 +241,7 @@ Tag & Type & Description & Units\\
 \bottomrule
 \end{tabularx}
 
-The \verb.<value>. field is separated by a single space or tab character from \verb.<key>. and is terminated at the end of the line. Any (additional) white space at the beginning and at the end of \verb.<value>. is ignored.
+The \verb.<value>. field is separated by a single space or tab character from \verb.<key>. and is terminated at the end of the line. Any (additional) white space at the beginning and at the end of \verb.<value>. is ignored. The \verb.<key>. field cannot contain any white space caracters.
 
 \textbf{Example:}
 \begin{lstlisting}
@@ -259,19 +268,19 @@ Definition & Description & Status\\
 \verb.AdcRasterTime. & The value defining the alignment of the ADC dwell times; ADC dwell time must be integer multiple of the specified AdcRasterTime; AdcRasterTime is specified in seconds & required \\
 \verb.BlockDurationRaster. & The value defining the alignment of the block durations, specified in seconds; the physical block duration must be integer multiple of the specified BlockDurationRaster; Block duration in the \verb.[BLOCKS]. section are specified in the units of BlockDurationRaster  & required\\
 \verb.Name. & Human-readable name of the sequence & optional \\
-\verb.FOV. & Field of view specified in meters in x, y and z directions given as a space-separated list of numbers \\
-\verb.TotalDuration. & Total duration of the sequence is seconds \\
+\verb.FOV. & Field of view specified in meters in x, y and z directions given as a space-separated list of numbers & optional\\
+\verb.TotalDuration. & Total duration of the sequence is seconds & optional\\
 \bottomrule
 \end{tabularx}
 
-It is important to note that all definitions that are not  \textbf{required} are optional and do not affect the basic sequence execution. Precise timing is given by the low-level specification of events. The definitions section may be used for arbitrary user-specific purposes, including attaching metadata or hardware-dependent parameters.
+It is important to note that all definitions that are not  \textbf{required} are optional and do not affect the basic sequence execution. Precise timing is given by the low-level specification of events. The definitions section may be used for arbitrary user-specific purposes, including attaching metadata or hardware-dependent parameters. Some Pulseq file interpreters use optional Definitons to make decisions about the sequence execution or aid user parameter choises on the scanner.
 
 \subsection{Time raster, temporal alignment and shape sampling conventions}
 
 Accurate timing is essential for NMR and MRI experiments. To guarantee 	
 unambiguous time definition Pulseq operates at discrete time raster. Depending on the particular hardware implementation details different electronic components may have different clock resolutions and correspondingly different raster times. 
 
-For understanding the time raster alignment it is important to differentiate between the \verb.edges. and \verb.centers. of the time raster steps. All blocks and events are aligned to the corresponding \verb.edges. of the time raster. Block duration is required to be multiple of \verb.BlockDurationRaster., therefore each block can only start and end at the \verb.edges. of the block duration raster. Gradient events may only start at time points which are multiple of \verb.GradientRasterTime.; for trapezoid events, ramp times and plateau duration may also only be equal to multiples of \verb.GradientRasterTime.. In contrast to that, any default sampling points (e.g. sampling points of arbitrary-shape gradients) are aligned to the \verb.centers. of the corresponding raster steps. The same convention applies to the default RF shape sampling and ADC sampling points. This means that the time of the n-th point on the RF pulse shape, gradient shape or ADC sampling point can be calculated as $t_n=t_{start} + \Delta t(0.5+n)$. We will eventually add some figures and diagrams to this section to explain this important concept.
+For understanding the time raster alignment it is important to differentiate between the \verb.edges. and \verb.centers. of the time raster steps. All blocks and events are aligned to the corresponding \verb.edges. of the time raster. Block duration is required to be multiple of \verb.BlockDurationRaster., therefore each block can only start and end at the \verb.edges. of the block duration raster. Gradient events may only start and end at time points which are multiple of \verb.GradientRasterTime., that is at the edges of \verb.GradientRasterTime.; for trapezoid events, ramp times and plateau duration may also only be equal to multiples of \verb.GradientRasterTime.. In contrast to that, any default sampling points (e.g. sampling points of arbitrary-shape gradients) are aligned to the \verb.centers. of the corresponding raster steps. The same convention applies to the default RF shape sampling and ADC sampling points. This means that the time of the n-th point on the RF pulse shape, gradient shape or ADC sampling point can be calculated as $t_n=t_{start} + \Delta t(0.5+n)$. We will eventually include some figures and diagrams to this section to explain this important concept, but for now please refer to the slide set at: \href{https://github.com/pulseq/pulseq/blob/master/doc/pulseq_shapes_and_times.pdf}{https://github.com/pulseq/pulseq/blob/master/doc/pulseq\_shapes\_and\_times.pdf}.
 
 
 \subsection{Blocks}
@@ -331,21 +340,30 @@ Tag & Type & Description & Units\\
 \verb.<mag_id>. & integer & Shape ID for magnitude profile & -- \\
 \verb.<phase_id>. & integer & Shape ID for phase profile & --\\
 \verb.<time_id>. & integer & Shape ID for the time sampling points, specified in the units of \verb.RadiofrequencyRasterTime.; 0 means default time raster & -- \\
+\verb.<center>. & float & Time point relative to the beginning of the RF shape at which the effective rotation takes place & $\rm \mu s$\\
 \verb.<delay>. & integer & Delay before starting the RF pulse & $\rm \mu s$\\
-\verb.<freq>. & float & Frequency offset & Hz \\
-\verb.<phase>. & float & Phase offset & rad \\
+\verb.<ppm_off>. & float & Frequency offset relative to the main system's frequency & ppm \\
+\verb.<freq_off>. & float & Frequency offset in absolute units & Hz \\
+\verb.<phase_off>. & float & Phase offset & rad \\
+\verb.<use>. & char & Intended use fo the RF pulse; it is the initial of one of: 
+excitation, refocusing, inversion, saturation,  preparation, other or undefined & - \\
 \bottomrule
 \end{tabularx}
+
+Please note that for the calculation of the final frequency offset the contributions from \verb.<ppm_off>. and \verb.<freq_off>. are added together.
 
 \begin{minipage}{\textwidth}
 \textbf{Example:}
 \begin{lstlisting}
 [RF]
-  1    2500  1   2  0  0  0.000  0.000
+  1    550  1   2  0  1000  100  0.000  0.000  0.000  e
+  2    130  3   4  0  4000  100 -3.300  0.000  0.000  s
 \end{lstlisting}
 \end{minipage}
 
-In the example above, the RF pulse has ID of 1, peak amplitude of 2500Hz. The magnitude and phase profiles are defined with the shapes of ID 1 and 2, respectively. The RF pulse does not have any frequency or phase offset or delay and uses the default time axis sampling with a dwell time of \verb.RadiofrequencyRasterTime..
+In the example above, the RF pulse ID of 1 is the excitation pulse with the peak amplitude of 550Hz and a delay of 100 $\rm \mu s$. The magnitude and phase profiles are defined with the shapes of ID 1 and 2, respectively, using the default time axis sampling with a dwell time of \verb.RadiofrequencyRasterTime.. The effective center of this RF pulse is located 1000 $\rm \mu s$ away from the start of the RF shape and the pulse does not have any frequency or phase offset. The RF pulse with ID of 2 is the saturation pulse with the peak amplitude of 130Hz and also a delay of 100 $\rm \mu s$, that uses shape IDs 3 and 4 for the magnitude and phase, respectively. It is a fat saturation pulse as can be seenfrom the \verb.<ppm_offset>. of -3.3 ppm. \\
+
+IMPORTANT NOTE: since the actual frequency offset for an RF pulse with a non-zero \verb.<ppm_offset>. depends on the system frequency, an additional phase offset needs to be applied by the interpreter to compensate for the constant phase shift added at the time moment \verb.<center>..
 
 \subsubsection{Gradients}
 Gradient events are declared in two sections. Arbitrary gradients are in a section declared with the \verb.[GRADIENTS]. keyword. Each line in the section is an arbitrary gradient specified by four numbers,
