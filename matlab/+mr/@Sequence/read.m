@@ -43,6 +43,7 @@ obj.extensionStringIDs={};
 obj.extensionNumericIDs=[];
 
 version_combined=0;
+requiredDefs=struct('GradientRasterTime',false,'RadiofrequencyRasterTime',false,'AdcRasterTime',false,'BlockDurationRaster',false);
 
 % Load data from file
 while true
@@ -57,18 +58,27 @@ while true
             v=obj.getDefinition('GradientRasterTime');
             if ~isempty(v)
                 obj.gradRasterTime=v;
+                requiredDefs.GradientRasterTime=true;
             end
             v=obj.getDefinition('RadiofrequencyRasterTime');
             if ~isempty(v)
                 obj.rfRasterTime=v;
+                requiredDefs.RadiofrequencyRasterTime=true;
             end
             v=obj.getDefinition('AdcRasterTime');
             if ~isempty(v)
                 obj.adcRasterTime=v;
+                requiredDefs.AdcRasterTime=true;
             end
             v=obj.getDefinition('BlockDurationRaster');
             if ~isempty(v)
                 obj.blockDurationRaster=v;
+                requiredDefs.BlockDurationRaster=true;
+            end
+            if version_combined >= 1004000 && ~all(struct2array(requiredDefs))
+                fn=fieldnames(requiredDefs);
+                fn=fn(struct2array(requiredDefs)==0);
+                error(['Required definitions ' sprintf('%s ',fn{:}) 'are missing in the file']);
             end
         case '[SIGNATURE]'
             tmpSignDefs = readDefinitions(fid);
