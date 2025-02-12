@@ -62,8 +62,8 @@ fprintf(fid, '\n');
 
 if ~isempty(obj.rfLibrary.keys)
     fprintf(fid, '# Format of RF events:\n');
-    fprintf(fid, '# id amplitude mag_id phase_id time_shape_id center delay ppmoff freq phase use\n');
-    fprintf(fid, '# ..        Hz     ..       ..            ..     us    us    ppm   Hz   rad  ..\n');
+    fprintf(fid, '# id ampl. mag_id phase_id time_shape_id center delay ppmoff freq phase use\n');
+    fprintf(fid, '# ..   Hz      ..       ..            ..     us    us    ppm   Hz   rad  ..\n');
     fprintf(fid,['# Field ''use'' is the initial of: ' ...
         strtrim(cell2mat(cellfun(@(x) [x ' '], mr.getSupportedRfUse(), 'UniformOutput', false))) ... 
         '\n']);
