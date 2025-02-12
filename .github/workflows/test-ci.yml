@@ -1,0 +1,27 @@
+name: CI-CD
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up MATLAB
+        uses: matlab-actions/setup-matlab@v2
+        with:
+          cache: true
+          products: >
+            Curve_Fitting_Toolbox
+
+      - name: Run tests
+        uses: matlab-actions/run-command@v2
+        with:
+          command: addpath(genpath("matlab")), results = runtests('tests'), assert(sum([results.Failed]) == 0);

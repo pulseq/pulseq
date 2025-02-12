@@ -30,8 +30,8 @@ def main():
     # binary sequences are unsuported now
     #binary_sequences = ['gre_binary']
     binary_sequences = []
-    base_dir = '../tests/'
-    approved_dir = '../tests/approved/'
+    base_dir = '../tests/legacy/'
+    approved_dir = '../tests/legacy/approved/'
     ok_flag = True
 
     cell_str = '{'

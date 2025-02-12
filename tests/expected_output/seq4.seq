@@ -1,0 +1,152 @@
+# Pulseq sequence file
+# Created by MATLAB mr toolbox
+
+[VERSION]
+major 1
+minor 4
+revision 1
+
+[DEFINITIONS]
+AdcRasterTime 1e-07 
+BlockDurationRaster 1e-05 
+GradientRasterTime 1e-05 
+RadiofrequencyRasterTime 1e-06 
+
+# Format of blocks:
+# NUM DUR RF  GX  GY  GZ  ADC  EXT
+[BLOCKS]
+ 1 100   1   0   0   0  0  0
+ 2  83   0   1   0   0  0  0
+ 3  54   0   0   2   0  0  0
+ 4  54   0   2   0   0  0  0
+ 5 1000   0   3   0   0  1  1
+ 6 100   1   0   0   0  0  0
+ 7  83   0   1   0   0  0  0
+ 8  48   0   0   4   0  0  0
+ 9  54   0   2   0   0  0  0
+10 1000   0   3   0   0  1  2
+11 100   1   0   0   0  0  0
+12  83   0   1   0   0  0  0
+13  42   0   0   5   0  0  0
+14  54   0   2   0   0  0  0
+15 1000   0   3   0   0  1  3
+16 100   1   0   0   0  0  0
+17  83   0   1   0   0  0  0
+18  34   0   0   6   0  0  0
+19  54   0   2   0   0  0  0
+20 1000   0   3   0   0  1  4
+21 100   1   0   0   0  0  0
+22  83   0   1   0   0  0  0
+23  24   0   0   7   0  0  0
+24  54   0   2   0   0  0  0
+25 1000   0   3   0   0  1  5
+26 100   1   0   0   0  0  0
+27  83   0   1   0   0  0  0
+28   2   0   0   8   0  0  0
+29  54   0   2   0   0  0  0
+30 1000   0   3   0   0  1  6
+31 100   1   0   0   0  0  0
+32  83   0   1   0   0  0  0
+33  24   0   0   9   0  0  0
+34  54   0   2   0   0  0  0
+35 1000   0   3   0   0  1  7
+36 100   1   0   0   0  0  0
+37  83   0   1   0   0  0  0
+38  34   0   0  10   0  0  0
+39  54   0   2   0   0  0  0
+40 1000   0   3   0   0  1  8
+41 100   1   0   0   0  0  0
+42  83   0   1   0   0  0  0
+43  42   0   0  11   0  0  0
+44  54   0   2   0   0  0  0
+45 1000   0   3   0   0  1  9
+46 100   1   0   0   0  0  0
+47  83   0   1   0   0  0  0
+48  48   0   0  12   0  0  0
+49  54   0   2   0   0  0  0
+50 1000   0   3   0   0  1 10
+
+# Format of RF events:
+# id amplitude mag_id phase_id time_shape_id delay freq phase
+# ..        Hz   ....     ....          ....    us   Hz   rad
+[RF]
+1         62.5 1 2 3 0 0 0
+
+# Format of trapezoid gradients:
+# id amplitude rise flat fall delay
+# ..      Hz/m   us   us   us    us
+[TRAP]
+ 1  1.69492e+06 240  350 240   0
+ 2 -1.66667e+06 240   60 240   0
+ 3       100200  20 9960  20   0
+ 4 -1.66667e+06 240    0 240   0
+ 5 -1.42857e+06 210    0 210   0
+ 6 -1.17647e+06 170    0 170   0
+ 7      -833333 120    0 120   0
+ 8            0  10    0  10   0
+ 9       833333 120    0 120   0
+10  1.17647e+06 170    0 170   0
+11  1.42857e+06 210    0 210   0
+12  1.66667e+06 240    0 240   0
+
+# Format of ADC events:
+# id num dwell delay freq phase
+# ..  ..    ns    us   Hz   rad
+[ADC]
+1 100 100000 0 0 0
+
+# Format of extension lists:
+# id type ref next_id
+# next_id of 0 terminates the list
+# Extension list is followed by extension specifications
+[EXTENSIONS]
+1 1 1 0
+2 1 2 0
+3 1 3 0
+4 1 4 0
+5 1 5 0
+6 1 6 0
+7 1 7 0
+8 1 8 0
+9 1 9 0
+10 1 10 0
+
+# Extension specification for setting labels:
+# id set labelstring
+extension LABELSET 1
+1 0 LIN
+2 1 LIN
+3 2 LIN
+4 3 LIN
+5 4 LIN
+6 5 LIN
+7 6 LIN
+8 7 LIN
+9 8 LIN
+10 9 LIN
+
+# Sequence Shapes
+[SHAPES]
+
+shape_id 1
+num_samples 2
+1
+1
+
+shape_id 2
+num_samples 2
+0
+0
+
+shape_id 3
+num_samples 2
+0
+1000
+
+
+[SIGNATURE]
+# This is the hash of the Pulseq file, calculated right before the [SIGNATURE] section was added
+# It can be reproduced/verified with md5sum if the file trimmed to the position right above [SIGNATURE]
+# The new line character preceding [SIGNATURE] BELONGS to the signature (and needs to be sripped away for recalculating/verification)
+Type md5
+Hash 875e82f112550bb52d554af08c44058c

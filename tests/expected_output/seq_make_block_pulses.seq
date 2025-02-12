@@ -1,0 +1,77 @@
+# Pulseq sequence file
+# Created by MATLAB mr toolbox
+
+[VERSION]
+major 1
+minor 4
+revision 1
+
+[DEFINITIONS]
+AdcRasterTime 1e-07 
+BlockDurationRaster 1e-05 
+GradientRasterTime 1e-05 
+RadiofrequencyRasterTime 1e-06 
+
+# Format of blocks:
+# NUM DUR RF  GX  GY  GZ  ADC  EXT
+[BLOCKS]
+ 1 400   1   0   0   0  0  0
+ 2 100000   0   0   0   0  0  0
+ 3 500   2   0   0   0  0  0
+ 4 100000   0   0   0   0  0  0
+ 5 400   3   0   0   0  0  0
+ 6 100000   0   0   0   0  0  0
+ 7 100   4   0   0   0  0  0
+ 8 100000   0   0   0   0  0  0
+ 9 200   5   0   0   0  0  0
+10 100000   0   0   0   0  0  0
+11 100   6   0   0   0  0  0
+12 100000   0   0   0   0  0  0
+13 100   4   0   0   0  0  0
+
+# Format of RF events:
+# id amplitude mag_id phase_id time_shape_id delay freq phase
+# ..        Hz   ....     ....          ....    us   Hz   rad
+[RF]
+1      39.7887 1 2 3 0 0 0
+2      39.7887 1 2 3 1000 0 0
+3         62.5 1 2 3 0 0 0
+4          250 1 2 4 0 0 0
+5          125 1 2 5 0 0 1.5708
+6          250 1 2 4 0 1000 1.5708
+
+# Sequence Shapes
+[SHAPES]
+
+shape_id 1
+num_samples 2
+1
+1
+
+shape_id 2
+num_samples 2
+0
+0
+
+shape_id 3
+num_samples 2
+0
+4000
+
+shape_id 4
+num_samples 2
+0
+1000
+
+shape_id 5
+num_samples 2
+0
+2000
+
+
+[SIGNATURE]
+# This is the hash of the Pulseq file, calculated right before the [SIGNATURE] section was added
+# It can be reproduced/verified with md5sum if the file trimmed to the position right above [SIGNATURE]
+# The new line character preceding [SIGNATURE] BELONGS to the signature (and needs to be sripped away for recalculating/verification)
+Type md5
+Hash 7722e680bc0e0d60167e2e9c483766ab
