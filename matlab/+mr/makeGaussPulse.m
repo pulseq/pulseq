@@ -93,7 +93,7 @@ end
 if rf.deadTime > rf.delay
     rf.delay = rf.deadTime;
 end
-rf.center=mr.calcRfCenter(rf);
+rf.center=opt.duration*opt.centerpos;
 
 if nargout > 1
     assert(opt.sliceThickness > 0,'SliceThickness must be provided');

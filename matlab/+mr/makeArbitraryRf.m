@@ -89,7 +89,7 @@ if isfinite(opt.center)
     if rf.center < 0, rf.center = 0; end
     if rf.center > rf.shape_dur, rf.center = rf.shape_dur; end
 else
-    rf.center = rf.shape_dur ; % QC: rf.center is the time point when the magnetization vector reaches the peak? remain to check. 2025.01.02.
+    rf.center = mr.calcRfCenter(rf);
 end
 
 if opt.timeBwProduct>0
@@ -129,7 +129,7 @@ if nargout>1
     end
     
     if nargout > 2
-        gzr= mr.makeTrapezoid('z', system, 'Area', -area*(1-mr.calcRfCenter(rf)/rf.shape_dur)-0.5*(gz.area-area));
+        gzr= mr.makeTrapezoid('z', system, 'Area', -area*(1-rf.center)/rf.shape_dur)-0.5*(gz.area-area));
     end
 end
 

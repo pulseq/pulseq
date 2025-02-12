@@ -65,7 +65,6 @@ if isempty(parser)
 end
 parse(parser, flip, varargin{:});
 opt = parser.Results;
-opt.centerpos=0.5; % fixme
 
 if isempty(opt.system)
     sys=mr.opts();
@@ -182,7 +181,7 @@ rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = sys.rfDeadTime;
 rf.ringdownTime = sys.rfRingdownTime;
 rf.delay = opt.delay;
-rf.center = rf.shape_dur/2 ;
+rf.center = mr.calcRfCenter(rf);
 if ~isempty(opt.use)
     rf.use=opt.use;
 end
@@ -203,7 +202,7 @@ if nargout > 1
     area = amplitude*opt.duration;
     gz = mr.makeTrapezoid('z', sys, 'flatTime', opt.duration, ...
                           'flatArea', area);
-    gzr= mr.makeTrapezoid('z', sys, 'Area', -area*(1-opt.centerpos)-0.5*(gz.area-area));
+    gzr= mr.makeTrapezoid('z', sys, 'Area', -area*(1-rf.center/rf.shape_dur)-0.5*(gz.area-area));
     if rf.delay > gz.riseTime
         gz.delay = ceil((rf.delay - gz.riseTime)/sys.gradRasterTime)*sys.gradRasterTime; % round-up to gradient raster
     end

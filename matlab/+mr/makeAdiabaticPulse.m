@@ -236,7 +236,7 @@ rf.phaseOffset = opt.phaseOffset;
 rf.deadTime = sys.rfDeadTime;
 rf.ringdownTime = sys.rfRingdownTime;
 rf.delay = opt.delay;
-rf.center = rf.shape_dur/2 ;
+rf.center = mr.calcRfCenter(rf);
 if ~isempty(opt.use)
     rf.use=opt.use;
 else
@@ -263,13 +263,12 @@ if nargout > 1
         otherwise
             error('unsupported pulse type')
     end
-    centerpos=mr.calcRfCenter(rf);
     
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
     gz = mr.makeTrapezoid('z', sys, 'flatTime', opt.duration, ...
                           'flatArea', area);
-    gzr= mr.makeTrapezoid('z', sys, 'Area', -area*(1-centerpos)-0.5*(gz.area-area));
+    gzr= mr.makeTrapezoid('z', sys, 'Area', -area*(1-rf.center/rf.shape_dur)-0.5*(gz.area-area));
     if rf.delay > gz.riseTime
         gz.delay = ceil((rf.delay - gz.riseTime)/sys.gradRasterTime)*sys.gradRasterTime; % round-up to gradient raster
     end
