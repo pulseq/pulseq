@@ -555,9 +555,10 @@ classdef Sequence < handle
             if isfield(event,'use')
                 % todo: fixme: use map from getSupportedRfUse
                 switch event.use
-                    case {'excitation','refocusing','inversion','saturation','preparation'}
+                    case {'excitation','refocusing','inversion','saturation','preparation','other'}
                         use = event.use(1);
                     otherwise
+                        warning('Unknown or undefined RF pulse parameter ''use''=%s, which is not optional since v1.5.0',event.use);
                         use = 'u'; % undefined
                 end
             else
@@ -1842,10 +1843,11 @@ classdef Sequence < handle
                     tc=mr.calcRfCenter(rf);
                     t=rf.delay+tc;
                     full_freqOffset=rf.freqOffset+rf.ppmOffset*1e-6*obj.sys.gamma*obj.sys.B0;
+                    full_phaseOffset=rf.phaseOffset-2*pi*rf.ppmOffset*1e-6*obj.sys.gamma*obj.sys.B0*rf.center;
                     if (~isfield(rf,'use') || strcmp(rf.use,'excitation') || strcmp(rf.use,'undefined'))
-                        tfp_excitation(:,end+1) = [curr_dur+t; full_freqOffset; rf.phaseOffset+2*pi*full_freqOffset*tc];
+                        tfp_excitation(:,end+1) = [curr_dur+t; full_freqOffset; full_phaseOffset+2*pi*full_freqOffset*tc];
                     elseif strcmp(rf.use,'refocusing')
-                        tfp_refocusing(:,end+1) = [curr_dur+t; full_freqOffset; rf.phaseOffset+2*pi*full_freqOffset*tc];
+                        tfp_refocusing(:,end+1) = [curr_dur+t; full_freqOffset; full_phaseOffset+2*pi*full_freqOffset*tc];
                     end
                     if appendRF
                         pre=[];
@@ -1859,13 +1861,14 @@ classdef Sequence < handle
 %                         pre=[curr_dur+rf.delay+rf.t(1)-eps;NaN];
 %                         post=[curr_dur+rf.delay+rf.t(end)+eps;NaN];
                         out_len(end)=out_len(j)+length(rf.t)+size(pre,2)+size(post,2);
-                        shape_pieces{end,iP}=[pre [curr_dur+rf.delay+rf.t'; (rf.signal.*exp(1i*(rf.phaseOffset+2*pi*full_freqOffset*rf.t)))'] post];
+                        shape_pieces{end,iP}=[pre [curr_dur+rf.delay+rf.t'; (rf.signal.*exp(1i*(full_phaseOffset+2*pi*full_freqOffset*rf.t)))'] post];
                     end
                 end
                 if ~isempty(block.adc)
                     ta=block.adc.dwell*((0:(block.adc.numSamples-1))+0.5); % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell) % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
                     t_adc((end+1):(end+block.adc.numSamples)) = ta + block.adc.delay + curr_dur;
                     full_freqOffset=block.adc.freqOffset+block.adc.ppmOffset*1e-6*obj.sys.gamma*obj.sys.B0;
+                    % oops, we don't have ADC center %full_phaseOffset=block.adc.phaseOffset-2*pi*block.adc.ppmOffset*1e-6*obj.sys.gamma*obj.sys.B0*block.adc.center;                    
                     if isempty(block.adc.phaseModulation)
                         block.adc.phaseModulation=0;
                     end                        

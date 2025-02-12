@@ -65,11 +65,13 @@ if abs(rf.ppmOffset)>eps
     warning('relying on the system properties, like B0 and gamma, stored in the global environment by callimg mr.lims(''setAsDefault'',true)');
     sys=mr.opts();
     full_freqOffset=rf.freqOffset+rf.ppmOffset*1e-6*sys.gamma*sys.B0;
+    full_phaseOffset=rf.phaseOffset-2*pi*rf.ppmOffset*1e-6*sys.gamma*sys.B0*rf.center;                    
 else
     full_freqOffset=rf.freqOffset;
+    full_phaseOffset=rf.phaseOffset;
 end
 
-shapea = interp1(rf.t, 2*pi*rf.signal.*exp(1i*(rf.phaseOffset+2*pi*full_freqOffset*rf.t)),T,'linear',0);
+shapea = interp1(rf.t, 2*pi*rf.signal.*exp(1i*(full_phaseOffset+2*pi*full_freqOffset*rf.t)),T,'linear',0);
 
 % intialize result vectors
 M_ROT=zeros(size(F)); 
