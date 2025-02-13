@@ -275,7 +275,7 @@ Definition & Description & Status\\
 
 It is important to note that all definitions that are not  \textbf{required} are optional and do not affect the basic sequence execution. Precise timing is given by the low-level specification of events. The definitions section may be used for arbitrary user-specific purposes, including attaching metadata or hardware-dependent parameters. Some Pulseq file interpreters use optional Definitons to make decisions about the sequence execution or aid user parameter choises on the scanner.
 
-\subsection{Time raster, temporal alignment and shape sampling conventions}
+\subsection{Time raster, temporal alignment and shape sampling conventions}\label{subsec:timing}
 
 Accurate timing is essential for NMR and MRI experiments. To guarantee 	
 unambiguous time definition Pulseq operates at discrete time raster. Depending on the particular hardware implementation details different electronic components may have different clock resolutions and correspondingly different raster times. 
@@ -368,7 +368,7 @@ IMPORTANT NOTE: since the actual frequency offset for an RF pulse with a non-zer
 \subsubsection{Gradients}
 Gradient events are declared in two sections. Arbitrary gradients are in a section declared with the \verb.[GRADIENTS]. keyword. Each line in the section is an arbitrary gradient specified by four numbers,
 \begin{lstlisting}
-<id> <amp> <shape_id> <time_id> <delay>
+<id> <amp> <first> <last> <shape_id> <time_id> <delay>
 \end{lstlisting}
 Trapezoidal gradients are in a section declared with the \verb.[TRAP]. keyword. Each line in the section is a trapezoidal gradients specified by six numbers,
 \begin{lstlisting}
@@ -383,8 +383,10 @@ Tag & Type & Description & Units\\
 \midrule
 \verb.<id>. & integer & ID of the gradient event & -- \\
 \verb.<amp>. & float & Peak amplitude & Hz/m \\
+\verb.<first>. & float & The amplitude of the gradient at the start of the gradient. Only relevant for the arbitrary gradients (shaped gradients and extended trapezoids) & Hz/m \\
+\verb.<first>. & float & The amplitude of the gradient at the end of the gradient. Only relevant for the arbitrary gradients & Hz/m \\
 \verb.<shape_id>. & integer & Shape ID for arbitrary gradient waveform & -- \\
-\verb.<time_id>. & integer & Shape ID for the time sampling points, specified in the units of \verb.GradientRasterTime.; 0 means default time raster & -- \\
+\verb.<time_id>. & integer & Shape ID for the time sampling points, specified in the units of \verb.GradientRasterTime.; 0 means default time raster; -1 means 1/2 of the default time raster (gradient oversampling case) & -- \\
 \verb.<rise>. & integer & Rise time of the trapezoid & $\rm \mu s$ \\
 \verb.<flat>. & integer & Flat-top time of the trapezoid & $\rm \mu s$ \\
 \verb.<fall>. & integer & Fall time of the trapezoid & $\rm \mu s$ \\
@@ -399,17 +401,21 @@ The gradient ID must be unique across both arbitrary and trapezoid gradients. Th
 \textbf{Example:}
 \begin{lstlisting}
 [GRADIENTS]
-  1    159154.9  3  4  0
+  1   790127   0      -550073 6  0 980
+  2   793249   0       574045 7 -1 980
+  3  -550073  -550073  0      8  9 0
+  4   574045   574045  0      8  9 0
 [TRAP]
-  2       25000    30  940  30  100
-  3    20066.89    10  980  10  100
+  5       25000    30  940  30  100
+  6    20066.89    10  980  10  100
 \end{lstlisting}
 \end{minipage}
 
-The example above contains two gradients: an arbitrary gradient with peak amplitude of approximately 159kHz/m and shape ID 3 and time shape ID 4 and two trapezoid gradients (IDs 2 and 3) with duration 1ms specified by amplitude, rise time, flat-top time and fall time.
-Both gradients have a delay of 100$\rm \mu s$.
+The example above contains six gradients: two arbitrary gradients with peak amplitudes of approximately 790kHz/m (in fact this is a center-out spiral readout). The first one has shape ID 6 and time shape ID of 0, which means the shape ID 6 contains gradient samples according to the convention stated in \autoref{subsec:timing}, e.g. sampled at the centers of the gradient raster cells. The gradient starts with a zero amplitude but ends at the amplitude of -550kHz/m. The second shaped gradient is similar, but has a time shape ID of -1, meaning that the shape ID 7 is defined with the oversampling (e.g. it contains N-1 additional points between the nominal samples sampled at the gradient raster cell edges). Normally yo don't combine oversampled and non-oversampled gradients like that, here it is given as a toy example. The gradient with ID 2 ends at the amplitude of 574kHz/m. Because both these gradients end at non-zero values, they need to be aligned to the end of the block, which is achieved in this example by the start delay of 980 $\rm \mu s$. They also require additional 'ramp down' gradients in the next block, which realized in this example by gradient objects with IDs 3 and 4. Here gradient with ID 3 starts at -550kHz/m and ends at 0 and has a shape described by the shape ID of 8 and time ID of 9. Gradients that start at non-zero values must be aligned to the beginning of the block, meaning that the start delay of such gradients must be 0. Gradient with ID 4 is the other 'ramp down' gradient, defined analogously. Note that both these gradients share the shape and time IDs. The example als defines two trapezoid gradients (IDs 5 and 6) with duration 1ms specified by amplitude, rise time, flat-top time and fall time.
+Both trapeyoid gradients have a delay of 100$\rm \mu s$.
 
 \subsubsection{ADC}
+TODO! UPDATE ME! \\
 The ADC section is declared with the \verb.[ADC]. keyword. Each line in the section is an ADC event specified by six numbers,
 \begin{lstlisting}
 <id> <num> <dwell> <delay> <freq> <phase>
@@ -525,6 +531,28 @@ ID & Type & Description\\
 \end{tabularx}
 
 Additionally, there is a three-state flag \verb.ONCE., that is intended to control the execution flow for sequences with repetitions. It allows to implement dummy scans, warm-up sub-sequences, calibration scans or closing-up sub-sequences. The flag instructs the interpreter to alter the sequence when executing multiple repeats as follows: blocks with ONCE=0 are executed on every repetition; ONCE=1 marks the blocks that are only executed in the first repetition; blocks with ONCE=2 (or any other number) are only executed in the last repetition. When number of repetitions is equal to 1 no changes are applied.
+
+\textbf{Soft Delay Extension}
+
+New in revision 1.5.0 is the label extension. It provides a posibility for an exported Pulseq file to redefine some aspects of the sequence tming at the run time. Label extension can be used in conjunction with pure delay blocks (blocks of non-zero duration containing no RF, gradient or ADC events). For such blocks Soft Delay extension is able to rewrite the duration of the block at run time based on the rule provided by the user. Typical use cases include adjusting the cardiac delay based on the current subject pulse rate, adjusting delays in composite pulses for MR spectroscopy or setting TE and TR for readily exported sequences. 
+
+\begin{minipage}{\textwidth}
+\textbf{Example:}
+\begin{lstlisting}
+# Extension specification for soft delays:
+# id num offset factor hint
+# ..  ..     us     ..   ..
+extension DELAYS 2
+1 0 -7840    2 TE
+2 0 -9320    2 TE
+3 0  120000 -1 TE
+4 1 -126760 11 TR
+5 2  0       1 TD 
+\end{lstlisting}
+\end{minipage}
+
+In the example above, line 1 defines a Soft Delay with numeric ID 0 and text ID 'TE', with the actual block durarion calculated as $D_1=TE/2-7840 \mu s$. Line 2 defines another instance of the Soft Delay with the same numeric and text IDs, but where the delay duration is calculated as $D_2=TE/2-9320 \mu s$. As one can guess, these two delays facilitate the TE setting in a spin-echo sequence. A somewhat special case is the Soft Delay define in line 3: it defines an additional delay which makes the execution time of the inner sequence loop independent of TE by introducing a delay with a duration $D_3=120000\mu s - TE$. 
+parameter values (TE in this example) leading to negative delays are not allowed, leading to the automatic definition of the minimal and maximum allowable TE values in this example. Soft delay in line 4 defines the TR delay $D_4=TR/11-126760 \mu s$, from which it is easy to conclude, that it was a sequence with 11 slices. Line 5 defines the most trivial Soft Delay, where the value entered in the scanner's UI for the parameter marked TD is simply interpreted as the new block duration. 
 
 \subsection{Shapes}
 
