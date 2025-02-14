@@ -347,8 +347,9 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
 						return false;
 					}
-                    event.ppmOffset=0.0;
-					event.timeShape=0;
+                    event.freqPPM=0.0;
+                    event.phasePPM = 0.0;
+                    event.timeShape = 0;
 					event.use='u'; // undefined use
 					event.center=-1.0; // mark as invalid
 				}
@@ -362,16 +363,17 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
 						return false;
 					}
-                    event.ppmOffset = 0.0;
+                    event.freqPPM = 0.0;
+                    event.phasePPM = 0.0;
                     event.use       = 'u';  // undefined use
 					event.center=-1.0; // mark as invalid
 				}
 				else 
 				{
 					// 1.5.0
-					if (11!=sscanf(buffer, "%d%f%d%d%d%f%d%f%f%f %c", &rfId, &(event.amplitude),
+					if (12!=sscanf(buffer, "%d%f%d%d%d%f%d%f%f%f%f %c", &rfId, &(event.amplitude),
 								&(event.magShape),&(event.phaseShape), &(event.timeShape), &(event.center),
-								&(event.delay), &(event.ppmOffset), &(event.freqOffset), &(event.phaseOffset), &(event.use)
+								&(event.delay), &(event.freqPPM), &(event.phasePPM), &(event.freqOffset), &(event.phaseOffset), &(event.use)
 								)) {
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode RF event\n" << buffer << std::endl );
 						return false;
@@ -474,8 +476,8 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 				if ( version_combined>=1005000L )
 				{
 					// v1.5.0
-					if (8!=sscanf(buffer, "%d%d%d%d%f%f%f%d", &adcId, &(event.numSamples),
-								&(event.dwellTime),&(event.delay),&(event.ppmOffset),&(event.freqOffset),&(event.phaseOffset),&(event.phaseModulationShape))) {
+					if (9!=sscanf(buffer, "%d%d%d%d%f%f%f%f%d", &adcId, &(event.numSamples),
+								&(event.dwellTime),&(event.delay),&(event.freqPPM),&(event.phasePPM),&(event.freqOffset),&(event.phaseOffset),&(event.phaseModulationShape))) {
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode ADC event\n" << buffer << std::endl );
 						return false;
 					}
@@ -488,7 +490,8 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode ADC event\n" << buffer << std::endl );
 						return false;
 					}
-                    event.ppmOffset=0.0; // no ppmOffset in older formats
+                    event.freqPPM=0.0; // no ppmOffset in older formats
+                    event.phasePPM= 0.0; 
 					event.phaseModulationShape=0; // no phase modulation shape provided 
 				}
 				

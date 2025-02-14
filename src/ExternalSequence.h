@@ -87,7 +87,8 @@ struct RFEvent
 	int phaseShape;      /**< @brief ID of shape for phase */
 	int timeShape;       /**< @brief ID of shape for time sampling points */
 	float center;        /**< @brief Effective RF center of the pulse shape measured from the start of the shape (us) */
-    float ppmOffset;     /**< @brief B0-dependent frequency offset of transmitter (ppm) */
+    float freqPPM;       /**< @brief B0-dependent frequency offset of transmitter (ppm) */
+    float phasePPM;      /**< @brief B0-dependent phase offset of transmitter (rad/MHz) */
     float freqOffset;    /**< @brief Constant frequency offset of transmitter (Hz) */
 	float phaseOffset;   /**< @brief Phase offset of transmitter (rad) */
 	int delay;           /**< @brief Delay prior to the pulse (us) */
@@ -132,8 +133,9 @@ struct ADCEvent
 	int numSamples;           /**< @brief Number of samples */
 	int dwellTime;            /**< @brief Dwell time of ADC readout (ns) */
 	int delay;                /**< @brief Delay before first sample (us) */
-    float ppmOffset;            /**< @brief B0-dependent frequency offset of receiver (ppm) */
-    float freqOffset;           /**< @brief Constant frequency offset of receiver (Hz) */
+    float freqPPM;            /**< @brief B0-dependent frequency offset of receiver (ppm) */
+    float phasePPM;           /**< @brief B0-dependent phase offset of receiver (rad/MHz) */
+    float freqOffset;         /**< @brief Constant frequency offset of receiver (Hz) */
 	float phaseOffset;        /**< @brief Phase offset of receiver (rad) */
 	int phaseModulationShape; /**< @brief Phase modulation shape of receiver (rad) */
 };
