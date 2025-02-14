@@ -3,13 +3,14 @@ function [rf, gz, gzr, delay] = makeGaussPulse(flip,varargin)
 %   rf=makeGaussPulse(flip, 'Duration', dur) Create Gauss pulse
 %   with given flip angle (rad) and duration (s).
 %
-%   rf=makeGaussPulse(..., 'FreqOffset', f,'PhaseOffset',p)
+%   rf=makeGaussPulse(..., 'freqOffset', f,'phaseOffset',p)
 %   Create Gauss pulse with frequency offset (Hz) and phase offset (rad).
 %
-%   rf=makeGaussPulse(..., 'ppmOffset')
+%   rf=makeGaussPulse(..., 'freqPPM',-3.3)
 %   Create Gaussian RF pulse with frequency offset specified in PPM (e.g.
-%   actual frequency offset proportional to the true Larmor frequency); can
-%   be combined with the 'freqOffset' specified in Hz.
+%   actual frequency offset proportional to the true Larmor frequency), in
+%   this example -3.3 ppm as often used for fat saturation; can be combined
+%   with the 'freqOffset' specified in Hz. 
 %
 %   [rf, gz]=makeGaussPulse(...,'SliceThickness',st) Return the
 %   slice select gradient corresponding to given slice thickness (m).
@@ -28,15 +29,16 @@ validPulseUses = mr.getSupportedRfUse();
 persistent parser
 if isempty(parser)
     parser = inputParser;
-    parser.FunctionName = 'makeSincPulse';
+    parser.FunctionName = 'makeGaussPulse';
     
     % RF params
     addRequired(parser, 'flipAngle', @isnumeric);
     addOptional(parser, 'system', [], @isstruct);
     addParamValue(parser, 'duration', 0, @isnumeric);
-    addParamValue(parser, 'ppmOffset', 0, @isnumeric);
     addParamValue(parser, 'freqOffset', 0, @isnumeric);
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
+    addParamValue(parser, 'freqPPM', 0, @isnumeric);
+    addParamValue(parser, 'phasePPM', 0, @isnumeric);
     addParamValue(parser, 'timeBwProduct', 3, @isnumeric);
     addParamValue(parser, 'bandwidth', 0, @isnumeric);
     addParamValue(parser, 'apodization', 0, @isnumeric);
@@ -81,9 +83,10 @@ rf.type = 'rf';
 rf.signal = signal;
 rf.t = t;
 rf.shape_dur=N*opt.dwell;
-rf.ppmOffset = opt.ppmOffset;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
+rf.freqPPM = opt.freqPPM;
+rf.phasePPM = opt.phasePPM;
 rf.deadTime = system.rfDeadTime;
 rf.ringdownTime = system.rfRingdownTime;
 rf.delay = opt.delay;

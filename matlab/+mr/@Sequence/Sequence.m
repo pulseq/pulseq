@@ -475,9 +475,10 @@ classdef Sequence < handle
 
             rf.center = libData(5); % new in v150
             rf.delay = libData(6); % changed in v150
-            rf.ppmOffset = libData(7); % new in v150
-            rf.freqOffset = libData(8); % changed in v150
-            rf.phaseOffset = libData(9); % new changed v150
+            rf.freqPPM = libData(7); % changed in v150
+            rf.phasePPM = libData(8); % new changed v150
+            rf.freqOffset = libData(9); % changed in v150
+            rf.phaseOffset = libData(10); % new changed v150
             
             rf.deadTime = obj.sys.rfDeadTime;
             rf.ringdownTime = obj.sys.rfRingdownTime;
@@ -566,7 +567,7 @@ classdef Sequence < handle
             end
 
             data = [amplitude shapeIDs(1) shapeIDs(2) shapeIDs(3) ...
-                    event.center event.delay event.ppmOffset event.freqOffset event.phaseOffset ];%...
+                    event.center event.delay event.freqPPM event.phasePPM event.freqOffset event.phaseOffset ];%...
                     %event.deadTime event.ringdownTime];
             if may_exist
                 id = obj.rfLibrary.find_or_insert(data,use);
@@ -661,7 +662,7 @@ classdef Sequence < handle
             end
 
             data = [event.numSamples event.dwell max(event.delay,event.deadTime), ... % MZ: replaced event.delay+event.deadTime with a max(...) because we allow for overlap of the delay and the dead time
-                event.ppmOffset event.freqOffset event.phaseOffset shapeID]; % event.deadTime];
+                event.freqPPM event.phasePPM event.freqOffset event.phaseOffset shapeID]; % event.deadTime];
             if surely_new
                 id = obj.adcLibrary.insert(0,data);
             else
@@ -1271,7 +1272,7 @@ classdef Sequence < handle
                 end
                 adc = cell2struct(num2cell([libData(1:end-1) 0 obj.sys.adcDeadTime]), ...
                                   {'numSamples', 'dwell', 'delay', ...
-                                   'ppmOffset', 'freqOffset', 'phaseOffset', ...
+                                   'freqPPM', 'phasePPM', 'freqOffset', 'phaseOffset', ...
                                    'phaseModulation','deadTime'}, 2);
                 if shapeIdPhaseModulation
                     adc.phaseModulation=phaseShape;
@@ -1842,8 +1843,8 @@ classdef Sequence < handle
                     rf=block.rf;
                     tc=mr.calcRfCenter(rf);
                     t=rf.delay+tc;
-                    full_freqOffset=rf.freqOffset+rf.ppmOffset*1e-6*obj.sys.gamma*obj.sys.B0;
-                    full_phaseOffset=rf.phaseOffset-2*pi*rf.ppmOffset*1e-6*obj.sys.gamma*obj.sys.B0*rf.center;
+                    full_freqOffset=rf.freqOffset+rf.freqPPM*1e-6*obj.sys.gamma*obj.sys.B0;
+                    full_phaseOffset=rf.phaseOffset+rf.phasePPM*1e-6*obj.sys.gamma*obj.sys.B0;
                     if (~isfield(rf,'use') || strcmp(rf.use,'excitation') || strcmp(rf.use,'undefined'))
                         tfp_excitation(:,end+1) = [curr_dur+t; full_freqOffset; full_phaseOffset+2*pi*full_freqOffset*tc];
                     elseif strcmp(rf.use,'refocusing')
@@ -1867,12 +1868,12 @@ classdef Sequence < handle
                 if ~isempty(block.adc)
                     ta=block.adc.dwell*((0:(block.adc.numSamples-1))+0.5); % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell) % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
                     t_adc((end+1):(end+block.adc.numSamples)) = ta + block.adc.delay + curr_dur;
-                    full_freqOffset=block.adc.freqOffset+block.adc.ppmOffset*1e-6*obj.sys.gamma*obj.sys.B0;
-                    % oops, we don't have ADC center %full_phaseOffset=block.adc.phaseOffset-2*pi*block.adc.ppmOffset*1e-6*obj.sys.gamma*obj.sys.B0*block.adc.center;                    
+                    full_freqOffset=block.adc.freqOffset+block.adc.freqPPM*1e-6*obj.sys.gamma*obj.sys.B0;
+                    full_phaseOffset=block.adc.phaseOffset+block.adc.phasePPM*1e-6*obj.sys.gamma*obj.sys.B0;
                     if isempty(block.adc.phaseModulation)
                         block.adc.phaseModulation=0;
                     end                        
-                    fp_adc(:,(end+1):(end+block.adc.numSamples)) = [full_freqOffset*ones(1,block.adc.numSamples); block.adc.phaseOffset+block.adc.phaseModulation+full_freqOffset*ta];
+                    fp_adc(:,(end+1):(end+block.adc.numSamples)) = [full_freqOffset*ones(1,block.adc.numSamples); full_phaseOffset+block.adc.phaseModulation+full_freqOffset*ta];
                 end
                 curr_dur=curr_dur+obj.blockDurations(iBc);%mr.calcDuration(block);
             end

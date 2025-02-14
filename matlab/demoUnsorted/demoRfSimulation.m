@@ -168,9 +168,9 @@ fs_bw_mul=1.4;
 
 % new (v1.5.0+) ppm offset setting
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',fs_dur,...
-    'bandwidth',fs_bw_mul*abs(sat_freq),'ppmOffset',sat_ppm,'use','saturation');
+    'bandwidth',fs_bw_mul*abs(sat_freq),'freqPPM',sat_ppm,'use','saturation');
 
-rf_fs.phaseOffset=-2*pi*(rf_fs.freqOffset+rf_fs.ppmOffset*1e-6*sys.gamma*sys.B0)*rf_fs.center; % compensate for the frequency-offset induced phase    
+rf_fs.phaseOffset=-2*pi*(rf_fs.freqOffset+rf_fs.freqPPM*1e-6*sys.gamma*sys.B0)*rf_fs.center; % compensate for the frequency-offset induced phase    
 
 [M_z,M_xy,F2]=mr.simRf(rf_fs);
 
@@ -188,9 +188,9 @@ fs_dur= 12e-3; % duration of 8 ms is sufficient for Gauss but is insufficinet fo
 fs_bw_mul=1.2;
 %rf_fs = mr.makeSLRpulse(110*pi/180,'duration',fs_dur,'timeBwProduct',fs_bw_mul*abs(sat_freq)*fs_dur,'freqOffset',sat_freq,'use','saturation',...
 %    'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',sys); 
-rf_fs = mr.makeSLRpulse(110*pi/180,'duration',fs_dur,'timeBwProduct',fs_bw_mul*abs(sat_freq)*fs_dur,'ppmOffset',sat_ppm,'use','saturation',...
+rf_fs = mr.makeSLRpulse(110*pi/180,'duration',fs_dur,'timeBwProduct',fs_bw_mul*abs(sat_freq)*fs_dur,'freqPPM',sat_ppm,'use','saturation',...
     'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',sys); 
-rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
+rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase    
 
 [M_z,M_xy,F2]=mr.simRf(rf_fs);
 

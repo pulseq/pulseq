@@ -62,8 +62,8 @@ fprintf(fid, '\n');
 
 if ~isempty(obj.rfLibrary.keys)
     fprintf(fid, '# Format of RF events:\n');
-    fprintf(fid, '# id ampl. mag_id phase_id time_shape_id center delay ppmoff freq phase use\n');
-    fprintf(fid, '# ..   Hz      ..       ..            ..     us    us    ppm   Hz   rad  ..\n');
+    fprintf(fid, '# id ampl. mag_id phase_id time_shape_id center delay freqPPM phasePPM freq phase use\n');
+    fprintf(fid, '# ..   Hz      ..       ..            ..     us    us     ppm  rad/MHz   Hz   rad  ..\n');
     fprintf(fid,['# Field ''use'' is the initial of: ' ...
         strtrim(cell2mat(cellfun(@(x) [x ' '], mr.getSupportedRfUse(), 'UniformOutput', false))) ... 
         '\n']);
@@ -71,10 +71,10 @@ if ~isempty(obj.rfLibrary.keys)
     keys = obj.rfLibrary.keys;
     for k = keys
         libData1 = obj.rfLibrary.data(k).array(1:4);
-        libData2 = obj.rfLibrary.data(k).array(7:9);
+        libData2 = obj.rfLibrary.data(k).array(7:10);
         center = obj.rfLibrary.data(k).array(5)*1e6; % us
         delay = round(obj.rfLibrary.data(k).array(6)/obj.rfRasterTime)*obj.rfRasterTime*1e6; % a bit of a hack: round the delay
-        fprintf(fid, '%d %12g %d %d %d %g %g %g %g %g %c\n', [k libData1 center delay], libData2, obj.rfLibrary.type(k));
+        fprintf(fid, '%d %12g %d %d %d %g %g %g %g %g %g %c\n', [k libData1 center delay], libData2, obj.rfLibrary.type(k));
     end
     fprintf(fid, '\n');
 end
@@ -113,13 +113,13 @@ end
 
 if ~isempty(obj.adcLibrary.keys)
     fprintf(fid, '# Format of ADC events:\n');
-    fprintf(fid, '# id num dwell delay ppmoff freq phase phase_id\n');
-    fprintf(fid, '# ..  ..    ns    us    ppm   Hz   rad       ..\n');
+    fprintf(fid, '# id num dwell delay freqPPM phasePPM freq phase phase_id\n');
+    fprintf(fid, '# ..  ..    ns    us     ppm  rad/MHz   Hz   rad       ..\n');
     fprintf(fid, '[ADC]\n');
     keys = obj.adcLibrary.keys;
     for k = keys
-        data = obj.adcLibrary.data(k).array.*[1 1e9 1e6 1 1 1 1];
-        fprintf(fid, '%d %d %.0f %.0f %g %g %g %d\n', [k data]); 
+        data = obj.adcLibrary.data(k).array.*[1 1e9 1e6 1 1 1 1 1];
+        fprintf(fid, '%d %d %.0f %.0f %g %g %g %g %d\n', [k data]); 
     end
     fprintf(fid, '\n');
 end

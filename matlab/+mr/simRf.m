@@ -61,11 +61,11 @@ end
 T     = (1:round(rf.shape_dur/dt))*dt-0.5*dt;                           % timesteps axis [s]
 F     = 2*pi*linspace(f0-bw_mul*bw/2,f0+bw_mul*bw/2,bw/df)';            % offset frequencies [rad/s] 
 
-if abs(rf.ppmOffset)>eps
+if abs(rf.freqPPM)>eps || abs(rf.phasePPM)>eps
     warning('relying on the system properties, like B0 and gamma, stored in the global environment by callimg mr.lims(''setAsDefault'',true)');
     sys=mr.opts();
-    full_freqOffset=rf.freqOffset+rf.ppmOffset*1e-6*sys.gamma*sys.B0;
-    full_phaseOffset=rf.phaseOffset-2*pi*rf.ppmOffset*1e-6*sys.gamma*sys.B0*rf.center;                    
+    full_freqOffset=rf.freqOffset+rf.freqPPM*1e-6*sys.gamma*sys.B0;
+    full_phaseOffset=rf.phaseOffset+rf.phasePPM*1e-6*sys.gamma*sys.B0;                    
 else
     full_freqOffset=rf.freqOffset;
     full_phaseOffset=rf.phaseOffset;

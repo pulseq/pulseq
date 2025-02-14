@@ -16,10 +16,12 @@ seq=mr.Sequence(sys);          % Create a new sequence object
 % Create fat-sat pulse 
 % (in Siemens interpreter from January 2019 duration is limited to 8.192 ms, and although product EPI uses 10.24 ms, 8 ms seems to be sufficient)
 B0=2.89; % 1.5 2.89 3.0
-sat_ppm=-3.45;
+sat_ppm=-3.35;
 sat_freq=sat_ppm*1e-6*B0*sys.gamma;
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,'dwell',10e-6,...
-    'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
+    'bandwidth',abs(sat_freq),'freqPPM',sat_ppm,'use','saturation');
+rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase    
+
 gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create 90 degree slice selection pulse and gradient

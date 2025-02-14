@@ -69,10 +69,9 @@ if ~isempty(obj.rfLibrary.keys)
     keys = obj.rfLibrary.keys;
     for k = keys
         libData1 = obj.rfLibrary.data(k).array(1:4);
-        full_freqOffset=obj.rfLibrary.data(k).array(8)+obj.rfLibrary.data(k).array(7)*1e-6*obj.sys.gamma*obj.sys.B0;
-        libData2 = [full_freqOffset obj.rfLibrary.data(k).array(9)];
+        full_freqPhaseOffset=obj.rfLibrary.data(k).array(9:10)+obj.rfLibrary.data(k).array(7:8)*1e-6*obj.sys.gamma*obj.sys.B0;  % convert freqPPM and phasePPM to fixed offsets
         delay = round(obj.rfLibrary.data(k).array(6)/obj.rfRasterTime)*obj.rfRasterTime*1e6; % a bit of a hack: round the delay
-        fprintf(fid, '%d %12g %d %d %d %g %g %g\n', [k libData1 delay libData2]);
+        fprintf(fid, '%d %12g %d %d %d %g %g %g\n', [k libData1 delay full_freqPhaseOffset]);
     end
     fprintf(fid, '\n');
 end
@@ -119,7 +118,7 @@ if ~isempty(obj.adcLibrary.keys)
     fprintf(fid, '[ADC]\n');
     keys = obj.adcLibrary.keys;
     for k = keys
-        data = [obj.adcLibrary.data(k).array(1:3) obj.adcLibrary.data(k).array(5)+obj.adcLibrary.data(k).array(4)*1e-6*obj.sys.gamma*obj.sys.B0 obj.adcLibrary.data(k).array(6)].*[1 1e9 1e6 1 1]; % convert ppmOffset to a fix offset
+        data = [obj.adcLibrary.data(k).array(1:3) obj.adcLibrary.data(k).array(6:7)+obj.adcLibrary.data(k).array(4:5)*1e-6*obj.sys.gamma*obj.sys.B0].*[1 1e9 1e6 1 1]; % convert freqPPM and phasePPM to fixed offsets
         fprintf(fid, '%d %d %.0f %.0f %g %g\n', [k data]);
     end
     fprintf(fid, '\n');

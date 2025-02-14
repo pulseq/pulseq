@@ -29,11 +29,11 @@ partFourierFactor=1;       % partial Fourier factor: 1: full sampling 0: start w
 Nnav=3;		   % navigator echoes for ghost supprerssion
 
 % Create fat-sat pulse 
-sat_ppm=-3.45;
-sat_freq=sat_ppm*1e-6*sys.B0*sys.gamma;
-rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,'dwell',10e-6,...
-    'bandwidth',abs(sat_freq),'ppmOffset',sat_ppm,'use','saturation'); % use new PPM offset
-rf_fs.phaseOffset=-2*pi*(rf_fs.freqOffset+rf_fs.ppmOffset*1e-6*sys.gamma*sys.B0)*rf_fs.center; % compensate for the frequency-offset induced phase    
+sat_ppm=-3.35;
+rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,...
+    'bandwidth',abs(sat_ppm*1e-6*sys.B0*sys.gamma),'freqPPM',sat_ppm,'use','saturation');
+rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase    
+
 gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',2e-3,...
@@ -148,7 +148,7 @@ for r=1:Nrep
     for s=1:Nslices
         seq.addBlock(rf_fs, gz_fs) ;
         rf.freqOffset=gz.amplitude*slicePositions(s);
-        rf.phaseOffset=-2*pi*rf.freqOffset*mr.calcRfCenter(rf); % compensate for the slice-offset induced phase
+        rf.phaseOffset=-2*pi*rf.freqOffset*rf.center; % compensate for the slice-offset induced phase
         seq.addBlock(rf,gz,trig);
         if Nnav>0
             gxPre = mr.scaleGrad(gxPre, -1) ; % reverse the readout gradient in advance for navigator

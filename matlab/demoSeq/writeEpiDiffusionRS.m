@@ -28,11 +28,11 @@ tRFex=3e-3;
 tRFref=3e-3;
 
 % Create fat-sat pulse 
-sat_ppm=-3.45;
-sat_freq=sat_ppm*1e-6*lims.B0*lims.gamma;
+sat_ppm=-3.35;
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
-    'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
-rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
+    'bandwidth',abs(sat_ppm*1e-6*sys.B0*sys.gamma),'freqPPM',sat_ppm,'use','saturation');
+rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase    
+%rf_fs.phaseOffset=-2*pi*rf_fs.freqPPM*1e-6*lims.gamma*lims.B0*rf_fs.center; % compensate for the frequency-offset induced phase    
 gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create 90 degree slice selection pulse and gradient

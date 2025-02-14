@@ -31,9 +31,10 @@ if isempty(parser)
     addRequired(parser, 'flipAngle', @isnumeric);
     addOptional(parser, 'system', [], @isstruct); % for slice grad
     addParamValue(parser, 'duration', 0, @isnumeric);
-    addParamValue(parser, 'ppmOffset', 0, @isnumeric);
     addParamValue(parser, 'freqOffset', 0, @isnumeric);
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
+    addParamValue(parser, 'freqPPM', 0, @isnumeric);
+    addParamValue(parser, 'phasePPM', 0, @isnumeric);
     addParamValue(parser, 'timeBwProduct', 0, @isnumeric);
     addParamValue(parser, 'bandwidth', 0, @isnumeric);
     % Slice params
@@ -73,9 +74,10 @@ rf.type = 'rf';
 rf.signal = signal;
 rf.t = t;
 rf.shape_dur=t(end);
-rf.ppmOffset = opt.ppmOffset;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
+rf.freqPPM = opt.freqPPM;
+rf.phasePPM = opt.phasePPM;
 rf.deadTime = system.rfDeadTime;
 rf.ringdownTime = system.rfRingdownTime;
 rf.delay = opt.delay;

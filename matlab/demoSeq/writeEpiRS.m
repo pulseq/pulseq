@@ -23,10 +23,9 @@ partFourierFactor=1;       % partial Fourier factor: 1: full sampling 0: start w
 
 % Create fat-sat pulse 
 sat_ppm=-3.45;
-sat_freq=sat_ppm*1e-6*system.B0*system.gamma;
-rf_fs = mr.makeGaussPulse(110*pi/180,'Duration',8e-3,'dwell',10e-6,...
-    'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
-rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
+rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
+    'bandwidth',abs(sat_freq),'freqPPM',sat_ppm,'use','saturation');
+rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase    
 rf_fs.name='fat-sat'; % useful for debugging, can be seen in seq.plot
 gz_fs = mr.makeTrapezoid('z','delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
 % Create 90 degree slice selection pulse and gradient

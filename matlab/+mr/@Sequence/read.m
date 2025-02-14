@@ -115,7 +115,7 @@ while true
             [obj.blockEvents,obj.blockDurations,delayInd_tmp] = readBlocks(fid, obj.blockDurationRaster, version_combined);
         case '[RF]'
             if version_combined >= 1005000 
-                obj.rfLibrary = readEvents(fid, [1 1 1 1 1e-6 1e-6 1 1 1 NaN]); % this is 1.5.x format 
+                obj.rfLibrary = readEvents(fid, [1 1 1 1 1e-6 1e-6 1 1 1 1 NaN]); % this is 1.5.x format 
             elseif version_combined >= 1004000 
                 obj.rfLibrary = readEvents(fid, [1 1 1 1 1e-6 1 1]); % this is 1.4.x format 
                 % we fix it below
@@ -135,7 +135,7 @@ while true
             obj.gradLibrary = readEvents(fid, [1 1e-6 1e-6 1e-6 1e-6], 't', obj.gradLibrary);
         case '[ADC]'
             if version_combined >= 1005000 
-                obj.adcLibrary = readEvents(fid, [1 1e-9 1e-6 1 1 1 1]); % this is 1.5.x format 
+                obj.adcLibrary = readEvents(fid, [1 1e-9 1e-6 1 1 1 1 1]); % this is 1.5.x format 
             else
                 obj.adcLibrary=readEvents(fid, [1 1e-9 1e-6 1 1]); % this is 1.4.x and older format
                 % for now we don't have the phase vector in the ADC library
@@ -195,7 +195,7 @@ if version_combined < 1005000
         obj.adcLibrary.update_data(...
             obj.adcLibrary.keys(i), ...
             obj.adcLibrary.data(i).array, ...
-            [obj.adcLibrary.data(i).array(1:3) 0  obj.adcLibrary.data(i).array(4:5) 0]); % add empty ppmOffset and phase_id fields
+            [obj.adcLibrary.data(i).array(1:3) 0 0 obj.adcLibrary.data(i).array(4:5) 0]); % add empty freqPPM, phasePPM and phase_id fields
     end
 end
 
@@ -224,12 +224,12 @@ if version_combined < 1004000
         %timeShape = mr.compressShape((1:magSamples)-0.5); % time shape is stored in units of RF raster
         %data = [timeShape.num_samples timeShape.data];
         %timeID = obj.shapeLibrary.find_or_insert(data);
-        rf=rmfield(obj.rfFromLibData([obj.rfLibrary.data(i).array(1:3) 0 0 obj.rfLibrary.data(i).array(4) 0 obj.rfLibrary.data(i).array(5:6)],'u'),'center');
+        rf=rmfield(obj.rfFromLibData([obj.rfLibrary.data(i).array(1:3) 0 0 obj.rfLibrary.data(i).array(4) 0 0 obj.rfLibrary.data(i).array(5:6)],'u'),'center');
         center=mr.calcRfCenter(rf);
         obj.rfLibrary.update_data(...
             obj.rfLibrary.keys(i), ...
             obj.rfLibrary.data(i).array, ...
-            [obj.rfLibrary.data(i).array(1:3) 0 center obj.rfLibrary.data(i).array(4) 0 obj.rfLibrary.data(i).array(5:6)]); % 0 between (4) and (5:6) is the ppmOffset 
+            [obj.rfLibrary.data(i).array(1:3) 0 center obj.rfLibrary.data(i).array(4) 0 0 obj.rfLibrary.data(i).array(5:6)]); % 0 between (4) and (5:6) are the freqPPM and phasePPM
     end
     
     % scan through the gradient objects and update 't'-s (trapezoids) und 'g'-s (free-shape gradients)
@@ -284,16 +284,16 @@ elseif version_combined < 1005000
     % port from v1.4.x : RF, ADC and GRAD objects need to be updated
     % this needs to be done on the level of the libraries, because getBlock will fail
     
-    % scan though the RFs and add center, ppmOffset and use fields
+    % scan though the RFs and add center, freqPPM, phasePPM and use fields
     obj.rfLibrary.type(obj.rfLibrary.keys) = 'u'; % undefined for now, we'll attemp the type detection later (see below)
     for i=1:length(obj.rfLibrary.data)
         % use goes into the type field, and this is done separately
-        rf=rmfield(obj.rfFromLibData([obj.rfLibrary.data(i).array(1:4) 0 obj.rfLibrary.data(i).array(5) 0 obj.rfLibrary.data(i).array(6:7)],'u'),'center');
+        rf=rmfield(obj.rfFromLibData([obj.rfLibrary.data(i).array(1:4) 0 obj.rfLibrary.data(i).array(5) 0 0 obj.rfLibrary.data(i).array(6:7)],'u'),'center');
         center=mr.calcRfCenter(rf);
         obj.rfLibrary.update_data(...
             obj.rfLibrary.keys(i), ...
             obj.rfLibrary.data(i).array, ...
-            [obj.rfLibrary.data(i).array(1:4) center obj.rfLibrary.data(i).array(5) 0 obj.rfLibrary.data(i).array(6:7)]); % 0 between (5) and (6:7) is the ppmOffset 
+            [obj.rfLibrary.data(i).array(1:4) center obj.rfLibrary.data(i).array(5) 0 0 obj.rfLibrary.data(i).array(6:7)]); % 0 between (5) and (6:7) are the freqPPM and phasePPM 
     end
     % scan through the gradient objects and update 'g'-s (free-shape gradients)
     for i=1:length(obj.gradLibrary.data)

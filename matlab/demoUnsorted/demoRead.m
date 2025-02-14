@@ -39,7 +39,7 @@ else
     fprintf('\n');
 end
 
-seq2.plot('timeDisp','us','showBlocks',1,'timeRange',[0 25e-3]); %detailed view
+seq2.plot('timeDisp','us','showBlocks',1,'timeRange',[0 40e-3]); %detailed view
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos] = seq2.calculateKspacePP();
 figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 hold on;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
