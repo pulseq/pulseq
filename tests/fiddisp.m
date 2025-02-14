@@ -17,4 +17,4 @@ seq.addBlock(mr.makeDelay(delayTE));
 seq.addBlock(adc);
 
 seq.setDefinition('Name', 'fid');
-seq.write('fiddisp.seq');       % Write to pulseq file
+seq.write('../tests/fiddisp.seq');       % Write to pulseq file

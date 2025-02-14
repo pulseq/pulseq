@@ -21,18 +21,18 @@ RadiofrequencyRasterTime 1e-06
 3 10244   0   0   0   0  1  0
 
 # Format of RF events:
-# id ampl. mag_id phase_id time_shape_id center delay ppmoff freq phase use
-# ..   Hz      ..       ..            ..     us    us    ppm   Hz   rad  ..
+# id amp mag_id phase_id time_id center delay freqPPM phasePPM freq phase use
+# ..  Hz     ..       ..      ..     us    us     ppm  rad/MHz   Hz   rad  ..
 # Field 'use' is the initial of: excitation refocusing inversion saturation 
 #                                preparation other undefined
 [RF]
-1      833.333 1 2 0 150 100 0 0 0 e
+1      833.333 1 2 0 150 100 0 0 0 0 e
 
 # Format of ADC events:
-# id num dwell delay ppmoff freq phase phase_id
-# ..  ..    ns    us    ppm   Hz   rad       ..
+# id num dwell delay freqPPM phasePPM freq phase phase_id
+# ..  ..    ns    us     ppm  rad/MHz   Hz   rad       ..
 [ADC]
-1 1024 100000 20 0 0 0 0
+1 1024 100000 20 0 0 0 0 0
 
 # Sequence Shapes
 [SHAPES]
@@ -51,6 +51,7 @@ num_samples 300
 298
 
 
+
 [SIGNATURE]
 Type md5
-Hash ac5f72b61bf65c52d4c9e90513b8ef0b
+Hash a4bfd1bd48a111f4e01219e183f4aea5

@@ -342,7 +342,8 @@ Tag & Type & Description & Units\\
 \verb.<time_id>. & integer & Shape ID for the time sampling points, specified in the units of \verb.RadiofrequencyRasterTime.; 0 means default time raster & -- \\
 \verb.<center>. & float & Time point relative to the beginning of the RF shape at which the effective rotation takes place & $\rm \mu s$\\
 \verb.<delay>. & integer & Delay before starting the RF pulse & $\rm \mu s$\\
-\verb.<ppm_off>. & float & Frequency offset relative to the main system's frequency & ppm \\
+\verb.<freq_ppm>. & float & Frequency offset relative to the main system's frequency & ppm \\
+\verb.<phase_ppm>. & float & Phase offset proportional to the main system's frequency & rad/MHz \\
 \verb.<freq_off>. & float & Frequency offset in absolute units & Hz \\
 \verb.<phase_off>. & float & Phase offset & rad \\
 \verb.<use>. & char & Intended use fo the RF pulse; it is the initial of one of: 
@@ -350,20 +351,18 @@ excitation, refocusing, inversion, saturation,  preparation, other or undefined 
 \bottomrule
 \end{tabularx}
 
-Please note that for the calculation of the final frequency offset the contributions from \verb.<ppm_off>. and \verb.<freq_off>. are added together.
+Please note that for the calculation of the final frequency and phase offsets the contributions from \verb.<freq_ppm>. and \verb.<freq_off>. (or \verb.<phase_ppm>. and \verb.<phase_off>.) are added together. Prior to the addition \verb.<freq_ppm>. and \verb.<phase_ppm>. are weighted with the current system frequency of the active nucleus, expressed in units of MHz.
 
 \begin{minipage}{\textwidth}
 \textbf{Example:}
 \begin{lstlisting}
 [RF]
-  1    550  1   2  0  1000  100  0.000  0.000  0.000  e
-  2    130  3   4  0  4000  100 -3.300  0.000  0.000  s
+  1    550  1   2  0  1000  100  0.000  0.0000  0.000  0.000  e
+  2    130  3   4  0  4000  100 -3.350  0.0841  0.000  0.000  s
 \end{lstlisting}
 \end{minipage}
 
-In the example above, the RF pulse ID of 1 is the excitation pulse with the peak amplitude of 550Hz and a delay of 100 $\rm \mu s$. The magnitude and phase profiles are defined with the shapes of ID 1 and 2, respectively, using the default time axis sampling with a dwell time of \verb.RadiofrequencyRasterTime.. The effective center of this RF pulse is located 1000 $\rm \mu s$ away from the start of the RF shape and the pulse does not have any frequency or phase offset. The RF pulse with ID of 2 is the saturation pulse with the peak amplitude of 130Hz and also a delay of 100 $\rm \mu s$, that uses shape IDs 3 and 4 for the magnitude and phase, respectively. It is a fat saturation pulse as can be seenfrom the \verb.<ppm_offset>. of -3.3 ppm. \\
-
-IMPORTANT NOTE: since the actual frequency offset for an RF pulse with a non-zero \verb.<ppm_offset>. depends on the system frequency, an additional phase offset needs to be applied by the interpreter to compensate for the constant phase shift added at the time moment \verb.<center>..
+In the example above, the RF pulse ID of 1 is the excitation pulse with the peak amplitude of 550Hz and a delay of 100 $\rm \mu s$. The magnitude and phase profiles are defined with the shapes of ID 1 and 2, respectively, using the default time axis sampling with a dwell time of \verb.RadiofrequencyRasterTime.. The effective center of this RF pulse is located 1000 $\rm \mu s$ away from the start of the RF shape and the pulse does not have any frequency or phase offset. The RF pulse with ID of 2 is a saturation pulse with the peak amplitude of 130Hz and also a delay of 100 $\rm \mu s$, that uses shape IDs 3 and 4 for the magnitude and phase, respectively. It is a fat saturation pulse as can be seenfrom the \verb.<freq_ppm>. of -3.35 ppm. The corresponding  \verb.<phase_ppm>. value of 0.0841 rad/MHz is introduced to compensate for the phase due to the frequency offset, leading to the phase at the RF pulse center of 0.\\
 
 \subsubsection{Gradients}
 Gradient events are declared in two sections. Arbitrary gradients are in a section declared with the \verb.[GRADIENTS]. keyword. Each line in the section is an arbitrary gradient specified by four numbers,
@@ -415,10 +414,9 @@ The example above contains six gradients: two arbitrary gradients with peak ampl
 Both trapeyoid gradients have a delay of 100$\rm \mu s$.
 
 \subsubsection{ADC}
-TODO! UPDATE ME! \\
 The ADC section is declared with the \verb.[ADC]. keyword. Each line in the section is an ADC event specified by six numbers,
 \begin{lstlisting}
-<id> <num> <dwell> <delay> <freq> <phase>
+<id> <num> <dwell> <delay> <freq_ppm> <phase_ppm> <freq> <phase> <phase_shape_id>
 \end{lstlisting}
 
 The specifiers are
@@ -431,22 +429,24 @@ Tag & Type & Description & Units\\
 \verb.<num>. & integer & Number of samples & -- \\
 \verb.<dwell>. & float & The ADC dwell time & $\rm n s$ \\
 \verb.<delay>. & integer & Delay between start of block and first sample & $\rm \mu s$  \\
+\verb.<freq_ppm>. & float & Frequency offset of ADC receiver relative to the system frequency & ppm \\
+\verb.<phase_ppm>. & float & Phase offset of ADC receiver that is proportional to the system frequency & rad/MHz \\
 \verb.<freq>. & float & Frequency offset of ADC receiver & Hz \\
 \verb.<phase>. & float & Phase offset of ADC receiver & rad \\
 \bottomrule
 \end{tabularx}
 
-The duration of the ADC readout is given by the product of \verb.<num>. and \verb.<dwell>..
+The duration of the ADC readout is given by the product of \verb.<num>. and \verb.<dwell>. The final phase and frequency coffsets are calculated as sums of the corresponding frequency-dependent and frequency-independent contributions. Prior to the addition \verb.<freq_ppm>. and \verb.<phase_ppm>. are weighted with the current system frequency of the active nucleus, expressed in units of MHz.
 
 \begin{minipage}{\textwidth}
 \textbf{Example:}
 \begin{lstlisting}
 [ADC]
-  1    512  5000  0  0.000   0.000
+  1    512  5000  0  0.000   0.000  0.000  0.000 0
 \end{lstlisting}
 \end{minipage}
 
-The example above contains an ADC with 512 samples, and dwell time of 5000ns, and no frequency and phase offsets. The frequency and phase offset are used, for example, for RF spoiling or in-plane shifting of the FOV.
+The example above contains an ADC with 512 samples, and dwell time of 5000ns, and no frequency and phase offsets. The frequency and phase offset are used, for example, for RF spoiling or in-plane shifting of the FOV. Offsets with the 'ppm' suffix are usable for fat navigators.
 
 \subsubsection{Extensions}
 Extensions concept allows for implementing additional features without requiring major revisions of the Pulseq format specification. Extensions can be defined in the design tool in a good hope that the particular interpreter will know how to handle it. The interpreter MUST detect unknown extensions and MAY chose to ignore them. It is recommended that the interpreter issues a warning in this case. 
