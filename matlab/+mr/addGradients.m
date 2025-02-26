@@ -193,6 +193,9 @@ for ii = 1:length(grads)
         end
         waveforms{ii} = mr.pts2waveform(times, amplitudes, target_raster);
     end
+    if size(waveforms{ii})==1 
+        waveforms{ii}=waveforms{ii}';
+    end
     %warning('addGradient(): potentially incorrect handling of delays... TODO: fixme!');
     if g.delay - common_delay > 0
         warning('addGradient(): zerofilling the shape, running unchecked code...');

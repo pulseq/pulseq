@@ -11,7 +11,7 @@ There are two main flavours of Pulseq: **MATLAB Pulseq Toolbox**, available unde
 
 A central contribution of this project is an **open file format** to compactly
 describe MR sequences suitable for execution on an MRI scanner. The detailed file specification
-can be obtained here: <a href="specification.pdf">`specification.pdf`</a> See also Docs tab for further information.
+can be obtained here: <a href="specification.pdf">`specification.pdf`</a>; see also the Docs tab for further information.
 
 ## Source code repository
 
