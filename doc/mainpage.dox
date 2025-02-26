@@ -64,4 +64,8 @@ Alternatively, you may consider cloning the git repository directly:
 
 <a href="https://github.com/imr-framework/pypulseq">PyPulseq</a> is an alternative implementaton of the Pulseq sequence toolbox in Python, with a very similar syntax and functionality, originally implemented by Sairam Geethanath and Keerthi Ravi and maintained by an active developer community. It can be clonned from the GutHub site or installed directly via pip. See <a href="https://github.com/imr-framework/pypulseq">PyPulseq</a> GitHub Repository</a> for more details. 
 
+## Supported by
+
+<img src="nih_logo_horizontal.png"> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <img src="eu_logo_horizontal.png">  
+
 */

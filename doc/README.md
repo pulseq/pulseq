@@ -15,7 +15,7 @@ The source code is here: https://github.com/pulseq/pulseq/doc
 the workflow: 
 1: at the parent level run 
     make install-html
-  this will create a directory named pulseq_website on the lvel above the partn and will copy all the necessary files over
+  this will create a directory named pulseq.github.io on the level above the parent and will copy all the necessary files over
 
 2: check the webpage locally 
 
