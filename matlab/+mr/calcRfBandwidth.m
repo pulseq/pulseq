@@ -19,13 +19,21 @@ if nargin<4
     dt=1e-6; % for now default sampling rate is 1Mhz, it's probably too high 
 end
 
-tc=mr.calcRfCenter(rf);
+if abs(rf.freqPPM)>eps
+    warning('mr.calcRfBandwidth((): relying on the system properties, like B0 and gamma, stored in the global environment by callimg mr.lims(''setAsDefault'',true)');
+    sys=mr.opts();
+    full_freqOffset=rf.freqOffset+rf.freqPPM*1e-6*sys.gamma*sys.B0;
+else
+    full_freqOffset=rf.freqOffset;
+end
+
+tc=rf.center;
 
 % resample the pulse to a resonable time array
 nn=round(1/df/dt);
 t=(-floor(nn/2):ceil(nn/2)-1)*dt;
 
-rfs=interp1(rf.t-tc,rf.signal.*exp(1i*(rf.phaseOffset+2*pi*rf.freqOffset*rf.t)),t,'linear',0);
+rfs=interp1(rf.t-tc,rf.signal.*exp(1i*(rf.phaseOffset+2*pi*full_freqOffset*rf.t)),t,'linear',0);
 spectrum=fftshift(fft(fftshift(rfs)));
 f=(-floor(nn/2):ceil(nn/2)-1)*df;
 

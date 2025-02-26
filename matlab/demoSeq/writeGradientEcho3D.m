@@ -11,7 +11,7 @@ seq=mr.Sequence(sys);           % Create a new sequence object
 
 
 % Create non-selective pulse
-[rf, rfDelay] = mr.makeBlockPulse(8*pi/180,sys,'Duration',0.2e-3);
+[rf, rfDelay] = mr.makeBlockPulse(8*pi/180,sys,'Duration',0.2e-3, 'use', 'excitation');
 
 % Define other gradients and ADC events
 deltak=1./fov;

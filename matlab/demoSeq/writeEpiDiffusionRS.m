@@ -1,4 +1,4 @@
-% this is an diffusion/weighted EPI based on the experimentaal high-
+% this is an diffusion/weighted EPI based on the experimental high-
 % performance EPI sequence which uses split gradients to overlap blips with
 % the readout gradients combined with ramp-samping
 % it further features diffusion weighting using the standard 
@@ -28,16 +28,17 @@ tRFex=3e-3;
 tRFref=3e-3;
 
 % Create fat-sat pulse 
-sat_ppm=-3.45;
-sat_freq=sat_ppm*1e-6*lims.B0*lims.gamma;
+sat_ppm=-3.35;
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
-    'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
-rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
+    'bandwidth',abs(sat_ppm*1e-6*sys.B0*sys.gamma),'freqPPM',sat_ppm,'use','saturation');
+rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase    
+%rf_fs.phaseOffset=-2*pi*rf_fs.freqPPM*1e-6*lims.gamma*lims.B0*rf_fs.center; % compensate for the frequency-offset induced phase    
 gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',tRFex,...
-    'SliceThickness',thickness,'PhaseOffset',pi/2,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',thickness,'PhaseOffset',pi/2,'apodization',0.5,'timeBwProduct',4,...
+    'use', 'excitation');
 
 % Create 180 degree slice refocusing pulse and gradients
 [rf180, gz180] = mr.makeSincPulse(pi,'system',lims,'Duration',tRFref,...
@@ -139,8 +140,9 @@ big_delta=delayTE1+mr.calcDuration(rf180,gz180n);
 g=sqrt(bFactor*1e6/bFactCalc(1,small_delta,big_delta)); % for now it looks too large!
 gr=ceil(g/lims.maxSlew/lims.gradRasterTime)*lims.gradRasterTime;
 gDiff=mr.makeTrapezoid('z','amplitude',g,'riseTime',gr,'flatTime',small_delta-gr,'system',lims);
-assert(mr.calcDuration(gDiff)<=delayTE1);
-assert(mr.calcDuration(gDiff)<=delayTE2);
+%assert(mr.calcDuration(gDiff)<=delayTE1); % not needed as we now use the
+%new feature by setting the required block duration 
+%assert(mr.calcDuration(gDiff)<=delayTE2); % dito
 
 
 % Define sequence blocks
@@ -151,9 +153,9 @@ for s=1:Nslices
     rf180.freqOffset=gz180.amplitude*thickness*(s-1-(Nslices-1)/2);
     rf180.phaseOffset=-2*pi*rf180.freqOffset*mr.calcRfCenter(rf180); % compensate for the slice-offset induced phase
     seq.addBlock(rf,gz,trig);
-    seq.addBlock(mr.makeDelay(delayTE1),gDiff);
+    seq.addBlock(delayTE1,gDiff);
     seq.addBlock(rf180,gz180n);
-    seq.addBlock(mr.makeDelay(delayTE2),gDiff);
+    seq.addBlock(delayTE2,gDiff);
     seq.addBlock(gxPre,gyPre);
     for i=1:Ny_meas
         if i==1

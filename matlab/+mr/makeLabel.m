@@ -3,8 +3,9 @@ function out = makeLabel(type, label, value)
 %   label=makeLabel() Create a Label event for ADC line
 %         Possible values for type are: 'SET','INC'.
 %         Label may be a counter of a flag and should be one of
-%         (counters) 'SLC','SEG','REP','AVG','SET','ECO','PHS','LIN','PAR', 
-%         (flags)    'NAV','REV','SMS'.
+%         (counters) 'SLC','SEG','REP','AVG','SET','ECO','PHS','LIN','PAR','ACQ' 
+%         (flags)    'NAV','REV','SMS','REF','IMA','NOISE'
+%         (control)  'PMC','NOROT','NOPOS','NOSCL','ONCE','TRID' 
 %         Value: numeric value of the parameter (increment may be negative)  
 %                or true/false for a flag
 %

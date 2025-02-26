@@ -1,4 +1,4 @@
-function [varargout] = rotate(axis, angle, varargin)
+function [varargout] = rotate(raxis, angle, varargin)
 %align set alignment of the objects in the block
 %
 %   [...] = rotate(axis, angle, obj <, obj> ...);
@@ -8,11 +8,15 @@ function [varargout] = rotate(axis, angle, varargin)
 %   non-gradient objects are not affected. 
 %   Possible rotation axes are 'x', 'y' or 'z'.
 %
+%   Optional parameter list may include the keyword 'system' followed by a
+%   system limits struct. The system can only be provided in the beginning or 
+%   at the ent of the list of optional parameters.
+%
 %   Returns either a cell-array of objects if one return parameter is
 %   provided or an explicit list of objects if multiple parameters are
 %   given. Can be used directly as a parameter of seq.addBlock().
 %
-%   See also  Sequence.addBlock
+%   See also  mr.rotate3D, Sequence.addBlock
 %
 %   Maxim Zaitsev <maxim.zaitsev@uniklinik-freiburg.de>
 
@@ -26,31 +30,60 @@ axes={'x', 'y', 'z'};
 irotate1=[];
 irotate2=[];
 ibypass=[];
-axes2rot=axes(~strcmp(axes,axis));
+axes2rot=axes(~strcmp(axes,raxis));
 if length(axes2rot)~=2
     error('incorrect axis specification');
 end
+if strcmp('y',raxis)
+    axes2rot=axes2rot(end:-1:1); % we need to reverse the list to preserve the correct handiness of the rotation matrix
+end
 
+if ~isscalar(angle) || ~isnumeric(angle)
+    error('Rotation angle needs to be a scalar value');
+end
+
+% parse out the optional parameter 'system', which can only be at the beginning
+% or in the end of the optional parameters
+system=[];
+if ischar(varargin{1}) && strcmp(lower(varargin{1}),'system')
+    if ~isstruct(varargin{2}) || ~isfield(varargin{2},'gradRasterTime')
+        error('Error parsing input parameters, keyword ''system'' is not followed by a valid system struct');
+    end
+    system=varargin{2};
+    varargin=varargin(3:end);
+elseif length(varargin)>1 && ischar(varargin{end-1}) && strcmp(lower(varargin{end-1}),'system')
+    if ~isstruct(varargin{end}) || ~isfield(varargin{end},'gradRasterTime')
+        error('Error parsing input parameters, keyword ''system'' is not followed by a valid system struct');
+    end
+    system=varargin{end};
+    varargin=varargin(1:end-2);
+end
+% make this function accept ready-made blocks
+if isstruct(varargin{1}) && isfield(varargin{1}, 'rf') 
+    varargin=mr.block2events(varargin);    
+end
+% we need this to allow for nested mr.rotate() calls
 if 1==length(varargin) && iscell(varargin{1})
-    va=varargin{1}; % we need this to allow for nested mr.rotate() calls
+    va=varargin{1}; 
 else
     va=varargin;
 end
 
 for i=1:length(va)
-    event = va{i};
-    if isempty(event)
+    par = va{i};
+    if isempty(par)
         continue;
     end
-    if  (~strcmp(event.type,'grad') && ...
-            ~strcmp(event.type,'trap')) || ...
-            strcmp(event.channel, axis)%['g' axis]
+    if isnumeric(par) || ...
+            ((~strcmp(par.type,'grad') && ...
+             ~strcmp(par.type,'trap')) || ...
+            strcmp(par.channel, raxis))%['g' axis]
         ibypass=[ibypass i];
     else
-        if strcmp(event.channel, axes2rot(1)) %['g' axes2rot(1)]
+        if strcmp(par.channel, axes2rot(1)) %['g' axes2rot(1)]
             irotate1=[irotate1 i];
         else
-            if (strcmp(event.channel, axes2rot(2))) %['g' axes2rot(2)]
+            if (strcmp(par.channel, axes2rot(2))) %['g' axes2rot(2)]
                 irotate2=[irotate2 i];
             else
                 ibypass=[ibypass i]; % should never happen
@@ -99,7 +132,11 @@ end
 g=cell(1,2);
 % now we add gradients on the corresponding axis together
 if (length(rotated1)>1)
-    g{1}=mr.addGradients(rotated1);
+    if isempty(system)
+        g{1}=mr.addGradients(rotated1);
+    else
+        g{1}=mr.addGradients(rotated1,system);
+    end
 else
     if (~isempty(rotated1))
         g{1}=rotated1{1};
@@ -107,7 +144,11 @@ else
 end
 
 if (length(rotated2)>1)
-    g{2}=mr.addGradients(rotated2);
+    if isempty(system)
+        g{2}=mr.addGradients(rotated2);
+    else
+        g{2}=mr.addGradients(rotated2,system);
+    end
 else
     if (~isempty(rotated2))
         g{2}=rotated2{1};

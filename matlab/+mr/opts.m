@@ -1,5 +1,5 @@
-function out=optsOld(varargin)
-%OPTS Set gradient limits of the MR system.
+function out=opts(varargin)
+%OPTS Set gradient limits and other system properties of the MR system.
 %   g=OPTS() Return the default amplitude and slew limits.
 %
 %   g=OPTS('maxGrad',30,'gradUnit','mT/m') Set the maximum gradient to
@@ -27,10 +27,16 @@ if isempty(defaultStandardOpts)
         'B0',1.5...
     );
 end
+
 if ~isempty(defaultUserOpts)
     defaultOpts=defaultUserOpts;
 else
     defaultOpts=defaultStandardOpts;
+end
+
+if isempty(varargin) % accelerate default constructor calls
+    out=defaultOpts;
+    return
 end
 
 persistent parser

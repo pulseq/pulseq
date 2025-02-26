@@ -3,53 +3,55 @@
 
 [VERSION]
 major 1
-minor 3
-revision 1
+minor 5
+revision 0
 
 [DEFINITIONS]
+AdcRasterTime 1e-07 
+BlockDurationRaster 1e-05 
+GradientRasterTime 1e-05 
 Name fid 
+RadiofrequencyRasterTime 1e-06 
 
 # Format of blocks:
-#  #  D RF  GX  GY  GZ ADC EXT
+# NUM DUR RF  GX  GY  GZ  ADC  EXT
 [BLOCKS]
-1  0  1   0   0   0  0  0
-2  1  0   0   0   0  0  0
-3  0  0   0   0   0  1  0
+1  42   1   0   0   0  0  0
+2 500   0   0   0   0  0  0
+3 10244   0   0   0   0  1  0
 
 # Format of RF events:
-# id amplitude mag_id phase_id delay freq phase
-# ..        Hz   ....     ....    us   Hz   rad
+# id amp mag_id phase_id time_id center delay freqPPM phasePPM freq phase use
+# ..  Hz     ..       ..      ..     us    us     ppm  rad/MHz   Hz   rad  ..
+# Field 'use' is the initial of: excitation refocusing inversion saturation 
+#                                preparation other undefined
 [RF]
-1         2500 1 2 100 0 0
+1      833.333 1 2 0 150 100 0 0 0 0 e
 
 # Format of ADC events:
-# id num dwell delay freq phase
-# ..  ..    ns    us   Hz   rad
+# id num dwell delay freqPPM phasePPM freq phase phase_id
+# ..  ..    ns    us     ppm  rad/MHz   Hz   rad       ..
 [ADC]
-1 1024 312500 20 0 0
-
-# Format of delays:
-# id delay (us)
-[DELAYS]
-1 5000
+1 1024 100000 20 0 0 0 0 0
 
 # Sequence Shapes
 [SHAPES]
 
 shape_id 1
-num_samples 120
+num_samples 300
 1
 0
 0
-97
--1
-0
-0
-17
+297
 
 shape_id 2
-num_samples 120
+num_samples 300
 0
 0
-118
+298
 
+
+
+[SIGNATURE]
+Type md5
+Hash a4bfd1bd48a111f4e01219e183f4aea5

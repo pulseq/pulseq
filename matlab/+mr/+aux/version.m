@@ -7,12 +7,12 @@ function [version_major, version_minor, version_revision, version_combined]=vers
 
 if nargin==0 || strcmp(type,'pulseq')
     version_major=1;
-    version_minor=4;
-    version_revision=3;
+    version_minor=5;
+    version_revision=0;
 elseif strcmp(type,'output')
     version_major=1;
-    version_minor=4;
-    version_revision=1;
+    version_minor=5;
+    version_revision=0;
 else
     error('Unsupported version request, type=%s',type);
 end

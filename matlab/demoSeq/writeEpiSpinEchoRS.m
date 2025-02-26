@@ -1,4 +1,4 @@
-% this is an experimentaal high-performance EPI sequence
+% this is an experimental high-performance EPI sequence
 % which uses split gradients to overlap blips with the readout
 % gradients combined with ramp-samping
 
@@ -27,13 +27,13 @@ B0=2.89; % 1.5 2.89 3.0
 sat_ppm=-3.45;
 sat_freq=sat_ppm*1e-6*B0*lims.gamma;
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
-    'bandwidth',abs(sat_freq),'freqOffset',sat_freq);
+    'bandwidth',abs(sat_freq),'freqOffset',sat_freq, 'use', 'saturation');
 rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
 gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',tRFex,...
-    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4, 'use','excitation');
 
 % Create 90 degree slice refocusing pulse and gradients
 [rf180, gz180] = mr.makeSincPulse(pi,'system',lims,'Duration',tRFref,...
@@ -191,7 +191,7 @@ hold;plot(ktraj_adc1(1,:),ktraj_adc1(2,:),'r.'); % plot the sampling points
 seq.setDefinition('FOV', [fov fov thickness]);
 seq.setDefinition('Name', 'epi');
 
-seq.write('epise_rs.seq'); 
+seq.write('epi_se_rs.seq'); 
 
 % seq.install('siemens');
 

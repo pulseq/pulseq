@@ -18,7 +18,8 @@ rf_180_duration= 4.6e-3; % refocusing pulse duration
 seq = mr.Sequence(system);              % Create a new sequence object
 
 % Create excitation pulse and gradient
-rf_90= mr.makeSLRpulse(pi/2,'duration',rf_90_duration,'timeBwProduct',7.88,'dwell',rf_90_duration/500,'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',system); 
+rf_90= mr.makeSLRpulse(pi/2,'duration',rf_90_duration,'timeBwProduct',7.88,'dwell',rf_90_duration/500,'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',system,...
+    'use','excitation'); 
 
 %Create refocusing pulse and gradient
 rf_180_1 = mr.makeAdiabaticPulse('wurst','duration',rf_180_duration,'bandwidth',6000,'dwell',rf_180_duration/500,'n_fac',20,'use','refocusing','system',system); 

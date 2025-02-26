@@ -32,7 +32,6 @@ DOXY_FILE = doxy.conf
 DOXY_AUX = header.html footer.html customstyles.css matlab.css DoxygenLayout.xml
 HTML_AUX = $(top_srcdir)/doc/html/demoWriteGre.html $(top_srcdir)/doc/html/demoWriteRf.html $(top_srcdir)/doc/html/demoRead.html $(top_srcdir)/doc/html/Sequence.html
 WEBSITE_AUX = $(LATEX_BASENAME).pdf logo_hires.png README.md favicon.ico images/gre.png images/rf2d.png images/overview.png
-
 EXTRA_DIST += $(DOXY_FILE).in doxygen-build.stamp
 
 #html/demoWrite.html: $(top_srcdir)/matlab/demoWrite.m
@@ -48,6 +47,7 @@ doxygen-build.stamp: $(DOXY_FILE) $(DOXY_AUX) $(HTML_AUX) $(top_srcdir)/src/*.h 
 endif
 
 doc_DATA = $(EXTRA_DIST)
+PULSEQ_WEBSITE_DIR = $(top_srcdir)/../pulseq.github.io/
 
 install-data-local: $(EXTRA_DIST)
 	$(mkinstalldirs) $(instdir)
@@ -84,7 +84,7 @@ clean-local:
 	rm -f *.log *.aux *.synctex *.bbl *.blg *.toc *.out
 
 install-html-local: html $(EXTRA_DIST)
-	cp -r html/* ../../pulseq_website/
+	cp -r html/* $(PULSEQ_WEBSITE_DIR)
 
 html: 
 	test -d html || mkdir html
@@ -93,6 +93,8 @@ html:
 	cp matlab.css html/
 	cp specification.pdf html/
 	cp images/overview.png html/
+	cp images/nih_logo_horizontal.png html/
+	cp images/eu_logo_horizontal.png html/
 	cp images/gre.png html/
 	cp images/demoRead_03.png html/
 	doxygen doxy.conf.in

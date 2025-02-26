@@ -37,7 +37,7 @@ if nargin < 2
     if isfield(rf,'use') && strcmp(rf.use,'refocusing')
         rephase_factor = 0;
     else
-        rephase_factor = -(rf.shape_dur-mr.calcRfCenter(rf))/rf.shape_dur;
+        rephase_factor = -(rf.shape_dur-rf.center)/rf.shape_dur;
     end
 end
 
@@ -61,7 +61,17 @@ end
 T     = (1:round(rf.shape_dur/dt))*dt-0.5*dt;                           % timesteps axis [s]
 F     = 2*pi*linspace(f0-bw_mul*bw/2,f0+bw_mul*bw/2,bw/df)';            % offset frequencies [rad/s] 
 
-shapea = interp1(rf.t, 2*pi*rf.signal.*exp(1i*(rf.phaseOffset+2*pi*rf.freqOffset*rf.t)),T,'linear',0);
+if abs(rf.freqPPM)>eps || abs(rf.phasePPM)>eps
+    warning('relying on the system properties, like B0 and gamma, stored in the global environment by callimg mr.lims(''setAsDefault'',true)');
+    sys=mr.opts();
+    full_freqOffset=rf.freqOffset+rf.freqPPM*1e-6*sys.gamma*sys.B0;
+    full_phaseOffset=rf.phaseOffset+rf.phasePPM*1e-6*sys.gamma*sys.B0;                    
+else
+    full_freqOffset=rf.freqOffset;
+    full_phaseOffset=rf.phaseOffset;
+end
+
+shapea = interp1(rf.t, 2*pi*rf.signal.*exp(1i*(full_phaseOffset+2*pi*full_freqOffset*rf.t)),T,'linear',0);
 
 % intialize result vectors
 M_ROT=zeros(size(F)); 

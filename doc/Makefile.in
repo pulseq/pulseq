@@ -263,6 +263,7 @@ EXTRA_DIST = $(static_docs) $(am__append_1) $(am__append_2)
 @BUILD_DOCS_TRUE@HTML_AUX = $(top_srcdir)/doc/html/demoWriteGre.html $(top_srcdir)/doc/html/demoWriteRf.html $(top_srcdir)/doc/html/demoRead.html $(top_srcdir)/doc/html/Sequence.html
 @BUILD_DOCS_TRUE@WEBSITE_AUX = $(LATEX_BASENAME).pdf logo_hires.png README.md favicon.ico images/gre.png images/rf2d.png images/overview.png
 doc_DATA = $(EXTRA_DIST)
+PULSEQ_WEBSITE_DIR = $(top_srcdir)/../pulseq.github.io/
 all: all-am
 
 .SUFFIXES:
@@ -527,7 +528,25 @@ clean-local:
 	rm -f *.log *.aux *.synctex *.bbl *.blg *.toc *.out
 
 install-html-local: html $(EXTRA_DIST)
+<<<<<<< HEAD
+	cp -r html/* $(PULSEQ_WEBSITE_DIR)
+
+html: 
+	test -d html || mkdir html
+	test -d seq || cp -r seqs/* html/
+	test -d recon || cp -r recon/* html/
+	cp matlab.css html/
+	cp specification.pdf html/
+	cp images/overview.png html/
+	cp images/nih_logo_horizontal.png html/
+	cp images/eu_logo_horizontal.png html/
+	cp images/gre.png html/
+	cp images/demoRead_03.png html/
+	doxygen doxy.conf.in
+	mogrify -gamma 1.7 html/tab_?.png
+=======
 	cp -r html/* ../../pulseq_website/
+>>>>>>> master
 
 html: 
 	test -d html || mkdir html

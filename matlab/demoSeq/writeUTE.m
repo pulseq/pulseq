@@ -24,7 +24,7 @@ rfSpoilingInc=117;              % RF spoiling increment
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(alpha*pi/180,'Duration',1e-3,...
     'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',2,...
-    'centerpos',1,'system',sys);
+    'centerpos',1,'system',sys, 'use','excitation');
 
 % Align RO assymmetry to ADC samples
 Nxo=round(ro_os*Nx);
