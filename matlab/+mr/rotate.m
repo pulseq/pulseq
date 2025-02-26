@@ -38,6 +38,10 @@ if strcmp('y',raxis)
     axes2rot=axes2rot(end:-1:1); % we need to reverse the list to preserve the correct handiness of the rotation matrix
 end
 
+if ~isscalar(angle) || ~isnumeric(angle)
+    error('Rotation angle needs to be a scalar value');
+end
+
 % parse out the optional parameter 'system', which can only be at the beginning
 % or in the end of the optional parameters
 system=[];
