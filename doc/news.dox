@@ -5,6 +5,10 @@
 
 We finally reach a release state with our new Pulseq v1.5.0! Amongst the important changes is the support of the new Pulseq file format revision 1.5.0. As you may judge from the second digit change, this is a substantial revision, which now includes updated to the RF pulse format, gradient pulse format and new fields in the ADC object. Additionally, support for the 'soft delay' extension is included, which allows for modifying some timing aspects of the readily exported Pulseq sequences. This release includes both a major update to the Matlab toolbox and is paired with a corresponding Siemens interpreter release. The new Matlab code defaults to the new file format, which is incompatieble with the previous interpreters. However, we also provide a function for exporting the sequences in the old v1.4.1 compatibility mode. The new interpreter provides support for both new v1.5.0 and legacy Pulseq files. 
 
+## November 2024: experimental Octave support
+
+We now provide initial experimental support for Octave as a drop-in FOSS preplacement for Matlab. For now the code is available in the development branch and will be released with the upcoming v1.5.0 release. Please note that not all features are supported by Octave, in particular those related to the interactive graphical presentation of the sequences, but the basic capability of Octave to generate valis Pulseq pulse sequences has been validated. 
+
 ## July 2024: new Pulseq Interpreter release for Siemens
 
 We finally reach a release state with our new Pulseq Release v1.4.3! Included are numerous performance improvements and bugfixes, as well as few new features. 

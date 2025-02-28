@@ -1,24 +1,24 @@
 /**
   \mainpage Introduction
 
-Pulseq project is an open source framework for the development and execution of magnetic resonance (MR) pulse sequences for imaging and spectroscopy. In summary, with Pulseq MR sequences can be programmed directly in MATLAB or Python, exported to the Pulseq file format and executed on real hardware.
+Pulseq project is an open source framework for the development and execution of magnetic resonance (MR) pulse sequences for imaging and spectroscopy. In summary, with Pulseq MR sequences can be programmed directly in Matlab, Octave or Python, exported to the Pulseq file format and executed on real hardware.
 
 <img src="overview.png">
 
-There are two main flavours of Pulseq: **MATLAB Pulseq Toolbox**, available under the source part of this repository, and **Python Pulseq Toolbox**, a.k.a. PyPulseq, which is maintained in a separate repository (see below).
+There are two main flavours of Pulseq: **Matlab/Octave Pulseq Toolbox**, available under the source part of this repository, and **Python Pulseq Toolbox**, a.k.a. PyPulseq, which is maintained in a separate repository (see below).
 
 ## Pulseq file format
 
 A central contribution of this project is an **open file format** to compactly
 describe MR sequences suitable for execution on an MRI scanner. The detailed file specification
-can be obtained here: <a href="specification.pdf">`specification.pdf`</a>; see also the Docs tab for further information.
+can be obtained here: <a href="specification.pdf">`specification.pdf`</a> See also Docs tab for further information.
 
 ## Source code repository
 
 The source code in this repository provides the Pulseq toolbox and example implementations of several MR pulse sequences in Pulseq format. The code is
-divided into <a href="https://github.com/pulseq/pulseq/tree/master/matlab">MATLAB</a> and <a href="https://github.com/pulseq/pulseq/tree/master/src">C++</a> sections. The C++ part is potentially interesting to those seeking to implement their own Pulseq interpreter for a particular scanner. 
+divided into <a href="https://github.com/pulseq/pulseq/tree/master/matlab">Matlab/Octave</a> and <a href="https://github.com/pulseq/pulseq/tree/master/src">C++</a> sections. The C++ part contains a standalone programm capable of loading Pulseq files and displaying basic statistics about the nimber of blocks, number of pulses, etc. It is potentially interesting to those seeking to implement their own Pulseq interpreter for a particular scanner. 
 
-### Matlab sequence examples
+### Matlab/Octave sequence examples
 
 -  <a href="writeGradientEcho.html">Gradient echo sequence</a>
 -  <a href="writeGradientEcho3D.html">3D Gradient echo sequence</a>
@@ -53,9 +53,9 @@ and
 
 ## Download source code
 
-### Matlab 
+### Matlab/Octave 
 
-Both MATLAB and C++ source code is available here: https://github.com/pulseq/pulseq.
+Both Matlab/Octave and C++ source code is available here: https://github.com/pulseq/pulseq.
 Alternatively, you may consider cloning the git repository directly:
 
     git clone git@github.com:pulseq/pulseq.git
