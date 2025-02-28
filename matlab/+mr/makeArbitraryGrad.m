@@ -72,7 +72,6 @@ if opt.oversampling
 else
     slew=[(first-g(1))*2; (g(2:end)-g(1:end-1)); (g(end)-last)*2]./system.gradRasterTime;
 end
-
 if ~isempty(slew) && max(abs(slew))>maxSlew
     error('Slew rate violation (%.0f%%)',max(abs(slew))/maxSlew*100);
 end
