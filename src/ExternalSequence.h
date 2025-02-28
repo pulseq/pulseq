@@ -7,7 +7,7 @@
 #include <fstream>
 #include <set>
 #include <map>
-#include <limits>	    // for std::numeric_limits<...>::quiet_NaN()
+//#include <limits>	    // for std::numeric_limits<...>::quiet_NaN()
 
 #ifndef _EXTERNAL_SEQUENCE_H_
 #define _EXTERNAL_SEQUENCE_H_

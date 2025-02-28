@@ -61,10 +61,11 @@ void ExternalSequence::reset()
 	m_blockDurations_ru.clear();
 	m_blocks.clear();
 	m_bSignatureDefined=false;
-	m_strSignature.clear();
-	m_strSignature.clear();
+	// not on vb17 // m_strSignature.clear();
+	m_strSignature="";
 	m_bSignatureCheckSucceeded=false;
-	m_strCalculatedMD5Signature.clear();
+	// not on vb17 // m_strCalculatedMD5Signature.clear();
+	m_strCalculatedMD5Signature="";
 	m_definitions.clear();
 	m_definitions_str.clear();
 	m_extensionLibrary.clear();
@@ -1040,7 +1041,8 @@ void ExternalSequence::buildFileIndex(std::istream &fileStream)
                 m_fileSections.insert(fileStream.tellg());
                 if (line == "[SIGNATURE]") {
                     bSignatureSectionFound = true;
-                    strippedLine.clear();
+                    // not on vb17 // strippedLine.clear();
+					strippedLine="";
 					//print_msg(NORMAL_MSG, std::ostringstream().flush() << "signature block found");
 				}
 			}
@@ -1052,10 +1054,10 @@ void ExternalSequence::buildFileIndex(std::istream &fileStream)
                 strippedLine = buffer;
 			else {
                 MD5Update(&mdc, (unsigned char*)buffer, strlen(buffer));
-                strippedLine.clear();
+                // not on vb17 // strippedLine.clear();
+				strippedLine="";
 			}
-		}
-			
+		}			
 	}
 	m_fileSections.insert(fileStream.tellg()); // add the end-of-file (+1?)
 	fileStream.clear();		// reset EOF flag

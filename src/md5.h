@@ -10,7 +10,11 @@
 #if defined(_MSC_VER) && _MSC_VER<=1600
 typedef unsigned __int32 uint32;
 #else
+#ifdef VXWORKS
+#include "types/vxTypes.h" 
+#else
 #include <stdint.h>
+#endif
 typedef uint32_t uint32;
 #endif //_MSC_VER
 
