@@ -26,9 +26,6 @@ if isempty(parser)
 end
 parse(parser, grad, timepoint, varargin{:});
 opt = parser.Results;
-if isempty(opt.system)
-    opt.system=mr.opts();
-end
 
 if isempty(opt.system)
     system=mr.opts();
