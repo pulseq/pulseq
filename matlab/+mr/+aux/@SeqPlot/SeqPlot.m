@@ -181,8 +181,8 @@ classdef SeqPlot < handle
             % loop through blocks
             for iB=1:length(seq.blockEvents)
                 block = seq.getBlock(iB);
-                isValid = t0+seq.blockDurations(iB)>timeRange(1) && t0<=timeRange(2);
-                if isValid
+                if t0<=timeRange(2)
+                    % update the labels / counters even if we are below the display range
                     if isfield(block,'label') %current labels, works on the curent or next adc
                         for i=1:length(block.label)
                             if strcmp(block.label(i).type,'labelinc')
@@ -194,6 +194,9 @@ classdef SeqPlot < handle
                         end
                         label_defined=true;
                     end
+                end
+                isValid = t0+seq.blockDurations(iB)>timeRange(1) && t0<=timeRange(2);
+                if isValid
                     if ~isempty(block.adc)
                         adc=block.adc;
                         t=adc.delay + ((0:adc.numSamples-1)'+0.5)*adc.dwell; % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
