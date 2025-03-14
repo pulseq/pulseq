@@ -19,11 +19,11 @@ function [ok, pns_norm, pns_comp, t_axis]=calcPNS(obj,hardware,doPlots,calcCNS)
 
 if nargin < 3
     doPlots=true;
-    calcCNS=false;
+    %calcCNS=false;
 end
-if nargin < 4
-    calcCNS=false;
-end
+%if nargin < 4
+%    calcCNS=false;
+%end
 
 % acquire the entire gradient wave form
 gw=obj.waveforms_and_times();
@@ -58,23 +58,48 @@ for i=1:3
     end
 end
 
+asc=[];
+ascHasCNS=false;
 if ischar(hardware)
     % this loads the parameters from the provided text file
     asc=mr.Siemens.readasc(hardware);
-    hardware=asc_to_hw(asc,calcCNS);
+    ascHasCNS=isfield(asc, 'GradPatSup') && isfield(asc.GradPatSup, 'Phys') && isfield(asc.GradPatSup.Phys, 'CarNS');
 end
 
-% use the Szczepankiewicz' and Witzel's implementation
-[pns_comp,res]=safe_gwf_to_pns(gwr/obj.sys.gamma, NaN*ones(length(t_axis),1), obj.gradRasterTime, hardware); % the RF vector is unused in the code inside but it is zeropaded and exported ... 
-% use the exported RF vector to detect and undo zerpopadding
-pns_comp=0.01*pns_comp(~isfinite(res.rf),:)';
-% calc pns_norm and the final ok/not_ok
-pns_norm=vecnorm(pns_comp);
-ok=all(pns_norm<1);
-% ready
-if doPlots
-    % plot results
-    figure;safe_plot(pns_comp'*100, obj.gradRasterTime);
+% for Cima.X and later we may want to calculate both CNS and PNS
+if ~exist('calcCNS','var')
+    if ascHasCNS
+        calcCNS=[false,true];
+    else
+        calcCNS=false;
+    end
+end
+
+pns_comp=[];
+pns_norm=[];
+ok=[];
+for c=calcCNS
+    hardware=asc_to_hw(asc,c);
+
+    % use the Szczepankiewicz' and Witzel's implementation
+    [pns_comp0,res]=safe_gwf_to_pns(gwr/obj.sys.gamma, NaN*ones(length(t_axis),1), obj.gradRasterTime, hardware); % the RF vector is unused in the code inside but it is zeropaded and exported ... 
+    % use the exported RF vector to detect and undo zerpopadding
+    pns_comp=vertcat(pns_comp,0.01*pns_comp0(~isfinite(res.rf),:)');
+    % calc pns_norm and the final ok/not_ok
+    pns_norm=vertcat(pns_norm,vecnorm(pns_comp(end-2:end,:)));
+    ok=vertcat(ok,all(pns_norm(end,:)<1));
+    % ready
+    if doPlots
+        % plot results
+        figure;
+        h=safe_plot(pns_comp0, obj.gradRasterTime);
+        if c
+            p=[h.Parent];
+            a=p(1);
+            t=a.Title.String;
+            title(replace(t,'PNS','CNS'));
+        end
+    end
 end
 
 end
