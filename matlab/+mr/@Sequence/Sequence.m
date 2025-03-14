@@ -552,13 +552,15 @@ classdef Sequence < handle
                 end
             end
 
-            use = 'u';
             if isfield(event,'use')
                 % todo: fixme: use map from getSupportedRfUse
                 switch event.use
                     case {'excitation','refocusing','inversion','saturation','preparation','other'}
                         use = event.use(1);
                     otherwise
+                        if strcmp(event.use,'u')
+                            event.use='undefined'; % make it little more user-friendly
+                        end
                         warning('Unknown or undefined RF pulse parameter ''use''=%s, which is not optional since v1.5.0',event.use);
                         use = 'u'; % undefined
                 end
