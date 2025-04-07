@@ -8,12 +8,12 @@ sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
 
 seq=mr.Sequence(sys);         % Create a new sequence object
 
-fov=256e-3; Nx=256; Ny=Nx; % Define FOV and resolution
+fov=256e-3; Nx=128; Ny=Nx; % Define FOV and resolution
 phaseResoluion = fov/Nx / (fov/Ny) ;
 alpha=10;                  % flip angle
-thickness=3e-3;            % slice
-Nslices=1;
-sliceGap = 1e-3 ;
+thickness=3.555e-3;            % slice
+Nslices=3;
+sliceGap = 1.111e-3 ;
 TR=30e-3; 
 TE=4.3e-3;
 
@@ -23,7 +23,8 @@ roDuration=3.2e-3;              % ADC duration
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(alpha*pi/180,'Duration',3e-3,...
-    'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'system',sys);
+    'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'system',sys,...
+    'use','excitation');
 
 % Define other gradients and ADC events
 deltak=1/fov;
@@ -86,7 +87,7 @@ lblResetRefScan.id=seq.registerLabelEvent(lblResetRefScan);
 lblResetRefAndImaScan.id=seq.registerLabelEvent(lblResetRefAndImaScan);
 
 % Add noise scans.
-seq.addBlock(mr.makeLabel('SET', 'LIN', 0)) ;
+seq.addBlock(mr.makeLabel('SET', 'LIN', 0),mr.makeLabel('SET','SLC', 0)) ;
 seq.addBlock(adc, mr.makeLabel('SET', 'NOISE', true),lblResetRefScan,lblResetRefAndImaScan) ;
 seq.addBlock(mr.makeLabel('SET', 'NOISE', false)) ;
 
@@ -94,34 +95,36 @@ seq.addBlock(mr.makeLabel('SET', 'NOISE', false)) ;
 slicePositions=(thickness+sliceGap)*((0:(Nslices-1)) - (Nslices-1)/2);
 slicePositions=slicePositions([1:2:Nslices 2:2:Nslices]); % reorder slices for an interleaved acquisition (optional)
 
-rf.freqOffset=gz.amplitude*thickness*(1-1-(Nslices-1)/2);
-% loop over phase encodes and define sequence blocks
-for count = 1:nPEsamp
-    if ismember(PEsamp(count),PEsamp_ACS)
-        if ismember(PEsamp(count),PEsamp_u)
-            seq.addBlock(lblSetRefAndImaScan, lblSetRefScan) ;
+for s=1:Nslices
+    rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
+    % loop over phase encodes and define sequence blocks
+    for count = 1:nPEsamp
+        if ismember(PEsamp(count),PEsamp_ACS)
+            if ismember(PEsamp(count),PEsamp_u)
+                seq.addBlock(lblSetRefAndImaScan, lblSetRefScan) ;
+            else
+                seq.addBlock(lblResetRefAndImaScan, lblSetRefScan) ;
+            end
         else
-            seq.addBlock(lblResetRefAndImaScan, lblSetRefScan) ;
+            seq.addBlock(lblResetRefAndImaScan, lblResetRefScan) ;
         end
-    else
-        seq.addBlock(lblResetRefAndImaScan, lblResetRefScan) ;
+        rf.phaseOffset=rf_phase/180*pi;
+        adc.phaseOffset=rf_phase/180*pi;
+        rf_inc=mod(rf_inc+rfSpoilingInc, 360.0);
+        rf_phase=mod(rf_phase+rf_inc, 360.0);
+        %
+        seq.addBlock(rf,gz);
+        gyPre = mr.makeTrapezoid('y','Area',phaseAreas(PEsamp(count)),'Duration',mr.calcDuration(gxPre),'system',sys);
+        seq.addBlock(gxPre,gyPre,gzReph);
+        seq.addBlock(mr.makeDelay(delayTE));
+        seq.addBlock(gx,adc);
+        gyPre.amplitude=-gyPre.amplitude;
+    
+        seq.addBlock(mr.makeDelay(delayTR),gxSpoil,gyPre,gzSpoil);
+        seq.addBlock(mr.makeLabel('INC','LIN', PEsamp_INC(count)));
     end
-    rf.phaseOffset=rf_phase/180*pi;
-    adc.phaseOffset=rf_phase/180*pi;
-    rf_inc=mod(rf_inc+rfSpoilingInc, 360.0);
-    rf_phase=mod(rf_phase+rf_inc, 360.0);
-    %
-    seq.addBlock(rf,gz);
-    gyPre = mr.makeTrapezoid('y','Area',phaseAreas(PEsamp(count)),'Duration',mr.calcDuration(gxPre),'system',sys);
-    seq.addBlock(gxPre,gyPre,gzReph);
-    seq.addBlock(mr.makeDelay(delayTE));
-    seq.addBlock(gx,adc);
-    gyPre.amplitude=-gyPre.amplitude;
-
-    seq.addBlock(mr.makeDelay(delayTR),gxSpoil,gyPre,gzSpoil);
-    seq.addBlock(mr.makeLabel('INC','LIN', PEsamp_INC(count)));
+    seq.addBlock(mr.makeLabel('SET', 'LIN', 0),mr.makeLabel('INC','SLC', 1)) ;
 end
-seq.addBlock(mr.makeLabel('SET', 'LIN', 0)) ;
 
 %% check whether the timing of the sequence is correct
 [ok, error_report]=seq.checkTiming;
@@ -136,26 +139,31 @@ end
 
 %% prepare sequence export
 seq.setDefinition('FOV', [fov fov max(slicePositions)-min(slicePositions)+thickness]);
-seq.setDefinition('Name', 'gre_gt');
+seq.setDefinition('Name', 'gre_p2');
 % the following definitions have effect in conjunction with LABELs 
 seq.setDefinition('SlicePositions', slicePositions);
 seq.setDefinition('SliceThickness', thickness);
 seq.setDefinition('SliceGap', sliceGap);
+seq.setDefinition('TE', TE) ;
+seq.setDefinition('TR', TR) ;
 seq.setDefinition('kSpaceCenterLine', centerLineIdx - 1) ;
 seq.setDefinition('PhaseResolution', phaseResoluion) ;
-seq.write('gre_gt.seq')       % Write to pulseq file
+seq.write('gre_grappa_lbl.seq')       % Write to pulseq file
 
 %seq.install('siemens');
 %return
 
 %% evaluate label settings more specifically
-%seq.plot('timeRange', [0 32]*TRout, 'TimeDisp', 'ms', 'Label', 'LIN');
-adc_lbl=seq.evalLabels('evolution','adc');
-figure; plot(adc_lbl.REF);
-hold on; plot(adc_lbl.LIN);plot(adc_lbl.IMA) ; plot(adc_lbl.NOISE);
-plot(adc_lbl.IMA) ;
-legend('REF','LIN', 'IMA', 'NOISE');
-title('evolution of labels/counters');
+
+lbls=seq.evalLabels('evolution','adc');
+lbl_names=fieldnames(lbls);
+figure; hold on;
+for n=1:length(lbl_names)
+    plot(lbls.(lbl_names{n}));
+end
+legend(lbl_names(:));
+title('evolution of labels/counters/flags');
+xlabel('adc number');
 
 %% plot sequence and k-space diagrams
 

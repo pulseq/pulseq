@@ -24,7 +24,6 @@
 % of _Hz/m_ for amplitude and _Hz/m/s_ for slew. Unspecificied hardware
 % parameters will be assigned default values.
 
-dG=250e-6;
 system = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
     'MaxSlew', 170, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 100e-6, ...
     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
@@ -41,10 +40,9 @@ Nx=128; Ny=128; necho=16; Nslices=1;
 rflip=180;
 if (numel(rflip)==1), rflip=rflip+zeros([1 necho]); end
 sliceThickness=5e-3;
-TE=12e-3; TR=2000e-3;
-TEeff=60e-3;
-k0=round(TEeff/TE);
-PEtype='linear';
+TE1=12e-3; % echo time of the first echo in the train
+TR=2000e-3;
+TEeff=100e-3; % the desired echo time (can only be achieved approximately)
 
 samplingTime= 6.4e-3;
 readoutTime = samplingTime + 2*system.adcDeadTime;
@@ -52,10 +50,11 @@ tEx=2.5e-3;
 tExwd=tEx+system.rfRingdownTime+system.rfDeadTime;
 tRef=2e-3; 
 tRefwd=tRef+system.rfRingdownTime+system.rfDeadTime;
-tSp=0.5*(TE-readoutTime-tRefwd);
-tSpex=0.5*(TE-tExwd-tRefwd);
+tSp=0.5*(TE1-readoutTime-tRefwd);
+tSpex=0.5*(TE1-tExwd-tRefwd);
 fspR=1.0;
 fspS=0.5;
+dG=250e-6; % 'standard' ramp time - makes sequence structure much simpler
 
 rfex_phase=pi/2; % MZ: we need to maintain these as variables because we will overwrtite phase offsets for multiple slice positions
 rfref_phase=0;
@@ -76,12 +75,13 @@ rfref_phase=0;
 %
 flipex=90*pi/180;
 [rfex, gz] = mr.makeSincPulse(flipex,system,'Duration',tEx,...
-    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4,'PhaseOffset',rfex_phase);
+    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4,'PhaseOffset',rfex_phase,...
+    'use','excitation');
 GSex = mr.makeTrapezoid('z',system,'amplitude',gz.amplitude,'FlatTime',tExwd,'riseTime',dG);
 % plotPulse(rfex,GSex);
 
 flipref=rflip(1)*pi/180;
-[rfref, gz] = mr.makeSincPulse(flipref,system,'Duration',tRef,...
+[rfref, gz2] = mr.makeSincPulse(flipref,system,'Duration',tRef,... % it was a bug as 'gz' was owerwritten
     'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4,'PhaseOffset',rfref_phase,'use','refocusing');
 GSref = mr.makeTrapezoid('z',system,'amplitude',GSex.amplitude,'FlatTime',tRefwd,'riseTime',dG);
 % plotPulse(rfref,GSref);
@@ -119,16 +119,18 @@ GRpreph = mr.makeTrapezoid('x',system,'Area',AGRpreph,'duration',tSpex,'riseTime
 % prephasing gradient must be used. Furthermore rephasing of the slice
 % select gradient is required.
 
-%[PEorder,Ny] = myTSE_PEorder(Ny,necho,k0,PEtype);
 nex=floor(Ny/necho);
 pe_steps=(1:(necho*nex))-0.5*necho*nex-1;
 if 0==mod(necho,2)
     pe_steps=circshift(pe_steps,[0,-round(nex/2)]); % for odd number of echoes we have to apply a shift to avoid a contrast jump at k=0
 end
-PEorder=reshape(pe_steps,[nex,necho])';
+% TSE echo time magic
+[~,iPEmin]=min(abs(pe_steps));
+k0curr=floor((iPEmin-1)/nex)+1; % calculate the 'native' central echo index 
+k0prescr=max(round(TEeff/TE1),1); % echo to be aligned to the k-space center 
+PEorder=circshift(reshape(pe_steps,[nex,necho])',k0prescr-k0curr);
+
 phaseAreas = PEorder*deltak;
-
-
 
 %% split gradients and recombine into blocks
 % lets start with slice selection....
@@ -252,18 +254,22 @@ figure; plot(ktraj(1,:),ktraj(2,:),'b',...
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 title('2D k-space');
 
+%%
+% Display the first few lines of the output file
+% s=fileread('myTSE.seq');
+% disp(s(1:300))
+seq.plot();
+
+%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits  
+
+rep = seq.testReport; 
+fprintf([rep{:}]); 
 
 %% Write to file
 
 % The sequence is written to file in compressed form according to the file
 % format specification using the |write| method.
 seq.write('tse.seq')
-
-%%
-% Display the first few lines of the output file
-% s=fileread('myTSE.seq');
-% disp(s(1:300))
-seq.plot();
 
 % seq.install('siemens');
 

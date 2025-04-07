@@ -22,27 +22,47 @@ if isempty(parser)
     parser.FunctionName = 'makeAdc';
     
     addRequired(parser,'numSamples',@(x)(isnumeric(x) && (fix(x)-x)==0));
-    addOptional(parser,'system',mr.opts(),@isstruct);
+    addOptional(parser,'system',[],@isstruct);
     addParamValue(parser,'dwell',0,@isnumeric);
     addParamValue(parser,'duration',0,@isnumeric);
     addParamValue(parser,'delay',0,@isnumeric);
     addParamValue(parser,'freqOffset',0,@isnumeric);
     addParamValue(parser,'phaseOffset',0,@isnumeric);
+    addParamValue(parser,'freqPPM', 0, @isnumeric);
+    addParamValue(parser,'phasePPM', 0, @isnumeric);
+    addParamValue(parser,'phaseModulation',[],@isnumeric);
 end
 
 parse(parser,num,varargin{:});
-
 opt = parser.Results;
+
+if isempty(opt.system)
+    system=mr.opts();
+else
+    system=opt.system;
+end
+
 adc.type = 'adc';
 adc.numSamples = num;
 adc.dwell = opt.dwell;
 adc.delay = opt.delay;
 adc.freqOffset = opt.freqOffset;
 adc.phaseOffset = opt.phaseOffset;
-adc.deadTime = opt.system.adcDeadTime;
+adc.freqPPM = opt.freqPPM;
+adc.phasePPM = opt.phasePPM;
+adc.deadTime = system.adcDeadTime;
 
 if (opt.dwell==0 && opt.duration==0) || (opt.dwell>0 && opt.duration>0)
     error('Either dwell or duration must be defined');
+end
+
+if ~isempty(opt.phaseModulation)
+    if length(opt.phaseModulation)~=num
+        error('ADC Phase modulation vector must have the same length as the number of samples');
+    end
+    adc.phaseModulation=opt.phaseModulation;
+else
+    adc.phaseModulation=[];
 end
 
 if opt.duration > 0

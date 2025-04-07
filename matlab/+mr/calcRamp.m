@@ -49,25 +49,34 @@ if isempty(parser)
     parser.FunctionName = 'calcRamp';
     parser.addRequired('k0',@isnumeric);
     parser.addRequired('kend',@isnumeric);
-    parser.addOptional('system',mr.opts(),@isstruct);
+    parser.addOptional('system',[],@isstruct);
     parser.addParamValue('MaxPoints',500,@isnumeric);
     parser.addParamValue('maxGrad',0,@isnumeric);
     parser.addParamValue('maxSlew',0,@isnumeric);
-    
+    parser.addParamValue('gradOversampling',false,@islogical);
 end
 parse(parser,k0,kend,varargin{:});
 opt = parser.Results;
 
-maxSlew=opt.system.maxSlew;
-maxGrad=opt.system.maxGrad;
+if isempty(opt.system)
+    system=mr.opts();
+else
+    system=opt.system;
+end
+
+maxSlew=system.maxSlew;
+maxGrad=system.maxGrad;
 if opt.maxGrad>0
     maxGrad=opt.maxGrad;
 end
 if opt.maxSlew>0
     maxSlew=opt.maxSlew;
 end
-
-GradRaster = opt.system.gradRasterTime;
+if opt.gradOversampling
+    GradRaster = system.gradRasterTime/2;
+else
+    GradRaster = system.gradRasterTime;
+end
 MaxPoints = opt.MaxPoints;
 
 SaveRecLimit = get(0,'RecursionLimit'); 

@@ -15,7 +15,7 @@ if isempty(parser)
     
     addOptional(parser, 'delay', 0, @isnumeric);
     addOptional(parser, 'duration', 0, @isnumeric); % will replace with gradRadterTime below
-    addOptional(parser, 'system', mr.opts(), @isstruct); 
+    addOptional(parser, 'system', [], @isstruct); 
 end
 
 if nargin<1
@@ -25,6 +25,12 @@ end
 parse(parser, varargin{:});
 opt = parser.Results;
 
+if isempty(opt.system)
+    system=mr.opts();
+else
+    system=opt.system;
+end
+
 channel_num=find(strcmp(channel,{'physio1','physio2'}));
 assert(~isempty(channel_num) && channel_num>0,'makeTrigger:invalidChannel',...
     'Channel (%s) is invalid',channel);
@@ -32,8 +38,8 @@ trig.type = 'trigger';
 trig.channel=channel;
 trig.delay = opt.delay;
 trig.duration = opt.duration;
-if (trig.duration<=opt.system.gradRasterTime)
-    trig.duration=opt.system.gradRasterTime;
+if (trig.duration<=system.gradRasterTime)
+    trig.duration=system.gradRasterTime;
 end
 
 end

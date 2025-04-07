@@ -37,8 +37,9 @@ ax.n3 = strfind('xyz', ax.d3) ;
 %%
 
 % Create alpha-degree hard pulse and gradient
-rf = mr.makeBlockPulse(alpha*pi/180, sys, 'Duration', rfLen) ;
-rf180 = mr.makeAdiabaticPulse('hypsec', sys, 'Duration', 10.24e-3, 'dwell', 1e-5) ;
+rf = mr.makeBlockPulse(alpha*pi/180, sys, 'Duration', rfLen,  'use', 'excitation') ;
+rf180 = mr.makeAdiabaticPulse('hypsec', sys, 'Duration', 10.24e-3, 'dwell', 1e-5,...
+    'use', 'inversion') ;
 
 % Define other gradients and ADC events
 deltak = 1./fov ;
@@ -219,7 +220,7 @@ seq.setDefinition('ReadoutOversamplingFactor', ro_os) ;
 seq.setDefinition('OrientationMapping', 'SAG') ; % only when programming in saggital orientation
 seq.setDefinition('kSpaceCenterLine', centerLineIdx-1) ;
 seq.setDefinition('PhaseResolution', phaseResoluion) ;
-seq.write('mprage_gt.seq') ;      % Write to pulseq file
+seq.write('mprage_grappa.seq') ;      % Write to pulseq file
 %seq.install('siemens');
 
 return;

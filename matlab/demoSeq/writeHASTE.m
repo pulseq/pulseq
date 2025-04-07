@@ -77,7 +77,8 @@ rfref_phase=0;
 %
 flipex=90*pi/180;
 [rfex, gz] = mr.makeSincPulse(flipex,system,'Duration',tEx,...
-    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4,'PhaseOffset',rfex_phase);
+    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4,'PhaseOffset',rfex_phase,...
+    'use', 'excitation');
 GSex = mr.makeTrapezoid('z',system,'amplitude',gz.amplitude,'FlatTime',tExwd,'riseTime',dG);
 % plotPulse(rfex,GSex);
 

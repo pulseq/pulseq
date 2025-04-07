@@ -3,8 +3,13 @@ function [rf, gz, gzr, delay] = makeArbitraryRf(signal,flip,varargin)
 %   rf=makeArbitraryRf(singal, flip) Create RF pulse with complex signal 
 %   and given flip angle (in radians)
 %
-%   rf=makeArbitraryRf(..., 'FreqOffset', f,'PhaseOffset',p)
-%   Create block pulse with frequency offset and phase offset.
+%   rf=makeArbitraryRf(..., 'freqOffset', f,'phaseOffset',p)
+%   Create arbitrary RF pulse with frequency offset and phase offset.
+%
+%   rf=makeArbitraryRf(..., 'ppmOffset')
+%   Create arbitrary RF pulse with frequency offset specified in PPM (e.g.
+%   actual frequency offset proportional to the true Larmor frequency); can
+%   be combined with the 'freqOffset' specified in Hz.
 %
 %   [rf, gz]=makeArbitraryRf(..., 'Bandwidth', bw, 'SliceThickness', st) 
 %   Create RF pulse and corresponding slice select gradient. The bandwidth
@@ -22,9 +27,11 @@ if isempty(parser)
     % RF params
     addRequired(parser, 'signal', @isnumeric);
     addRequired(parser, 'flipAngle', @isnumeric);
-    addOptional(parser, 'system', mr.opts(), @isstruct);
+    addOptional(parser, 'system', [], @isstruct);
     addParamValue(parser, 'freqOffset', 0, @isnumeric);
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
+    addParamValue(parser, 'freqPPM', 0, @isnumeric);
+    addParamValue(parser, 'phasePPM', 0, @isnumeric);
     addParamValue(parser, 'timeBwProduct', 0, @isnumeric);
     addParamValue(parser, 'bandwidth', 0, @isnumeric);
     addParamValue(parser, 'center', NaN, @isnumeric);
@@ -36,13 +43,19 @@ if isempty(parser)
     addParamValue(parser, 'delay', 0, @isnumeric);
     addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
-    addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
+    addParamValue(parser, 'use', 'u', @(x) any(validatestring(x,validPulseUses)));
 end
 parse(parser, signal, flip,varargin{:});
 opt = parser.Results;
 
+if isempty(opt.system)
+    system=mr.opts();
+else
+    system=opt.system;
+end
+
 if opt.dwell==0
-    opt.dwell=opt.system.rfRasterTime;
+    opt.dwell=system.rfRasterTime;
 end
 
 signal = signal./abs(sum(signal.*opt.dwell))*flip/(2*pi);
@@ -53,16 +66,18 @@ end
 
 N=  length(signal);
 duration = N*opt.dwell;
-t = ((1:N)-0.5)*opt.dwell;
+t = ((1:N)'-0.5)*opt.dwell;
 
 rf.type = 'rf';
-rf.signal = signal;
+rf.signal = signal(:);
 rf.t = t;
 rf.shape_dur=duration;
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
-rf.deadTime = opt.system.rfDeadTime;
-rf.ringdownTime = opt.system.rfRingdownTime;
+rf.freqPPM = opt.freqPPM;
+rf.phasePPM = opt.phasePPM;
+rf.deadTime = system.rfDeadTime;
+rf.ringdownTime = system.rfRingdownTime;
 rf.delay = opt.delay;
 if ~isempty(opt.use)
     rf.use=opt.use;
@@ -75,6 +90,8 @@ if isfinite(opt.center)
     rf.center=opt.center;
     if rf.center < 0, rf.center = 0; end
     if rf.center > rf.shape_dur, rf.center = rf.shape_dur; end
+else
+    rf.center = mr.calcRfCenter(rf);
 end
 
 if opt.timeBwProduct>0
@@ -90,10 +107,10 @@ if nargout>1
     assert(opt.bandwidth > 0, 'Bandwidth of pulse must be provided');
     warning('FIXME: there are some potential issues with the bandwidth and related parameters, double check (e-mail communication)');
     if opt.maxGrad > 0
-        opt.system.maxGrad = opt.maxGrad;
+        system.maxGrad = opt.maxGrad;
     end
     if opt.maxSlew > 0
-        opt.system.maxSlew = opt.maxSlew;
+        system.maxSlew = opt.maxSlew;
     end
     
     BW = opt.bandwidth;
@@ -103,18 +120,18 @@ if nargout>1
 
     amplitude = BW/opt.sliceThickness;
     area = amplitude*duration;
-    gz = mr.makeTrapezoid('z', opt.system, 'flatTime', duration, ...
+    gz = mr.makeTrapezoid('z', system, 'flatTime', duration, ...
                           'flatArea', area);
     
     if rf.delay > gz.riseTime
-        gz.delay = ceil((rf.delay - gz.riseTime)/opt.system.gradRasterTime)*opt.system.gradRasterTime; % round-up to gradient raster
+        gz.delay = ceil((rf.delay - gz.riseTime)/system.gradRasterTime)*system.gradRasterTime; % round-up to gradient raster
     end
     if rf.delay < (gz.riseTime+gz.delay)
         rf.delay = gz.riseTime+gz.delay; % these are on the grad raster already which is coarser 
     end
     
     if nargout > 2
-        gzr= mr.makeTrapezoid('z', opt.system, 'Area', -area*(1-mr.calcRfCenter(rf)/rf.shape_dur)-0.5*(gz.area-area));
+        gzr= mr.makeTrapezoid('z', system, 'Area', -area*(1-rf.center)/rf.shape_dur-0.5*(gz.area-area));
     end
 end
 
@@ -126,6 +143,12 @@ end
 % end
 if rf.ringdownTime > 0 && nargout > 3
     delay=mr.makeDelay(mr.calcDuration(rf)+rf.ringdownTime);
+end
+
+% RF amplitude check
+rf_amplitude=max(abs(rf.signal));
+if rf_amplitude>system.maxB1
+    warning('WARNING: system maximum RF amplitude exceeded (%.01f%%)', rf_amplitude/system.maxB1*100);
 end
 
 end

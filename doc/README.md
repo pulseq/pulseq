@@ -10,5 +10,18 @@ This repository stores the public website automatically generated from the *Puls
 
 http://pulseq.github.io/
 
-The source code is here: https://github.com/pulseq/pulseq
+The source code is here: https://github.com/pulseq/pulseq/doc
+
+the workflow: 
+1: at the parent level run 
+    make install-html
+  this will create a directory named pulseq.github.io on the level above the parent and will copy all the necessary files over
+
+2: check the webpage locally 
+
+3: copy over to the checked-out location of http://pulseq.github.io/ and commit
+
+Optional step 0: prior to the above you may wan to run: 
+    matlab ./matlab/make_all_docs.m
+
 

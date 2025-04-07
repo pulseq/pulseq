@@ -27,7 +27,7 @@ if isempty(parser)
     parser.FunctionName = 'makeTrapezoid';
     parser.addRequired('channel',...
         @(x) any(validatestring(x,validChannels)));
-    parser.addOptional('system',mr.opts(),@isstruct);
+    parser.addOptional('system',[],@isstruct);
     parser.addParamValue('duration',0,@(x)(isnumeric(x) && x>0));
     parser.addParamValue('area',[],@isnumeric);
     parser.addParamValue('flatTime',[],@isnumeric);
@@ -38,14 +38,19 @@ if isempty(parser)
     parser.addParamValue('riseTime',0,@isnumeric);
     parser.addParamValue('fallTime',0,@isnumeric);
     parser.addParamValue('delay',0,@isnumeric);
-    
 end
 parse(parser,channel,varargin{:});
 opt = parser.Results;
 
-maxSlew=opt.system.maxSlew;
-%riseTime=opt.system.riseTime;
-maxGrad=opt.system.maxGrad;
+if isempty(opt.system)
+    system=mr.opts();
+else
+    system=opt.system;
+end
+
+maxSlew=system.maxSlew;
+%riseTime=system.riseTime;
+maxGrad=system.maxGrad;
 fallTime = [];
 riseTime = [];
 
@@ -80,9 +85,9 @@ if ~isempty(opt.flatTime) % MZ was: opt.flatTime>0
     end
     if isempty(riseTime)
         riseTime = abs(amplitude)/maxSlew;
-        riseTime = ceil(riseTime/opt.system.gradRasterTime)*opt.system.gradRasterTime;
+        riseTime = ceil(riseTime/system.gradRasterTime)*system.gradRasterTime;
         if riseTime==0
-            riseTime=opt.system.gradRasterTime;
+            riseTime=system.gradRasterTime;
         end
     end
     if isempty(fallTime)
@@ -97,7 +102,7 @@ elseif opt.duration>0
             dC = 1/abs(2*maxSlew) + 1/abs(2*maxSlew);
             possible = opt.duration^2 > 4*abs(opt.area)*dC;
             if ~possible
-                [~, t1, t2, t3]=calcShortestParamsForArea(opt.area,maxSlew,maxGrad,opt.system.gradRasterTime);
+                [~, t1, t2, t3]=calcShortestParamsForArea(opt.area,maxSlew,maxGrad,system.gradRasterTime);
                 error('makeTrapezoid:invalidDuration',['Requested area is too large for this gradient. Minimum required duration for this area (accounting for the gradient raster time) is ' num2str((t1+t2+t3)*1e6) 'us']);
             end
             amplitude = ( opt.duration - sqrt(opt.duration^2 - 4*abs(opt.area)*dC) )/(2*dC);
@@ -111,9 +116,9 @@ elseif opt.duration>0
         end    
     end
     if isempty(riseTime)
-        riseTime = ceil(abs(amplitude)/maxSlew/opt.system.gradRasterTime)*opt.system.gradRasterTime;
+        riseTime = ceil(abs(amplitude)/maxSlew/system.gradRasterTime)*system.gradRasterTime;
         if(riseTime==0)
-            riseTime=opt.system.gradRasterTime;
+            riseTime=system.gradRasterTime;
         end
     end
     if isempty(fallTime)
@@ -129,7 +134,7 @@ else
         error('makeTrapezoid:invalidArguments','Must supply area or duration');
     else
         % call the local function to calculate the shortest timing
-        [amplitude, riseTime, flatTime, fallTime]=calcShortestParamsForArea(opt.area,maxSlew,maxGrad,opt.system.gradRasterTime);
+        [amplitude, riseTime, flatTime, fallTime]=calcShortestParamsForArea(opt.area,maxSlew,maxGrad,system.gradRasterTime);
     end
 end
 if abs(amplitude)>maxGrad
@@ -140,7 +145,7 @@ if abs(amplitude)>maxGrad
         % calculation with the specified area (leading to exceedingly high
         % amplitude), the triangular blip error should have occured around
         % line 103
-        [~, t1, t2, t3]=calcShortestParamsForArea(opt.area,maxSlew,maxGrad,opt.system.gradRasterTime);
+        [~, t1, t2, t3]=calcShortestParamsForArea(opt.area,maxSlew,maxGrad,system.gradRasterTime);
         error('makeTrapezoid:invalidDuration',['Requested duration is too short for the area to be realized within system limits. Minimum duration for this trapezoid (accounting for the gradient raster time) is ' num2str((t1+t2+t3)*1e6) ' us']);
     end
 end

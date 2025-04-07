@@ -7,8 +7,13 @@ function [rf, delay] = makeBlockPulse(flip,varargin)
 %   with given flip angle and bandwidth (Hz). The duration is calculated as
 %   1/(4*bw)
 %
-%   rf=makeBlockPulse(..., 'FreqOffset', f,'PhaseOffset',p)
+%   rf=makeBlockPulse(..., 'freqOffset', f,'phaseOffset',p)
 %   Create block pulse with frequency offset and phase offset.
+%
+%   rf=makeBlockPulse(..., 'ppmOffset')
+%   Create block RF pulse with frequency offset specified in PPM (e.g.
+%   actual frequency offset proportional to the true Larmor frequency); can
+%   be combined with the 'freqOffset' specified in Hz.
 %
 %   [rf, delay]=makeBlockPulse(...) returns the corresponding delay object 
 %   that takes care of the RF ringdown time.
@@ -24,10 +29,12 @@ if isempty(parser)
     
     % RF params
     addRequired(parser, 'flipAngle', @isnumeric);
-    addOptional(parser, 'system', mr.opts(), @isstruct); % for slice grad
+    addOptional(parser, 'system', [], @isstruct); % for slice grad
     addParamValue(parser, 'duration', 0, @isnumeric);
     addParamValue(parser, 'freqOffset', 0, @isnumeric);
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
+    addParamValue(parser, 'freqPPM', 0, @isnumeric);
+    addParamValue(parser, 'phasePPM', 0, @isnumeric);
     addParamValue(parser, 'timeBwProduct', 0, @isnumeric);
     addParamValue(parser, 'bandwidth', 0, @isnumeric);
     % Slice params
@@ -37,10 +44,16 @@ if isempty(parser)
     % Delay
     addParamValue(parser, 'delay', 0, @isnumeric);
     % whether it is a refocusing pulse (for k-space calculation)
-    addOptional(parser, 'use', '', @(x) any(validatestring(x,validPulseUses)));
+    addParamValue(parser, 'use', 'u', @(x) any(validatestring(x,validPulseUses)));
 end
 parse(parser, flip, varargin{:});
 opt = parser.Results;
+
+if isempty(opt.system)
+    system=mr.opts();
+else
+    system=opt.system;
+end
 
 if opt.duration == 0
     if opt.timeBwProduct > 0
@@ -53,8 +66,8 @@ if opt.duration == 0
 end
 
 BW = 1/(4*opt.duration);
-N = round(opt.duration/opt.system.rfRasterTime);
-t = [0 N]*opt.system.rfRasterTime; % CHECKME whether we start at 0 or at 0.5 or at 1 
+N = round(opt.duration/system.rfRasterTime);
+t = [0; N]*system.rfRasterTime; % CHECKME whether we start at 0 or at 0.5 or at 1 
 signal = opt.flipAngle/(2*pi)/opt.duration*ones(size(t));
 
 rf.type = 'rf';
@@ -63,9 +76,12 @@ rf.t = t;
 rf.shape_dur=t(end);
 rf.freqOffset = opt.freqOffset;
 rf.phaseOffset = opt.phaseOffset;
-rf.deadTime = opt.system.rfDeadTime;
-rf.ringdownTime = opt.system.rfRingdownTime;
+rf.freqPPM = opt.freqPPM;
+rf.phasePPM = opt.phasePPM;
+rf.deadTime = system.rfDeadTime;
+rf.ringdownTime = system.rfRingdownTime;
 rf.delay = opt.delay;
+rf.center = rf.shape_dur/2;
 if ~isempty(opt.use)
     rf.use=opt.use;
 end
@@ -81,4 +97,10 @@ end
 % end
 if rf.ringdownTime > 0 && nargout > 1
     delay=mr.makeDelay(mr.calcDuration(rf)+rf.ringdownTime);
+end
+
+% RF amplitude check
+rf_amplitude=max(abs(rf.signal));
+if rf_amplitude>system.maxB1
+    warning('WARNING: system maximum RF amplitude exceeded (%.01f%%)', rf_amplitude/system.maxB1*100);
 end

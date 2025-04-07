@@ -6,15 +6,25 @@ lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
 seq=mr.Sequence(lims);          % Create a new sequence object
 fov=220e-3; Nx=256; Ny=256;     % Define FOV and resolution
 
-foe=200e-3;             % Field of excitation
-targetWidth=22.5e-3;    % Diameter of target excitation pattern
-n=8;                    % Number of spiral turns
-T=8e-3;                 % Pulse duration
-
+foe=200e-3;               % Field of excitation
+targetWidth=22.5e-3;      % Diameter of target excitation pattern
+n=8;                      % Number of spiral turns
+T=8e-3;                   % Pulse duration
+gradOversampling = true;  % oversampling of the gradient shape, can be either true or false. QC: should be set to "false" for seq.write_v141. 
+% WARNING! there are some inaccuracies in the time syncronization between
+%          the RF and gradients in the calculations below! 
+%          These lead to an apparent rotation of the excitation pattern
+%          depending on the setting of the  gradOversampling parameter.
+% TODO: FIXME! 
 
 % Define spiral k-space trajectory
 kMax=(2*n)/foe/2;       % Units of 1/m (not rad/m)
-tk=0:seq.gradRasterTime:T-seq.gradRasterTime;
+if gradOversampling 
+    dTG=seq.gradRasterTime/2;
+else
+    dTG=seq.gradRasterTime;
+end
+tk=0:dTG:T-dTG;
 kx=kMax*(1-tk/T).*cos(2*pi*n*tk/T);
 ky=kMax*(1-tk/T).*sin(2*pi*n*tk/T);
 
@@ -24,14 +34,14 @@ kxRf=interp1(tk,kx,tr,'linear','extrap');
 kyRf=interp1(tk,ky,tr,'linear','extrap');
 beta=2*pi*kMax*targetWidth/2/sqrt(2);  % Gaussian width in k-space
 signal0 = exp(-beta.^2.*(1-tr/T).^2).*sqrt((2*pi*n*(1-tr/T)).^2+1);
-signal = signal0.*(1 + exp(-1j.*2*pi*5e-2*(kxRf + kyRf)));
+signal = signal0.*(1 + exp(-1j.*2*pi*4e-2*(kxRf + kyRf)));
 
 % Add gradient ramps
-[kx,ky,signal]=mr.addRamps({kx,ky},'rf',signal);
+[kx,ky,signal]=mr.addRamps({kx,ky},'rf',signal,'system',lims,'gradOversampling',gradOversampling);
 
-rf = mr.makeArbitraryRf(signal,20*pi/180,'system',lims);
-gxRf = mr.makeArbitraryGrad('x',mr.traj2grad(kx));
-gyRf = mr.makeArbitraryGrad('y',mr.traj2grad(ky));
+rf = mr.makeArbitraryRf(signal,20*pi/180,'system',lims, 'use','excitation');
+gxRf = mr.makeArbitraryGrad('x',mr.traj2grad(kx,'RasterTime',dTG),'first',0,'last',0,'oversampling',gradOversampling);
+gyRf = mr.makeArbitraryGrad('y',mr.traj2grad(ky,'RasterTime',dTG),'first',0,'last',0,'oversampling',gradOversampling);
 
 % Define other gradients and ADC events
 deltak=1/fov;
@@ -43,7 +53,7 @@ phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
 % Refocusing pulse and spoiling gradients
 %[rf180, gz] = mr.makeBlockPulse(pi,'Duration',1e-3,'SliceThickness',5e-3);
 [rf180, gz] = mr.makeSincPulse(pi,'system',lims,'Duration',3e-3,...
-    'SliceThickness',5e-3,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',5e-3,'apodization',0.5,'timeBwProduct',4,'use','refocusing');
 
 gzSpoil = mr.makeTrapezoid('z','Area',gx.area,'Duration',2e-3);
 

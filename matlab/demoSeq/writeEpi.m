@@ -14,7 +14,8 @@ lims = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
 
 % Create 90 degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(pi/2,'system',lims,'Duration',3e-3,...
-    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4,...
+    'use', 'excitation');
 
 % Define other gradients and ADC events
 deltak=1/fov;
@@ -47,6 +48,9 @@ for s=1:Nslices
         seq.addBlock(gy);               % Phase blip
         gx.amplitude = -gx.amplitude;   % Reverse polarity of read gradient
     end
+    if s==1
+        TR_1slice=seq.duration; % note the actual TR per slice
+    end
 end
 
 %% check whether the timing of the sequence is correct
@@ -61,7 +65,9 @@ else
 end
 
 %% Plot sequence waveforms
-seq.plot();             
+seq.plot();
+
+seq.plot('stacked',1,'timeRange',[0 TR_1slice], 'timeDisp','ms'); % niceer plot for the 1st sclice
 
 %% trajectory calculation
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();

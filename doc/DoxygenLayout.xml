@@ -17,6 +17,12 @@
       <tab type="hierarchy" visible="yes" title="" intro=""/>
       <tab type="classmembers" visible="yes" title="" intro=""/>
     </tab>
+    <tab type="user" title="News" url="@ref news"/>
+    <tab type="user" title="Discussions" url="https://github.com/pulseq/pulseq/discussions"/>
+    <tab type="user" title="Tutorials" url="@ref tutorials"/>
+    <tab type="user" title="Docs" url="@ref docs"/>
+    <tab type="user" title="Harmonized MRI" url="https://harmonizedmri.github.io/"/>
+    <tab type="user" title="Links" url="@ref links"/>
     <tab type="user" title="Source" url="https://github.com/pulseq/pulseq"/>
     <tab type="files" visible="no" title="">
       <tab type="filelist" visible="yes" title="" intro=""/>

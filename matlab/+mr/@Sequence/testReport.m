@@ -1,9 +1,20 @@
-function [ report ] = testReport( obj )
+function [ report ] = testReport( obj, varargin )
 %testReport Analyze the sequence and return a text report
 %   Currently no parameters are required. In future versions it may be
-%   possible to (de)select some tests
+%   possible to (de)select some tests. Optional parameter 'system' allows
+%   to test the limits against the given MR system
 %
 % maxim.zaitsev@uniklinik-freiburg.de
+
+persistent parser
+if isempty(parser)
+    parser = inputParser;
+    parser.FunctionName = 'testReport';
+    
+    addParamValue(parser,'system',struct([]),@isstruct);
+end
+parse(parser,varargin{:});
+opt = parser.Results;
 
 % find the RF pulses and list flip angles
 flipAnglesDeg=[];
@@ -26,6 +37,9 @@ flipAnglesDeg=unique(flipAnglesDeg);
 %[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = obj.calculateKspace();
 %[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = obj.calculateKspacePP();
 [ktraj_adc, t_adc, ~, ~, t_excitation, ~] = obj.calculateKspacePP('externalWaveformsAndTimes',wnt);
+
+% remove all ADC events that come before the first RF event (noise scans or alike)
+t_adc = t_adc(t_adc > t_excitation(1));
 
 % trajectory calculation will fail for spin-echoes if seq is loaded from a 
 % file for the current file format revision (1.2.0) because we do not store 
@@ -100,12 +114,27 @@ if (k_scale~=0)
     k_storage=zeros(1,k_len);
     k_storage_next=1;
     % containers.Map only supports string as a key... (in older matlabs)
-    %kmap = containers.Map('KeyType', 'char', 'ValueType', 'int32');
-    kmap = java.util.HashMap;
-    for i=1:k_len
+    % in Octave we use the built-in, in Matlab the Java version
+    if mr.aux.isOctave()
+      kmap = containers.Map('KeyType', 'char', 'ValueType', 'int32');
+      for i=1:k_len
         key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold))); 
         % containers.Map does not have a proper find function so we use direct
         % access and catch the possible error
+        try
+          k_storage_ind = kmap(key_string);
+        catch
+          k_storage_ind=k_storage_next;
+          kmap(key_string)=k_storage_ind;
+          k_storage_next=k_storage_next+1;
+        end
+        k_storage(k_storage_ind)=k_storage(k_storage_ind)+1;
+        k_repeat(i) = k_storage(k_storage_ind);
+      end
+    else
+      kmap = java.util.HashMap;
+      for i=1:k_len
+        key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold))); 
         k_storage_ind = kmap.get(key_string);
         if isempty(k_storage_ind)
             k_storage_ind=k_storage_next;
@@ -114,6 +143,7 @@ if (k_scale~=0)
         end
         k_storage(k_storage_ind)=k_storage(k_storage_ind)+1;
         k_repeat(i) = k_storage(k_storage_ind);
+      end
     end
     % at this point k_storage(1:(k_storage_next-1)) is our visit frequency map
     Repeats_max=max(k_storage(1:(k_storage_next-1)));
@@ -139,33 +169,67 @@ if (k_scale~=0)
     k_counters=zeros(size(ktraj_rep1));
     dims=size(ktraj_rep1,1);
     %ordering=cell(1,dims);
-    kmap = java.util.HashMap;
-    for j=1:dims
-        %kmap = containers.Map('KeyType', 'int32', 'ValueType', 'int32');
-        k_storage=zeros(1,k_len);
-        k_storage_next=1; 
-        kmap.clear();
-        for i=1:size(ktraj_rep1,2)
-            key=int32(round(ktraj_rep1(j,i)/k_threshold));
-            k_storage_ind = kmap.get(key);
-            if isempty(k_storage_ind) % attempt to account for rounding errors
-                k_storage_ind = kmap.get(key+1);
-            end
-            if isempty(k_storage_ind) % attempt to account for rounding errors
-                k_storage_ind = kmap.get(key-1);
-            end
-            if isempty(k_storage_ind)
-                k_storage_ind=k_storage_next;
-                kmap.put(key,k_storage_ind);
-                k_storage_next=k_storage_next+1;
-                k_storage(k_storage_ind)=ktraj_rep1(j,i);
-                %fprintf('%d:%d(%g) ',k_storage_ind,key,ktraj_rep1(j,i));
-            end
-            %assert(k_storage_ind==k_storage(k_storage_ind));
-            k_counters(j,i) = k_storage_ind;
-        end
-        %ordering{j}=cell2mat(kmap.values);
-        %fprintf('\n');
+    if mr.aux.isOctave()
+      for j=1:dims
+          kmap = containers.Map('KeyType', 'int32', 'ValueType', 'int32');
+          k_storage=zeros(1,k_len);
+          k_storage_next=1; 
+          for i=1:size(ktraj_rep1,2)
+              key=int32(round(ktraj_rep1(j,i)/k_threshold));
+              try
+                k_storage_ind = kmap(key);
+              catch
+                % attempt to account for rounding errors
+                try
+                  k_storage_ind = kmap(key+1);
+                catch
+                  % attempt to account for rounding errors
+                  try
+                    k_storage_ind = kmap(key-1);
+                  catch
+                    k_storage_ind=k_storage_next;
+                    kmap(key)=k_storage_ind;
+                    k_storage_next=k_storage_next+1;
+                    k_storage(k_storage_ind)=ktraj_rep1(j,i);
+                    %fprintf('%d:%d(%g) ',k_storage_ind,key,ktraj_rep1(j,i));
+                  end
+                end
+              end
+              %assert(k_storage_ind==k_storage(k_storage_ind));
+              k_counters(j,i) = k_storage_ind;
+          end
+          %ordering{j}=cell2mat(kmap.values);
+          %fprintf('\n');
+      end
+    else
+      kmap = java.util.HashMap;
+      for j=1:dims
+          %kmap = containers.Map('KeyType', 'int32', 'ValueType', 'int32');
+          k_storage=zeros(1,k_len);
+          k_storage_next=1; 
+          kmap.clear();
+          for i=1:size(ktraj_rep1,2)
+              key=int32(round(ktraj_rep1(j,i)/k_threshold));
+              k_storage_ind = kmap.get(key);
+              if isempty(k_storage_ind) % attempt to account for rounding errors
+                  k_storage_ind = kmap.get(key+1);
+              end
+              if isempty(k_storage_ind) % attempt to account for rounding errors
+                  k_storage_ind = kmap.get(key-1);
+              end
+              if isempty(k_storage_ind)
+                  k_storage_ind=k_storage_next;
+                  kmap.put(key,k_storage_ind);
+                  k_storage_next=k_storage_next+1;
+                  k_storage(k_storage_ind)=ktraj_rep1(j,i);
+                  %fprintf('%d:%d(%g) ',k_storage_ind,key,ktraj_rep1(j,i));
+              end
+              %assert(k_storage_ind==k_storage(k_storage_ind));
+              k_counters(j,i) = k_storage_ind;
+          end
+          %ordering{j}=cell2mat(kmap.values);
+          %fprintf('\n');
+      end
     end
     unique_kpositions=max(k_counters,[],2);
     isCartesian=(prod(unique_kpositions)==size(ktraj_rep1,2));
@@ -249,12 +313,28 @@ else
     report = { report{:}, [ sprintf('Block timing check failed! Error listing follows:\n'),...
                             sprintf([timing_error_report{:}]) ] };
 end
+msg_ga='';
+if ~isempty(opt.system) && any(ga > opt.system.maxGrad)
+    msg_ga=' [some component EXCEEDED]';
+end
+msg_gs='';
+if ~isempty(opt.system) && any(gs > opt.system.maxSlew)
+    msg_gs=' [some component EXCEEDED]';
+end
 report = { report{:},...
-    sprintf('Max. Gradient: %.0f Hz/m == %.02f mT/m\n', [ga mr.convert(ga,'Hz/m','mT/m')]'),...
-    sprintf('Max. Slew Rate: %g Hz/m/s == %.02f T/m/s\n', [gs mr.convert(gs,'Hz/m/s','T/m/s')]') };
+    sprintf(['Max. Gradient: %.0f Hz/m == %.02f mT/m' msg_ga '\n'], [ga mr.convert(ga,'Hz/m','mT/m')]'),...
+    sprintf(['Max. Slew Rate: %g Hz/m/s == %.02f T/m/s' msg_gs '\n'], [gs mr.convert(gs,'Hz/m/s','T/m/s')]') };
+msg_ga='';
+if ~isempty(opt.system) && ga_abs > opt.system.maxGrad
+    msg_ga=' [EXCEEDED]';
+end
+msg_gs='';
+if ~isempty(opt.system) && gs_abs > opt.system.maxSlew
+    msg_gs=' [EXCEEDED]';
+end
 report = { report{:},...
-    sprintf('Max. Absolute Gradient: %.0f Hz/m == %.02f mT/m\n', [ga_abs mr.convert(ga_abs,'Hz/m','mT/m')]'),...
-    sprintf('Max. Absolute Slew Rate: %g Hz/m/s == %.02f T/m/s\n', [gs_abs mr.convert(gs_abs,'Hz/m/s','T/m/s')]') };
+    sprintf(['Max. Absolute Gradient: %.0f Hz/m == %.02f mT/m' msg_ga '\n'], [ga_abs mr.convert(ga_abs,'Hz/m','mT/m')]'),...
+    sprintf(['Max. Absolute Slew Rate: %g Hz/m/s == %.02f T/m/s' msg_gs '\n'], [gs_abs mr.convert(gs_abs,'Hz/m/s','T/m/s')]') };
 
 end
 

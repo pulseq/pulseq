@@ -29,7 +29,8 @@ rf_bwt=1.5;
 
 % Create 'alpha' degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(alpha*pi/180,'Duration',rf_dur*1e-6,...
-    'SliceThickness',thick*1e-3,'apodization',rf_apo,'timeBwProduct',rf_bwt,'system',sys);
+    'SliceThickness',thick*1e-3,'apodization',rf_apo,'timeBwProduct',rf_bwt,'system',sys,...
+    'use', 'excitation');
 
 % Define other gradients and ADC events
 deltak=1/fov;

@@ -1,15 +1,16 @@
-% this is an experimentaal high-performance EPI sequence
+% this is an experimental high-performance EPI sequence
 % which uses split gradients to overlap blips with the readout
 % gradients combined with ramp-samping
 
 % Set system limits
-sys = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
+system = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
     'MaxSlew',130,'SlewUnit','T/m/s',...
     'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6,...
-    'adcDeadTime', 10e-6, 'B0', 2.89 ... % this is Siemens' 3T
+    'adcDeadTime', 10e-6, 'B0', 2.89, ... % this is Siemens' 3T
+    'setAsDefault', true ... % new way of handing over the system parameters implicitly
 );  
 
-seq=mr.Sequence(sys);      % Create a new sequence object
+seq=mr.Sequence(system);      % Create a new sequence object
 fov=256e-3; Nx=64; Ny=Nx;  % Define FOV and resolution
 thickness=4e-3;            % slice thinckness in mm
 sliceGap=1e-3;             % slice gap im mm
@@ -22,14 +23,15 @@ partFourierFactor=1;       % partial Fourier factor: 1: full sampling 0: start w
 
 % Create fat-sat pulse 
 sat_ppm=-3.45;
-sat_freq=sat_ppm*1e-6*sys.B0*sys.gamma;
-rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,'dwell',10e-6,...
-    'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
-rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
-gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
+rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
+    'bandwidth',abs(sat_freq),'freqPPM',sat_ppm,'use','saturation');
+rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase    
+rf_fs.name='fat-sat'; % useful for debugging, can be seen in seq.plot
+gz_fs = mr.makeTrapezoid('z','delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
 % Create 90 degree slice selection pulse and gradient
-[rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',2e-3,...
+[rf, gz, gzReph] = mr.makeSincPulse(pi/2,'Duration',2e-3,...
     'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'use','excitation');
+rf.name='rf90'; % useful for debugging, can be seen in seq.plot
 
 % define the output trigger to play out with every slice excitatuion
 trig=mr.makeDigitalOutputPulse('osc0','duration', 100e-6); % possible channels: 'osc0','osc1','ext1'
@@ -39,9 +41,9 @@ deltak=1/fov;
 kWidth = Nx*deltak;
 
 % Phase blip in shortest possible time
-blip_dur = ceil(2*sqrt(deltak/sys.maxSlew)/10e-6/2)*10e-6*2; % we round-up the duration to 2x the gradient raster time
+blip_dur = ceil(2*sqrt(deltak/system.maxSlew)/10e-6/2)*10e-6*2; % we round-up the duration to 2x the gradient raster time
 % the split code below fails if this really makes a trpezoid instead of a triangle...
-gy = mr.makeTrapezoid('y',sys,'Area',-deltak,'Duration',blip_dur); % we use negative blips to save one k-space line on our way towards the k-space center
+gy = mr.makeTrapezoid('y','Area',-deltak,'Duration',blip_dur); % we use negative blips to save one k-space line on our way towards the k-space center
 %gy = mr.makeTrapezoid('y',lims,'amplitude',deltak/blip_dur*2,'riseTime',blip_dur/2, 'flatTime', 0);
 
 % readout gradient is a truncated trapezoid with dead times at the beginnig
@@ -49,12 +51,13 @@ gy = mr.makeTrapezoid('y',sys,'Area',-deltak,'Duration',blip_dur); % we use nega
 % the area between the blips should be defined by kWidth
 % we do a two-step calculation: we first increase the area assuming maximum
 % slewrate and then scale down the amlitude to fix the area 
-extra_area=blip_dur/2*blip_dur/2*sys.maxSlew; % check unit!;
-gx = mr.makeTrapezoid('x',sys,'Area',kWidth+extra_area,'duration',readoutTime+blip_dur);
+extra_area=blip_dur/2*blip_dur/2*system.maxSlew; % check unit!;
+gx = mr.makeTrapezoid('x','Area',kWidth+extra_area,'duration',readoutTime+blip_dur);
 actual_area=gx.area-gx.amplitude/gx.riseTime*blip_dur/2*blip_dur/2/2-gx.amplitude/gx.fallTime*blip_dur/2*blip_dur/2/2;
 gx.amplitude=gx.amplitude/actual_area*kWidth;
 gx.area = gx.amplitude*(gx.flatTime + gx.riseTime/2 + gx.fallTime/2);
 gx.flatArea = gx.amplitude*gx.flatTime;
+gx.name='Gro'; % useful for debugging, can be seen in seq.plot
 
 % calculate ADC
 % we use ramp sampling, so we have to calculate the dwell time and the
@@ -76,9 +79,9 @@ adc.delay=round((gx.riseTime+gx.flatTime/2-time_to_center)*1e6)*1e-6; % we adjus
 % FOV positioning requires alignment to grad. raster... -> TODO
 
 % split the blip into two halves and produce a combined synthetic gradient
-gy_parts = mr.splitGradientAt(gy, blip_dur/2, sys);
+gy_parts = mr.splitGradientAt(gy, blip_dur/2, system);
 [gy_blipup, gy_blipdown,~]=mr.align('right',gy_parts(1),'left',gy_parts(2),gx);
-gy_blipdownup=mr.addGradients({gy_blipdown, gy_blipup}, sys);
+gy_blipdownup=mr.addGradients({gy_blipdown, gy_blipup}, system);
 
 % pe_enable support
 gy_blipup.waveform=gy_blipup.waveform*pe_enable;
@@ -92,11 +95,11 @@ Ny_post=round(Ny/2+1); % PE lines after the k-space center including the central
 Ny_meas=Ny_pre+Ny_post;
 
 % Pre-phasing gradients
-gxPre = mr.makeTrapezoid('x',sys,'Area',-gx.area/2);
-gyPre = mr.makeTrapezoid('y',sys,'Area',Ny_pre*deltak);
+gxPre = mr.makeTrapezoid('x','Area',-gx.area/2);
+gyPre = mr.makeTrapezoid('y','Area',Ny_pre*deltak);
 [gxPre,gyPre,gzReph]=mr.align('right',gxPre,'left',gyPre,gzReph);
 % relax the PE prepahser to reduce stimulation
-gyPre = mr.makeTrapezoid('y',sys,'Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre,gzReph));
+gyPre = mr.makeTrapezoid('y','Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre,gzReph));
 gyPre.amplitude=gyPre.amplitude*pe_enable;
 
 % slice positions
@@ -137,7 +140,7 @@ end
 
 %% do some visualizations
 
-seq.plot();             % Plot all sequence waveforms
+seq.plot('stacked', 1);             % Plot all sequence waveforms in the new 'stacked' mode
 
 seq.plot('timeDisp','us','showBlocks',1,'timeRange',[0 25e-3]); %detailed view
 
@@ -169,6 +172,7 @@ title('slice position (vector components) as a function or time');
 %% prepare the sequence output for the scanner
 seq.setDefinition('Name', 'epi'); 
 seq.setDefinition('FOV', [fov fov max(slicePositions)-min(slicePositions)+thickness]);
+seq.setDefinition('ReceiverGainHigh',1);
 % the following definitions only have effect in conjunction with LABELs 
 %seq.setDefinition('SlicePositions', slicePositions);
 %seq.setDefinition('SliceThickness', thickness);
@@ -179,43 +183,12 @@ seq.write('epi_rs.seq');
 % seq.install('siemens');
 
 % seq.sound(); % simulate the seq's tone
-return;
 
-%% another manual pretty plot option for gradients
+%% another pretty plot option e.g. for publications
 
-lw=1;
-%gw=seq.gradient_waveforms();
-wave_data=seq.waveforms_and_times(true); % also export RF
-gwm=max(abs([wave_data{1:3}]'));
-rfm=max(abs([wave_data{4}]'));
-ofs=2.05*gwm(2);
+seq.paperPlot('blockRange',[1 41]);
 
-% plot "axes"
-figure; 
-axis_clr=[0.5,0.5,0.5];
-plot([-0.01*gwm(1),1.01*gwm(1)],[0 0]*ofs,'Color',axis_clr,'LineWidth',lw/5); hold on; 
-plot([-0.01*gwm(1),1.01*gwm(1)],[1 1]*ofs,'Color',axis_clr,'LineWidth',lw/5);
-plot([-0.01*gwm(1),1.01*gwm(1)],[2 2]*ofs,'Color',axis_clr,'LineWidth',lw/5);
-plot([-0.01*gwm(1),1.01*gwm(1)],[3 3]*ofs,'Color',axis_clr,'LineWidth',lw/5);
-
-% plot the RF waveform
-plot(wave_data{4}(1,:), abs(wave_data{4}(2,:))/rfm(2)*gwm(2)*0.75+3*ofs,'k','LineWidth',lw); 
-
-% plot the entire gradient waveforms
-plot(wave_data{3}(1,:), wave_data{3}(2,:)+2*ofs,'Color',[0,0.5,0.3],'LineWidth',lw); 
-plot(wave_data{2}(1,:), wave_data{2}(2,:)+1*ofs,'r','LineWidth',lw);
-plot(wave_data{1}(1,:), wave_data{1}(2,:),'b','LineWidth',lw);
-t_adc_gr=t_adc+0.5*seq.gradRasterTime; % we have to shift the time axis because it is otherwise adpted to the k-space, which is a one-sided integration of the trajectory
-gwr_adc=interp1(wave_data{1}(1,:), wave_data{1}(2,:),t_adc_gr);
-plot(t_adc_gr,gwr_adc,'b.','MarkerSize',5*lw); % and sampling points on the kx-axis
-
-xlim([-0.03*gwm(1),1.03*gwm(1)]);
-
-set(gca,'xtick',[]);
-set(gca,'xticklabel',[]);
-set(gca,'ytick',[]);
-set(gca,'yticklabel',[]);
-
+return
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits  
 
 rep = seq.testReport; 

@@ -1,5 +1,8 @@
 #!/bin/bash
+# this script is out-of-date, use 'make html' instead
+# see also README.md for instructions 
 
+test -d html || mkdir html
 cp -r seqs/* html/
 cp -r recon/* html/
 cp matlab.css html/
@@ -8,3 +11,5 @@ cp images/overview.png html/
 cp images/gre.png html/
 cp images/demoRead_03.png html/
 doxygen doxy.conf.in
+mogrify -gamma 1.7 html/tab_?.png
+

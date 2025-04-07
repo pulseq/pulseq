@@ -35,8 +35,9 @@ ax.n3=strfind('xyz',ax.d3);
 %%
 
 % Create alpha-degree hard pulse and gradient
-rf = mr.makeBlockPulse(alpha*pi/180,sys,'Duration',rfLen);
-rf180 = mr.makeAdiabaticPulse('hypsec',sys,'Duration',10.24e-3,'dwell',1e-5);
+rf = mr.makeBlockPulse(alpha*pi/180,sys,'Duration',rfLen, 'use', 'excitation');
+rf180 = mr.makeAdiabaticPulse('hypsec',sys,'Duration',10.24e-3,'dwell',1e-5,...
+    'use', 'inversion');
 
 % Define other gradients and ADC events
 deltak=1./fov;
@@ -87,7 +88,7 @@ lblIncPar.id=seq.registerLabelEvent(lblIncPar);
 tic;
 for j=1:N(ax.n3)
     seq.addBlock(rf180);
-    seq.addBlock(mr.makeDelay(TIdelay),gslSp);
+    seq.addBlock(TIdelay,gslSp);
     rf_phase=0;
     rf_inc=0;
     % pre-register the PE gradients that repeat in the inner loop
@@ -124,12 +125,13 @@ else
 end
 
 %% plot, etc
-seq.plot('TimeRange',[0 TRout*2], 'label', 'par,lin');
-
+% seq.plot('TimeRange',[0 TRout*2], 'label', 'par,lin');
+seq.plot('TimeRange',[0 TRout*2], 'stacked',1);
 %%
 seq.setDefinition('FOV', fov);
 seq.setDefinition('Name', 'mprage');
 seq.setDefinition('OrientationMapping', 'SAG'); % only when programming in saggital orientation
+seq.setDefinition('ReceiverGainHigh',1);
 
 seq.write('mprage.seq')       % Write to pulseq file
 %seq.install('siemens');

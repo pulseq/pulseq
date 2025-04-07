@@ -9,7 +9,7 @@ sys = mr.opts('MaxGrad',32,'GradUnit','mT/m',...
     'MaxSlew',130,'SlewUnit','T/m/s',...
     'rfRingdownTime', 30e-6, 'rfDeadtime', 100e-6,...
     'adcDeadTime', 10e-6, 'B0', 2.89 ... % this is Siemens' 3T
-) ;  
+) ;
 
 seq = mr.Sequence(sys) ;      % Create a new sequence object
 fov = 220e-3 ; Nx = 64 ; Ny = Nx ;  % Define FOV and resolution
@@ -20,22 +20,12 @@ Nrep = 200 ;
 TR = 2 ;
 pe_enable = 1 ;               % a flag to quickly disable phase encoding (1/0) as needed for the delay calibration
 ro_os = 2 ;                   % oversampling factor (in contrast to the product sequence we don't really need it)
-% scanner = 'prisma' ;
-%if (scanner(1) == 'c' || scanner(1) == 'C') % cimax
- %   readoutTime=580e-6 ;%seq4.2e-4;        % this controls the readout bandwidth
-%elseif (scanner(1) == 'p' || scanner(1) == 'P') % prisma
-%readoutTime=580e-6 ;
-%elseif (scanner(1) == 't' || scanner(1) == 'T') % trio
-%    readoutTime=580e-6 ;
-%else
 readoutTime = 520e-6;%770e-6 ; % default value
-%    disp('no scanner selected, use default value of readout time!') ;
-%end
 
 readoutBW = 1/readoutTime ; % readout bandwidth
 disp(['Readout bandwidth = ', num2str(readoutBW), ' Hz/Px']) ;
-partFourierFactor = 1 ;       % partial Fourier factor: 1: full sampling 0: start with ky=0
-Navigator = 3 ;		   % navigator echoes for ghost supprerssion
+partFourierFactor=1;       % partial Fourier factor: 1: full sampling 0: start with ky=0
+Nnav=3;		   % navigator echoes for ghost supprerssion
 
 % Create fat-sat pulse 
 sat_ppm=-3.45;
@@ -77,6 +67,7 @@ actual_area=gx.area-gx.amplitude/gx.riseTime*blip_dur/2*blip_dur/2/2-gx.amplitud
 gx.amplitude=gx.amplitude/actual_area*kWidth; % rescale amplitude to make sampled area = kWidth
 gx.area = gx.amplitude*(gx.flatTime + gx.riseTime/2 + gx.fallTime/2); % udpate parameters relative to amplitude
 gx.flatArea = gx.amplitude*gx.flatTime;
+assert(gx.amplitude<=sys.maxGrad);
 ESP = 1e3 * mr.calcDuration(gx) ; % echo spacing, ms
 disp(['echo spacing = ', num2str(ESP), ' ms']) ;
 % calculate ADC
@@ -128,35 +119,43 @@ gyPre = mr.makeTrapezoid('y',sys,'Area',Ny_pre*deltak);
 gyPre = mr.makeTrapezoid('y',sys,'Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre,gzReph));
 gyPre.amplitude=gyPre.amplitude*pe_enable;
 
+spoilDur = 2e-3 ;
+spAx = 2000 ;
+spAz = 2000 ;
+gxSpoil = mr.makeTrapezoid('x','Area', spAx, 'Duration', spoilDur,'system', sys) ;
+gzSpoil = mr.makeTrapezoid('z','Area', spAz, 'Duration', spoilDur,'system', sys) ;
+gyPost_area = gyPre.area + (gy_blipup.area + gy_blipdown.area )* Ny_meas ;
+gyPost = mr.makeTrapezoid('y', sys, 'Area', -gyPost_area, 'Duration', spoilDur) ;
+
 % slice positions
 slicePositions=(thickness+sliceGap)*((0:(Nslices-1)) - (Nslices-1)/2);
 slicePositions=slicePositions([1:2:Nslices 2:2:Nslices]); % reorder slices for an interleaved acquisition (optional)
 %slicePositions=slicePositions([1:3:Nslices 2:3:Nslices 3:3:Nslices]); % reorder slices for an interleaved acquisition (optional)
 % Define sequence blocks
 TR_1slice = mr.calcDuration(gz_fs) + mr.calcDuration(gz) + mr.calcDuration(gzReph)+...
-    Navigator*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
+    Nnav*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
     Ny_meas*mr.calcDuration(gx) ;
 TRdelay = TR - TR_1slice * Nslices ;
 TRdelay_perSlice = ceil(TRdelay / Nslices / sys.blockDurationRaster) * sys.blockDurationRaster ;
-assert(TRdelay_perSlice>=0 ) ;
+TRdelay_perSlice = TRdelay_perSlice - spoilDur ;
+assert(TRdelay_perSlice>= 0 ) ;
 
 TE = rf.shape_dur/2 + rf.ringdownTime + mr.calcDuration(gzReph)+...
-    Navigator*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
+    Nnav*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
     Ny_meas/2*mr.calcDuration(gx) - mr.calcDuration(gx)/2;
 disp(['TR = ', num2str(TR), ' s', ', TE = ', num2str(1000*TE), ' ms']) ;
-% if (scanner(1) == 't' || scanner(1) == 'T') % trio
-%     seq.addBlock(mr.makeDelay(1)) ; % older scanners like Trio may need this % dummy delay to keep up with timing
-% end
-
 % change orientation to match the siemens product sequence
 % reverse the polarity of all gradients in readout direction (Gx)
-%gxPre.amplitude = -gxPre.amplitude ;
-%gx.amplitude = -gx.amplitude ;
+gxPre = mr.scaleGrad(gxPre, -1) ;
+gx = mr.scaleGrad(gx, -1) ;
+gxSpoil = mr.scaleGrad(gxSpoil, -1) ;
 % reverse the polarity of all gradients in slice encoding direction (Gz)?
 % gz_fs.amplitude = -gz_fs.amplitude ;
 % gz.amplitude = -gz.amplitude ;
+% initial readout gradient polarity
+ROpolarity = sign(gx.amplitude) ;
 tic ;
-seq.addBlock(mr.makeLabel('SET','REP', 0)) ;
+% seq.addBlock(mr.makeLabel('SET','REP', 0)) ;
 for r=1:Nrep
     disp(['current repetition = ', num2str(r), '/', num2str(Nrep)]) ;
     seq.addBlock(mr.makeLabel('SET', 'SLC', 0) ) ;
@@ -165,19 +164,22 @@ for r=1:Nrep
         rf.freqOffset=gz.amplitude*slicePositions(s);
         rf.phaseOffset=-2*pi*rf.freqOffset*mr.calcRfCenter(rf); % compensate for the slice-offset induced phase
         seq.addBlock(rf,gz,trig);
-        if Navigator>0
+        if Nnav>0
+            gxPre = mr.scaleGrad(gxPre, -1) ; % reverse the readout gradient in advance for navigator
+            gx = mr.scaleGrad(gx, -1) ; % reverse the readout gradient in advance for navigator
             seq.addBlock(gxPre,gzReph, ...
                 mr.makeLabel('SET','NAV',1),...
                 mr.makeLabel('SET','LIN', floor(Ny/2))) ; % k-space center line
-            for n=1:Navigator
-                seq.addBlock(gx,adc, ...
-                    mr.makeLabel('SET','REV', gx.amplitude>0), ...
-                    mr.makeLabel('SET','SEG', gx.amplitude<0), ...
-                    mr.makeLabel('SET','AVG', floor(n/2)));
-                gx.amplitude = -gx.amplitude ;   % Reverse polarity of read gradient
+            gxPre = mr.scaleGrad(gxPre, -1) ; % reverse the gxPre back after addBlock
+            for n=1:Nnav
+                seq.addBlock(mr.makeLabel('SET','REV', sign(gx.amplitude) ~= ROpolarity ), ...
+                    mr.makeLabel('SET','SEG', sign(gx.amplitude) ~= ROpolarity ), ...
+                    mr.makeLabel('SET','AVG', n==Nnav ) ) ;
+                seq.addBlock(gx, adc);
+                gx = mr.scaleGrad(gx, -1) ;   % Reverse polarity of read gradient
             end
             seq.addBlock(gyPre,  ...
-                mr.makeLabel('SET','LIN', -1), ...
+                mr.makeLabel('SET','LIN', -1), ... % increment LIN by -1 for "llin" performs before adc below
                 mr.makeLabel('SET','NAV', 0), ...
                 mr.makeLabel('SET','AVG', 0) );% lin/nav/avg reset
         else
@@ -187,10 +189,10 @@ for r=1:Nrep
                 mr.makeLabel('SET','AVG', 0) );% lin/nav/avg reset
         end
 
-        for i=1:Ny_meas
-            lrev=mr.makeLabel('SET','REV', gx.amplitude>0 ) ;
-            lseg=mr.makeLabel('SET','SEG', gx.amplitude<0 ) ;
-            llin=mr.makeLabel('INC','LIN', 1) ;
+        for i = 1:Ny_meas
+            lrev = mr.makeLabel('SET', 'REV', sign(gx.amplitude) ~= ROpolarity ) ;
+            lseg = mr.makeLabel('SET', 'SEG', sign(gx.amplitude) ~= ROpolarity ) ;
+            llin = mr.makeLabel('INC', 'LIN', 1) ;
             if i==1 % first phase encoding step
                 seq.addBlock(gx, gy_blipup, adc, lrev, lseg, llin) ; % Read the first line of k-space with a single half-blip at the end
             elseif i==Ny_meas % last phase encoding step
@@ -198,12 +200,13 @@ for r=1:Nrep
             else % phase encoding steps in between
                 seq.addBlock(gx, gy_blipdownup, adc, lrev, lseg, llin) ; % Read an intermediate line of k-space with a half-blip at the beginning and a half-blip at the end
             end
-    	    gx.amplitude = -gx.amplitude ;   % Reverse polarity of read gradient
+    	    gx = mr.scaleGrad(gx, -1) ;   % Reverse polarity of read gradient
         end
         seq.addBlock(mr.makeLabel('INC','SLC', 1)) ;
-        if rem(Navigator+Ny_meas,2)~=0 % if the polarity of gx is not the same as original one
-            gx.amplitude = -gx.amplitude;
+        if sign(gx.amplitude) ~= ROpolarity % if the polarity of gx is not the same as original one
+            gx = mr.scaleGrad(gx, -1) ;
         end
+        seq.addBlock(gxSpoil, gyPost, gzSpoil) ;
        seq.addBlock(mr.makeDelay(TRdelay_perSlice)) ;
     end
     seq.addBlock(mr.makeLabel('INC','REP', 1)) ;
@@ -222,8 +225,8 @@ else
 end
 end
 
-% %% do some visualizations
-% 
+%% do some visualizations
+
 % seq.plot('Label', 'SEG,LIN,SLC');             % Plot all sequence waveforms
 % 
 % seq.plot('timeDisp','us','showBlocks',1,'timeRange',[0 25e-3]); %detailed view
@@ -349,3 +352,45 @@ for caz_add=0:5:359
     % to create a GIF movie
 end
 
+%% plot RF excitation
+close all ;
+[rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',2e-3,...
+    'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'use','excitation');
+
+figure ;
+plot(rf.delay * 1e3 + rf.t * 1e3, abs(rf.signal),'b') ;
+hold on ;
+x1 = 1e3 * [0 gz.riseTime] ;
+y1 = [0 gz.amplitude] / 1e3 ; % [Hz/m]
+line(x1, y1,'Color', 'red') ;
+x2 = 1e3 * [gz.riseTime gz.riseTime+gz.flatTime] ;
+y2 = [gz.amplitude gz.amplitude] / 1e3 ;
+line(x2, y2,'Color', 'red') ;
+x3 = 1e3 * [gz.riseTime+gz.flatTime gz.riseTime+gz.flatTime+gz.fallTime] ;
+y3 = [gz.amplitude 0] / 1e3 ;
+line(x3, y3,'Color', 'red') ;
+x4 = 1e3 * [gz.riseTime+gz.flatTime+gz.fallTime gz.riseTime+gz.flatTime+gz.fallTime+gzReph.riseTime] ;
+y4 = [0 gzReph.amplitude] / 1e3 ;
+line(x4, y4,'Color', 'red') ;
+x5 = 1e3 * [gz.riseTime+gz.flatTime+gz.fallTime+gzReph.riseTime gz.riseTime+gz.flatTime+gz.fallTime+gzReph.riseTime+gzReph.flatTime] ;
+y5 = [gzReph.amplitude gzReph.amplitude] / 1e3 ;
+line(x5, y5,'Color', 'red') ;
+x6 = 1e3 * [gz.riseTime+gz.flatTime+gz.fallTime+gzReph.riseTime+gzReph.flatTime gz.riseTime+gz.flatTime+gz.fallTime+gzReph.riseTime+gzReph.flatTime+gzReph.fallTime] ;
+y6 = [gzReph.amplitude 0] / 1e3 ;
+line(x6, y6,'Color', 'red') ;
+legend('rf', 'gz/1000') ;
+xlabel('time (ms)') ;
+ylabel('amplitude') ;
+rf_freqOffset = fftshift(fft(rf.signal)) ; % [Hz]
+rf_distOffset = abs(rf_freqOffset) / gz.amplitude ; % [m]
+rf_distance = 1e2 * (1:size(rf_freqOffset,2)) / gz.amplitude ;
+figure ;
+hold on ;
+for s=1:1
+    rf.freqOffset=gz.amplitude*slicePositions(s);
+    rf_freqOffset = rf_freqOffset + rf.freqOffset ;
+    plot(rf_distance, abs(rf_freqOffset), 'r') ;
+    hold on ;
+end
+xlabel('distance (cm)') ;
+ylabel('abs(rf_fft)') ;
