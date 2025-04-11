@@ -44,11 +44,12 @@ kzs_1=kzs_1-max(kzs_1);
 rfs_1=diff([0 interp1(kzs_0,cumsum(rf.signal),kzs_1)]);
 figure; plot(kzs_1, abs(rfs_1),'r.');
 hold; plot(kzs_0, abs(rf.signal),'b-');
-rf.t=rft_1;
-rf.shape_dur=length(rfs_1)*sys.rfRasterTime;
+rf.t=rft_1(1:end-1); % remove the 0 at the end
+rf.signal=rfs_1(1:end-1); % remove the 0 at the end
+rf.shape_dur=length(rf.signal)*sys.rfRasterTime;
 gz.flatTime=ceil((gz.flatTime-gz.fallTime*0.5)/sys.gradRasterTime)*sys.gradRasterTime;
 rf.delay=mr.calcDuration(rf,gz)-rf.shape_dur; % fix the possible time shift due to the rounding-up step above
-rf.signal=rfs_1;
+rf.center=rf.t(end); % or rf.shape_dur?
 
 % Align RO assymmetry to ADC samples
 Nxo=round(ro_os*Nx);

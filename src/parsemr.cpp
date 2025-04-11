@@ -223,7 +223,7 @@ int main(int argc, char** argv)
                         break;
                 }
             }*/
-            llTotalDuration += pBlock->GetDuration();
+            llTotalDuration += int(0.5+pBlock->GetDuration());
 
             // free up the memory
             delete pBlock;

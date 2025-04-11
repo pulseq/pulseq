@@ -571,6 +571,8 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						nKnownID=EXT_LABELINC;
 					else if (0==strcmp("DELAYS",szStrID))
 						nKnownID=EXT_DELAY;
+					else if (0==strcmp("RF_SHIMS",szStrID))
+						nKnownID=EXT_RF_SHIM;
 					if (nKnownID!=EXT_UNKNOWN)
 						m_extensionNameIDs[nInternalID]=std::make_pair(std::string(szStrID),nKnownID);
 					else {
@@ -584,6 +586,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 					TriggerEvent trigger;
 					RotationEvent rotation;
 					SoftDelayEvent delay;
+                    RfShimmingEvent rfShim;
 					int  nVal;					   // read label set/inc values from label set/inc extension
 					int  nRet;                     // conversion result / return value
 					char szLabelID[MAX_LINE_SIZE]; // read labels strings from label set/inc extension
@@ -658,8 +661,43 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 								m_softDelayLibrary[nID] = delay;
 							}
 							break;
+                        case EXT_RF_SHIM:
+                            {
+								int nPos=0; 
+								if (2!= sscanf(buffer, "%d%d%n", &rfShim.id, &(rfShim.nchan), &(nPos)))
+                                {
+                                    print_msg(
+                                        ERROR_MSG,
+                                        std::ostringstream().flush() << "*** ERROR: failed to decode RF shim event\n"
+                                                                     << buffer << std::endl);
+                                    return false;
+                                }
+								print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "decoded initial part of the RF shim event, id:" << rfShim.id << " nChan:" << rfShim.nchan << " curren position:" << nPos);
+								rfShim.amplitudes.reserve(rfShim.nchan);
+								rfShim.phases.reserve(rfShim.nchan);
+								int n=nPos;
+								for (int i=0;i<rfShim.nchan; ++i) 
+								{
+									float fa,fp;
+									if (2!= sscanf(buffer+n, "%f%f%n", &(fa), &(fp), &(nPos)))
+									{
+										print_msg(
+											ERROR_MSG,
+											std::ostringstream().flush() << "*** ERROR: failed to decode RF shim event for channel " << i << " in\n"
+																		 << buffer << std::endl);
+										return false;
+									}
+									print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "decoded a further part of the RF shim event, fa:" << fa << " fp:" << fp << " curren position:" << n+nPos);
+									rfShim.amplitudes.push_back(fa);
+									rfShim.phases.push_back(fp);								
+									n+=nPos;
+								}
+								print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "finished decoding RF shim event");
+                                m_rfShimLibrary[rfShim.id] = rfShim;
+                            }
+                            break;
 						case EXT_UNKNOWN:
-							print_msg(WARNING_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
+							print_msg(WARNING_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode unknown extension event\n" << buffer << std::endl );
 							break; // just ignore unknown extensions
 					}
 				}
@@ -1108,6 +1146,8 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 	block->labelinc.clear();
 	block->softDelay.numID=-1;
 	block->actualSoftDelay_ru=-1;
+	block->rfShim.nchan=-1;
+	block->rfShim.id=0;
 	// Set event structures (if applicable) so e.g. gradient type can be determined
 	if (events.id[RF]>0)     block->rf      = m_rfLibrary[events.id[RF]];
 	if (events.id[ADC]>0)    block->adc     = m_adcLibrary[events.id[ADC]];
@@ -1164,6 +1204,15 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 						else {
 							// ok, lets find the soft delay in the library
 							block->softDelay=m_softDelayLibrary[itEL->second.ref]; // do we have to check whether it can be found?
+						}
+						break;
+					case EXT_RF_SHIM:
+						if (block->rfShim.nchan>0) {
+							print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: only one soft delay per block is supported; error block: " << index );
+						}
+						else {
+							// ok, lets find the RF shim event in the library
+							block->rfShim=m_rfShimLibrary[itEL->second.ref]; // do we have to check whether it can be found?
 						}
 						break;
 					default:
@@ -1667,6 +1716,19 @@ int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, L
 	}
 }
 
+std::string ExternalSequence::getCounterIdAsString(int nID) {
+	std::map<int,std::string>::iterator it = m_labelMap.mapLabelIdToStr.find(nID);
+	if (it==m_labelMap.mapLabelIdToStr.end())
+		return "";
+	return it->second;
+}
+
+std::string ExternalSequence::getFlagIdAsString(int nID) {
+	std::map<int,std::string>::iterator it = m_labelMap.mapFlagIdToStr.find(nID);
+	if (it==m_labelMap.mapFlagIdToStr.end())
+		return "";
+	return it->second;
+}
 bool ExternalSequence::isGradientInBlockStartAtNonZero(SeqBlock *block, int channel) {
 	if (!block->isExtTrapGradient(channel) && !block->isArbitraryGradient(channel)) {
 		//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "isGradientInBlockStartAtNonZero() returns FALSE because there is no arb grad in channel " << channel);
@@ -1885,7 +1947,8 @@ bool LabelStateAndBookkeeping::checkLabelValuesADC()
 }
 
 // some older compilers (or environments) do not know vec.cbegin()...
-#if defined(VXWORKS) || (defined(_MSC_VER) && _MSC_VER<=1600) || (defined(__GNUC__) && (__GNUC__<4 || (__GNUC__==4 && __GNUC_MINOR__<=6)))
+// ve12u has GCC version 5.3, but still no cbegin() and cend(), so checking for versions doenät bring us there, therefor an uglz combo at the end...
+#if defined(VXWORKS) || (defined(_MSC_VER) && _MSC_VER<=1600) || (defined(__GNUC__) && (__GNUC__<4 || (__GNUC__==4 && __GNUC_MINOR__<=6))) || !defined(COMPAT_nX)
 #define cbegin begin
 #define cend end 
 #endif //VXWORKS //_MSC_VER //__GNUC__
@@ -1918,8 +1981,9 @@ void LabelStateAndBookkeeping::updateBookkeepingRecordsADC()
 					if (m_MinMaxLabelBookkeepingADC.flagValMax[id] < m_currLabelValueStorage.flag.val[id])
 						m_MinMaxLabelBookkeepingADC.flagValMax[id] = m_currLabelValueStorage.flag.val[id];
 				}
-				else // QC: otherwise, set the min and & max to the current value and set the flag up. 2025.01.31
+				else // QC: otherwise, set the min & max to the current value and set the flag up. 2025.01.31
 				{
+					ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "initializing bookkeeping for flag " << id << " with " << m_currLabelValueStorage.flag.val[id]);
 					m_MinMaxLabelBookkeepingADC.flagValMin[id]       = m_currLabelValueStorage.flag.val[id];
 					m_MinMaxLabelBookkeepingADC.flagValMax[id]       = m_currLabelValueStorage.flag.val[id];
 					m_MinMaxLabelBookkeepingADC.bFlagMinMaxValid[id] = true;
@@ -1939,6 +2003,7 @@ void LabelStateAndBookkeeping::updateBookkeepingRecordsADC()
 				}
 				else
 				{
+					ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "initializing bookkeeping for counter " << id << " with " << m_currLabelValueStorage.num.val[id]);
 					m_MinMaxLabelBookkeepingADC.numValMin[id]       = m_currLabelValueStorage.num.val[id];
 					m_MinMaxLabelBookkeepingADC.numValMax[id]       = m_currLabelValueStorage.num.val[id];
 					m_MinMaxLabelBookkeepingADC.bNumMinMaxValid[id] = true;

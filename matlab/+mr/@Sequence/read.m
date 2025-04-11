@@ -160,15 +160,19 @@ while true
                 elseif strncmp('LABELSET', extension, 8) 
                     id=str2num(extension(9:end));
                     obj.setExtensionStringAndID('LABELSET',id);
-                    obj.labelsetLibrary = readAndParseEvents(fid,@str2num,@(s)find(strcmp(mr.getSupportedLabels,s)));
+                    obj.labelsetLibrary = readAndParseEvents(fid,[],@str2num,@(s)find(strcmp(mr.getSupportedLabels,s)));
                 elseif strncmp('LABELINC', extension, 8) 
                     id=str2num(extension(9:end));
                     obj.setExtensionStringAndID('LABELINC',id);
-                    obj.labelincLibrary = readAndParseEvents(fid,@str2num,@(s)find(strcmp(mr.getSupportedLabels,s)));
+                    obj.labelincLibrary = readAndParseEvents(fid,[],@str2num,@(s)find(strcmp(mr.getSupportedLabels,s)));
                 elseif strncmp('DELAYS', extension, 6) 
                     id=str2num(extension(7:end));
                     obj.setExtensionStringAndID('DELAYS',id);
-                    obj.softDelayLibrary = readAndParseEvents(fid,@str2num,@(s) 1e-6*str2num(s),@str2num,@(s) parseSoftDelayHint(s, obj));
+                    obj.softDelayLibrary = readAndParseEvents(fid,[],@str2num,@(s) 1e-6*str2num(s),@str2num,@(s) parseSoftDelayHint(s, obj));
+                elseif strncmp('RF_SHIMS', extension, 8) 
+                    id=str2num(extension(9:end));
+                    obj.setExtensionStringAndID('RF_SHIMS',id);
+                    obj.rfShimLibrary = readAndParseEvents(fid,@preprocRfShimData);
                 else
                     warning('Ignoring unknown extension, input string: %s', extension);
                     exts=regexp(extension, '(\s+)','split');                    
@@ -573,16 +577,21 @@ return
         end
     end
 
-    function eventLibrary = readAndParseEvents(fid, varargin)
+    function eventLibrary = readAndParseEvents(fid, preproc, varargin)
         %readAndParseEvents Read an event section of a sequence file.
         %   library=readAndParseEvents(fid) Read event data from file 
-        %   identifier of an open MR sequence file and return a library of 
+        %   identifier of an open MR sequence file and return a library of
         %   events.
         %
-        %   library=readAndParseEvents(fid,parser1,parser2,...) Read event  
+        %   library=readAndParseEvents(fid,[],parser1,parser2,...) Read event  
         %   data and convert the elements using to the provided parser. 
         %   Default parser is str2num()
         %
+        %   library=readAndParseEvents(fid,preproc,...) Read event data
+        %   from file and apply the preproc() to the acquired data
+        %   line-by-line prior to adding them to the event library 
+        %
+        
         eventLibrary = mr.EventLibrary();
         line = fgetl(fid);
         while ischar(line) && ~(isempty(line) || line(1) == '#')
@@ -590,13 +599,18 @@ return
             data=zeros(1,length(datas)-1);
             id = str2num(datas{1});
             for i=2:length(datas)
-                if i>nargin
+                if i>nargin-1
                     data(i-1) = str2num(datas{i});
                 else
                     data(i-1) = varargin{i-1}(datas{i});
                 end
             end
-            eventLibrary.insert(id, data);
+
+            if ~exist('preproc','var') || isempty(preproc)
+                eventLibrary.insert(id, data);
+            else
+                eventLibrary.insert(id, preproc(data));
+            end
 
             line=fgetl(fid);
         end
@@ -684,6 +698,13 @@ return
             seq.softDelayHints1(s)=id;
             seq.softDelayHints2{id}=s;
         end
+    end
+
+    function data_out=preprocRfShimData(data)
+        if length(data)~=data(1)*2+1
+            error('Error reading RF shim extension data');
+        end
+        data_out=data(2:end);
     end
     
     % for compatibility with Octave which has no strip()

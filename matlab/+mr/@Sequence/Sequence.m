@@ -53,6 +53,7 @@ classdef Sequence < handle
         labelincLibrary;  % Library of Label(inc) events ( reference from the extensions library )
         extensionLibrary; % Library of extension events. Extension events form single-linked zero-terminated lists
         shapeLibrary;     % Library of compressed shapes
+        rfShimLibrary;    % Library of RF shimming events
         softDelayLibrary; % Library of 'soft delay' extension events.
         softDelayHints1;  % Map of string hints that are the part of the 'soft delay' extension objects
         softDelayHints2;  % cell array of string hints that are the part of the 'soft delay' extension objects
@@ -85,6 +86,7 @@ classdef Sequence < handle
             obj.trigLibrary = mr.EventLibrary();
             obj.labelsetLibrary = mr.EventLibrary();
             obj.labelincLibrary = mr.EventLibrary();
+            obj.rfShimLibrary = mr.EventLibrary();
             obj.extensionLibrary = mr.EventLibrary();
             obj.extensionStringIDs={};
             obj.extensionNumericIDs=[];
@@ -723,6 +725,14 @@ classdef Sequence < handle
             id = obj.softDelayLibrary.find_or_insert(data);
         end
 
+        function id=registerRfShimEvent(obj, event)
+            % registerRfShimEvent : Add the event to the libraries (object,
+            % shapes, etc and return the event's ID. This ID should be 
+            % stored in the object to accelerate addBlock()            
+            data = [abs(event.shimVector);angle(event.shimVector)];
+            id = obj.rfShimLibrary.find_or_insert(data(:)');
+        end
+
         %TODO: Replacing blocks in the middle of sequence can cause unused
         %events in the libraries. These can be detected and pruned.
         function setBlock(obj, index, varargin)
@@ -863,15 +873,28 @@ classdef Sequence < handle
                                 extensions=[extensions ext];
                             end
                         case 'softDelay'
-                            if isfield(event,'id')
+                            for e=event % allow multiple extensions as an array
+                                if isfield(e,'id')
+                                    id=e.id;
+                                else
+                                    id=obj.registerSoftDelayEvent(e);
+                                end
+                                % collect the list of extension objects and
+                                % add it to the event table later
+                                % ext=struct('type', 1, 'ref', id);
+                                ext=struct('type', obj.getExtensionTypeID('DELAYS'), 'ref', id);
+                                extensions=[extensions ext];
+                            end
+                        case 'rfShim'
+                            if isfield(event,'id') % this is an array if we have a loop?
                                 id=event.id;
                             else
-                                id=obj.registerSoftDelayEvent(event);
+                                id=obj.registerRfShimEvent(event);
                             end
                             % collect the list of extension objects and
                             % add it to the event table later
                             % ext=struct('type', 1, 'ref', id);
-                            ext=struct('type', obj.getExtensionTypeID('DELAYS'), 'ref', id);
+                            ext=struct('type', obj.getExtensionTypeID('RF_SHIMS'), 'ref', id);
                             extensions=[extensions ext];
                         otherwise
                             error('Attempting to add an unknown event to the block.');
@@ -1141,6 +1164,19 @@ classdef Sequence < handle
                         block.label(i) = label;
                     end
                 end
+                % unpack RF shim
+                rf_shim_ext=raw_block.ext(:,raw_block.ext(1,:)==obj.getExtensionTypeID('RF_SHIMS'));
+                if ~isempty(rf_shim_ext)
+                    if size(rf_shim_ext,2)>1
+                        error('Only one RF shim extension object per block is allowed');
+                    end
+                    data = obj.rfShimLibrary.data(rf_shim_ext(2,1)).array;
+                    if addIDs
+                        block.rfShim=struct('type','rfShim','shimVector',data(1:2:end).*exp(1i*2*pi*data(2:2:end)),'id',rf_shim_ext(2,1));
+                    else
+                        block.rfShim=struct('type','rfShim','shimVector',data(1:2:end).*exp(1i*2*pi*data(2:2:end)));
+                    end
+                end
                 % unpack delay
                 delay_ext=raw_block.ext(:,raw_block.ext(1,:)==obj.getExtensionTypeID('DELAYS'));
                 if ~isempty(delay_ext)
@@ -1159,6 +1195,7 @@ classdef Sequence < handle
                         if raw_block.ext(1,i)~=obj.getExtensionTypeID('TRIGGERS') && ...
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET') && ...
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET') && ...
+                           raw_block.ext(1,i)~=obj.getExtensionTypeID('RF_SHIMS') && ...
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('DELAYS')
                             warning('unknown extension ID %d', raw_block.ext(1,i));
                         end
@@ -1185,6 +1222,7 @@ classdef Sequence < handle
                 if ~isempty(gid)
                     type = obj.gradLibrary.type(gid);
                     libData = obj.gradLibrary.data(gid).array;
+                    grad=struct();
                     if type == 't'
                         grad.type = 'trap';
                     else
@@ -1212,12 +1250,14 @@ classdef Sequence < handle
                             grad.tt = ((1:length(g))-0.5)'*obj.gradRasterTime; % TODO: evetually we may remove these true-times
                             t_end=length(g)*obj.gradRasterTime;
                             %grad.t = (0:length(g)-1)'*obj.gradRasterTime;
+                            grad.area=sum(grad.waveform)*obj.gradRasterTime;
                         elseif (timeId==-1)
                             % gradient with oversampling by a factor of 2
                             grad.tt = ((1:length(g)))'/2*obj.gradRasterTime; 
                             assert(length(grad.tt)==length(grad.waveform));
                             assert(mod(length(g),2)==1);
                             t_end=(length(g)+1)/2*obj.gradRasterTime;
+                            grad.area=sum(grad.waveform(1:2:end))*obj.gradRasterTime; % remove oversampling
                         else
                             tShapeData = obj.shapeLibrary.data(timeId).array;
                             compressed.num_samples = tShapeData(1);
@@ -1230,6 +1270,7 @@ classdef Sequence < handle
                             end
                             assert(length(grad.waveform) == length(grad.tt));
                             t_end=grad.tt(end);
+                            grad.area=0.5*sum((grad.tt(2:end)-grad.tt(1:end-1)).*(grad.waveform(2:end)+grad.waveform(1:end-1)));
                         end
                         grad.shape_id=shapeId; % needed for the second pass of read()
                         grad.time_id=timeId; % needed for the second pass of read()
