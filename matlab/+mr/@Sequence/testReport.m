@@ -39,7 +39,9 @@ flipAnglesDeg=unique(flipAnglesDeg);
 [ktraj_adc, t_adc, ~, ~, t_excitation, ~] = obj.calculateKspacePP('externalWaveformsAndTimes',wnt);
 
 % remove all ADC events that come before the first RF event (noise scans or alike)
-t_adc = t_adc(t_adc > t_excitation(1));
+if ~isempty(t_excitation)
+    t_adc = t_adc(t_adc > t_excitation(1));
+end
 
 % trajectory calculation will fail for spin-echoes if seq is loaded from a 
 % file for the current file format revision (1.2.0) because we do not store 
