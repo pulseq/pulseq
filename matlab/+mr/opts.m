@@ -76,7 +76,7 @@ opt = parser.Results;
 if isempty(opt.maxB1)
     maxB1 = defaultOpts.maxB1;
 else
-    maxGrad = mr.convert(opt.maxB1,opt.b1Unit,'Hz','gamma',opt.gamma);
+    maxB1 = mr.convert(opt.maxB1,opt.b1Unit,'Hz','gamma',opt.gamma);
 end
 if isempty(opt.maxGrad)
     maxGrad = defaultOpts.maxGrad;
