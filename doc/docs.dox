@@ -9,7 +9,7 @@ The <a href="specification.pdf">`specification`</a> specpecification contains a 
 
 ## Pulseq Times and Shapes
 
-This <a href="https://github.com/pulseq/pulseq/tree/master/doc/pulseq_shapes_and_times.pdf">document</a> is the set of slides explaining in detail how the time axis is defined in Pulseq, how the continuous time is converted in discrete time steps, which types of time grids exist and different kinds of time rasters interact. Very important for both accurate pulse sequence design and implementation of Pulseq interpreters on various platforms. 
+This <a href="pulseq_shapes_and_times.pdf">document</a> is the set of slides explaining in detail how the time axis is defined in Pulseq, how the continuous time is converted in discrete time steps, which types of time grids exist and different kinds of time rasters interact. Very important for both accurate pulse sequence design and implementation of Pulseq interpreters on various platforms. 
 
 */
 
