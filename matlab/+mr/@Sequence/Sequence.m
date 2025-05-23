@@ -1772,7 +1772,7 @@ classdef Sequence < handle
             end
         end
                        
-        function [wave_data, tfp_excitation, tfp_refocusing, t_adc, fp_adc]=waveforms_and_times(obj, appendRF, blockRange)
+        function [wave_data, tfp_excitation, tfp_refocusing, t_adc, fp_adc, pm_adc]=waveforms_and_times(obj, appendRF, blockRange)
             % waveforms_and_times()
             %   Decompress the entire gradient waveform
             %   Returns gradient wave forms as a cell array with
@@ -1786,7 +1786,9 @@ classdef Sequence < handle
             %   moments, frequency and phase offsets of the excitation RF
             %   pulses (similar for tfp_refocusing); t_adc contains times 
             %   of all ADC sample points; fp_adc contains frequency and
-            %   phase offsets of each ADC object (not sample).
+            %   phase offsets of each ADC object (not sample); pm_adc
+            %   contains phase modulation of every adc sample beyond the
+            %   data stored in fp_adc (phaseModulation fields of v1.5.0).
             %   TODO: return RF frequency offsets and RF waveforms and t_preparing (once its available)
             
             if nargin < 3
@@ -1822,6 +1824,7 @@ classdef Sequence < handle
             tfp_refocusing=[];
             t_adc=[];
             fp_adc=[];
+            pm_adc=[];
             %block_durations=zeros(1,numBlocks);
             curr_dur=0;
             iP=0;
@@ -1910,13 +1913,21 @@ classdef Sequence < handle
                 end
                 if ~isempty(block.adc)
                     ta=block.adc.dwell*((0:(block.adc.numSamples-1))+0.5); % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell) % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
+                    n_adc_samples=length(t_adc);
                     t_adc((end+1):(end+block.adc.numSamples)) = ta + block.adc.delay + curr_dur;
                     full_freqOffset=block.adc.freqOffset+block.adc.freqPPM*1e-6*obj.sys.gamma*obj.sys.B0;
                     full_phaseOffset=block.adc.phaseOffset+block.adc.phasePPM*1e-6*obj.sys.gamma*obj.sys.B0;
                     if isempty(block.adc.phaseModulation)
                         block.adc.phaseModulation=0;
+                        if nargout>=6 
+                            pm_adc((n_adc_samples+1):(n_adc_samples+block.adc.numSamples))=zeros(1,block.adc.numSamples);
+                        end
+                    else
+                        if nargout>=6 
+                            pm_adc((n_adc_samples+1):(n_adc_samples+block.adc.numSamples))=block.adc.phaseModulation;
+                        end
                     end                        
-                    fp_adc(:,(end+1):(end+block.adc.numSamples)) = [full_freqOffset*ones(1,block.adc.numSamples); full_phaseOffset+block.adc.phaseModulation+full_freqOffset*ta];
+                    fp_adc(:,(end+1):(end+block.adc.numSamples)) = [full_freqOffset*ones(1,block.adc.numSamples); full_phaseOffset+block.adc.phaseModulation+full_freqOffset*ta];                    
                 end
                 curr_dur=curr_dur+obj.blockDurations(iBc);%mr.calcDuration(block);
             end
@@ -1997,7 +2008,7 @@ classdef Sequence < handle
 %             end            
         end
         
-        function [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos, gw_pp] = calculateKspacePP(obj, varargin)
+        function [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos, gw_pp, pm_adc] = calculateKspacePP(obj, varargin)
             % calculate the k-space trajectory of the entire pulse sequence
 	        %   using piecewise-polynomial gradient wave representation 
 	        %   which is much faster for simple shapes and large delays
@@ -2035,12 +2046,21 @@ classdef Sequence < handle
             total_duration=sum(obj.blockDurations(blockRange(1):blockRange(2)));
             
             if isempty(opt.externalWaveformsAndTimes)
-                [gw_data, tfp_excitation, tfp_refocusing, t_adc]=obj.waveforms_and_times(false,blockRange);
+                if nargout>=10
+                    [gw_data, tfp_excitation, tfp_refocusing, t_adc, ~,pm_adc]=obj.waveforms_and_times(false,blockRange);
+                else
+                    [gw_data, tfp_excitation, tfp_refocusing, t_adc]=obj.waveforms_and_times(false,blockRange);
+                end
             else
                 gw_data=opt.externalWaveformsAndTimes.gw_data;
                 tfp_excitation=opt.externalWaveformsAndTimes.tfp_excitation;
                 tfp_refocusing=opt.externalWaveformsAndTimes.tfp_refocusing;
                 t_adc=opt.externalWaveformsAndTimes.t_adc;
+                if isfield(opt.externalWaveformsAndTimes, 'pm_adc')
+                    pm_adc=opt.externalWaveformsAndTimes.pm_adc;
+                else
+                    pm_adc=[];
+                end
                 % how do we verify that the total_duration is correct???
             end
             
