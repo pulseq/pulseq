@@ -1,4 +1,4 @@
-classdef TransformFOV
+classdef TransformFOV < handle
 
     properties (Access = public)
         rotation=[]; % 3x3 rotation matrix or empty matrix if none
@@ -8,7 +8,7 @@ classdef TransformFOV
     properties (Access = private)
         prior_phase_cycle=0;
         system;
-        high_accuracy;
+        % high_accuracy;
         labels=struct('NOPOS',0,'NOROT',0,'NOSCL',0);
     end
 
@@ -19,13 +19,13 @@ classdef TransformFOV
             persistent parser
             if isempty(parser)
                 parser = inputParser;
-                parser.FunctionName = 'TransformFOV';
+                parser.FunctionName = 'TransformFOV_f';
                 
                 addParameter(parser, 'rotation',  [], @(m) (isnumeric(m) && all(size(m)==[3 3])));
                 addParameter(parser, 'translation',  [], @(m) (isnumeric(m) && size(m,2)==3 && length(m)==3));
                 %addParameter(parser, 'scale',  [], @(m) (isnumeric(m) && size(m,2)==3 && length(m)==3)); % MZ: TODO
                 addParameter(parser, 'prior_phase_cycle',  0, @(m) (isnumeric(m) && length(m)==1));
-                addParameter(parser, 'high_accuracy',  false, @(m) (islogical(m) && length(m)==1));
+                % addParameter(parser, 'high_accuracy',  false, @(m) (islogical(m) && length(m)==1));
                 addParameter(parser, 'system', [], @isstruct); 
             end
 
@@ -39,7 +39,7 @@ classdef TransformFOV
             obj.rotation=opt.rotation;
             obj.translation=opt.translation;
             obj.prior_phase_cycle=opt.prior_phase_cycle;
-            obj.high_accuracy=opt.high_accuracy;
+            % obj.high_accuracy=opt.high_accuracy;
 
             if isempty(opt.system)
                 obj.system=mr.opts();
@@ -117,6 +117,28 @@ classdef TransformFOV
 
             %% translation
             if ~isempty(obj.translation)
+            % big picture of the algorithm
+
+            % if ~isempty(obj.translation)
+            %     phase_cycle_this_block = 0
+            %     if NOPOS==0
+            %         apply prior_phase_cycle to rf-adc
+            %     end
+            %     for i=1:3
+            %         g = grad{i};
+            %         if ~isempty(g)
+            %             if translation(i)~=0
+            %                 generate piecewise polynomial of the current gradient
+            %                 if NOPOS==0
+            %                     apply phase and freq offsets to rf-adc by the current gradient
+            %                 end
+            %                 update phase_cycle_this_block by the current gradient
+            %             end
+            %         end
+            %     end
+            %     update prior_phase_cycle =+ phase_cycle_this_block
+            % end
+
                 % extract last time point of possible rf or adc in the block
                 if isempty(rf)
                     if isempty(adc)
@@ -155,15 +177,35 @@ classdef TransformFOV
                     grads=mr.rotate3D(obj.rotation',grads); % MZ: I guess we have to rotate the gradients "back" because we are normally in local logical coordinates, which would be "rotated" if there were NOROT flag
                     % MZ: please check if the above point is correct
                 end
-            
+                
+                % define a temporary parameter for the phase cycle of the current block
                 phase_cycle_this_block=0;
-                        
-                % make piecewise polynimials for all gradients in the block and
-                % calculate rf and adc phase and frequency offsets based on the gradients 
+
+                % apply prior_phase_cycle to rf-adc only if NOPOS==0
+                if ~obj.labels.NOPOS % do fov positioning for the current block
+                    % if there is rf in the current block, adjust its
+                    % phase-offset
+                    if ~isempty(rf)
+                        rf.phaseOffset = rf.phaseOffset + 2*pi * obj.prior_phase_cycle;
+                    end
+                    % if there is adc in the current block, adjust its
+                    % phase-offset
+                    if ~isempty(adc)
+                        adc.phaseOffset = adc.phaseOffset + 2*pi * obj.prior_phase_cycle;
+                    end
+                end
+                 
+                % 1- take all gradintes in the current block and make
+                % piecewise polynimials for them
+                % 2- only if NOPOS==0 , calculate rf and adc phase and frequency offsets based on
+                % the single gradient
+                % 3- update the value of 'phase_cycle_this_block'
+                % 4- update the value of 'prior_phase_cycle'
                 for i=1:3
                     if abs(obj.translation(i))>eps % check whether there is shift in the specific direction (x or y or z)
                         g = grads{i};
                         if ~isempty(g) % check whether there is corresponding gradient in the direction of the shift (gx or gy or gz)
+                            % 1- make pp
                             if strcmp(g.type , 'trap') % if g is a simple trapezoid
                                 if (abs(g.flatTime)>eps) % interp1 gets confused by triangular gradients (repeating sample)
                                     tt = g.delay+cumsum([0 g.riseTime g.flatTime g.fallTime]);
@@ -205,22 +247,12 @@ classdef TransformFOV
                                             freq = obj.translation(i) * ppval(f_pp, t_s);
                                             if isfield(e,'t') %e=="rf"
                                                 rf.freqOffset  = rf.freqOffset + freq;
-                                                if ~obj.high_accuracy % use regular matlab functions for phase calculations
-                                                    phase_cycle    = local_frac(local_frac(obj.translation(i)*ppval(fi_pp, t_s)) - freq*(t_s-rf.delay) + obj.prior_phase_cycle);
-                                                    rf.phaseOffset = rf.phaseOffset + 2*pi*phase_cycle; 
-                                                else % use more accurate implemented functions for phase calculations
-                                                    phase_cycle = accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, t_s, obj.translation(i)) - multiply_accurate(freq, t_s-rf.delay);
-                                                    rf.phaseOffset = rf.phaseOffset + frac_exp2number(multiply_accurate(2*pi, phase_cycle)) + frac_exp2number(multiply_accurate(2*pi, obj.prior_phase_cycle));
-                                                end
+                                                phase_cycle = local_frac( accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, t_s, obj.translation(i)) - freq * (t_s-rf.delay) );
+                                                rf.phaseOffset = rf.phaseOffset + 2*pi*phase_cycle; 
                                             else %if e=="adc"
                                                 adc.freqOffset = adc.freqOffset + freq;
-                                                if ~obj.high_accuracy
-                                                    phase_cycle = local_frac(local_frac(obj.translation(i)*ppval(fi_pp, t_s)) - freq*(t_s-adc.delay) + obj.prior_phase_cycle);
-                                                    adc.phaseOffset = adc.phaseOffset + 2*pi* phase_cycle; 
-                                                else
-                                                    phase_cycle = accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, t_s, obj.translation(i)) - multiply_accurate(freq, t_s-adc.delay);
-                                                    adc.phaseOffset = adc.phaseOffset + frac_exp2number(multiply_accurate(2*pi, phase_cycle)) + frac_exp2number(multiply_accurate(2*pi, obj.prior_phase_cycle));
-                                                end
+                                                phase_cycle = local_frac( accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, t_s, obj.translation(i)) - freq * (t_s-adc.delay) );
+                                                adc.phaseOffset = adc.phaseOffset + 2*pi* phase_cycle;      
                                             end
                                         else 
                                             % in case of non-constant gradient, we should calculate a phase vector for rf or ADC. for rf event we can easily add 
@@ -230,43 +262,33 @@ classdef TransformFOV
                                                 ppval_f_center=ppval(f_pp, rf.delay+rf.center);
                                                 freq = obj.translation(i) * ppval_f_center;
                                                 rf.freqOffset  = rf.freqOffset + freq;
-                                                if ~obj.high_accuracy
-                                                    ppval_fi_center=ppval(fi_pp, rf.delay+rf.center);
-                                                    phase_cycle        = local_frac(local_frac(obj.translation(i)*ppval_fi_center) - freq*rf.center + obj.prior_phase_cycle);
-                                                    rf.phaseOffset = rf.phaseOffset + 2*pi*phase_cycle; 
-                                                    phase_cycle_vector = local_frac( (ppval(fi_pp, rf.t+rf.delay)-ppval_fi_center-ppval_f_center*(rf.t-rf.center)) * obj.translation(i));
-                                                    rf.signal = rf.signal .* exp(1i*2*pi*phase_cycle_vector);                                                
-                                                else
-                                                    phase_cycle_vector = accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, opt.rf.t-opt.rf.t(1)+opt.rf.delay, opt.translation(i));
-                                                    phase_vector = phase_add( zeros(size(phase_cycle_vector)) , phase_cycle_vector );
-                                                    opt.rf.signal = opt.rf.signal .* exp(1i*phase_vector); % add phase vector to the signal of rf event
-                                                end
+                                                % ppval_fi_center = ppval(fi_pp, rf.delay+rf.center);
+                                                ppval_fi_center_shift = accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, rf.delay+rf.center, obj.translation(i));
+                                                phase_cycle        = local_frac(ppval_fi_center_shift - freq*rf.center);
+                                                rf.phaseOffset = rf.phaseOffset + 2*pi*phase_cycle; 
+                                                phase_cycle_vector_tmp = accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, rf.t+rf.delay, obj.translation(i));
+                                                phase_cycle_vector = local_frac( phase_cycle_vector_tmp -ppval_f_center*(rf.t-rf.center) * obj.translation(i) - ppval_fi_center_shift );
+                                                rf.signal = rf.signal .* exp(1i*2*pi*phase_cycle_vector);                                                
                                             else % if e=="adc"
                                                 % calculate the frequency at the center
                                                 adc_center=0.5*adc.dwell*adc.numSamples;
                                                 ppval_f_center=ppval(f_pp, adc.delay+adc_center);
                                                 freq = obj.translation(i) * ppval_f_center;
                                                 adc.freqOffset  = adc.freqOffset + freq;
-                                                if ~obj.high_accuracy
-                                                    ppval_fi_center=ppval(fi_pp, adc.delay+adc_center);
-                                                    % these -0.5 and +0.5 are needed to avoid unnecessay jumps for values that are very close to 0s
-                                                    phase_cycle        = -0.5+local_frac(0.5+local_frac(obj.translation(i)*ppval_fi_center) - freq*adc_center + obj.prior_phase_cycle);
-                                                    adc.phaseOffset = adc.phaseOffset + 2*pi*phase_cycle; 
-                                                    adc_t=adc.dwell*(0.5:adc.numSamples-0.5);
-                                                    % these -0.5 and +0.5 are needed to avoid unnecessay jumps for values that are very close to 0s
-                                                    phase_cycle_vector = -0.5+local_frac(0.5+(ppval(fi_pp, adc_t+adc.delay)-ppval_fi_center-ppval_f_center*(adc_t-adc_center) )* obj.translation(i));
-                                                    if isempty(adc.phaseModulation)
-                                                        adc.phaseModulation=2*pi* phase_cycle_vector(:); % store residual adc phase for image reconstruction 
-                                                    else
-                                                        adc.phaseModulation=adc.phaseModulation+2*pi* phase_cycle_vector(:); % store residual adc phase for image reconstruction 
-                                                    end
+                                                % ppval_fi_center=ppval(fi_pp, adc.delay+adc_center);
+                                                ppval_fi_center_shift = accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, adc.delay+adc_center, obj.translation(i));
+                                                % these -0.5 and +0.5 are needed to avoid unnecessay jumps for values that are very close to 0s
+                                                phase_cycle        = local_frac( -0.5 + local_frac(0.5 + ppval_fi_center_shift - freq*adc_center) );
+                                                adc.phaseOffset = adc.phaseOffset + 2*pi*phase_cycle; 
+                                                adc_t=adc.dwell*(0.5:adc.numSamples-0.5);
+                                                % these -0.5 and +0.5 are needed to avoid unnecessay jumps for values that are very close to 0s
+                                                phase_cycle_vector_tmp = accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, adc_t+adc.delay, obj.translation(i));
+                                                phase_cycle_vector = local_frac( ( -0.5 + local_frac(0.5 - ppval_f_center*(adc_t-adc_center) ) ) * obj.translation(i) + ppval_fi_center_shift + phase_cycle_vector_tmp );
+                                                % phase_cycle_vector = accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, adc.dwell*(0:adc.numSamples-1)+adc.delay, obj.translation(i));
+                                                if isempty(adc.phaseModulation)
+                                                    adc.phaseModulation=2*pi* phase_cycle_vector(:); % store residual adc phase for image reconstruction 
                                                 else
-                                                    phase_cycle_vector = accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, adc.dwell*(0:adc.numSamples-1)+adc.delay, obj.translation(i));
-                                                    if isempty(adc.phaseModulation)
-                                                        adc.phaseModulation= 2*pi* phase_cycle_vector; % store residual adc phase for image reconstruction 
-                                                    else
-                                                        adc.phaseModulation=phase_add(adc.phaseModulation,phase_cycle_vector); % store residual adc phase for image reconstruction 
-                                                    end
+                                                    adc.phaseModulation=adc.phaseModulation+2*pi* phase_cycle_vector(:); % store residual adc phase for image reconstruction 
                                                 end
                                             end
                                         end
@@ -274,12 +296,9 @@ classdef TransformFOV
                                 end
                             end
             
-                            % update the prior phase cycle of the block by only one gradient
-                            if ~obj.high_accuracy
-                                phase_cycle_this_block = local_frac( phase_cycle_this_block + local_frac( g.area * obj.translation(i))); 
-                            else
-                                phase_cycle_this_block = mod_accurate( phase_cycle_this_block + mod_accurate(frac_exp2number(multiply_accurate(g.area, obj.translation(i)))) );
-                            end
+                            % update the phase_cycle_this_block by only the current gradient
+                            % phase_cycle_this_block = local_frac( phase_cycle_this_block + local_frac( g.area * obj.translation(i))); 
+                            phase_cycle_this_block = local_frac( phase_cycle_this_block + accurate_mod_pp(fi_pp.breaks, fi_pp.coefs, tt_extended(end), obj.translation(i)) ); 
                         end
                     end
                 end
@@ -290,7 +309,7 @@ classdef TransformFOV
                 end
 
                 % now update the phase stored for the next block
-                obj.prior_phase_cycle = obj.prior_phase_cycle + phase_cycle_this_block;
+                obj.prior_phase_cycle = local_frac( obj.prior_phase_cycle + phase_cycle_this_block );
             end
 
 
@@ -365,7 +384,7 @@ function is_const = is_grad_const(t, amp, t_start, t_end)
         index_s=1;
     end
     if isempty(index_e)
-        index_e=length(t)
+        index_e=length(t);
     end
     is_const = all(abs(amp(index_s:index_e) - amp(index_s)) <= 1e-10); % MZ: why this threshold? CHECKME
 end
@@ -375,9 +394,9 @@ end
 % making piecwise polynomial
 function [b, c, tt_extended, waveform_extended] = generate_breaks_coefs(g, tt, waveform, gradRasterTime, t_start, t_end)
 if g.type=='grad'
-    if g.tt(1)==gradRasterTime/2 % check whether gradient is arbitrary gradient or extended trapezoid
-        tt = [tt(1)-gradRasterTime/2, tt, tt(end)+gradRasterTime/2]; % if it's arbitrary gradient, we add first and last gradient amplitudes to the waveform
-        waveform = [opt.(g).first, waveform, opt.(g).last];
+    if abs(g.tt(1)-gradRasterTime/2)<eps % check whether gradient is arbitrary gradient or extended trapezoid
+        tt = [tt(1)-gradRasterTime/2; tt(:); tt(end)+gradRasterTime/2]; % if it's arbitrary gradient, we add first and last gradient amplitudes to the waveform
+        waveform = [g.first; waveform(:); g.last];
     end
 end
 tt_extended = tt(:)';
@@ -391,7 +410,10 @@ c(find(isnan(c))) = 0;
 c(find(isinf(c))) = 0;
 c(:,2) = (waveform(1:end-1))';
 
-% MZ: question: why not adding (t_start,0) or (t_end,0) to tt/waveform?
+% MZ: question: why not adding (t_start,0) or (t_end,0) to tt/waveform? %
+% MS: if we add 0 at the begining/end of the waveform and then calculate the slope of the first/last time slot, we will get a non-zero slope (if g.first or g.last are not zero). 
+% This is because the 0 value is connected to non-zero g.first or g.last and it means there is real gradient between them but should not exist. 
+% so it's better to add [0,0] at the begining or end of the coef matrix later on. 
 % modify breaks and coefs if the rf or adc event(s) is/are started (or ended)
 % before (or after) the first (or last) time point of the gradient
 if t_start<tt(1)
@@ -426,101 +448,24 @@ function out=local_frac(in)
     out = in-floor(in);
 end
 
-% local mod function
-function out=local_mod(in,m)
-out = zeros(size(in));
-for i=1:length(in)
-    if in(i)>0.5*m
-        z=floor(in(i)/m+0.5);
-        out(i)=in(i)-z*m;
-    elseif in(i)<=-0.5*m
-        z=floor(-in(i)/m+0.5);
-        out(i)=in(i)+z*m;
-    else
-        out(i)=in(i);
-    end
-end
-end
+% % local mod function
+% function out=local_mod(in,m)
+% out = zeros(size(in));
+% for i=1:length(in)
+%     if in(i)>0.5*m
+%         z=floor(in(i)/m+0.5);
+%         out(i)=in(i)-z*m;
+%     elseif in(i)<=-0.5*m
+%         z=floor(-in(i)/m+0.5);
+%         out(i)=in(i)+z*m;
+%     else
+%         out(i)=in(i);
+%     end
+% end
+% end
 
 
 %% Accurate mathematical operations using high resolution times (sum , multiply , mod)
-
-% generate fraction and exponent elements of the input
-function out = number2frac_exp(in)
-[f, e] = log2(in);
-out.frac = abs(f);
-out.exp = e;
-if f<=0
-    out.sign = -1;
-else
-    out.sign = +1;
-end
-end
-
-
-% convert fraction and exponent elements of the input to a number
-function out = frac_exp2number(in_sfe)
-out = in_sfe.sign * in_sfe.frac *2^in_sfe.exp;
-end
-
-
-% accurate mod function
-function out = mod_accurate(in) % in should be double
-in_sfe = number2frac_exp(in);
-frac_digits = 16 - ( floor(log10(abs(in))) + 1 );
-if in_sfe.exp == 0
-    out = in_sfe.sign * in_sfe.frac;
-elseif in_sfe.exp >= 0
-    if frac_digits==16
-        out = in_sfe.sign * (round(( abs(in) - floor(abs(in)) )*10^(frac_digits-1)))/10^(frac_digits-1);
-    else
-        out = in_sfe.sign * (round(( abs(in) - floor(abs(in)) )*10^frac_digits))/10^frac_digits;
-    end
-else
-    out = in;
-end
-end
-
-
-
-% accurate multiplication
-function out = multiply_accurate(in1, in2)
-if isa(in1, 'double')
-    in1_sfe = number2frac_exp(in1);
-else 
-    in1_sfe = in1;
-end
-if isa(in2, 'double')
-    in2_sfe = number2frac_exp(in2);
-else
-    in2_sfe = in2;
-end
-out.sign = in1_sfe.sign * in2_sfe.sign;
-out.frac = in1_sfe.frac * in2_sfe.frac;
-out.exp = in1_sfe.exp + in2_sfe.exp;
-end
-
-
-
-% accurate division
-function out = division_accurate(in1, in2) % in1 / in2
-if isa(in1, 'double')
-    in1_sfe = number2frac_exp(in1);
-else 
-    in1_sfe = in1;
-end
-if isa(in2, 'double')
-    in2_sfe = number2frac_exp(in2);
-else
-    in2_sfe = in2;
-end
-out.sign = in1_sfe.sign * in2_sfe.sign;
-[out.frac, e] = log2(in1_sfe.frac / in2_sfe.frac);
-out.exp = e + in1_sfe.exp - in2_sfe.exp;
-end
-
-
-
 % in this function, we take the time breaks and coefficients of the
 % piecewise polynomial of the gradient and desired time point of the rf or ADC event (t) and
 % amount of the fov shift. and accurately calculate the area under each time
@@ -531,67 +476,26 @@ Mod = zeros(size(t));
 A = [];
 i_breaks = 0;
 for c=1:length(t)
-    c
+    % c
     index = find(breaks <= t(c), 1, 'last');
     t0 = t(c);
     area = 0;
 
-    % fast approach
-    if index > (i_breaks + 1)
+    while index > (i_breaks + 1)
         i_breaks = i_breaks +1;
-        AB = multiply_accurate( coefs(i_breaks,1), multiply_accurate( shift, (breaks(i_breaks+1)-breaks(i_breaks))^2-(breaks(i_breaks)-breaks(i_breaks))^2 ) );
-        CD = multiply_accurate( coefs(i_breaks,2), multiply_accurate( shift, (breaks(i_breaks+1)-breaks(i_breaks))-(breaks(i_breaks)-breaks(i_breaks)) ) );
-        A = [A,mod_accurate( mod_accurate(frac_exp2number(AB)) + mod_accurate(frac_exp2number(CD)) )];
-        %A = [A , frac_exp2number(AB) + frac_exp2number(CD)];
+        AB = coefs(i_breaks,1) * shift * ( (breaks(i_breaks+1)-breaks(i_breaks))^2-(breaks(i_breaks)-breaks(i_breaks))^2 );
+        CD = coefs(i_breaks,2) * shift * ( (breaks(i_breaks+1)-breaks(i_breaks))-(breaks(i_breaks)-breaks(i_breaks)) );
+        A = [A,local_frac( local_frac(AB) + local_frac(CD) )];
     end
     
-    AB_n = multiply_accurate( coefs(i_breaks+1,1), multiply_accurate( shift, (t0-breaks(i_breaks+1))^2-(breaks(i_breaks+1)-breaks(i_breaks+1))^2 ) );
-    CD_n = multiply_accurate( coefs(i_breaks+1,2), multiply_accurate( shift, (t0-breaks(i_breaks+1))-(breaks(i_breaks+1)-breaks(i_breaks+1)) ) );
-    area = mod_accurate ( mod_accurate(sum(A)) + mod_accurate(frac_exp2number(AB_n)) + mod_accurate(frac_exp2number(CD_n)) );
-    % area = sum(A) + frac_exp2number(AB_n) + frac_exp2number(CD_n);
-
-    
-    % % slow approach
-    % for i=1:index
-    %     if i<index
-    %         % A = multiply__LargSmall_Int_LargSmall_Frac__by__Large_Frac( coefs(i,1) / v^2 , shift ); 
-    %         % A = multiply_accurate(coefs(i,1), shift);
-    %         % B = number2Int_Frac( u(i+1)^2-u(i)^2 );
-    %         % B = number2frac_exp( u(i+1)^2-u(i)^2 );
-    %         AB = multiply_accurate( coefs(i,1), multiply_accurate( shift, breaks(i+1)^2-breaks(i)^2 ) );
-    %         % C = multiply__LargSmall_Int_LargSmall_Frac__by__Large_Frac( coefs(i,2) / v , shift ); 
-    %         % C = multiply_accurate(coefs(i,2), shift);
-    %         % D = number2Int_Frac( u(i+1)-u(i) );
-    %         % D = number2frac_exp( u(i+1)-u(i) );
-    %         CD = multiply_accurate( coefs(i,2), multiply_accurate( shift, breaks(i+1)-breaks(i) ) );
-    %         A = [A, mod_accurate(frac_exp2number(AB)) + mod_accurate(frac_exp2number(CD)) ];
-    %     elseif i==index
-    %         % A = multiply__LargSmall_Int_LargSmall_Frac__by__Large_Frac( coefs(i,1) / v^2 , shift );
-    %         % A = multiply_accurate(coefs(i,1), shift);
-    %         % B = number2Int_Frac( t0^2-u(i)^2 );
-    %         % B = number2frac_exp( t0^2-u(i)^2 );
-    %         AB = multiply_accurate( coefs(i,1), multiply_accurate( shift, t0^2-breaks(i)^2 ) );
-    %         % C = multiply__LargSmall_Int_LargSmall_Frac__by__Large_Frac( coefs(i,2) / v , shift ); 
-    %         % C = multiply_accurate(coefs(i,2), shift);
-    %         % D = number2Int_Frac( t0-u(i) );
-    %         % D = number2frac_exp( t0-u(i) );
-    %         CD = multiply_accurate( coefs(i,2), multiply_accurate( shift, t0-breaks(i) ) );
-    %     end
-    %     area = mod_accurate ( mod_accurate(area) + mod_accurate(frac_exp2number(AB)) + mod_accurate(frac_exp2number(CD)) );
-    %     % area = sum_3_accurate( number2Int_Frac(mod_accurate(area)) , number2Int_Frac(mod_accurate(multiply__LargSmall_Int__by__LargSmall_Int_LargSmall_Frac(B,A))) , number2Int_Frac(mod_accurate(multiply__LargSmall_Int__by__LargSmall_Int_LargSmall_Frac(D,C))) );
-    % end
-
+    if t0==breaks(i_breaks+1)
+        area =  local_frac(sum(A));
+    else
+        AB_n = coefs(i_breaks+1,1) * shift * ( (t0-breaks(i_breaks+1))^2-(breaks(i_breaks+1)-breaks(i_breaks+1))^2 );
+        CD_n = coefs(i_breaks+1,2) * shift * ( (t0-breaks(i_breaks+1))-(breaks(i_breaks+1)-breaks(i_breaks+1)) );
+        area =  local_frac( local_frac(sum(A)) + local_frac(AB_n) + local_frac(CD_n) );
+    end
     Mod(c) = area;
 end
 end
 
-
-
-% this function adds phase and phase cycle inputs: out(i) = a(i) + 2*pi*b(i)
-function out = phase_add(a , b)  % a is a vector of phase and b is a vector of phase cycles and out is a vector of phase (rf or adc phase vector)
-out = zeros(size(b));
-for i=1:length(b)
-    % out(i) = frac_exp2number(multiply_accurate(2*pi, mod_accurate(a+b(i))));
-    out(i) = a(i) + frac_exp2number(multiply_accurate(2*pi, mod_accurate(b(i))));
-end
-end
