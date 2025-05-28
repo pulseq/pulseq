@@ -263,7 +263,7 @@ classdef Sequence < handle
                                 end
                             end
                             if g.last~=0 
-                                if g.delay+g.shape_dur ~= dur
+                                if abs(g.delay+g.shape_dur - dur) > eps
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient ends at a non-zero value but does not last until the end of the block\n' ] };
                                 end
                                 gradBookCurr.(g.channel)=g.last; % update bookkeeping
