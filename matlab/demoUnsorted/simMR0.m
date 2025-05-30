@@ -121,11 +121,11 @@ else
     % this probably only works on linux and maybe also on mac
     [status, result]=system('which python3');
     if status==0
-        python=strip(result);
+        python=strstrip(result);
     else
         [status, result]=system('which python');
         if status==0
-            python=strip(result);
+            python=strstrip(result);
         else
             error('python executable not found');
         end
@@ -141,4 +141,20 @@ out=data.signal;
 if ~opt.noCleanUp
     delete(seqpath);
     delete(sigpath);
+end
+end
+
+function out=strstrip(in)
+  if ~mr.aux.isOctave
+    out=strip(in);
+  else
+    % octave doen't have strip
+    while ~isempty(in) && (in(1)==' ' || in(1)=="\t" || in(1)=="\r" || in(1)=="\n")
+      in(1)=[];
+    end
+    while ~isempty(in) && (in(end)==' ' || in(end)=="\t" || in(end)=="\r" || in(end)=="\n")
+      in(end)=[];
+    end
+    out=in;
+  end
 end

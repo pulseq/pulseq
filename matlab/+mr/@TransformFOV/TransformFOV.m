@@ -52,31 +52,31 @@ classdef TransformFOV < handle
 
             % convert the input into a plain cell array of events
             if ~any(iscell(varargin))
-                events=varargin;
+                block_events=varargin;
             else
-                events={};
+                block_events={};
                 for i=varargin
                     if iscell(i)
-                        events=[events i];
+                        block_events=[block_events i];
                     else
-                        events{end+1}=i;
+                        block_events{end+1}=i;
                     end
                 end
             end
 
-            % see if we get a block as a single struct and convert it to events
-            if (isstruct(events) && isfield(events, 'blockDuration')) || ...
-               (iscell(events) && ~isempty(events) && isstruct(events{1}) && isfield(events{1}, 'blockDuration'))
-                events=mr.block2events(events);
+            % see if we get a block as a single struct and convert it to block_events
+            if (isstruct(block_events) && isfield(block_events, 'blockDuration')) || ...
+               (iscell(block_events) && ~isempty(block_events) && isstruct(block_events{1}) && isfield(block_events{1}, 'blockDuration'))
+                block_events=mr.block2events(block_events);
             end
 
-            % extract various mr events including {rf,adc,gx,gy,gz} from "events" input          
+            % extract various mr events including {rf,adc,gx,gy,gz} from "block_events" input          
             rf = [];
             adc = [];
             grads = cell(1,3);
             other = {};
-            for i = 1:length(events)
-                e=events{i};
+            for i = 1:length(block_events)
+                e=block_events{i};
                 if length(e)==1 && isstruct(e) && isfield(e, 'type')
                     switch e.type
                         case 'rf'
@@ -232,7 +232,12 @@ classdef TransformFOV < handle
                             % make piecewise polynomial for the gradient
                             f_pp = mkpp(breaks, coefs);
                             % integrate it analytically
-                            fi_pp = fnint(f_pp); % MZ: TODO: check whether we need more accurate functions here
+                            if mr.aux.isOctave()
+                              fi_pp = ppint(f_pp);
+                            else
+                              fi_pp = fnint(f_pp); % MZ: TODO: check whether we need more accurate functions here
+                            end
+                            
             
                             if ~obj.labels.NOPOS
                                 % apply adc or rf phase and freq offset contribution by only one (current) gradient 

@@ -305,7 +305,9 @@ classdef Sequence < handle
 
                 % check whether all gradient bookkeeping values have been properly consumed
                 if dur~=0 
-                    if any(0~=struct2array(gradBook))
+                    % octave has no struct2array()
+                    gradBookC = struct2cell(gradBook);
+                    if any(0~=[gradBookC{:}])
                         errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' some gradients in the previous non-empty block are ending at non-zero values but are not continued here\n' ] };
                     end
                     gradBook=gradBookCurr;

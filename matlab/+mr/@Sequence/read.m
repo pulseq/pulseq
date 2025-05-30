@@ -75,9 +75,11 @@ while true
                 obj.blockDurationRaster=v;
                 requiredDefs.BlockDurationRaster=true;
             end
-            if version_combined >= 1004000 && ~all(struct2array(requiredDefs))
+            % octave doen't have struct2array(requiredDefs)
+            requiredDefsC=struct2cell(requiredDefs);
+            if version_combined >= 1004000 && ~all([requiredDefsC{:}])
                 fn=fieldnames(requiredDefs);
-                fn=fn(struct2array(requiredDefs)==0);
+                fn=fn([requiredDefsC{:}]==0);
                 error(['Required definitions ' sprintf('%s ',fn{:}) 'are missing in the file']);
             end
         case '[SIGNATURE]'
