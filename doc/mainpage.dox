@@ -41,9 +41,10 @@ you would like to run open and flexible sequences at your institution.
 
 - <a href="#" onclick="location.href='mai'+'lto:'+'pul'+'se'+'q.m'+'r@'+'uni'+'kl'+'ini'+'k-'+'fre'+'ib'+'urg'+'.d'+'e'; return false;">Siemens</a>
 - <a href="https://toppemri.github.io">GE</a>
-- <a href="https://github.com/pulseq/bruker_interpreter">Bruker (out-of-date, discontinued)</a>
+- <a href="https://adept-forge.github.io/">United Imaging</a>
 - <a href="https://github.com/lcbMGH/ocra-pulseq">OCRA</a>
 - <a href="https://github.com/lcbMGH/flocra-pulseq">FLOCRA</a>
+- <a href="https://github.com/pulseq/bruker_interpreter">Bruker (out-of-date, discontinued)</a>
 
 Additionally, there are two implementations of the *Philips interpreter* published in the ISMRM 2024 proceedings: 
 <a href="https://submissions.mirasmart.com/ISMRM2024/Handlers/ViewTeaser.ashx?esbpgm=3115_3243"> #3243 </a>

@@ -50,6 +50,28 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
                 ok=false;
             end
         end
+        if isfield(e, 'type') && strcmp(e.type,'rf')
+            % check time vector
+            if ~div_check(e.shape_dur,system.rfRasterTime)
+                ok=false;
+            end
+            if length(e.t)>=4
+                rt=e.t/system.rfRasterTime;
+                drt=diff(rt);
+                if all(abs(drt(2:end)-drt(1))<1e-9/system.rfRasterTime) % 1ns -- /system.rfRasterTime is necessary because 'rt' is in RF raster units
+                    % equal stepping case -- constant dwell time
+                    e.dwell=e.t(2)-e.t(1); % add dummy dwell so that it can be logged in case of error
+                    if ~div_check(e.dwell,system.adcRasterTime) % should we check against rfRasterTime or adcRasterTime?
+                        ok=false;
+                    end
+                else
+                    % "extended"-shape -- all points should be on RF raster edges
+                    if any(abs(rf-round(rt))>1e-6)
+                        ok=false; % TODO: add a meaninfull error message, for now it will look very cryptic
+                    end
+                end
+            end
+        end
         if isfield(e, 'type') && strcmp(e.type,'trap')
             if ~div_check(e.riseTime, system.gradRasterTime) || ~div_check(e.flatTime, system.gradRasterTime) || ~div_check(e.fallTime, system.gradRasterTime)
                 ok=false;
@@ -70,6 +92,9 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
             if isfield(e, 'duration')
                 text_error = [text_error 'duration:' num2str(e.duration*1e6) 'us ' ];
             end
+            if isfield(e, 'shape_dur')
+                text_error = [text_error 'shape_dur:' num2str(e.shape_dur*1e6) 'us ' ];
+            end            
             if isfield(e, 'dwell')
                 text_error = [text_error 'dwell:' num2str(e.dwell*1e9) 'ns ' ];
             end

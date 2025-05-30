@@ -53,6 +53,7 @@ classdef Sequence < handle
         labelincLibrary;  % Library of Label(inc) events ( reference from the extensions library )
         extensionLibrary; % Library of extension events. Extension events form single-linked zero-terminated lists
         shapeLibrary;     % Library of compressed shapes
+        rfShimLibrary;    % Library of RF shimming events
         softDelayLibrary; % Library of 'soft delay' extension events.
         softDelayHints1;  % Map of string hints that are the part of the 'soft delay' extension objects
         softDelayHints2;  % cell array of string hints that are the part of the 'soft delay' extension objects
@@ -85,6 +86,7 @@ classdef Sequence < handle
             obj.trigLibrary = mr.EventLibrary();
             obj.labelsetLibrary = mr.EventLibrary();
             obj.labelincLibrary = mr.EventLibrary();
+            obj.rfShimLibrary = mr.EventLibrary();
             obj.extensionLibrary = mr.EventLibrary();
             obj.extensionStringIDs={};
             obj.extensionNumericIDs=[];
@@ -261,7 +263,7 @@ classdef Sequence < handle
                                 end
                             end
                             if g.last~=0 
-                                if g.delay+g.shape_dur ~= dur
+                                if abs(g.delay+g.shape_dur - dur) > eps
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient ends at a non-zero value but does not last until the end of the block\n' ] };
                                 end
                                 gradBookCurr.(g.channel)=g.last; % update bookkeeping
@@ -303,7 +305,9 @@ classdef Sequence < handle
 
                 % check whether all gradient bookkeeping values have been properly consumed
                 if dur~=0 
-                    if any(0~=struct2array(gradBook))
+                    % octave has no struct2array()
+                    gradBookC = struct2cell(gradBook);
+                    if any(0~=[gradBookC{:}])
                         errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' some gradients in the previous non-empty block are ending at non-zero values but are not continued here\n' ] };
                     end
                     gradBook=gradBookCurr;
@@ -723,6 +727,14 @@ classdef Sequence < handle
             id = obj.softDelayLibrary.find_or_insert(data);
         end
 
+        function id=registerRfShimEvent(obj, event)
+            % registerRfShimEvent : Add the event to the libraries (object,
+            % shapes, etc and return the event's ID. This ID should be 
+            % stored in the object to accelerate addBlock()            
+            data = [abs(event.shimVector);angle(event.shimVector)];
+            id = obj.rfShimLibrary.find_or_insert(data(:)');
+        end
+
         %TODO: Replacing blocks in the middle of sequence can cause unused
         %events in the libraries. These can be detected and pruned.
         function setBlock(obj, index, varargin)
@@ -863,15 +875,28 @@ classdef Sequence < handle
                                 extensions=[extensions ext];
                             end
                         case 'softDelay'
-                            if isfield(event,'id')
+                            for e=event % allow multiple extensions as an array
+                                if isfield(e,'id')
+                                    id=e.id;
+                                else
+                                    id=obj.registerSoftDelayEvent(e);
+                                end
+                                % collect the list of extension objects and
+                                % add it to the event table later
+                                % ext=struct('type', 1, 'ref', id);
+                                ext=struct('type', obj.getExtensionTypeID('DELAYS'), 'ref', id);
+                                extensions=[extensions ext];
+                            end
+                        case 'rfShim'
+                            if isfield(event,'id') % this is an array if we have a loop?
                                 id=event.id;
                             else
-                                id=obj.registerSoftDelayEvent(event);
+                                id=obj.registerRfShimEvent(event);
                             end
                             % collect the list of extension objects and
                             % add it to the event table later
                             % ext=struct('type', 1, 'ref', id);
-                            ext=struct('type', obj.getExtensionTypeID('DELAYS'), 'ref', id);
+                            ext=struct('type', obj.getExtensionTypeID('RF_SHIMS'), 'ref', id);
                             extensions=[extensions ext];
                         otherwise
                             error('Attempting to add an unknown event to the block.');
@@ -1141,6 +1166,19 @@ classdef Sequence < handle
                         block.label(i) = label;
                     end
                 end
+                % unpack RF shim
+                rf_shim_ext=raw_block.ext(:,raw_block.ext(1,:)==obj.getExtensionTypeID('RF_SHIMS'));
+                if ~isempty(rf_shim_ext)
+                    if size(rf_shim_ext,2)>1
+                        error('Only one RF shim extension object per block is allowed');
+                    end
+                    data = obj.rfShimLibrary.data(rf_shim_ext(2,1)).array;
+                    if addIDs
+                        block.rfShim=struct('type','rfShim','shimVector',data(1:2:end).*exp(1i*2*pi*data(2:2:end)),'id',rf_shim_ext(2,1));
+                    else
+                        block.rfShim=struct('type','rfShim','shimVector',data(1:2:end).*exp(1i*2*pi*data(2:2:end)));
+                    end
+                end
                 % unpack delay
                 delay_ext=raw_block.ext(:,raw_block.ext(1,:)==obj.getExtensionTypeID('DELAYS'));
                 if ~isempty(delay_ext)
@@ -1159,6 +1197,7 @@ classdef Sequence < handle
                         if raw_block.ext(1,i)~=obj.getExtensionTypeID('TRIGGERS') && ...
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET') && ...
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET') && ...
+                           raw_block.ext(1,i)~=obj.getExtensionTypeID('RF_SHIMS') && ...
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('DELAYS')
                             warning('unknown extension ID %d', raw_block.ext(1,i));
                         end
@@ -1185,6 +1224,7 @@ classdef Sequence < handle
                 if ~isempty(gid)
                     type = obj.gradLibrary.type(gid);
                     libData = obj.gradLibrary.data(gid).array;
+                    grad=struct();
                     if type == 't'
                         grad.type = 'trap';
                     else
@@ -1212,12 +1252,14 @@ classdef Sequence < handle
                             grad.tt = ((1:length(g))-0.5)'*obj.gradRasterTime; % TODO: evetually we may remove these true-times
                             t_end=length(g)*obj.gradRasterTime;
                             %grad.t = (0:length(g)-1)'*obj.gradRasterTime;
+                            grad.area=sum(grad.waveform)*obj.gradRasterTime;
                         elseif (timeId==-1)
                             % gradient with oversampling by a factor of 2
                             grad.tt = ((1:length(g)))'/2*obj.gradRasterTime; 
                             assert(length(grad.tt)==length(grad.waveform));
                             assert(mod(length(g),2)==1);
                             t_end=(length(g)+1)/2*obj.gradRasterTime;
+                            grad.area=sum(grad.waveform(1:2:end))*obj.gradRasterTime; % remove oversampling
                         else
                             tShapeData = obj.shapeLibrary.data(timeId).array;
                             compressed.num_samples = tShapeData(1);
@@ -1230,6 +1272,7 @@ classdef Sequence < handle
                             end
                             assert(length(grad.waveform) == length(grad.tt));
                             t_end=grad.tt(end);
+                            grad.area=0.5*sum((grad.tt(2:end)-grad.tt(1:end-1)).*(grad.waveform(2:end)+grad.waveform(1:end-1)));
                         end
                         grad.shape_id=shapeId; % needed for the second pass of read()
                         grad.time_id=timeId; % needed for the second pass of read()
@@ -1731,7 +1774,7 @@ classdef Sequence < handle
             end
         end
                        
-        function [wave_data, tfp_excitation, tfp_refocusing, t_adc, fp_adc]=waveforms_and_times(obj, appendRF, blockRange)
+        function [wave_data, tfp_excitation, tfp_refocusing, t_adc, fp_adc, pm_adc]=waveforms_and_times(obj, appendRF, blockRange)
             % waveforms_and_times()
             %   Decompress the entire gradient waveform
             %   Returns gradient wave forms as a cell array with
@@ -1745,7 +1788,9 @@ classdef Sequence < handle
             %   moments, frequency and phase offsets of the excitation RF
             %   pulses (similar for tfp_refocusing); t_adc contains times 
             %   of all ADC sample points; fp_adc contains frequency and
-            %   phase offsets of each ADC object (not sample).
+            %   phase offsets of each ADC object (not sample); pm_adc
+            %   contains phase modulation of every adc sample beyond the
+            %   data stored in fp_adc (phaseModulation fields of v1.5.0).
             %   TODO: return RF frequency offsets and RF waveforms and t_preparing (once its available)
             
             if nargin < 3
@@ -1781,6 +1826,7 @@ classdef Sequence < handle
             tfp_refocusing=[];
             t_adc=[];
             fp_adc=[];
+            pm_adc=[];
             %block_durations=zeros(1,numBlocks);
             curr_dur=0;
             iP=0;
@@ -1869,13 +1915,21 @@ classdef Sequence < handle
                 end
                 if ~isempty(block.adc)
                     ta=block.adc.dwell*((0:(block.adc.numSamples-1))+0.5); % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell) % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
+                    n_adc_samples=length(t_adc);
                     t_adc((end+1):(end+block.adc.numSamples)) = ta + block.adc.delay + curr_dur;
                     full_freqOffset=block.adc.freqOffset+block.adc.freqPPM*1e-6*obj.sys.gamma*obj.sys.B0;
                     full_phaseOffset=block.adc.phaseOffset+block.adc.phasePPM*1e-6*obj.sys.gamma*obj.sys.B0;
                     if isempty(block.adc.phaseModulation)
                         block.adc.phaseModulation=0;
+                        if nargout>=6 
+                            pm_adc((n_adc_samples+1):(n_adc_samples+block.adc.numSamples))=zeros(1,block.adc.numSamples);
+                        end
+                    else
+                        if nargout>=6 
+                            pm_adc((n_adc_samples+1):(n_adc_samples+block.adc.numSamples))=block.adc.phaseModulation;
+                        end
                     end                        
-                    fp_adc(:,(end+1):(end+block.adc.numSamples)) = [full_freqOffset*ones(1,block.adc.numSamples); full_phaseOffset+block.adc.phaseModulation+full_freqOffset*ta];
+                    fp_adc(:,(end+1):(end+block.adc.numSamples)) = [full_freqOffset*ones(1,block.adc.numSamples); full_phaseOffset+block.adc.phaseModulation+full_freqOffset*ta];                    
                 end
                 curr_dur=curr_dur+obj.blockDurations(iBc);%mr.calcDuration(block);
             end
@@ -1956,7 +2010,7 @@ classdef Sequence < handle
 %             end            
         end
         
-        function [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos, gw_pp] = calculateKspacePP(obj, varargin)
+        function [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos, gw_pp, pm_adc] = calculateKspacePP(obj, varargin)
             % calculate the k-space trajectory of the entire pulse sequence
 	        %   using piecewise-polynomial gradient wave representation 
 	        %   which is much faster for simple shapes and large delays
@@ -1994,12 +2048,21 @@ classdef Sequence < handle
             total_duration=sum(obj.blockDurations(blockRange(1):blockRange(2)));
             
             if isempty(opt.externalWaveformsAndTimes)
-                [gw_data, tfp_excitation, tfp_refocusing, t_adc]=obj.waveforms_and_times(false,blockRange);
+                if nargout>=10
+                    [gw_data, tfp_excitation, tfp_refocusing, t_adc, ~,pm_adc]=obj.waveforms_and_times(false,blockRange);
+                else
+                    [gw_data, tfp_excitation, tfp_refocusing, t_adc]=obj.waveforms_and_times(false,blockRange);
+                end
             else
                 gw_data=opt.externalWaveformsAndTimes.gw_data;
                 tfp_excitation=opt.externalWaveformsAndTimes.tfp_excitation;
                 tfp_refocusing=opt.externalWaveformsAndTimes.tfp_refocusing;
                 t_adc=opt.externalWaveformsAndTimes.t_adc;
+                if isfield(opt.externalWaveformsAndTimes, 'pm_adc')
+                    pm_adc=opt.externalWaveformsAndTimes.pm_adc;
+                else
+                    pm_adc=[];
+                end
                 % how do we verify that the total_duration is correct???
             end
             

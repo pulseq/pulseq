@@ -115,12 +115,12 @@ add_opt='';
 
 switch opt.use
     case 'excitation'
-        %if opt.flipAngle <= pi/6
-        %    ptype='st';
-        %else
+        if opt.flipAngle <= pi/6
+            ptype='st';
+        else
             ptype='ex';
             %add_opt=',cancel_alpha_phs=True';
-        %end
+        end
     case 'refocusing'
         ptype='se';
     case 'inversion'

@@ -119,7 +119,7 @@ struct GradEvent
 	float last;           /**< @brief amplitude at the end of the shape for arbitrary gradient */
 };
 
-#define FLOAT_UNDEFINED 1.18e-38
+#define FLOAT_UNDEFINED 1.18e-38f
 
 /**
  * @brief ADC readout event
@@ -162,6 +162,7 @@ enum ExtType {
 	EXT_LABELSET,
 	EXT_LABELINC,
 	EXT_DELAY,
+	EXT_RF_SHIM,
 	EXT_UNKNOWN /* marks the end of the enum, should always be the last */
 };
 
@@ -180,9 +181,9 @@ struct TriggerEvent
 
 
 /**
- * @brief Trigger event (extension)
+ * @brief soft delay event (extension)
  *
- * Stores trigger, type, duration
+ * Stores numeric ID, offset, factor and a hint (text ID corresponding to the numeric ID)
  */
 #define SOFT_DELAY_HINT_LENGTH 32
 struct SoftDelayEvent
@@ -191,6 +192,19 @@ struct SoftDelayEvent
 	int offset;                       /**< @brief Offset (positive or negative) added to the delay after the division by the factor (us) */
 	int factor;                       /**< @brief Factor by which the value on the user interface needs to be divided for calculating the final delay applied to the sequence */
 	char hint[SOFT_DELAY_HINT_LENGTH]; /**< @brief Text hint corresponding to this soft delay, e.g. TE */
+};
+
+/**
+ * @brief RF shimming event (extension)
+ *
+ * Stores RF channel, amplitude and phase
+ */
+struct RfShimmingEvent
+{
+    int                id;          /**< @brief unique ID of the RF shim object */
+    int                nchan;       /**< @brief RF channel number */
+	std::vector<float> amplitudes;  /**< @brief amplitude scaling factor */
+    std::vector<float> phases;      /**< @brief additional phase in the channel */
 };
 
 /**
@@ -563,6 +577,16 @@ public:
 	TriggerEvent& GetTriggerEvent();
 
 	/**
+     * @brief Do we have RF shimming events in the block?
+     */
+    bool hasRfShim();
+    
+	/**
+     * @brief Return the array of RF shimming events
+     */
+    RfShimmingEvent& GetRfShim();
+
+	/**
 	 * @brief Return the soft delay extension event
 	 */
 	SoftDelayEvent&  GetSoftDelayEvent();
@@ -623,8 +647,9 @@ protected:
 	RotationEvent rotation;     /**< @brief optional rotation event */
 	SoftDelayEvent softDelay;   /**< @brief optional soft delay event */
 	long actualSoftDelay_ru;    /**< @brief actual soft delay to be applied in the block > */
-	std::vector<LabelEvent> labelinc; /**< @brief labelinc event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
-	std::vector<LabelEvent> labelset; /**< @brief labelset event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
+    RfShimmingEvent rfShim;     /**< @brief optional array of RF shimming events */
+	std::vector<LabelEvent> labelinc;    /**< @brief labelinc event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
+	std::vector<LabelEvent> labelset;    /**< @brief labelset event, can be more than one */ // MZ: TODO: check if we should switch to storing only IDs in the library
 	// Below is only valid once decompressed:
 
 	// RF
@@ -671,6 +696,8 @@ inline ADCEvent&  SeqBlock::GetADCEvent() { return adc; }
 inline TriggerEvent&  SeqBlock::GetTriggerEvent() { return trigger; }
 inline SoftDelayEvent&  SeqBlock::GetSoftDelayEvent() { return softDelay; }
 inline RotationEvent&  SeqBlock::GetRotationEvent() { return rotation; }
+inline bool SeqBlock::hasRfShim() { return rfShim.nchan>0; }
+inline RfShimmingEvent& SeqBlock::GetRfShim() { return rfShim; }
 
 inline std::vector<LabelEvent>&  SeqBlock::GetLabelSetEvents() { return labelset; }
 inline std::vector<LabelEvent>&  SeqBlock::GetLabelIncEvents() { return labelinc; }
@@ -923,12 +950,18 @@ class ExternalSequence
 	 */
 	bool isAllGradientsInBlockStartAtZero(SeqBlock *block);
 
+	std::string getCounterIdAsString(int nID); // convert integer label ID to string for counters
+	std::string getFlagIdAsString(int nID);    // convert integer label ID to string for flags
+
 	bool isSigned();
 	std::string getSignature();
 	std::string getSignatureType();
 
 	bool isSignatureCheckSucceeded();
 
+	bool usesRfShimExtension();
+    bool getRfShimEventByID(int id, RfShimmingEvent& rfse); 
+	
   private:
 
 	static const int MAX_LINE_SIZE;	/**< @brief Maximum length of line */
@@ -1077,14 +1110,15 @@ class ExternalSequence
 	//std::map<int,ControlEvent> m_controlLibrary;  /**< @brief Library of control commands */
 	std::map<int,ExtensionListEntry> m_extensionLibrary;  /**< @brief Library of extension list entries */
 	std::map<int,std::pair<std::string,int> > m_extensionNameIDs; /**< @brief Map of extension IDs from the file to textIDs and internal known numeric IDs*/
-	std::map<int, TriggerEvent>   m_triggerLibrary;   /**< @brief Library of trigger events */
-	std::map<int, RotationEvent>  m_rotationLibrary;  /**< @brief Library of rotation events */
-	std::map<int, LabelEvent>     m_labelsetLibrary;  /**< @brief Library of labelset events */
-	std::map<int, LabelEvent>     m_labelincLibrary;  /**< @brief Library of labelinc events */
-	std::map<int, SoftDelayEvent> m_softDelayLibrary; /**< @brief Library of soft delay events */
-    LabelMap                      m_labelMap;        /**< @brief labelMap is useful for loading labels or damping/visualising values */
-
-	// List of basic shapes (referenced by events)
+	std::map<int, TriggerEvent>    m_triggerLibrary;   /**< @brief Library of trigger events */
+	std::map<int, RotationEvent>   m_rotationLibrary;  /**< @brief Library of rotation events */
+	std::map<int, LabelEvent>      m_labelsetLibrary;  /**< @brief Library of labelset events */
+	std::map<int, LabelEvent>      m_labelincLibrary;  /**< @brief Library of labelinc events */
+	std::map<int, SoftDelayEvent>  m_softDelayLibrary; /**< @brief Library of soft delay events */
+    std::map<int, RfShimmingEvent> m_rfShimLibrary;    /**< @brief Library of RF shimming events */
+    LabelMap                       m_labelMap;         /**< @brief labelMap is useful for loading labels or damping/visualising values */
+    
+    // List of basic shapes (referenced by events)
 	std::map<int,CompressedShape> m_shapeLibrary;    /**< @brief Library of compressed shapes */
 	// raster times
 	double m_dAdcRasterTime_us; // Siemens default: 1e-07s 
@@ -1121,5 +1155,15 @@ inline std::string ExternalSequence::getSignature() { return m_strSignature; }
 inline std::string ExternalSequence::getSignatureType() { return m_strSignatureType; }
 
 inline bool ExternalSequence::isSignatureCheckSucceeded() { return m_bSignatureDefined && m_bSignatureCheckSucceeded; }
+
+inline bool ExternalSequence::usesRfShimExtension() { return !m_rfShimLibrary.empty(); }
+inline bool ExternalSequence::getRfShimEventByID(int id, RfShimmingEvent& rfse) {
+    std::map<int, RfShimmingEvent>::iterator it=m_rfShimLibrary.find(id);
+    if (it == m_rfShimLibrary.end())
+        return false;
+    rfse = it->second;
+    return true;
+}
+	
 
 #endif	//_EXTERNAL_SEQUENCE_H_

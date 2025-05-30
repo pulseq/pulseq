@@ -1,7 +1,7 @@
 /**
   \page links Links
 
-In this page we collect a list of software packages which can read or write Pulseq files ar in any other ways rely on Pulseq. We admit that this list is by far incomplete and welcome you to contact us (preferably via the Discussions section) in case you'd like us to update the list.
+In this page we collect a list of software packages which can read or write Pulseq files or in any other ways rely on Pulseq. We admit that this list is by far incomplete and welcome you to contact us (preferably via the Discussions section) in case you'd like us to update the list.
 
 ## Open-source software with Pulseq support
 
@@ -21,9 +21,8 @@ In this page we collect a list of software packages which can read or write Puls
 | Package | Type | In / Out | Web Link |
 |---------|------|--------|----------|
 | coreMRI | MR simulator | import | http://corsmed.com/mri-simulator |
-| gammaSTAR | programming environment | export | https://gamma-star.mevis.fraunhofer.de/ |
+| gammaSTAR | programming environment | import/export | https://gamma-star.mevis.fraunhofer.de/ |
 | BlochSolver | MR simulator | import (to be confirmed) | http://www.blochsolver.org/ |
 
 */
-
 

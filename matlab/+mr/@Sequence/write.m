@@ -208,6 +208,20 @@ if ~isempty(obj.softDelayLibrary.keys)
     fprintf(fid, '\n');
 end
 
+if ~isempty(obj.rfShimLibrary.keys)
+    fprintf(fid, '# Extension specification for RF shimming:\n');
+    fprintf(fid, '# id num_chan magn_c1 phase_c1 magn_c2 phase_c2 ...\n');
+    fprintf(fid, ['extension RF_SHIMS ',num2str(obj.getExtensionTypeID('RF_SHIMS')),'\n']);
+
+    keys = obj.rfShimLibrary.keys;
+    for k = keys
+        fprintf(fid, '%d %d', [k length(obj.rfShimLibrary.data(k).array)/2]); 
+        fprintf(fid, ' %g', obj.rfShimLibrary.data(k).array);
+        fprintf(fid, '\n');
+    end
+    fprintf(fid, '\n');
+end
+
 if ~isempty(obj.shapeLibrary.keys)
     fprintf(fid, '# Sequence Shapes\n');
     fprintf(fid, '[SHAPES]\n\n');

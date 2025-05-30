@@ -240,17 +240,24 @@ classdef SeqPlot < handle
                             s=rf.signal;
                         end
                         sreal=max(abs(imag(s)))/max(abs(real(s)))<1e-6; %all(isreal(s));
+                        full_freqOffset=rf.freqOffset+rf.freqPPM*1e-6*seq.sys.gamma*seq.sys.B0;
+                        full_phaseOffset=rf.phaseOffset+rf.phasePPM*1e-6*seq.sys.gamma*seq.sys.B0;
+                        % If off-resonant and rectangular (2 samples), interpolate the pulse
+                        if (length(s) == 2) && (full_freqOffset ~= 0)
+                            numInterp = min(int32(abs(full_freqOffset)), 256);
+                            t = linspace(t(1), t(end), numInterp)';
+                            s = linspace(s(1), s(end), numInterp)';
+                        end
                         if abs(s(1))~=0 % fix strangely looking phase / amplitude in the beginning
                             s=[0; s];
                             t=[t(1); t];
                             %ic=ic+1;
                         end
-                        if abs(s(end))~=0 % fix strangely looking phase / amplitude in the beginning
+                        if abs(s(end))~=0 % fix strangely looking phase / amplitude at the end
                             s=[s; 0];
                             t=[t; t(end)];
                         end
-                        full_freqOffset=rf.freqOffset+rf.freqPPM*1e-6*seq.sys.gamma*seq.sys.B0;
-                        full_phaseOffset=rf.phaseOffset+rf.phasePPM*1e-6*seq.sys.gamma*seq.sys.B0;
+
                         if (sreal)
                             p1=plot(tFactor*(t0+t+rf.delay),  real(s),'Parent',obj.ax(2));
                             p2=plot(tFactor*(t0+t+rf.delay),  angle(s.*sign(real(s))*exp(1i*full_phaseOffset).*exp(1i*2*pi*t    *full_freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*full_phaseOffset).*exp(1i*2*pi*tc*full_freqOffset)),'xb', 'Parent',obj.ax(3));

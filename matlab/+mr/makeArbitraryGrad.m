@@ -83,19 +83,20 @@ grad.type = 'grad';
 grad.channel = opt.channel;
 grad.waveform = g;
 grad.delay = opt.delay;
-grad.area=sum(grad.waveform)*system.gradRasterTime; % QC: Take gradient raster time into account. 20230719
 % true timing and aux shape data
 if opt.oversampling
+    grad.area=sum(grad.waveform(1:2:end))*system.gradRasterTime; % undo oversamping
     if (mod(length(g),2)~=1)
         error('when oversampling is active the gradient shape vector must contain an odd number of samples');
     end
     grad.tt = (1:length(g))'*0.5*system.gradRasterTime;
     grad.shape_dur = (length(g)+1)*0.5*system.gradRasterTime;    
 else
+    grad.area=sum(grad.waveform)*system.gradRasterTime; 
     grad.tt = ((1:length(g))'-0.5)*system.gradRasterTime;
     grad.shape_dur = length(g)*system.gradRasterTime;
 end
 grad.first = first;
-grad.last = opt.last;
+grad.last = last;
 
 end

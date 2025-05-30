@@ -536,6 +536,7 @@ html:
 	test -d recon || cp -r recon/* html/
 	cp matlab.css html/
 	cp specification.pdf html/
+	cp pulseq_shapes_and_times.pdf html/
 	cp images/overview.png html/
 	cp images/nih_logo_horizontal.png html/
 	cp images/eu_logo_horizontal.png html/
