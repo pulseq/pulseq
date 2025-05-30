@@ -1,7 +1,7 @@
 % Define FOV, resolution and other sequence parameters
 fov = 256e-3; slThck = 5e-3;
 Nx = 128; Ny = Nx;
-TE = 8e-3; TR = 1022e-3; alpha=15;
+TE = 8e-3; TR = 22e-3; alpha=15;
 
 % set system limits
 sys = mr.opts('MaxGrad',20,'GradUnit','mT/m',...
@@ -52,4 +52,10 @@ seq.setDefinition('Name', 'mini_gre');
 
 seq.write('mini_gre.seq')       % Write to pulseq file
 
-seq.plot('timeRange', [0 2*TR]); % try also 'showBlocks', true, 'stacked', true
+% plot the sequence
+seq.plot('timeRange', [0 2*TR]); % try also 'showBlocks', true, 'stacked', true, 'timeDisp', 'ms'
+
+% k-space trajectory visualization
+[ktraj_adc, t_adc, ktraj, t_ktraj] = seq.calculateKspacePP();
+figure; plot(ktraj(1,:),ktraj(2,:),'b'); axis('equal'); % plot the entire trajectory
+hold on; plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the ADC sampling points
