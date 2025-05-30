@@ -243,8 +243,8 @@ classdef SeqPlot < handle
                         full_freqOffset=rf.freqOffset+rf.freqPPM*1e-6*seq.sys.gamma*seq.sys.B0;
                         full_phaseOffset=rf.phaseOffset+rf.phasePPM*1e-6*seq.sys.gamma*seq.sys.B0;
                         % If off-resonant and rectangular (2 samples), interpolate the pulse
-                        if (length(s) == 2) && abs(full_freqOffset)>0
-                            numInterp = min(ceil(full_freqOffset), 256);
+                        if (length(s) == 2) && (full_freqOffset ~= 0)
+                            numInterp = min(int32(abs(full_freqOffset)), 256);
                             t = linspace(t(1), t(end), numInterp)';
                             s = linspace(s(1), s(end), numInterp)';
                         end
