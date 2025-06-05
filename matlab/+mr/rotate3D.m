@@ -1,10 +1,12 @@
-function [varargout] = rotate3D(rotMat, varargin)
+function [varargout] = rotate3D(rotation, varargin)
 %rotate3D rotate all objects (gradients) in the block by a rotation matrix
 %
 %   [...] = rotate(rotMat, obj <, obj> ...);
 %
 %   Rotates the corresponding gradinet object(s) by the provided rotation
-%   matrix; non-gradient objects are not affected. 
+%   represented either as a 3x3 rotation matrix or a unit quaternion with
+%   the scalar component at the first position; non-gradient objects are
+%   not affected.   
 %
 %   Optional parameter list may include the keyword 'system' followed by a
 %   system limits struct. The system can only be provided in the beginning
@@ -34,6 +36,16 @@ elseif length(varargin)>1 && ischar(varargin{end-1}) && strcmp(lower(varargin{en
     system=varargin{end};
     varargin=varargin(1:end-2);
 end
+
+% detect rotation matrix or quaternion formats
+if size(rotation)==[3 3]
+    rotMat=rotation;
+elseif length(rotation)==4
+    rotMat=mr.aux.quat.toRotMat(rotation);
+else
+    error('The parameter ''rotation'' must either bi a 3x3 matrix or a quaternion');
+end
+
 % make this function accept ready-made blocks
 if isstruct(varargin{1}) && isfield(varargin{1}, 'rf') 
     varargin=mr.block2events(varargin);    
