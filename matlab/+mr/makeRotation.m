@@ -8,7 +8,7 @@ function rot = makeRotation( varargin )
 if nargin<1
     error('makeRotation:invalidArguments','Must supply rotation angle(s)');
 end
-switch length(varargin{1})
+switch numel(varargin{1})
     case 1
         phi = varargin{1};
         if nargin<2
@@ -34,7 +34,7 @@ switch length(varargin{1})
     case 4
         rot.rotQuaternion=mr.aux.quat.normalize(varargin{1});
     case 9
-        assert(size(varargin{1})==[3 3]);
+        assert(all(size(varargin{1})==[3 3]));
         rot.rotQuaternion=mr.aux.quat.fromRotMat(varargin{1});
     otherwise
         error('unexpected input to makeRotation');
