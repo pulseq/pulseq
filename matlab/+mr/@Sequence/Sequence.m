@@ -914,7 +914,11 @@ classdef Sequence < handle
                             % ext=struct('type', 1, 'ref', id);
                             ext=struct('type', obj.getExtensionTypeID('RF_SHIMS'), 'ref', id);
                             extensions=[extensions ext];
-                        case 'rot3D' 
+                        case 'rot3D'
+                            if ~isempty(rotQuaternion)
+                                error('Only one ''rotation'' extension event can be added per block');
+                            end
+                            rotQuaternion=event.rotQuaternion;
                             if isfield(event,'id')
                                 id=event.id;
                             else
@@ -1020,7 +1024,7 @@ classdef Sequence < handle
                 % up to here gradCheckData.lastGradVals are in physical coordinates, we transform them into current 
                 % logical coordinates of this block has rotation extension
                 if ~isempty(rotQuaternion)
-                    gradCheckData.lastGradVals = mr.aux.quat.rotate(mr.aux.quat.conjugate(rotQuaternion), gradCheckData.lastGradVals);
+                    obj.gradCheckData.lastGradVals = mr.aux.quat.rotate(mr.aux.quat.conjugate(rotQuaternion), obj.gradCheckData.lastGradVals);
                 end
                 for i= 1:3 %length(check_g) % TODO: MZ: check this with external gradient channels !!!
                     cg=check_g{i}; % cg_temp is still a cell-array with a single element here...
@@ -1058,7 +1062,7 @@ classdef Sequence < handle
                 end
                 % now transfrom the gradCheckData.lastGradVals to physical coordinates if the present block has rotation
                 if ~isempty(rotQuaternion)
-                    gradCheckData.lastGradVals = mr.aux.quat.rotate(rotQuaternion, gradCheckData.lastGradVals);
+                    obj.gradCheckData.lastGradVals = mr.aux.quat.rotate(rotQuaternion, obj.gradCheckData.lastGradVals);
                 end                
             end
             % finish updating gradCheckData (if current block duration is 0 we simply update the validity indicator)
