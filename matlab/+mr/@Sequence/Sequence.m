@@ -57,6 +57,7 @@ classdef Sequence < handle
         softDelayLibrary; % Library of 'soft delay' extension events.
         softDelayHints1;  % Map of string hints that are the part of the 'soft delay' extension objects
         softDelayHints2;  % cell array of string hints that are the part of the 'soft delay' extension objects
+        rotationLibrary;  % Library of the rotation extension objects (rotation quaternions)
         extensionStringIDs;  % string IDs of the used extensions (cell array)
         extensionNumericIDs; % numeric IDs of the used extensions (numeric array)
 
@@ -87,6 +88,7 @@ classdef Sequence < handle
             obj.labelsetLibrary = mr.EventLibrary();
             obj.labelincLibrary = mr.EventLibrary();
             obj.rfShimLibrary = mr.EventLibrary();
+            obj.rotationLibrary = mr.EventLibrary();
             obj.extensionLibrary = mr.EventLibrary();
             obj.extensionStringIDs={};
             obj.extensionNumericIDs=[];
@@ -735,6 +737,19 @@ classdef Sequence < handle
             id = obj.rfShimLibrary.find_or_insert(data(:)');
         end
 
+        function id=registerRotationEvent(obj, event)
+            % registerRotationEvent : Add the event to the libraries (object,
+            % shapes, etc and return the event's ID. This ID should be 
+            % stored in the object to accelerate addBlock()            
+            data = event.rotQuaternion;
+            % confirm that the rotation matrix is valid
+            if ( length(data) == 4 ) & ( abs(1.0 - sum(data.^2)) < 1e-6 )
+                id = obj.rotationLibrary.find_or_insert(data(:)');
+            else
+                error('invalid rotation quaternion detected during registerRotationEvent()');
+            end
+        end
+        
         %TODO: Replacing blocks in the middle of sequence can cause unused
         %events in the libraries. These can be detected and pruned.
         function setBlock(obj, index, varargin)
@@ -766,6 +781,7 @@ classdef Sequence < handle
             check_g = cell(1,3); % cell-array containing a structure, each with the index and pairs of gradients/times
             extensions = [];
             required_duration=[];
+            rotQuaternion = []; % rotation extension
             
             % Loop over events adding to library if necessary and creating
             % block event structure.
@@ -898,6 +914,14 @@ classdef Sequence < handle
                             % ext=struct('type', 1, 'ref', id);
                             ext=struct('type', obj.getExtensionTypeID('RF_SHIMS'), 'ref', id);
                             extensions=[extensions ext];
+                        case 'rot3D' 
+                            if isfield(event,'id')
+                                id=event.id;
+                            else
+                                id = obj.registerRotationEvent(event);
+                            end
+                            ext=struct('type', obj.getExtensionTypeID('ROTATIONS'), 'ref', id);
+                            extensions=[extensions ext];
                         otherwise
                             error('Attempting to add an unknown event to the block.');
                     end
@@ -923,7 +947,7 @@ classdef Sequence < handle
                 % key mapping then... The trick is that we rely on the
                 % sorting of the extension IDs and then we can always find
                 % the last one in the list by setting the reference to the
-                % next to 0 and then proceed with the otehr elements.
+                % next to 0 and then proceed with the other elements.
                 [~,I]=sort([extensions(:).ref]);
                 extensions=extensions(I);
                 all_found=true;
@@ -989,8 +1013,15 @@ classdef Sequence < handle
                             end
                         end
                     end
+                    % now it's a pain, but we also need to extract the rotation extension of the previous block --
+                    warning('FIXME: need rotation extension of the previous non-zero block here...');
                 end
-                % check if connection to the previous block is correct using check_g
+                % check if connection to the previous block is correct using check_g and gradCheckData.lastGradVals
+                % up to here gradCheckData.lastGradVals are in physical coordinates, we transform them into current 
+                % logical coordinates of this block has rotation extension
+                if ~isempty(rotQuaternion)
+                    gradCheckData.lastGradVals = mr.aux.quat.rotate(mr.aux.quat.conjugate(rotQuaternion), gradCheckData.lastGradVals);
+                end
                 for i= 1:3 %length(check_g) % TODO: MZ: check this with external gradient channels !!!
                     cg=check_g{i}; % cg_temp is still a cell-array with a single element here...
                     % connection to the previous block in case of extended or shaped gradients
@@ -1023,8 +1054,12 @@ classdef Sequence < handle
                     end
     
                     % update the gradCheckData.lastGradVals(i)
-                    obj.gradCheckData.lastGradVals(i)=cg.stop(2);
+                    obj.gradCheckData.lastGradVals(i)=cg.stop(2); % we can play with the continuity check values by transforming them back and foth, here to physical, at the baginning of the check to current logical 
                 end
+                % now transfrom the gradCheckData.lastGradVals to physical coordinates if the present block has rotation
+                if ~isempty(rotQuaternion)
+                    gradCheckData.lastGradVals = mr.aux.quat.rotate(rotQuaternion, gradCheckData.lastGradVals);
+                end                
             end
             % finish updating gradCheckData (if current block duration is 0 we simply update the validity indicator)
             obj.gradCheckData.validForBlockNum = index;
@@ -1179,6 +1214,19 @@ classdef Sequence < handle
                         block.rfShim=struct('type','rfShim','shimVector',data(1:2:end).*exp(1i*2*pi*data(2:2:end)));
                     end
                 end
+                % unpack 3D rotations
+                rotation_ext=raw_block.ext(:,raw_block.ext(1,:)==obj.getExtensionTypeID('ROTATIONS'));
+                if ~isempty(rotation_ext)
+                    if size(rotation_ext,2)>1
+                        error('Only one rotation extension object per block is allowed');
+                    end
+                    data = obj.rotationLibrary.data(rotation_ext(2,1)).array;
+                    if addIDs
+                        block.rotation=struct('type','rot3D','rotQuaternion',data,'id',rotation_ext(2,1));
+                    else
+                        block.rotation=struct('type','rot3D','rotQuaternion',data);
+                    end
+                end
                 % unpack delay
                 delay_ext=raw_block.ext(:,raw_block.ext(1,:)==obj.getExtensionTypeID('DELAYS'));
                 if ~isempty(delay_ext)
@@ -1198,7 +1246,8 @@ classdef Sequence < handle
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET') && ...
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET') && ...
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('RF_SHIMS') && ...
-                           raw_block.ext(1,i)~=obj.getExtensionTypeID('DELAYS')
+                           raw_block.ext(1,i)~=obj.getExtensionTypeID('DELAYS') && ...
+                           raw_block.ext(1,i)~=obj.getExtensionTypeID('ROTATIONS')
                             warning('unknown extension ID %d', raw_block.ext(1,i));
                         end
                     end
@@ -1833,6 +1882,20 @@ classdef Sequence < handle
             out_len=zeros(1,shape_channels); % the last "channel" is RF
             for iBc=blockRange(1):blockRange(2)
                 block = obj.getBlock(iBc);
+                
+                if isfield(block,'rotation')
+                    % apply the rotation to the current block and restore the block structure
+                    c=mr.rotate3D(block.rotation.rotQuaternion,block);
+                    for i=1:3
+                        block.(gradChannels{i})=[];
+                    end
+                    for i=1:length(c)
+                        if isstruct(c{i}) && isfield(c{i},'type') && isfield(c{i},'channel')
+                            block.(['g' c{i}.channel])=c{i};
+                        end
+                    end
+                end
+                
                 iP=iP+1;
                 for j=1:length(gradChannels)
                     grad=block.(gradChannels{j});

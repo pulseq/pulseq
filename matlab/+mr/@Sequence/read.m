@@ -175,6 +175,13 @@ while true
                     id=str2num(extension(9:end));
                     obj.setExtensionStringAndID('RF_SHIMS',id);
                     obj.rfShimLibrary = readAndParseEvents(fid,@preprocRfShimData);
+                elseif strncmp('ROTATIONS', extension, 9) 
+                    id=str2num(extension(10:end));
+                    obj.setExtensionStringAndID('ROTATIONS',id);
+                    obj.rotationLibrary = readEvents(fid);
+                    for i=1:length(obj.rotationLibrary.data)
+                        obj.rotationLibrary.data(i).array=mr.aux.quat.normalize(obj.rotationLibrary.data(i).array);
+                    end
                 else
                     warning('Ignoring unknown extension, input string: %s', extension);
                     exts=regexp(extension, '(\s+)','split');                    

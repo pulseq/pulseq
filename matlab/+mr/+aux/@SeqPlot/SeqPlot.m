@@ -181,6 +181,18 @@ classdef SeqPlot < handle
             % loop through blocks
             for iB=1:length(seq.blockEvents)
                 block = seq.getBlock(iB);
+                if isfield(block,'rotation')
+                    % apply the rotation to the current block and restore the block structure
+                    c=mr.rotate3D(block.rotation.rotQuaternion,block);
+                    for i=1:3
+                        block.(gradChannels{i})=[];
+                    end
+                    for i=1:length(c)
+                        if isstruct(c{i}) && isfield(c{i},'type') && isfield(c{i},'channel')
+                            block.(['g' c{i}.channel])=c{i};
+                        end
+                    end
+                end
                 if t0<=timeRange(2)
                     % update the labels / counters even if we are below the display range
                     if isfield(block,'label') %current labels, works on the curent or next adc

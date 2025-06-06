@@ -28,6 +28,15 @@ fprintf(fid, 'minor %s\n', num2str(version_minor));
 fprintf(fid, 'revision %s\n', num2str(version_revision));
 fprintf(fid, '\n');
 
+% handle RequiredExtensions definition
+if ~isempty(obj.rotationLibrary.keys)
+    RD=obj.getDefinition('RequiredExtensions');
+    if ~strfind(RD,'ROTATIONS')
+        RD=mr.aux.strstrip([mr.aux.strstrip(RD) ' ROTATIONS']);
+        obj.setDefinition('RequiredExtensions', RD);
+    end
+end
+
 if ~isempty(obj.definitions)
     fprintf(fid, '[DEFINITIONS]\n');
     keys = obj.definitions.keys;
@@ -217,6 +226,20 @@ if ~isempty(obj.rfShimLibrary.keys)
     for k = keys
         fprintf(fid, '%d %d', [k length(obj.rfShimLibrary.data(k).array)/2]); 
         fprintf(fid, ' %g', obj.rfShimLibrary.data(k).array);
+        fprintf(fid, '\n');
+    end
+    fprintf(fid, '\n');
+end
+
+if ~isempty(obj.rotationLibrary.keys)
+    fprintf(fid, '# Extension specification for rotation events:\n');
+    fprintf(fid, '# id RotQuat0 RotQuatX RotQuatY RotQuatZ\n');
+    fprintf(fid, ['extension ROTATIONS ',num2str(obj.getExtensionTypeID('ROTATIONS')),'\n']);
+
+    keys = obj.rotationLibrary.keys;
+    for k = keys
+        fprintf(fid, '%d ', k );
+        fprintf(fid, ' %g', obj.rotationLibrary.data(k).array);
         fprintf(fid, '\n');
     end
     fprintf(fid, '\n');
