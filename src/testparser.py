@@ -19,8 +19,8 @@ def main():
     print("==================================")
 
     sequences = ['fid','gre','epi_rs']
-    base_dir = '../examples/'
-    approved_dir = '../examples/approved/'
+    base_dir = '../tests/legacy'
+    approved_dir = '../tests/legacy/approved/'
     ok = True
 
     for seq in sequences:
