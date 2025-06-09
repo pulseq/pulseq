@@ -31,7 +31,7 @@ fprintf(fid, '\n');
 % handle RequiredExtensions definition
 if ~isempty(obj.rotationLibrary.keys)
     RD=obj.getDefinition('RequiredExtensions');
-    if ~strfind(RD,'ROTATIONS')
+    if isempty(strfind(RD,'ROTATIONS'))
         RD=mr.aux.strstrip([mr.aux.strstrip(RD) ' ROTATIONS']);
         obj.setDefinition('RequiredExtensions', RD);
     end
