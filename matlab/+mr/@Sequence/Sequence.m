@@ -1889,7 +1889,7 @@ classdef Sequence < handle
                 
                 if isfield(block,'rotation')
                     % apply the rotation to the current block and restore the block structure
-                    c=mr.rotate3D(block.rotation.rotQuaternion,block);
+                    c=mr.rotate3D(block.rotation.rotQuaternion,block,'system',seq.sys);
                     for i=1:3
                         block.(gradChannels{i})=[];
                     end
