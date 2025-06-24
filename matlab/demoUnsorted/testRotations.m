@@ -11,45 +11,45 @@ gx=mr.scaleGrad(gx,0.55);
 gy=mr.scaleGrad(gy,0.55);
 gz=mr.scaleGrad(gz,0.55);
 
-% sanity check: no rotations
+% 1: sanity check: no rotations
 seq1.addBlock(gx,gy,gz);
 seq2.addBlock(gx,gy,gz);
 
-% simple polar angle
+% 2: simple polar angle
 seq1.addBlock(mr.rotate('z', 20*pi/180, gx,gy,gz));
 seq2.addBlock(gx,gy,gz,mr.makeRotation(20*pi/180));
 
-% same test with rotation matrix on seq1 and a different angle
+% 3: same test with rotation matrix on seq1 and a different angle
 seq1.addBlock(mr.rotate3D(rotz(-35), gx,gy,gz));
 seq2.addBlock(gx,gy,gz,mr.makeRotation(-35*pi/180));
 
-% same with rotation matrix on both seq1 and seq2
+% 4: same with rotation matrix on both seq1 and seq2
 seq1.addBlock(mr.rotate3D(rotz(35), gx,gy,gz));
 seq2.addBlock(gx,gy,gz,mr.makeRotation(rotz(35)));
 
-% rotation by the azimuthal angle only 
-seq1.addBlock(mr.rotate('x', -20*pi/180, gx,gy,gz));
+% 5: rotation by the azimuthal angle only 
+seq1.addBlock(mr.rotate('y', -20*pi/180, gx,gy,gz));
 seq2.addBlock(gx,gy,gz,mr.makeRotation(0,-20*pi/180));
 
-% same with rotation matrix on seq1
-seq1.addBlock(mr.rotate3D(rotx(40), gx,gy,gz));
+% 6: same with rotation matrix on seq1
+seq1.addBlock(mr.rotate3D(roty(40), gx,gy,gz));
 seq2.addBlock(gx,gy,gz,mr.makeRotation(0,40*pi/180));
 
-% both azimuthal and polar angles
-seq1.addBlock(mr.rotate('z',55*pi/180,mr.rotate('x', 70*pi/180, gx,gy,gz)));
+% 7: both azimuthal and polar angles
+seq1.addBlock(mr.rotate('z',55*pi/180,mr.rotate('y', 70*pi/180, gx,gy,gz)));
 seq2.addBlock(gx,gy,gz,mr.makeRotation(55*pi/180,70*pi/180));
 
-% same with the rotation matrix on the extension side
-seq1.addBlock(mr.rotate('z',75*pi/180,mr.rotate('x', -65*pi/180, gx,gy,gz)));
-seq2.addBlock(gx,gy,gz,mr.makeRotation(rotz(75)*rotx(-65)));
+% 8: same with the rotation matrix on the extension side
+seq1.addBlock(mr.rotate('z',75*pi/180,mr.rotate('y', -65*pi/180, gx,gy,gz)));
+seq2.addBlock(gx,gy,gz,mr.makeRotation(rotz(75)*roty(-65)));
 
-% same with the rotation matrix on the conventional side
-seq1.addBlock(mr.rotate3D(rotz(-80)*rotx(-35), gx,gy,gz));
+% 9: same with the rotation matrix on the conventional side
+seq1.addBlock(mr.rotate3D(rotz(-80)*roty(-35), gx,gy,gz));
 seq2.addBlock(gx,gy,gz,mr.makeRotation(-80*pi/180,-35*pi/180));
 
-% rotation about Y axis
-seq1.addBlock(mr.rotate3D(roty(-50), gx,gy,gz));
-seq2.addBlock(gx,gy,gz,mr.makeRotation([0 1 0],-50*pi/180));
+% 10: rotation about X axis
+seq1.addBlock(mr.rotate3D(rotx(-50), gx,gy,gz));
+seq2.addBlock(gx,gy,gz,mr.makeRotation([1 0 0],-50*pi/180));
 
 % test waveforms
 w1=seq1.waveforms_and_times();
