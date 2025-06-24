@@ -16,13 +16,13 @@ switch numel(varargin{1})
         else
             theta = varargin{2};
         end
-        assert( ( abs(phi) >= 0 ) & ( abs(phi) < 2*pi) , 'makeRotation:invalidTheta',...
-            'rotation angle phi (%.2f) is invalid. should be within [0,2*pi] radians',theta);
-        assert( ( abs(theta) >= 0 ) & ( abs(theta) <= pi) , 'makeRotation:invalidPhi',...
-            'rotation angle theta (%.2f) is invalid. should be within [0,pi] radians',phi);
+        assert( ( phi >= -pi ) && ( phi < 2*pi) , 'makeRotation:invalidTheta',...
+            'rotation angle phi (%.2f) is invalid. should be within [-pi,2*pi] radians',phi);
+        assert( ( theta >= -pi ) && ( theta <= pi) , 'makeRotation:invalidPhi',...
+            'rotation angle theta (%.2f) is invalid. should be within [-pi,pi] radians',theta);
         q1=[cos(theta/2) sin(theta/2) 0 0];
         q2=[cos(phi/2) 0 0 sin(phi/2)];
-        rot.rotQuaternion=mr.aux.quat.multiply(q1,q2); % ok, looks like the order is right
+        rot.rotQuaternion=mr.aux.quat.multiply(q2,q1); % ok, looks like the order is right
     case 3
         v=varargin{1};
         v=v./sqrt(sum(v.^2));
