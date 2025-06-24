@@ -20,8 +20,8 @@ switch numel(varargin{1})
             'rotation angle phi (%.2f) is invalid. should be within [-pi,2*pi] radians',phi);
         assert( ( theta >= -pi ) && ( theta <= pi) , 'makeRotation:invalidPhi',...
             'rotation angle theta (%.2f) is invalid. should be within [-pi,pi] radians',theta);
-        q1=[cos(theta/2) sin(theta/2) 0 0];
-        q2=[cos(phi/2) 0 0 sin(phi/2)];
+        q1=[cos(theta/2) 0 sin(theta/2) 0]; % y axis
+        q2=[cos(phi/2) 0 0 sin(phi/2)]; % z axis
         rot.rotQuaternion=mr.aux.quat.multiply(q2,q1); % ok, looks like the order is right
     case 3
         v=varargin{1};
