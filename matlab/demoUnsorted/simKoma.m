@@ -7,7 +7,7 @@ function out=simKoma(seq, varargin)
 persistent parser
 if isempty(parser)
     parser = inputParser;
-    parser.FunctionName = 'simMR0';
+    parser.FunctionName = 'simKoma';
      
     addParamValue(parser, 'workPath', '', @(x)isstring(x)||ischar(x)); % optional path to the temporary directory for files stored by the function
     addParamValue(parser, 'baseName', 'komasim', @(x)isstring(x)||ischar(x)); % optional file name for the sequence and simulation result files in the temporary directory
