@@ -383,7 +383,7 @@ Tag & Type & Description & Units\\
 \verb.<id>. & integer & ID of the gradient event & -- \\
 \verb.<amp>. & float & Peak amplitude & Hz/m \\
 \verb.<first>. & float & The amplitude of the gradient at the start of the gradient. Only relevant for the arbitrary gradients (shaped gradients and extended trapezoids) & Hz/m \\
-\verb.<first>. & float & The amplitude of the gradient at the end of the gradient. Only relevant for the arbitrary gradients & Hz/m \\
+\verb.<last>. & float & The amplitude of the gradient at the end of the gradient. Only relevant for the arbitrary gradients & Hz/m \\
 \verb.<shape_id>. & integer & Shape ID for arbitrary gradient waveform & -- \\
 \verb.<time_id>. & integer & Shape ID for the time sampling points, specified in the units of \verb.GradientRasterTime.; 0 means default time raster; -1 means 1/2 of the default time raster (gradient oversampling case) & -- \\
 \verb.<rise>. & integer & Rise time of the trapezoid & $\rm \mu s$ \\
@@ -574,7 +574,7 @@ Tag & Type & Description & Units\\
 \midrule
 \verb.<id>. & integer & ID of the shape & -- \\
 \verb.<num>. & integer & Number of samples of the uncompressed shape & -- \\
-\verb.<sample_.$n$\verb.>. & integer & The $n^{\rm th}$ sample of the compressed shape  & -- \\
+\verb.<sample_.$n$\verb.>. & float & The $n^{\rm th}$ sample of the compressed shape  & -- \\
 \bottomrule
 \end{tabularx}
 
