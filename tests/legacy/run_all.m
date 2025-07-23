@@ -4,7 +4,7 @@
 
 % avoid cwd madness
 od = cd(fileparts(which(mfilename)));
-addpath(genpath('../matlab'));
+addpath(genpath('../../matlab'));
 
 % list of sequences to execute
 fid

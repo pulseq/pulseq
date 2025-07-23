@@ -141,7 +141,7 @@ The first goal of human readability necessitates a text-file format. The file fo
 \subsection{Example}
 
 Before defining the detailed specification, a simple example is presented to demonstrate the main structure of a sequence. Below is a simple FID experiment with RF pulse, delay and ADC readout. 
-\lstinputlisting{../tests/fiddisp.seq}
+\lstinputlisting{../tests/legacy/fiddisp.seq}
 
 
 
@@ -574,7 +574,7 @@ Tag & Type & Description & Units\\
 \midrule
 \verb.<id>. & integer & ID of the shape & -- \\
 \verb.<num>. & integer & Number of samples of the uncompressed shape & -- \\
-\verb.<sample_.$n$\verb.>. & integer & The $n^{\rm th}$ sample of the compressed shape  & -- \\
+\verb.<sample_.$n$\verb.>. & float & The $n^{\rm th}$ sample of the compressed shape  & -- \\
 \bottomrule
 \end{tabularx}
 
@@ -708,15 +708,11 @@ This specification is distributed with source code for reading and writing the s
 
 \subsection{Free induction decay}
 
-\lstinputlisting{../tests/fiddisp.seq}
-
-\subsection{Point-resolved spectroscopy (PRESS)}
-
-\lstinputlisting{../tests/pressdisp.seq}
+\lstinputlisting{../tests/legacy/fiddisp.seq}
 
 \subsection{Gradient echo}
 
-\lstinputlisting{../tests/gredisp.seq}
+\lstinputlisting{../tests/legacy/gredisp.seq}
 
 
 \end{document}

@@ -17,7 +17,7 @@ seq=mr.Sequence(lims);     % Create a new sequence object
 
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',3e-3,...
-    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4);
+    'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4,'use','excitation');
 
 % Define other gradients and ADC events
 deltak=1/fov;

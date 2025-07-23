@@ -73,7 +73,7 @@ if ~isempty(obj.rfLibrary.keys)
     fprintf(fid, '# Format of RF events:\n');
     fprintf(fid, '# id ampl. mag_id phase_id time_shape_id center delay freqPPM phasePPM freq phase use\n');
     fprintf(fid, '# ..   Hz      ..       ..            ..     us    us     ppm  rad/MHz   Hz   rad  ..\n');
-    fprintf(fid,['# Field ''use'' is the initial of: ' ...
+    fprintf(fid,['# Field ''use'' is the initial of: \n#   ' ...
         strtrim(cell2mat(cellfun(@(x) [x ' '], mr.getSupportedRfUse(), 'UniformOutput', false))) ... 
         '\n']);
     fprintf(fid, '[RF]\n');
@@ -284,9 +284,11 @@ if create_signature
     % re-open the file for appending
     fid=fopen(filename, 'a');
     fprintf(fid, '\n[SIGNATURE]\n'); % the preceding new line BELONGS to the signature (and needs to be sripped away to recalculate the signature)
-    fprintf(fid, '# This is the hash of the Pulseq file, calculated right before the [SIGNATURE] section was added\n');
-    fprintf(fid, '# It can be reproduced/verified with md5sum if the file trimmed to the position right above [SIGNATURE]\n');
-    fprintf(fid, '# The new line character preceding [SIGNATURE] BELONGS to the signature (and needs to be sripped away for recalculating/verification)\n');
+    fprintf(fid, '# This is the hash of the Pulseq file, calculated right before the [SIGNATURE]\n');
+    fprintf(fid, '# section was added. It can be reproduced/verified with md5sum if the file\n');
+    fprintf(fid, '# trimmed to the position right above [SIGNATURE]. The new line character\n');
+    fprintf(fid, '# preceding [SIGNATURE] BELONGS to the signature (and needs to be sripped away\n');
+    fprintf(fid, '# for recalculating/verification)\n');
     fprintf(fid, 'Type md5\n');
     fprintf(fid, 'Hash %s\n', md5hash);
     fclose(fid);

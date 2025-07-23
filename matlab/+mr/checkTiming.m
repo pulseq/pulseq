@@ -66,7 +66,7 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
                     end
                 else
                     % "extended"-shape -- all points should be on RF raster edges
-                    if any(abs(rf-round(rt))>1e-6)
+                    if any(abs(rt-round(rt))>1e-6)
                         ok=false; % TODO: add a meaninfull error message, for now it will look very cryptic
                     end
                 end
