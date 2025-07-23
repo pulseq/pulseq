@@ -103,7 +103,7 @@ classdef SeqPlot < handle
             obj.ax=obj.ax([1 3 5 2 4 6]);   % Re-order axes
             arrayfun(@(x)hold(x,'on'),obj.ax);
             arrayfun(@(x)grid(x,'on'),obj.ax);
-            labels={'ADC/labels','RF mag (Hz)','RF/ADC ph (rad)','Gx (kHz/m)','Gy (kHz/m)','Gz (kHz/m)'};
+            labels={'ADC/lbl/trig','RF mag (Hz)','RF/ADC ph (rad)','Gx (kHz/m)','Gy (kHz/m)','Gz (kHz/m)'};
             arrayfun(@(x)ylabel(obj.ax(x),labels{x}),1:6);
             
             tFactorList = [1 1e3 1e6];
@@ -209,6 +209,18 @@ classdef SeqPlot < handle
                 end
                 isValid = t0+seq.blockDurations(iB)>timeRange(1) && t0<=timeRange(2);
                 if isValid
+                    if isfield(block,'trig') && ~isempty(block.trig)
+                        switch(block.trig.type)
+                            case 'output'
+                                % plot digital output triggers in the RF-TX pane
+                                p2x=plot(tFactor*(t0+block.trig.delay),0,'diamond','Color',[0 0.5 0],'Parent',obj.ax(1));
+                                p2x=plot(tFactor*(t0+block.trig.delay +[0 block.trig.duration]),[0 0],'-','Marker','.','Color',[0 0.5 0],'Parent',obj.ax(1));
+                            case 'trigger'
+                                p1x=plot(tFactor*(t0+block.trig.delay),0,'>b','Parent',obj.ax(1));
+                                p1x=plot(tFactor*(t0+block.trig.delay),0,'.b','Parent',obj.ax(1));
+                            %otherwise
+                        end
+                    end
                     if ~isempty(block.adc)
                         adc=block.adc;
                         t=adc.delay + ((0:adc.numSamples-1)'+0.5)*adc.dwell; % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
@@ -394,6 +406,10 @@ classdef SeqPlot < handle
                  ''};
             if isempty(rb.(field))
                 out{3}=['\bf\color{blue}blk:\rm\color{black}' num2str(iB)];
+                % we could add handling of the trigger/label data tips here
+                % specifically for the adc panel but it would imply a
+                % substantial performance hit because we'd have to unpack
+                % extensions, etc... 
             else
                 try
                     switch field(1)

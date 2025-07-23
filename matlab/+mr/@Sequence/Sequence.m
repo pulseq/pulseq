@@ -1617,7 +1617,17 @@ classdef Sequence < handle
         
         function sp = plot(obj, varargin)
             %plot Plot the sequence in a new figure.
-            %   plot(seqObj) Plot the sequence
+            %   plot(seqObj) Plot the sequence 
+            %
+            %   Generates "classical" Pulseq 6-panel sequence plot. The
+            %   panels are "ADC", "RF magnitude", "RF phase", and three
+            %   gradient axes. ADC panel additionally shows digital output
+            %   pulses (a.k.a. triggers) as green diamonds with a line
+            %   indicatin the duration of the trigger pulse and input
+            %   triggers (e.g. cardiac) as triangles with a dot at the
+            %   center. ADC panal optionally also shows evolution of data
+            %   labels. RF phase panel shows RF phase at the center of the
+            %   RF pulse as a cross.
             %
             %   plot(...,'timeRange',[start stop]) Plot the sequence
             %   between the times specified by start and stop.
