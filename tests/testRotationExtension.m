@@ -32,8 +32,13 @@ classdef testRotationExtension < matlab.unittest.TestCase
             end
                        
              % Test approximate equality of k-space calculation.
-            kspace1 = seq.calculateKspacePP();
-            kspace2 = seq2.calculateKspacePP();
+            [~,~,kspace1,tk1] = seq.calculateKspacePP();
+            [~,~,kspace2,tk2] = seq2.calculateKspacePP();
+            [~,itk1,itk2] = intersect(tk1,tk2); % common time axis
+            kspace1=kspace1(:,itk1);
+            kspace2=kspace2(:,itk2);
+            kspace1(~isfinite(kspace1))=0; % remove NaNs
+            kspace2(~isfinite(kspace2))=0; % remove NaNs            
             verifyApproxEqual(testCase, kspace2, kspace1, 1e-1, []);
         end
         
@@ -84,10 +89,11 @@ classdef testRotationExtension < matlab.unittest.TestCase
                 block_orig = seq.getBlock(i);
                 block_compare = seq2.getBlock(i);
                 
-                % If block contains rf.use, set it to 'undefined'
-                if isfield(block_orig, 'rf') && isfield(block_orig.rf, 'use')
-                    block_orig.rf.use = 'undefined';
-                end
+                % MZ: but why???
+                % % If block contains rf.use, set it to 'undefined'
+                % if isfield(block_orig, 'rf') && isfield(block_orig.rf, 'use')
+                %     block_orig.rf.use = 'undefined';
+                % end
                 
                 verifyApproxEqual(testCase, block_compare, block_orig, 1e-5, 1e-5);
             end
@@ -116,8 +122,13 @@ classdef testRotationExtension < matlab.unittest.TestCase
             end
             
             % Test approximate equality of k-space calculation.
-            kspace1 = seq.calculateKspacePP();
-            kspace2 = seq2.calculateKspacePP();
+            [~,~,kspace1,tk1] = seq.calculateKspacePP();
+            [~,~,kspace2,tk2] = seq2.calculateKspacePP();
+            [~,itk1,itk2] = intersect(tk1,tk2); % common time axis
+            kspace1=kspace1(:,itk1);
+            kspace2=kspace2(:,itk2);
+            kspace1(~isfinite(kspace1))=0; % remove NaNs
+            kspace2(~isfinite(kspace2))=0; % remove NaNs            
             verifyApproxEqual(testCase, kspace2, kspace1, 1e-1, []);
             
             % Test whether labels are the same.
@@ -163,7 +174,14 @@ classdef testRotationExtension < matlab.unittest.TestCase
                     sprintf('Gradient values of gradient waveform for channel %s do not match', channels{ch}));
             end
             
-            verifyApproxEqual(testCase, seq2.calculateKspacePP(), seq.calculateKspacePP(), 1e-6, []);
+            [~,~,kspace1,tk1] = seq.calculateKspacePP();
+            [~,~,kspace2,tk2] = seq2.calculateKspacePP();
+            [~,itk1,itk2] = intersect(tk1,tk2); % common time axis
+            kspace1=kspace1(:,itk1);
+            kspace2=kspace2(:,itk2);
+            kspace1(~isfinite(kspace1))=0; % remove NaNs
+            kspace2(~isfinite(kspace2))=0; % remove NaNs            
+            verifyApproxEqual(testCase, kspace2, kspace1, 1e-6, []);
             
             labels_seq = seq.evalLabels('evolution', 'blocks');
             labels_seq2 = seq2.evalLabels('evolution', 'blocks');
@@ -190,7 +208,7 @@ end
 function seq = seq_make_radial()
     % SEQ_MAKE_RADIAL creates a basic radial sequence.
     seq = mr.Sequence();
-    rf = mr.makeBlockPulse(pi/2, 'duration', 1e-3);
+    rf = mr.makeBlockPulse(pi/2, 'duration', 1e-3, 'use', 'excitation');
     gread = mr.makeTrapezoid('x', 'area', 1000);
     theta = [0, 30, 45, 60, 90];
     rot = cell(1, numel(theta));
@@ -207,9 +225,9 @@ end
 
 function seq = seq_make_radial_norotext()
     % SEQ_MAKE_RADIAL_NOROTEXT creates a radial sequence using explicit rotation
-    % via the pp.rotate function.
+    % via the mr.rotate function.
     seq = mr.Sequence();
-    rf = mr.makeBlockPulse(pi/2, 'duration', 1e-3);
+    rf = mr.makeBlockPulse(pi/2, 'duration', 1e-3, 'use', 'excitation');
     gread = mr.makeTrapezoid('x', 'area', 1000);
     
     theta = [0, 30, 45, 60, 90];

@@ -53,8 +53,10 @@ classdef testSequence < matlab.unittest.TestCase
                 catch ME
                     testCase.verifyFail(['Plotting failed: ', ME.message]);
                 end
-            else
-                testCase.assumeFail('Plot test not applicable for this sequence.');
+            % MZ: we just quietly skip inappropriate sequences from
+            % sequence zoo instead of throwing an error
+            %else
+            %    testCase.assumeFail('Plot test not applicable for this sequence.');
             end
             close all
         end
@@ -80,10 +82,11 @@ classdef testSequence < matlab.unittest.TestCase
                 block_orig = seq.getBlock(i);
                 block_compare = seq2.getBlock(i);
                 
-                % If block contains rf.use, set it to 'undefined'
-                if isfield(block_orig, 'rf') && isfield(block_orig.rf, 'use')
-                    block_orig.rf.use = 'undefined';
-                end
+                % MZ: why??
+                % % If block contains rf.use, set it to 'undefined'
+                % if isfield(block_orig, 'rf') && isfield(block_orig.rf, 'use')
+                %     block_orig.rf.use = 'undefined';
+                % end
                 
                 verifyApproxEqual(testCase, block_compare, block_orig, 1e-5, 1e-5);
             end
@@ -112,8 +115,13 @@ classdef testSequence < matlab.unittest.TestCase
             end
             
             % Test approximate equality of k-space calculation.
-            kspace1 = seq.calculateKspacePP();
-            kspace2 = seq2.calculateKspacePP();
+            [~,~,kspace1,tk1] = seq.calculateKspacePP();
+            [~,~,kspace2,tk2] = seq2.calculateKspacePP();
+            [~,itk1,itk2] = intersect(tk1,tk2); % common time axis
+            kspace1=kspace1(:,itk1);
+            kspace2=kspace2(:,itk2);
+            kspace1(~isfinite(kspace1))=0; % remove NaNs
+            kspace2(~isfinite(kspace2))=0; % remove NaNs
             verifyApproxEqual(testCase, kspace2, kspace1, 1e-1, []);
             
             % Test whether labels are the same.
@@ -159,7 +167,14 @@ classdef testSequence < matlab.unittest.TestCase
                     sprintf('Gradient values of gradient waveform for channel %s do not match', channels{ch}));
             end
             
-            verifyApproxEqual(testCase, seq2.calculateKspacePP(), seq.calculateKspacePP(), 1e-6, []);
+            [~,~,kspace1,tk1] = seq.calculateKspacePP();
+            [~,~,kspace2,tk2] = seq2.calculateKspacePP();            
+            [~,itk1,itk2] = intersect(tk1,tk2); % common time axis
+            kspace1=kspace1(:,itk1);
+            kspace2=kspace2(:,itk2);
+            kspace1(~isfinite(kspace1))=0; % remove NaNs
+            kspace2(~isfinite(kspace2))=0; % remove NaNs            
+            verifyApproxEqual(testCase, kspace2, kspace1, 1e-6, []);
             
             labels_seq = seq.evalLabels('evolution', 'blocks');
             labels_seq2 = seq2.evalLabels('evolution', 'blocks');
@@ -192,63 +207,63 @@ end
 %% --- Auxiliary Functions ---
 function seq = seq_make_gauss_pulses()
     seq = mr.Sequence();
-    seq.addBlock(mr.makeGaussPulse(1, 'duration', 1e-3));
+    seq.addBlock(mr.makeGaussPulse(1, 'duration', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeGaussPulse(1, 'duration', 1e-3, 'delay', 1e-3));
+    seq.addBlock(mr.makeGaussPulse(1, 'duration', 1e-3, 'delay', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 1e-3));
+    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 1e-3));
+    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 2e-3, 'phaseOffset', pi/2));
+    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 2e-3, 'phaseOffset', pi/2,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 1e-3, 'phaseOffset', pi/2, 'freqOffset', 1e3));
+    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 1e-3, 'phaseOffset', pi/2, 'freqOffset', 1e3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 1e-3, 'timeBwProduct', 1));
+    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 1e-3, 'timeBwProduct', 1,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 1e-3, 'apodization', 0.1));
+    seq.addBlock(mr.makeGaussPulse(pi/2, 'duration', 1e-3, 'apodization', 0.1,'use','excitation'));
 end
 
 function seq = seq_make_sinc_pulses()
     seq = mr.Sequence();
-    seq.addBlock(mr.makeSincPulse(1, 'duration', 1e-3));
+    seq.addBlock(mr.makeSincPulse(1, 'duration', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(1, 'duration', 1e-3, 'delay', 1e-3));
+    seq.addBlock(mr.makeSincPulse(1, 'duration', 1e-3, 'delay', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 2e-3, 'phaseOffset', pi/2));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 2e-3, 'phaseOffset', pi/2,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3, 'phaseOffset', pi/2, 'freqOffset', 1e3));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3, 'phaseOffset', pi/2, 'freqOffset', 1e3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3, 'timeBwProduct', 1));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3, 'timeBwProduct', 1,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3, 'apodization', 0.1));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3, 'apodization', 0.1,'use','excitation'));
 end
 
 function seq = seq_make_block_pulses()
     seq = mr.Sequence();
-    seq.addBlock(mr.makeBlockPulse(1, 'duration', 4e-3));
+    seq.addBlock(mr.makeBlockPulse(1, 'duration', 4e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeBlockPulse(1, 'duration', 4e-3, 'delay', 1e-3));
+    seq.addBlock(mr.makeBlockPulse(1, 'duration', 4e-3, 'delay', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 4e-3));
+    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 4e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 1e-3));
+    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 2e-3, 'phaseOffset', pi/2));
+    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 2e-3, 'phaseOffset', pi/2,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 1e-3, 'phaseOffset', pi/2, 'freqOffset', 1e3));
+    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 1e-3, 'phaseOffset', pi/2, 'freqOffset', 1e3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 1e-3, 'timeBwProduct', 1));
+    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 1e-3, 'timeBwProduct', 1,'use','excitation'));
 end
 
 function seq = seq1()
     % Basic sequence with gradients in all channels.
     seq = mr.Sequence();
-    seq.addBlock(mr.makeBlockPulse(pi/4, 'duration', 1e-3));
+    seq.addBlock(mr.makeBlockPulse(pi/4, 'duration', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeTrapezoid('x', 'area', 1000));
     seq.addBlock(mr.makeTrapezoid('y', 'area', -500.00001));
     seq.addBlock(mr.makeTrapezoid('z', 'area', 100));
@@ -260,10 +275,10 @@ end
 function seq = seq2()
     % Basic spin-echo sequence structure.
     seq = mr.Sequence();
-    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 1e-3));
+    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeTrapezoid('x', 'area', 1000));
     seq.addBlock(mr.makeTrapezoid('x', 'area', -1000));
-    seq.addBlock(mr.makeBlockPulse(pi, 'duration', 1e-3));
+    seq.addBlock(mr.makeBlockPulse(pi, 'duration', 1e-3,'use','refocusing'));
     seq.addBlock(mr.makeTrapezoid('x', 'area', -500));
     seq.addBlock(mr.makeTrapezoid('x', 'area', 1000, 'duration', 10e-3), ...
                  mr.makeAdc(100, 'duration', 10e-3));
@@ -273,7 +288,7 @@ function seq = seq3()
     % Basic GRE sequence with INC labels.
     seq = mr.Sequence();
     for i = 0:9
-        seq.addBlock(mr.makeBlockPulse(pi/8, 'duration', 1e-3));
+        seq.addBlock(mr.makeBlockPulse(pi/8, 'duration', 1e-3,'use','excitation'));
         seq.addBlock(mr.makeTrapezoid('x', 'area', 1000));
         seq.addBlock(mr.makeTrapezoid('y', 'area', -500 + i * 100));
         seq.addBlock(mr.makeTrapezoid('x', 'area', -500));
@@ -287,7 +302,7 @@ function seq = seq4()
     % Basic GRE sequence with SET labels.
     seq = mr.Sequence();
     for i = 0:9
-        seq.addBlock(mr.makeBlockPulse(pi/8, 'duration', 1e-3));
+        seq.addBlock(mr.makeBlockPulse(pi/8, 'duration', 1e-3,'use','excitation'));
         seq.addBlock(mr.makeTrapezoid('x', 'area', 1000));
         seq.addBlock(mr.makeTrapezoid('y', 'area', -500 + i * 100));
         seq.addBlock(mr.makeTrapezoid('x', 'area', -500));
