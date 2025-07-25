@@ -44,7 +44,6 @@ end
 
 adc.type = 'adc';
 adc.numSamples = num;
-adc.dwell = opt.dwell;
 adc.delay = opt.delay;
 adc.freqOffset = opt.freqOffset;
 adc.phaseOffset = opt.phaseOffset;
@@ -67,10 +66,12 @@ end
 
 if opt.duration > 0
     adc.dwell = opt.duration/opt.numSamples;
+else
+    adc.dwell = opt.dwell;
 end
-if opt.dwell > 0
-    adc.duration = opt.dwell*opt.numSamples;
-end
+%if opt.dwell > 0
+%    adc.duration = opt.dwell*opt.numSamples;
+%end
 if adc.deadTime > adc.delay
     adc.delay = adc.deadTime; % adcDeadTime is added before the actual sampling (and also second time after the sampling period)
 end

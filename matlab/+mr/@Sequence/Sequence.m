@@ -567,7 +567,7 @@ classdef Sequence < handle
                         if strcmp(event.use,'u')
                             event.use='undefined'; % make it little more user-friendly
                         end
-                        warning('Unknown or undefined RF pulse parameter ''use''=%s, which is not optional since v1.5.0',event.use);
+                        warning('Unknown or undefined RF pulse intended use ''use''=%s. Keep in mind that the ''use'' parameter is not optional since v1.5.0',event.use);
                         use = 'u'; % undefined
                 end
             else
