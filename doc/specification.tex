@@ -115,9 +115,9 @@ conventions; \\ flexible shape timing for arbitrary gradients and RF pulses; \\ 
 \\
 1.4.1 & 16 Feb 2023 & \makecell{New flags to the LABEL extension added.} \\ 
 1.5.0 & 14 Feb 2025 & \makecell{Substantial format revision, including: \\
-RF pulses define RF center and untended use fields; \\
+RF pulses define RF center and intended use fields; \\
 RF and ADC objects declare an additional frequency \\ offset in units of PPM; \\
-ADC objects optinally declare phase offset per sample \\ as a vector; \\
+ADC objects optionally declare phase offset per sample \\ as a vector; \\
 Extension "Soft Delay" is introduced. \\
 TODO: update figures and examples.  \\
 } \\
@@ -166,7 +166,7 @@ Comments are specified by a line starting with a hash.
 # This is a comment
 \end{lstlisting}
 
-The numeric values are declared exactly as described below with storage defined by the value type. In general, \textbf{integer} types are stored as 64-bit unsigned integers while \textbf{floating-point} numbers are in the 64-bit IEEE 754 floating-point format. Exceptions are \verb.<id>. values, which are 32-bit integers. Shapes are stored as 32-bit short floats.
+The numeric values are declared exactly as described below with storage defined by the value type. In general, \textbf{integer} types are stored as 64-bit unsigned integers while \textbf{floating-point} numbers are in the 64-bit IEEE 754 floating-point format. Exceptions are \verb.<id>. values, which are 32-bit integers. Shapes are stored as 32-bit single-precision floats.
 
 \subsection{Identification numbers}
 A key idea of the hierarchical sequence structure is the use of ID numbers to refer to objects defined one level below in the hierarchy. For example, blocks contain the ID of one or more event(s). Likewise, events may contain the ID of one or more shape(s). Restrictions are placed on these IDs to ensure consistency:
@@ -433,6 +433,7 @@ Tag & Type & Description & Units\\
 \verb.<phase_ppm>. & float & Phase offset of ADC receiver that is proportional to the system frequency & rad/MHz \\
 \verb.<freq>. & float & Frequency offset of ADC receiver & Hz \\
 \verb.<phase>. & float & Phase offset of ADC receiver & rad \\
+\verb.<phase_shape_id>. & integer & Shape ID of the phase modulation, 0 for no modulation & -- \\
 \bottomrule
 \end{tabularx}
 
@@ -524,7 +525,7 @@ The meaning of the flags \verb.PMC., \verb.NOROT., \verb.NOPOS. and \verb.NOSLC.
 ID & Type & Description\\
 \midrule
 \verb.PMC. & flag & Defines whether prospective motion correction (PMC) may be applied to the current block \\
-\verb.NOROT. & flag & Instructs the interpreter to ignore translation components of the FOV positioning applied through the UI on the scanner or by the PMC processing (EXPERIMENTAL) \\
+\verb.NOROT. & flag & Instructs the interpreter to ignore rotation components of the FOV positioning applied through the UI on the scanner or by the PMC processing (EXPERIMENTAL) \\
 \verb.NOPOS. & flag & Instructs the interpreter to ignore translation components of the FOV positioning applied through the UI on the scanner or by the PMC processing (EXPERIMENTAL) \\
 \verb.NOSLC. & flag & Instructs the interpreter to ignore FOV / gradient scaling parameters applied through the UI on the scanner (EXPERIMENTAL) \\
 \bottomrule
