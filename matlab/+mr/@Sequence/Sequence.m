@@ -809,7 +809,9 @@ classdef Sequence < handle
                             check_g{channelNum}.start = [grad_start, event.first];
                             check_g{channelNum}.stop  = [grad_duration, event.last]; 
                             
-    
+                            if obj.blockEvents{index}(idx)>0
+                                error('Trying to add more than one gradient per axis on axis %s in block %d',event.channel,index);
+                            end
                             if isfield(event,'id')
                                 obj.blockEvents{index}(idx) = event.id;
                             else
@@ -831,6 +833,9 @@ classdef Sequence < handle
                             %                              event.fallTime + ...
                             %                              event.flatTime, 0];
                             
+                            if obj.blockEvents{index}(idx)>0
+                                error('Trying to add more than one gradient per axis on axis %s in block %d',event.channel,index);
+                            end
                             if isfield(event,'id')
                                 obj.blockEvents{index}(idx) = event.id;
                             else
