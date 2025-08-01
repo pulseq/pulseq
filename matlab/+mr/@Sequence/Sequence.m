@@ -248,6 +248,11 @@ classdef Sequence < handle
                     end
                 end
 
+                % update report
+                if ~isempty(rep)
+                    errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' rep '\n' ] };
+                end
+                
                 % check shaped gradients that may potentially end/start at non-zero values
                 gradBookCurr=struct();
                 if ~isempty(ev) && iscell(ev)
@@ -257,9 +262,11 @@ classdef Sequence < handle
                             if g.first~=0 
                                 if g.delay~=0
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient starts at a non-zero value but defines a delay\n' ] };
+                                    is_ok=false;
                                 end
                                 if ~isfield(gradBook, g.channel) || gradBook.(g.channel)~=g.first
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient''s start value ' num2str(g.first) ' differs from the previous block end value\n' ] };
+                                    is_ok=false;
                                 else
                                     gradBook.(g.channel)=0; % reset as properly consumed
                                 end
@@ -267,6 +274,7 @@ classdef Sequence < handle
                             if g.last~=0 
                                 if abs(g.delay+g.shape_dur - dur) > eps
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient ends at a non-zero value but does not last until the end of the block\n' ] };
+                                    is_ok=false;
                                 end
                                 gradBookCurr.(g.channel)=g.last; % update bookkeeping
                             end
@@ -311,14 +319,11 @@ classdef Sequence < handle
                     gradBookC = struct2cell(gradBook);
                     if any(0~=[gradBookC{:}])
                         errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' some gradients in the previous non-empty block are ending at non-zero values but are not continued here\n' ] };
+                        is_ok=false;
                     end
                     gradBook=gradBookCurr;
                 end
 
-                % update report
-                if ~isempty(rep)
-                    errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' rep '\n' ] };
-                end
                 %
                 totalDuration = totalDuration+dur;
             end
@@ -329,12 +334,18 @@ classdef Sequence < handle
                     if length(ev{en})==1 && isstruct(ev{en}) && strcmp(ev{en}.type,'grad') % length(ev{en})==1 excludes arrays of extensions 
                         if ev{en}.last~=0 % must be > sys.slewRate*sys.gradRasterTime
                             errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' gradients do not ramp to 0 at the end of the sequence\n' ] };
+                            is_ok=false;
                         end
                     end
                 end
             end
             
-            obj.setDefinition('TotalDuration', totalDuration);%sprintf('%.9g', totalDuration));
+            prevTotalDuration=obj.getDefinition('TotalDuration');
+            if ~isempty(prevTotalDuration) && prevTotalDuration~=totalDuration
+                errorReport = { errorReport{:}, [ '   TotalDuration definition of ' sprintf('%.9g', prevTotalDuration) 's was present in the sequence, but was incorrect. It is now ' sprintf('%.9g', totalDuration) 's\n' ] };
+                is_ok=false;
+            end
+            obj.setDefinition('TotalDuration', totalDuration);
         end
         
         function value=getDefinition(obj,key)
