@@ -24,7 +24,7 @@
 %\def\myversion{1.01 }
 \def\myversionmajor{1}
 \def\myversionminor{5}
-\def\myversionrevision{0}
+\def\myversionrevision{1}
 \def\myversion{\myversionmajor.\myversionminor.\myversionrevision }
 %\def\myversion{1.0.2 }
 
@@ -119,8 +119,13 @@ RF pulses define RF center and intended use fields; \\
 RF and ADC objects declare an additional frequency \\ offset in units of PPM; \\
 ADC objects optionally declare phase offset per sample \\ as a vector; \\
 Extension "Soft Delay" is introduced. \\
-TODO: update figures and examples.  \\
 } \\
+1.5.1 & 14 Aug 2025 & \makecell{Minor format revision, new extensions and bugfixes: \\
+New concept of \textit{required extensions} wich must be supported by the interpeter; \\
+Introduce new Rotation Extension; \\
+Introduce new RF Shimming Extension; \\
+TODO: update figures and examples.  \\
+} \\ 
 \bottomrule
 \end{tabular}
 
@@ -450,7 +455,7 @@ The duration of the ADC readout is given by the product of \verb.<num>. and \ver
 The example above contains an ADC with 512 samples, and dwell time of 5000ns, and no frequency and phase offsets. The frequency and phase offset are used, for example, for RF spoiling or in-plane shifting of the FOV. Offsets with the 'ppm' suffix are usable for fat navigators.
 
 \subsubsection{Extensions}
-Extensions concept allows for implementing additional features without requiring major revisions of the Pulseq format specification. Extensions can be defined in the design tool in a good hope that the particular interpreter will know how to handle it. The interpreter MUST detect unknown extensions and MAY chose to ignore them. It is recommended that the interpreter issues a warning in this case. 
+Extensions concept allows for implementing additional pulse sequence format features without requiring major revisions of the Pulseq format specification. Extensions can be defined in the design tool in a good hope that the particular interpreter will know how to handle it. The interpreter MUST detect unknown extensions and MAY chose to ignore them. It is recommended that the interpreter issues a warning in this case. Since the format revision v1.5.1 there is a concept of \textit{required extensions}, that is the extensions that are critical for the interpretability of the particular pulse sequence. All extensions listed under the definition \verb.RequiredExtensions. must be supported by the interpreter. If any of the declared required extensions are unknown to the interpreter, it MUST generate an error and MUST not attempt executing the sequence. The definition \verb.RequiredExtensions. contains a space-separated list  of extension's \verb.STRING_ID(s)..
 
 The EXTENSIONS section is declared with the \verb.[EXTENSIONS]. keyword. Each line in the section is an extension table entry specified by four numbers,
 \begin{lstlisting}
@@ -510,7 +515,7 @@ The example above contains a specification of the TRIGGERS extension, which is n
 Starting from revision 1.3.1 both Matlab Pulseq toolbox and the Siemens interpreter sequence support LABEL extension. The extension is intended to provide a possibility for the pulse sequence to pass counters and flags over to the raw data object and in this way to communicate with the image reconstruction routines. \\ 
 
 Two types of extensions are currently defined: LABELSET and LABELINC. The former allows one to set the counter or flag value, the latter can be used to increment the counter (not compatible with flags). The following counters are supported at the moment: 
-LIN, PAR, SLC, SEG, REP, AVG, SET, ECO, PHS that can take any integer values and flags NAV, REV, SMS, PMC, NOPOS, NOROT, NOSLC that can be 0 or 1 corresponding to boolean 'false' and 'true' values. \\
+LIN, PAR, ACQ, SLC, SEG, REP, AVG, SET, ECO, PHS that can take any integer values and flags NAV, REV, SMS, OFF, NOISE, REF, IMA, PMC, NOPOS, NOROT, NOSLC that can be 0 or 1 corresponding to boolean 'false' and 'true' values. There is on three-state flag ONCE, described below. There is also a special label TRID used by some interpreters to recognize repeating parts of the sequence. \\
 
 At the start of the sequence all counters and flags are automatically initialized to zero. During the run-time sequence maintains current values of all counters and flags, which can be modified with LABELSET and LABELINC directives at any time in the sequence. Also zero-duration blocks containing only LABEL extension directives are allowed. The values of the counters have no immediate effect until the next ADC directive is executed. At the moment of the ADC event the values of the counters are recorded and in case of the Siemens interpreter are copied to the ADC Data Header. Prior to the pertinent ADC direction the values of the counters can take any arbitrary excursions, e.g. can be negative or exceed matrix dimensions temporarily. This has no negative effects. \\
 
@@ -535,7 +540,7 @@ Additionally, there is a three-state flag \verb.ONCE., that is intended to contr
 
 \textbf{Soft Delay Extension}
 
-New in revision 1.5.0 is the label extension. It provides a posibility for an exported Pulseq file to redefine some aspects of the sequence tming at the run time. Label extension can be used in conjunction with pure delay blocks (blocks of non-zero duration containing no RF, gradient or ADC events). For such blocks Soft Delay extension is able to rewrite the duration of the block at run time based on the rule provided by the user. Typical use cases include adjusting the cardiac delay based on the current subject pulse rate, adjusting delays in composite pulses for MR spectroscopy or setting TE and TR for readily exported sequences. 
+The \textit{soft delay} extension has been introduced in revision 1.5.0. It provides a posibility for an exported Pulseq file to redefine some aspects of the sequence tming at the run time. Label extension can be used in conjunction with pure delay blocks (blocks of non-zero duration containing no RF, gradient or ADC events). For such blocks Soft Delay extension is able to rewrite the duration of the block at run time based on the rule provided by the user. Typical use cases include adjusting the cardiac delay based on the current subject pulse rate, adjusting delays in composite pulses for MR spectroscopy or setting TE and TR for readily exported sequences. 
 
 \begin{minipage}{\textwidth}
 \textbf{Example:}
@@ -554,6 +559,41 @@ extension DELAYS 2
 
 In the example above, line 1 defines a Soft Delay with numeric ID 0 and text ID 'TE', with the actual block durarion calculated as $D_1=TE/2-7840 \mu s$. Line 2 defines another instance of the Soft Delay with the same numeric and text IDs, but where the delay duration is calculated as $D_2=TE/2-9320 \mu s$. As one can guess, these two delays facilitate the TE setting in a spin-echo sequence. A somewhat special case is the Soft Delay define in line 3: it defines an additional delay which makes the execution time of the inner sequence loop independent of TE by introducing a delay with a duration $D_3=120000\mu s - TE$. 
 parameter values (TE in this example) leading to negative delays are not allowed, leading to the automatic definition of the minimal and maximum allowable TE values in this example. Soft delay in line 4 defines the TR delay $D_4=TR/11-126760 \mu s$, from which it is easy to conclude, that it was a sequence with 11 slices. Line 5 defines the most trivial Soft Delay, where the value entered in the scanner's UI for the parameter marked TD is simply interpreted as the new block duration. 
+
+\textbf{Rotation Extension}
+
+The \textit{rotation extension} has been introduced in revision 1.5.1. It allows the pulse sequence developer to reuse the gradient object, expecially in case of arbitrary shapes, e.g. as needed for multi-shot spiral seuqnces, and specify a rotation operation that is applied to the entire block as a whole. Only one \textit{rotation extension} object can be specified per block. Each rotation operation is described as a normalized rotation quaternion as follows:
+
+\begin{minipage}{\textwidth}
+\textbf{Example:}
+\begin{lstlisting}
+# Extension specification for rotations:
+# id RotQuat0 RotQuatX RotQuatY RotQuatZ
+extension ROTATIONS 1
+1  0.99171 0 0 -0.128498
+2  1 0 0 0
+\end{lstlisting}
+\end{minipage}
+
+Rotation quaternions are represented by their real part \verb.RotQuat0., which corresponds to the cosine of the halved rotation angle, and the three imaginary components \verb.RotQuatX., \verb.RotQuatY., and \verb.RotQuatZ., which together describe the axis of rotation, scaled by the sine of the halved rotation angle. In the example above, line 1 defines a rotation by 14.77\textdegree\, about the negative Z axis, whereas line 2 specifies a unity transform (zero rotation). Please consult functions \lstinline{mr.aux.quat.toRotMat()} and \lstinline{mr.aux.quat.fromRotMat()} for more information on transformations between the rotation matrices and quaternions. A great care should be taken when implementing rotation support in interpreters because of the misinterpretation possibilities (e.g. due to inconsistencies between raw-major vs. column-major matrix math libraries). Therefore we recommend to compare measurement results generated by the sequences using the \textit{rotation extension} with the sequence relying on explicit rotations using \lstinline{mr.rotate()} or \lstinline{mr.rotate3D()} functions.
+
+\textbf{RF Shimming Extension}
+
+The \textit{RF shimming} extension has been introduced in revision 1.5.1. Only one \textit{RF shimming} extension object can be specified per block. RF shimming parameters only act on the RF pulse in the current block. This means RF shimming parameters specified for a block containing no RF have no effect and can be ignored. RF shimming settings are highly experimental and more experience is needed to possibly allow future revisions of the extension. For instance RF shimming parameters start with explicitly specifying for how many RF transmit channels these are designed. If this number does not correspond to the number of channels available in the hardware, the interpreter should probably ignore this setting and may generate an error or warning.
+
+\begin{minipage}{\textwidth}
+\textbf{Example:}
+\begin{lstlisting}
+# Extension specification for RF shimming:
+# id num_chan magn_c1 phase_c1 magn_c2 phase_c2 ...
+extension RF_SHIMS 4
+1 2 1 0 1 1.5708
+2 2 1 0 1 3.14159
+3 2 0.7 0 1 0
+\end{lstlisting}
+\end{minipage}
+
+In the example above, line 1 defines a 2to-channel RF shimming with both channels sharing the nominal amplitude but a phase shift of 90\textdegree\, is applied to the second channel. Line 2 applies a phase shift of 180\textdegree\, to the second channel, whereas in line 3 all phases are at 0 but the amplitude of channel 1 is scaled down by a factor of $0.7$.
 
 \subsection{Shapes}
 
