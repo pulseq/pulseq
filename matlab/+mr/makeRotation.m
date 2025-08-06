@@ -6,7 +6,7 @@ function rot = makeRotation( varargin )
 % makeRotation( quaternion ) - rotation defined by a unit quaternion
 % makeRotation( rot_mat ) - rotation defined by a 3x3 rotation matrix
 if nargin<1
-    error('makeRotation:invalidArguments','Must supply rotation angle(s)');
+    error('makeRotation:invalidArguments','makeRotation - invalid arguments: must supply rotation parameter(s)');
 end
 switch numel(varargin{1})
     case 1
