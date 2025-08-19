@@ -18,7 +18,7 @@ if isempty(parser)
     parser.addParamValue('first',[],@isnumeric);
     parser.addParamValue('firstGradStepHalfRaster',true,@islogical);
     parser.addParamValue('conservativeSlewEstimate',false,@islogical);    
-    parser.addParamValue('system',[],@isstuct);
+    parser.addParamValue('system',[],@isstruct);
     parser.addParamValue('RasterTime',[],@isnumeric);
 end
 parse(parser,k,varargin{:});
