@@ -157,9 +157,11 @@ for r=1:Nrep
             % seq.addBlock(mr.makeDelay(delayTE1)) ;
             seq.addBlock(delayTE1, mr.makeSoftDelay(0,'TE','offset',delayTE1-TE/2, 'factor', 2) ) ;
             if (i>0) % semi-negative index -- dummy scans
-                seq.addBlock(rf_ref, g_refC, g_SPx, g_SPy, grPre, mr.scaleGrad(gyPre, PEscale(i))) ;
+                seq.addBlock(grPre, mr.scaleGrad(gyPre, PEscale(i)));
+                seq.addBlock(rf_ref, g_refC, g_SPx, g_SPy) ;
             else
-                seq.addBlock(rf_ref, g_refC, g_SPx, g_SPy, grPre) ;
+                seq.addBlock(grPre);
+                seq.addBlock(rf_ref, g_refC, g_SPx, g_SPy) ;
             end
             % softdelay TE2
             % seq.addBlock(mr.makeDelay(delayTE2));

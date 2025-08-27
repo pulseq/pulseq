@@ -94,6 +94,8 @@ for i=(1-Ndummy):Nr
         TR=seq.duration;
     end
 end
+% dummy slice select to ramp down to 0 Z spoil gradient
+seq.addBlock(gz);
 
 %% check whether the timing of the sequence is correct
 [ok, error_report]=seq.checkTiming;

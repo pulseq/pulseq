@@ -61,7 +61,7 @@ gxPre.id=seq.registerGradEvent(gxPre);
 gzReph.id=seq.registerGradEvent(gzReph);
 gx.id=seq.registerGradEvent(gx);
 gxSpoil.id=seq.registerGradEvent(gxSpoil);
-gyPre.id=seq.registerGradEvent(gyPre);
+%gyPre.id=seq.registerGradEvent(gyPre);
 gzSpoil.id=seq.registerGradEvent(gzSpoil);
 
 % RF spoiling
