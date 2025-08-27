@@ -86,7 +86,7 @@ end
 if isempty(opt.maxSlew)
     maxSlew=defaultOpts.maxSlew;
 else
-    maxSlew = mr.convert(opt.maxSlew,opt.slewUnit,'Hz/m','gamma',opt.gamma);
+    maxSlew = mr.convert(opt.maxSlew,opt.slewUnit,'Hz/m/s','gamma',opt.gamma);
 end
 if ~isempty(opt.riseTime)
     %maxSlew=[];
