@@ -251,7 +251,7 @@ classdef SeqPlot < handle
                         if max(abs(diff(rf.t)-rf.t(2)+rf.t(1)))<1e-9 && length(rf.t)>100
                             % homogeneous sampling and long pulses -- use lower time resolution for better display and performance
                             dt=rf.t(2)-rf.t(1);
-                            st=round(seq.sys.gradRasterTime/dt);
+                            st=max(1,round(seq.sys.gradRasterTime/dt));
                             t=rf.t(1:st:end);
                             s=rf.signal(1:st:end);
                             % always include the last point for the accurate display
