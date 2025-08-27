@@ -264,7 +264,7 @@ classdef Sequence < handle
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient starts at a non-zero value but defines a delay\n' ] };
                                     is_ok=false;
                                 end
-                                if ~isfield(gradBook, g.channel) || gradBook.(g.channel)~=g.first
+                                if ~isfield(gradBook, g.channel) || abs(gradBook.(g.channel)-g.first) > 1e-6 % todo: real physical tolarance for gradient amplitudes
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient''s start value ' num2str(g.first) ' differs from the previous block end value\n' ] };
                                     is_ok=false;
                                 else
@@ -2041,7 +2041,7 @@ classdef Sequence < handle
                         len=size(wave_data_local,2);
                         if wave_cnt(j)~=0 && wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime < wave_data_local(1,1)
                             if  wave_data{j}(2,wave_cnt(j))~=0
-                                if abs(wave_data{j}(2,wave_cnt(j)))>1e-6 % todo: real physical tolarance
+                                if abs(wave_data{j}(2,wave_cnt(j)))>1e-6 % todo: real physical tolarance for gradient amplitudes
                                     warning('waveforms_and_times(): forcing ramp-down from a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are possibly wrong. If using mr.makeArbitraryGrad() consider using explicit values for ''first'' and ''last'' and setting them correctly.', j, round(1e6*wave_data{j}(1,wave_cnt(j))));
                                     wave_data{j}(:,wave_cnt(j)+1)=[wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime/2; 0]; % this is likely to cause memory reallocations
                                     wave_cnt(j)=wave_cnt(j)+1;
@@ -2051,7 +2051,7 @@ classdef Sequence < handle
                                 end
                             end
                             if wave_data_local(2,1)~=0
-                                if abs(wave_data_local(2,1))>1e-6 % todo: real physical tolarance
+                                if abs(wave_data_local(2,1))>1e-6 % todo: real physical tolarance for gradient amplitudes
                                     warning('waveforms_and_times(): forcing ramp-up to a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are probably wrong.  If using mr.makeArbitraryGrad() consider using explicit values for ''first'' and ''last'' and setting them correctly.', j, round(1e6*wave_data_local(1,1)));
                                     wave_data_local=[[wave_data_local(1,1)-obj.gradRasterTime/2; 0] wave_data_local]; % this is likely to cause memory reallocations also later on
                                     len=len+1;
