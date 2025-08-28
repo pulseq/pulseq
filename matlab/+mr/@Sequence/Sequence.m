@@ -264,14 +264,14 @@ classdef Sequence < handle
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient starts at a non-zero value but defines a delay\n' ] };
                                     is_ok=false;
                                 end
-                                if ~isfield(gradBook, g.channel) || abs(gradBook.(g.channel)-g.first) > 1e-6 % todo: real physical tolarance for gradient amplitudes
+                                if ~isfield(gradBook, g.channel) || abs(gradBook.(g.channel)-g.first) > 1 % 1 Hz/m is ~23 nT/m - this tolerance originates from the library compression; otherwise we have to increase the number of digits when generating search strings in the library code... %1e-6 % todo: real physical tolarance for gradient amplitudes
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient''s start value ' num2str(g.first) ' differs from the previous block end value\n' ] };
                                     is_ok=false;
                                 else
                                     gradBook.(g.channel)=0; % reset as properly consumed
                                 end
                             end
-                            if g.last~=0 
+                            if abs(g.last)>eps 
                                 if abs(g.delay+g.shape_dur - dur) > eps
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient ends at a non-zero value but does not last until the end of the block\n' ] };
                                     is_ok=false;
