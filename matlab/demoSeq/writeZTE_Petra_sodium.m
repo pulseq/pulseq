@@ -34,7 +34,8 @@ seq_sar=mr.Sequence(sys);       % Create an auxillary sequence object for SAR te
 % %create alpha-degree block pulse 
 % rf = mr.makeBlockPulse(alpha*pi/180,'Duration',rf_duration,'system',sys);
 %or create alpha-degree gaussian pulse 
-rf = mr.makeGaussPulse(alpha*pi/180,'Duration',rf_duration,'timeBwProduct',3,'system',sys);
+rf = mr.makeGaussPulse(alpha*pi/180,'Duration',rf_duration,'timeBwProduct',3,'system',sys,...
+    'use','excitation');
 Tenc=rf_duration/2+minRF_to_ADC_time+ro_duration; %encoding time
 Tg=sys.rfDeadTime+rf_duration/2+Tenc+sys.adcDeadTime; % constant gradient time
 Tt=ceil((Tenc*(1+xSpoil)-Tg)/sys.gradRasterTime)*sys.gradRasterTime; % transition time
@@ -150,7 +151,7 @@ seq.setDefinition('FOV', [fov fov fov]);
 seq.setDefinition('Name', 'petra');
 seq.setDefinition('SamplesPerShell', SamplesBookkeeping);
 
-seq.write('zte_petra.seq');
+seq.write('zte_petra_sodium.seq');
 return
 
 %% create an RF-only version of the sequence (e.g. for the SAR or signal evolution testing)
