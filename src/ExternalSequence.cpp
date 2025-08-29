@@ -14,6 +14,11 @@ extern "C" {
 
 #include <assert.h>		// assert (TODO: remove in the released version)
 
+// optionally use SEQ_NAMESPACE
+#ifdef SEQ_NAMESPACE
+using namespace SEQ_NAMESPACE;
+#endif
+
 ExternalSequence::PrintFunPtr ExternalSequence::print_fun = &ExternalSequence::defaultPrint;
 const int ExternalSequence::MAX_LINE_SIZE = 256;
 const char ExternalSequence::COMMENT_CHAR = '#';
@@ -560,7 +565,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode extension header entry\n" << buffer << std::endl );
 						return false;
 					}
-					// here is the list if extensions we currently recognize
+					// here is the list of extensions we currently recognize
 					if (0==strcmp("TRIGGERS",szStrID))
 						nKnownID=EXT_TRIGGER;
 					else if (0==strcmp("ROTATIONS",szStrID))
@@ -828,6 +833,44 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 				return false;
 			}
 			m_dBlockDurationRaster_us=1e6*def[0];
+
+			// from 1.5.1 on we have a concept of required extensions, that is 
+			// the sequence may optionally declare a list of extensions that must be known to the interpreter, 
+			// otherwise it must deny loading the sequence
+            if (version_combined >= 1005001L)
+            {
+                std::string def = GetDefinitionStr("RequiredExtensions");
+                while (!def.empty())
+                {
+					// def contains all required extensions, we just extract the first and trim the line
+                    std::string extStrID1 = "";
+                    int p = def.find(' ');
+                    if (p >= 0)
+                    {
+                        extStrID1 = def.substr(0, p);
+                        def=def.substr(p+1);
+                    }
+                    else
+                    {
+                        extStrID1 = def;
+                        def = "";
+                    }
+                    print_msg(
+                        DEBUG_LOW_LEVEL,
+                        std::ostringstream().flush() << "-- ckecking required extension '" << extStrID1 << "'");
+					// this is a very ugly code, as it explicitly defines the extension strings here and also in a different place. TODO: FixMe by introducing a data structure that serves both purposes
+					if (extStrID1 != "TRIGGERS" &&
+						extStrID1 != "ROTATIONS" &&
+						extStrID1 != "LABELSET" &&
+						extStrID1 != "LABELINC" &&
+						extStrID1 != "DELAYS" &&
+						extStrID1 != "RF_SHIMS") 
+					{
+                        print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: The extension '" << extStrID1 << "' is unknown to this interpreter but is defined as REQUIRED in the sequence file");
+						return false;
+					}
+                }
+            }
 		}
 		SeqBlock::s_blockDurationRaster=m_dBlockDurationRaster_us;
 
@@ -1629,6 +1672,7 @@ int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, L
 		LABELMAP_FLAG(SMS);
 		LABELMAP_FLAG(REF);
 		LABELMAP_FLAG(IMA);
+		LABELMAP_FLAG(OFF);
 		LABELMAP_FLAG(NOISE);
 		LABELMAP_FLAG(PMC);
 		LABELMAP_FLAG(NOPOS);
@@ -1842,7 +1886,7 @@ void LabelStateAndBookkeeping::updateLabelValues(SeqBlock* pBlock)
             if (Tmp_labelset[id].numVal.second)
                 m_currLabelValueStorage.num.bValUsed[Tmp_labelset[id].numVal.first]= true; // only mark as used if non-zero
             m_currLabelValueStorage.num.bValUpdated[Tmp_labelset[id].numVal.first] = true;
-            if (Tmp_labelset[id].numVal.first <= LAST_ADC_RELEVANT_LABEL)
+            if (Tmp_labelset[id].numVal.first <= LAST_ADC_RELEVANT_LABEL) // QC: LAST_ADC_RELEVANT_LABEL is REP. 2025.06.30
                 m_bAdcLabelsInUse = true;
             else
                 m_bNonAdcLabelsInUse = true;
@@ -1879,7 +1923,7 @@ void LabelStateAndBookkeeping::updateLabelValues(SeqBlock* pBlock)
 
 bool LabelStateAndBookkeeping::checkLabelValuesADC()
 {
-    if (m_currLabelValueStorage.flag.val[NOISE] || m_currLabelValueStorage.flag.val[NAV]) // noise scans and navigator scans are not included in first/last/min/max and therefore cannot be checked
+    if (m_currLabelValueStorage.flag.val[NOISE] || m_currLabelValueStorage.flag.val[NAV] || m_currLabelValueStorage.flag.val[REF]) // noise scans and navigator scans and ref scans are not included in first/last/min/max and therefore cannot be checked
 		return true;
 
     // label boundary check
@@ -1945,11 +1989,11 @@ std::string vec2str(const std::vector<int>& vec)
 	return os.str();
 }
 
-void LabelStateAndBookkeeping::updateBookkeepingRecordsADC()
+void LabelStateAndBookkeeping::updateBookkeepingRecordsADC() // QC: this function is executed for every ADC in a for-loop nin Arbitrary.cpp, and track necessary information. 2025.06.30
 {
     // label boundary evaluation
     // data flags for LastLine/LastSlice/LastPar, etc are analyzed further below
-    if (!m_currLabelValueStorage.flag.val[NOISE] && !m_currLabelValueStorage.flag.val[NAV]) // noise scans and navigator scans are not included in first/last/min/max QC: FIRSTSCANINSLICE==false for navigator scans. 2025.01.31
+    if (!m_currLabelValueStorage.flag.val[NOISE] && !m_currLabelValueStorage.flag.val[NAV] && !m_currLabelValueStorage.flag.val[REF]) // noise scans and navigator scans and reference scnas are not included in first/last/min/max QC: FIRSTSCANINSLICE==false for navigator scans. 2025.01.31
     {
 		int id;
 		// flags
@@ -2040,13 +2084,13 @@ void LabelStateAndBookkeeping::updateBookkeepingRecordsADC()
 			}
 		}
 		// track first/last scan in slice, etc
-        int nCurSlc = m_currLabelValueStorage.num.val[SLC]; 
+        int nCurSlc = m_currLabelValueStorage.num.val[SLC]; // QC: current slice index
 		// last tracking is easy: we just use the current as the last candidate and the finalize call will make it right
-		m_lastInMeas = m_currLabelValueStorage.getAdcCounters(false,false);
+		m_lastInMeas = m_currLabelValueStorage.getAdcCounters(false,false); // QC: m_lastInMeas keeps updated and record the last scan in measurement. 2025.06.30
 		//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "updating m_lastInMeas to " << vec2str(m_lastInMeas));
-        m_mapLastInSlc[nCurSlc] = m_currLabelValueStorage.getAdcCounters(true, false); // fixing the lastInSlice behaviour for REP!=0
+        m_mapLastInSlc[nCurSlc] = m_currLabelValueStorage.getAdcCounters(true, false); // fixing the lastInSlice behaviour for REP!=0. // QC: vector of first ADC-relevant labels (exclude REP) for slice nCurSlc. The m_mapLastInSlc[nCurSlc] keep updated until reaching the last scan for nCurSlc. 2025.06.30
 		// first tracking: only update if this slice has no record
-        if (m_mapFirstInSlc.find(nCurSlc) == m_mapFirstInSlc.end()) //QC: if firstScanInSlice is empty, then set it to the current ADC counter. 2025.01.31
+        if (m_mapFirstInSlc.find(nCurSlc) == m_mapFirstInSlc.end()) //QC: if the first scan of slice nCurSlc is not found (i.e. == m_mapFirstInSlc.end()), then store the current ADC label vectors as first scan. 2025.06.30 
         {
             m_mapFirstInSlc[nCurSlc] = m_mapLastInSlc[nCurSlc]; // m_mapLastInSlc[nCurSlc] actually contains the current counters, see above
         }
@@ -2061,7 +2105,7 @@ std::vector<int> LabelValueStorage::getAdcCounters(bool bIgnoreREP, bool bAlsoIg
         ExternalSequence::print_msg(WARNING_MSG, std::ostringstream().flush() << "WARNING: LabelValueStorage::getAdcCounters() was called with bAlsoIgnoreAVG, fixing bIgnoreREP");
         bIgnoreREP = bAlsoIgnoreAVG;
 	}
-    std::vector<int> r(num.val.begin(), num.val.begin() + LAST_ADC_RELEVANT_LABEL + 1 - int(bIgnoreREP) - int(bAlsoIgnoreAVG));
+    std::vector<int> r(num.val.begin(), num.val.begin() + LAST_ADC_RELEVANT_LABEL + 1 - int(bIgnoreREP) - int(bAlsoIgnoreAVG)); // QC: get the index of all LABELS (with or without REP and AVG). r is a range constructor. 2025.06.30
     //ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "returning " << vec2str(r));
 	return r;
 }

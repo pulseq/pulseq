@@ -5,6 +5,11 @@
 //#include <thread> // for std::this_thread::sleep_for()
 //using namespace std::chrono_literals;
 
+// optionally use SEQ_NAMESPACE
+#ifdef SEQ_NAMESPACE
+using namespace SEQ_NAMESPACE;
+#endif
+
 void print_usage()
 {
     printf("parsemr: standalone Pulseq file loader\n");
