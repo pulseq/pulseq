@@ -36,7 +36,7 @@ seq=mr.Sequence(system);
 %% Sequence events
 % Some sequence parameters are defined using standard MATLAB variables
 fov=256e-3;
-Nx=128; Ny=128; necho=16; Nslices=1;
+Nx=256; Ny=256; necho=16; Nslices=1;
 rflip=180;
 if (numel(rflip)==1), rflip=rflip+zeros([1 necho]); end
 sliceThickness=5e-3;
@@ -258,7 +258,7 @@ title('2D k-space');
 % Display the first few lines of the output file
 % s=fileread('myTSE.seq');
 % disp(s(1:300))
-seq.plot();
+seq.plot('showBlocks',true,'stacked',true);
 
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits  
 
