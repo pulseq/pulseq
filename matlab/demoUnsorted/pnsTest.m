@@ -89,11 +89,13 @@ seq.write('pns_test.seq');
 
 %% PNS calc
 
-[pns0_ok, pns0_n, pns0_c, tpns0]=seq.calcPNS('idea/asc/MP_GPA_K2259_2000V_650A_TQ_AS092.asc'); % trio
+%[pns0_ok, pns0_n, pns0_c, tpns0]=seq.calcPNS('idea/asc/MP_GPA_K2259_2000V_650A_TQ_AS092.asc'); % trio
 [pns0_ok, pns0_n, pns0_c, tpns0]=seq.calcPNS('idea/asc/MP_GPA_K2309_2250V_951A_AS82.asc'); % prisma
 %[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GPA_K2309_2250V_951A_GC98SQ.asc'); % aera-xq
 %[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GPA_K2298_2250V_793A_SC72CD_EGA.asc'); % TERRA-XR
+%[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GradSys_K2309_2250V_951A_XR_AS82.asc'); % Prisma @ xa60a
 [pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GradSys_P034_X60.asc'); % Cima.X
+[cns_ok, cns_n, cns_c, tcns]=seq.calcPNS('idea/asc/MP_GradSys_P034_X60.asc',true,true); % Cima.X CNS
 
 return
 %% load simulation results 
