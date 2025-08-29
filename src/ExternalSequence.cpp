@@ -609,13 +609,19 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 							m_triggerLibrary[nID] = trigger;
 							break;
 						case EXT_ROTATION: 
-							if (10!=sscanf(buffer, "%d%lf%lf%lf%lf%lf%lf%lf%lf%lf", &nID, 
-										&rotation.rotMatrix[0], &rotation.rotMatrix[1], &rotation.rotMatrix[2],
-										&rotation.rotMatrix[3], &rotation.rotMatrix[4], &rotation.rotMatrix[5],
-										&rotation.rotMatrix[6], &rotation.rotMatrix[7], &rotation.rotMatrix[8])) {
+							if (5!=sscanf(buffer, "%d%lf%lf%lf%lf", &nID, &rotation.rotQuaternion[0], &rotation.rotQuaternion[1], &rotation.rotQuaternion[2], &rotation.rotQuaternion[3])) {
 								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode rotation event\n" << buffer << std::endl );
-								return false;
+                                return false;
 							}
+                            {
+								double dNorm=sqrt(rotation.rotQuaternion[0]*rotation.rotQuaternion[0]+rotation.rotQuaternion[1]*rotation.rotQuaternion[1]+rotation.rotQuaternion[2]*rotation.rotQuaternion[2]+rotation.rotQuaternion[3]*rotation.rotQuaternion[3]);
+                                if (fabs(dNorm-1.0)>1e-3) {
+									print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: rotation extension loaded a non-normalized quaternion " << buffer << std::endl );
+									return false;
+								}
+								for (int i = 0; i < 4; ++i)
+                                    rotation.rotQuaternion[i] /= dNorm; 
+                            }
 							rotation.defined=true;
 							m_rotationLibrary[nID] = rotation; 
 							break;
@@ -702,31 +708,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 					}
 				}
 			}
-		}
-		
-		// Read gradient rotation section
-		// -------------------------------
-		/*if (m_fileIndex.find("[ROTATIONS]") != m_fileIndex.end()) {
-			data_stream.seekg(m_fileIndex["[ROTATIONS]"], std::ios::beg);
-
-			int controlId;
-			while (getline(data_stream, buffer, MAX_LINE_SIZE)) {
-				if (buffer[0]=='[' || strlen(buffer)==0) {
-					break;
-				}
-				ControlEvent event;
-				event.type = ControlEvent::ROTATION;
-				if (10!=sscanf(buffer, "%d%lf%lf%lf%lf%lf%lf%lf%lf%lf", &controlId, 
-							&event.rotMatrix[0], &event.rotMatrix[1], &event.rotMatrix[2],
-							&event.rotMatrix[3], &event.rotMatrix[4], &event.rotMatrix[5],
-							&event.rotMatrix[6], &event.rotMatrix[7], &event.rotMatrix[8])) {
-					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode rotation event\n" << buffer << std::endl );
-					return false;
-				}
-				m_controlLibrary[controlId] = event;
-			}
-		}*/
-		
+		}		
 		
 		print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "-- EVENTS READ: "
 			<<" RF: " << m_rfLibrary.size()

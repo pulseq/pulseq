@@ -23,8 +23,8 @@ partFourierFactor=1;       % partial Fourier factor: 1: full sampling 0: start w
 
 % Create fat-sat pulse 
 sat_ppm=-3.45;
-rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
-    'bandwidth',abs(sat_freq),'freqPPM',sat_ppm,'use','saturation');
+rf_fs = mr.makeGaussPulse(110*pi/180,'system',system,'Duration',8e-3,...
+    'bandwidth',abs(sat_ppm*1e-6*system.B0*system.gamma),'freqPPM',sat_ppm,'use','saturation');
 rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase    
 rf_fs.name='fat-sat'; % useful for debugging, can be seen in seq.plot
 gz_fs = mr.makeTrapezoid('z','delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
@@ -43,8 +43,8 @@ kWidth = Nx*deltak;
 % Phase blip in shortest possible time
 blip_dur = ceil(2*sqrt(deltak/system.maxSlew)/10e-6/2)*10e-6*2; % we round-up the duration to 2x the gradient raster time
 % the split code below fails if this really makes a trpezoid instead of a triangle...
-gy = mr.makeTrapezoid('y','Area',-deltak,'Duration',blip_dur); % we use negative blips to save one k-space line on our way towards the k-space center
-%gy = mr.makeTrapezoid('y',lims,'amplitude',deltak/blip_dur*2,'riseTime',blip_dur/2, 'flatTime', 0);
+gy = mr.makeTrapezoid('y',system,'Area',-deltak,'Duration',blip_dur); % we use negative blips to save one k-space line on our way towards the k-space center
+%gy = mr.makeTrapezoid('y',system,'amplitude',deltak/blip_dur*2,'riseTime',blip_dur/2, 'flatTime', 0);
 
 % readout gradient is a truncated trapezoid with dead times at the beginnig
 % and at the end each equal to a half of blip_dur

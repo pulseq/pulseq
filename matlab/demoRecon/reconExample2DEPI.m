@@ -4,25 +4,52 @@
 
 %% Load the latest file from a dir
 path='../../IceNIH_RawSend/'; % directory to be scanned for data files
-%path='~/Dropbox/shared/data/siemens/';
-%path='~/Dropbox/shared/data/siemens/demo_epi/';
+%path='/dev/shm/mr0mat/';
+%path='/dev/shm/koma_mat/';
 
-pattern='/*.dat';
+pattern='/*.seq';
 close all
 D=dir([path pattern]);
 [~,I]=sort([D(:).datenum]);
-data_file_path=[path D(I(end-0)).name]; % use end-1 to reconstruct the second-last data set, etc.
-%%
-fprintf('loading %s\n',data_file_path);
-twix_obj = mapVBVD(data_file_path);
+seq_file_path=[path D(I(end-0)).name]; % use end-1 to reconstruct the second-last data set, etc.
 
-%% Load sequence from file (optional)
-
-
-seq_file_path = [data_file_path(1:end-3) 'seq'];
-
+%% Load sequence from the file with the same name as the raw data
+fprintf(['loading `' seq_file_path '´ ...\n']);
 seq = mr.Sequence();              % Create a new sequence object
 seq.read(seq_file_path,'detectRFuse');
+
+%% keep basic filename without the extension
+[p,n,e] = fileparts(seq_file_path);
+basic_file_path=fullfile(p,n);
+
+%% load the raw data file
+data_file_path= [basic_file_path '.mat']; % try to load a matlab file with raw data...
+try
+    fprintf(['loading `' data_file_path '´ ...\n']);
+    data_unsorted = load(data_file_path);
+    if isstruct(data_unsorted)
+        fn=fieldnames(data_unsorted);
+        assert(length(fn)==1); % we only expect a single variable
+        data_unsorted=double(data_unsorted.(fn{1}));
+    end
+catch
+    data_file_path= [basic_file_path '.dat']; % now try to load a raw data file...
+    fprintf(['falling back to `' data_file_path '´ ...\n']);
+    twix_obj = mapVBVD(data_file_path);
+    if iscell(twix_obj)
+        data_unsorted = double(twix_obj{end}.image.unsorted());
+        seqHash_twix=twix_obj{end}.hdr.Dicom.tSequenceVariant;
+    else
+        data_unsorted = double(twix_obj.image.unsorted());
+        seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant; 
+    end
+    if length(seqHash_twix)==32
+        fprintf(['raw data contain pulseq-file signature ' seqHash_twix '\n']);
+    end
+    clear twix_obj
+end
+
+%% show k-space
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 %[ktraj_adc, ktraj, t_excitation, t_refocusing] = seq.calculateKspace();
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
@@ -30,20 +57,19 @@ figure; plot(ktraj(1,:),ktraj(2,:),'b',...
 axis('equal');
 title('k-space');
 
-%% define raw data
-
-if iscell(twix_obj)
-    rawdata = double(twix_obj{end}.image.unsorted());
-else
-    rawdata = double(twix_obj.image.unsorted());
-end
-
 %% if necessary re-tune the trajectory delay to supress ghosting
 traj_recon_delay=0e-6;%3.23e-6;%-1e-6;%3.90e-6;%-1.03e-6; % adjust this parameter to supress ghosting (negative allowed) (our trio -1.0e-6, prisma +3.9e-6; avanto +3.88)
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('trajectory_delay', traj_recon_delay);
 
 %% automatic detection of the measurement parameters (FOV, matrix size, etc)
-nADC = size(rawdata, 1);
+dt_adc=diff(t_adc);
+nADC=find(dt_adc>dt_adc(1)+eps,1,'first');
+ADC_count = sum(dt_adc>dt_adc(1)+eps)+1; % we count temporal gaps between ADCs
+
+if ndims(data_unsorted)~=3 && numel(data_unsorted)==nADC*ADC_count % fix the data shape if it is simulated data
+    data_unsorted=reshape(data_unsorted,[nADC, 1, ADC_count]);
+end
+
 k_last=ktraj_adc(:,end);
 k_2last=ktraj_adc(:,end-nADC);
 delta_ky=k_last(2)-k_2last(2);
@@ -60,7 +86,7 @@ if abs(delta_ky)>eps
     Ny_sampled=Ny_pre+Ny_post+1;
 else
     % assume calibration data, no real knowledge of the parameters
-    Nx=size(rawdata,3); % just a wildest guess to make the script run through
+    Nx=size(data_unsorted,3); % just a wildest guess to make the script run through
     Ny=Nx; % just a wildest guess to make the script run through
     Ny_sampled=Nx; % just a wildest guess to make the script run through
 end
@@ -82,8 +108,8 @@ end
 
 %% classical phase correction / trajectory delay calculation 
 %  here we assume we are dealing with the calibration data
-data_odd=ifftshift(ifft(ifftshift(rawdata(:,:,1:2:end),1)),1);
-data_even=ifftshift(ifft(ifftshift(rawdata(end:-1:1,:,2:2:end),1)),1);
+data_odd=ifftshift(ifft(ifftshift(data_unsorted(:,:,1:2:end),1)),1);
+data_even=ifftshift(ifft(ifftshift(data_unsorted(end:-1:1,:,2:2:end),1)),1);
 cmplx_diff=data_even.*conj(data_odd);
 cmplx_slope=cmplx_diff(2:end,:,:).*conj(cmplx_diff(1:end-1,:,:));
 mslope_phs=angle(sum(cmplx_slope(:)));
@@ -96,8 +122,8 @@ fprintf('type this value in the section above and re-run the script\n');
 
 %% analyze the trajecotory, resample the data
 % here we expect rawdata ktraj_adc loaded (and having the same dimensions)
-nCoils = size(rawdata, 2); % the incoming data order is [kx coils acquisitions]
-nAcq=size(rawdata,3);
+nCoils = size(data_unsorted, 2); % the incoming data order is [kx coils acquisitions]
+nAcq=size(data_unsorted,3);
 nD=size(ktraj_adc, 1);
 
 kxmin=min(ktraj_adc(1,:));
@@ -114,7 +140,7 @@ ktraj_resampled=zeros(nD, length(kxx), nAcq);
 t_adc_resampled=zeros(length(kxx), nAcq);
 for a=1:nAcq
     for c=1:nCoils
-        data_resampled(:,c,a)=interp1(ktraj_adc2(1,:,mod(a-1,nADC)+1),rawdata(:,c,mod(a-1,nADC)+1),kxx,'spline',0);
+        data_resampled(:,c,a)=interp1(ktraj_adc2(1,:,mod(a-1,nADC)+1),data_unsorted(:,c,mod(a-1,nADC)+1),kxx,'spline',0);
     end
     ktraj_resampled(1,:,a)=kxx;
     for d=2:nD

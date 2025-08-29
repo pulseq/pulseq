@@ -70,6 +70,7 @@ int main(int argc, char** argv)
         int                      nLBL            = 0;
         int                      nADC            = 0;
         int                      nSoDe           = 0;
+        int                      nRot            = 0;
         int64_t                  llTotalDuration = 0;
         LabelStateAndBookkeeping labelStateAndBookkeeping;
         int                      iB;
@@ -123,6 +124,10 @@ int main(int argc, char** argv)
                 }
             }
 
+            if (pBlock->isRotation())
+            {
+                ++nRot;
+            }
             if (pBlock->isSoftDelay())
             {
                 ++nSoDe;
@@ -242,6 +247,8 @@ int main(int argc, char** argv)
             std::cout << "\t " << nADC << " ADC events\n";
         if (nLBL)
             std::cout << "\t " << nLBL << " label extension events\n";
+        if (nRot)
+            std::cout << "\t " << nRot << " rotation extension events\n";
         if (nSoDe)
             std::cout << "\t " << nSoDe << " soft delay extension events\n";
 

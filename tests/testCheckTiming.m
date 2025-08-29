@@ -31,10 +31,10 @@ function test_check_timing(testCase)
     seq = Sequence(system);
 
     % Add events with possible timing errors
-    rf = makeSincPulse(1, 'duration', 1e-3, 'delay', system.rfDeadTime, 'system', system);
+    rf = makeSincPulse(1, 'duration', 1e-3, 'delay', system.rfDeadTime, 'use', 'excitation', 'system', system);
     seq.addBlock(rf); % Block 1: No error
 
-    rf = makeSincPulse(1, 'duration', 1e-3, 'system', systemBroken);
+    rf = makeSincPulse(1, 'duration', 1e-3, 'use', 'excitation', 'system', systemBroken);
     seq.addBlock(rf); % Block 2: RF_DEAD_TIME, RF_RINGDOWN_TIME, BLOCK_DURATION_MISMATCH
 
     adc = makeAdc(100, 'duration', 1e-3, 'delay', system.adcDeadTime, 'system', system);

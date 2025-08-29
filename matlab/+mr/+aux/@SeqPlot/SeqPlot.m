@@ -103,7 +103,7 @@ classdef SeqPlot < handle
             obj.ax=obj.ax([1 3 5 2 4 6]);   % Re-order axes
             arrayfun(@(x)hold(x,'on'),obj.ax);
             arrayfun(@(x)grid(x,'on'),obj.ax);
-            labels={'ADC/labels','RF mag (Hz)','RF/ADC ph (rad)','Gx (kHz/m)','Gy (kHz/m)','Gz (kHz/m)'};
+            labels={'ADC/lbl/trig','RF mag (Hz)','RF/ADC ph (rad)','Gx (kHz/m)','Gy (kHz/m)','Gz (kHz/m)'};
             arrayfun(@(x)ylabel(obj.ax(x),labels{x}),1:6);
             
             tFactorList = [1 1e3 1e6];
@@ -181,6 +181,18 @@ classdef SeqPlot < handle
             % loop through blocks
             for iB=1:length(seq.blockEvents)
                 block = seq.getBlock(iB);
+                if isfield(block,'rotation')
+                    % apply the rotation to the current block and restore the block structure
+                    c=mr.rotate3D(block.rotation.rotQuaternion,block,'system',seq.sys);
+                    for i=1:3
+                        block.(gradChannels{i})=[];
+                    end
+                    for i=1:length(c)
+                        if isstruct(c{i}) && isfield(c{i},'type') && isfield(c{i},'channel')
+                            block.(['g' c{i}.channel])=c{i};
+                        end
+                    end
+                end
                 if t0<=timeRange(2)
                     % update the labels / counters even if we are below the display range
                     if isfield(block,'label') %current labels, works on the curent or next adc
@@ -197,6 +209,18 @@ classdef SeqPlot < handle
                 end
                 isValid = t0+seq.blockDurations(iB)>timeRange(1) && t0<=timeRange(2);
                 if isValid
+                    if isfield(block,'trig') && ~isempty(block.trig)
+                        switch(block.trig.type)
+                            case 'output'
+                                % plot digital output triggers in the RF-TX pane
+                                p2x=plot(tFactor*(t0+block.trig.delay),0,'diamond','Color',[0 0.5 0],'Parent',obj.ax(1));
+                                p2x=plot(tFactor*(t0+block.trig.delay +[0 block.trig.duration]),[0 0],'-','Marker','.','Color',[0 0.5 0],'Parent',obj.ax(1));
+                            case 'trigger'
+                                p1x=plot(tFactor*(t0+block.trig.delay),0,'>b','Parent',obj.ax(1));
+                                p1x=plot(tFactor*(t0+block.trig.delay),0,'.b','Parent',obj.ax(1));
+                            %otherwise
+                        end
+                    end
                     if ~isempty(block.adc)
                         adc=block.adc;
                         t=adc.delay + ((0:adc.numSamples-1)'+0.5)*adc.dwell; % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
@@ -227,7 +251,7 @@ classdef SeqPlot < handle
                         if max(abs(diff(rf.t)-rf.t(2)+rf.t(1)))<1e-9 && length(rf.t)>100
                             % homogeneous sampling and long pulses -- use lower time resolution for better display and performance
                             dt=rf.t(2)-rf.t(1);
-                            st=round(seq.sys.gradRasterTime/dt);
+                            st=max(1,round(seq.sys.gradRasterTime/dt));
                             t=rf.t(1:st:end);
                             s=rf.signal(1:st:end);
                             % always include the last point for the accurate display
@@ -382,6 +406,10 @@ classdef SeqPlot < handle
                  ''};
             if isempty(rb.(field))
                 out{3}=['\bf\color{blue}blk:\rm\color{black}' num2str(iB)];
+                % we could add handling of the trigger/label data tips here
+                % specifically for the adc panel but it would imply a
+                % substantial performance hit because we'd have to unpack
+                % extensions, etc... 
             else
                 try
                     switch field(1)

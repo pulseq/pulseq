@@ -61,12 +61,12 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
                 if all(abs(drt(2:end)-drt(1))<1e-9/system.rfRasterTime) % 1ns -- /system.rfRasterTime is necessary because 'rt' is in RF raster units
                     % equal stepping case -- constant dwell time
                     e.dwell=e.t(2)-e.t(1); % add dummy dwell so that it can be logged in case of error
-                    if ~div_check(e.dwell,system.adcRasterTime) % should we check against rfRasterTime or adcRasterTime?
+                    if ~div_check(e.dwell,min(system.adcRasterTime,system.rfRasterTime)) % should we check against rfRasterTime or adcRasterTime?
                         ok=false;
                     end
                 else
                     % "extended"-shape -- all points should be on RF raster edges
-                    if any(abs(rf-round(rt))>1e-6)
+                    if any(abs(rt-round(rt))>1e-6)
                         ok=false; % TODO: add a meaninfull error message, for now it will look very cryptic
                     end
                 end

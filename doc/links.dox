@@ -7,8 +7,8 @@ In this page we collect a list of software packages which can read or write Puls
 
 | Package | Type | In / Out | Web Link |
 |---------|------|--------|----------|
-| CMRseq | programming environment | import/export | https://people.ee.ethz.ch/~jweine/cmrseq/latest |
-| CMRsim | MR simulator | import | https://people.ee.ethz.ch/~jweine/cmrsim/latest |
+| CMRseq | programming environment | import/export | https://gitlab.ethz.ch/ibt-cmr/mri_simulation/cmrseq |
+| CMRsim | MR simulator | import | https://gitlab.ethz.ch/ibt-cmr/mri_simulation/cmrsim |
 | JEMRIS | MR simulator | export | https://www.jemris.org/ |
 | KomaMRI.jl | MR simulator | import/export | http://juliahealth.github.io/KomaMRI.jl |
 | MaRCoS / FLOCRA | MR console | import | https://github.com/stockmann-lab/flocra-pulseq |

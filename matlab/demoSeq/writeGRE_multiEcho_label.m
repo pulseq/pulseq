@@ -12,10 +12,9 @@ fov=224e-3; Nx=256; Ny=Nx; % Define FOV and resolution
 alpha=15;                  % flip angle
 thickness=5e-3;            % slice
 Nslices=1;
-Nrep=4;
 TR=20e-3; 
-TE=4.3e-3;
-%TE=[4.38 6.84 12]*1e-3;            % alternatively give a vector here to have multiple TEs (e.g. for field mapping)
+% TE=4.3e-3;
+TE=[4.38 6.84 12]*1e-3;            % alternatively give a vector here to have multiple TEs (e.g. for field mapping)
 
 % more in-depth parameters
 rfSpoilingInc=117;              % RF spoiling increment
@@ -55,66 +54,53 @@ delayTR=ceil((TR - mr.calcDuration(gz) - mr.calcDuration(gxPre) ...
 assert(all(delayTE>=0));
 assert(all(delayTR>=mr.calcDuration(gxSpoil,gzSpoil)));
 
-% accelerate sequence calculation for objects that do not change un the loops
-gz.id=seq.registerGradEvent(gz);
-gxPre.id=seq.registerGradEvent(gxPre);
-gzReph.id=seq.registerGradEvent(gzReph);
-gx.id=seq.registerGradEvent(gx);
-gxSpoil.id=seq.registerGradEvent(gxSpoil);
-%gyPre.id=seq.registerGradEvent(gyPre);
-gzSpoil.id=seq.registerGradEvent(gzSpoil);
-
-% RF spoiling
 rf_phase=0;
 rf_inc=0;
 
 % all LABELS / counters an flags are automatically initialized to 0 in the beginning, no need to define initial 0's  
 % so we will just increment LIN after the ADC event (e.g. during the spoiler)
 
-seq.addBlock(mr.makeLabel('SET','REV', 1)); % left-right swap fix (needed for 1.4.0 and later)
+seq.addBlock(mr.makeLabel('SET','REV', 1)); % left-right swap fix (needed for 1.4.0)
 
-% loop over repetitions
-for r=1:Nrep
-    seq.addBlock(mr.makeLabel('SET','LIN', 0), mr.makeLabel('SET','SLC', 0)); % needed to make it compatible to multiple REPs
-    % loop over slices
-    for s=1:Nslices
-        rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
-        % loop over phase encodes and define sequence blocks
-        for i=1:Ny
-          for c=1:length(TE)
-            rf.phaseOffset=rf_phase/180*pi;
-            adc.phaseOffset=rf_phase/180*pi;
-            rf_inc=mod(rf_inc+rfSpoilingInc, 360.0);
-            rf_phase=mod(rf_phase+rf_inc, 360.0);
-            %
-            if r==1 
-                seq.addBlock(rf,gz);
-            else
-                seq.addBlock(rf,gz,mr.makeRfShim([1, exp(1i*2*pi/(Nrep)*(r-1))]));
+for r=1:2
+seq.addBlock(mr.makeLabel('SET','LIN', 0), mr.makeLabel('SET','SLC', 0)); % needed to make it compatible to multiple REPs
+
+% loop over slices
+for s=1:Nslices
+    rf.freqOffset=gz.amplitude*thickness*(s-1-(Nslices-1)/2);
+    % loop over phase encodes and define sequence blocks
+    for i=1:Ny
+      for c=1:length(TE)
+        rf.phaseOffset=rf_phase/180*pi;
+        adc.phaseOffset=rf_phase/180*pi;
+        rf_inc=mod(rf_inc+rfSpoilingInc, 360.0);
+        rf_phase=mod(rf_phase+rf_inc, 360.0);
+        %
+        seq.addBlock(rf,gz);
+        gyPre = mr.makeTrapezoid('y','Area',phaseAreas(i),'Duration',mr.calcDuration(gxPre),'system',sys);
+        seq.addBlock(gxPre,gyPre,gzReph);
+        seq.addBlock(mr.makeDelay(delayTE(c)));
+        seq.addBlock(gx,adc);
+        gyPre.amplitude=-gyPre.amplitude;
+        spoilBlockContents={mr.makeDelay(delayTR(c)),gxSpoil,gyPre,gzSpoil}; % here we demonstrate the technique to combine variable counter-dependent content into the same block
+        if c~=length(TE)
+            spoilBlockContents=[spoilBlockContents {mr.makeLabel('INC','ECO', 1)}];
+        else
+            if length(TE)>1
+                spoilBlockContents=[spoilBlockContents {mr.makeLabel('SET','ECO', 0)}];
             end
-            gyPre = mr.makeTrapezoid('y','Area',phaseAreas(i),'Duration',mr.calcDuration(gxPre),'system',sys);
-            seq.addBlock(gxPre,gyPre,gzReph);
-            seq.addBlock(delayTE(c));
-            seq.addBlock(gx,adc);
-            gyPre.amplitude=-gyPre.amplitude;
-            spoilBlockContents={mr.makeDelay(delayTR(c)),gxSpoil,gyPre,gzSpoil}; % here we demonstrate the technique to combine variable counter-dependent content into the same block
-            if c~=length(TE)
-                spoilBlockContents=[spoilBlockContents {mr.makeLabel('INC','ECO', 1)}];
+            if i~=Ny
+                spoilBlockContents=[spoilBlockContents {mr.makeLabel('INC','LIN', 1)}];
             else
-                if length(TE)>1
-                    spoilBlockContents=[spoilBlockContents {mr.makeLabel('SET','ECO', 0)}];
-                end
-                if i~=Ny
-                    spoilBlockContents=[spoilBlockContents {mr.makeLabel('INC','LIN', 1)}];
-                else
-                    spoilBlockContents=[spoilBlockContents {mr.makeLabel('SET','LIN', 0), mr.makeLabel('INC','SLC', 1)}];
-                end
+                spoilBlockContents=[spoilBlockContents {mr.makeLabel('SET','LIN', 0), mr.makeLabel('INC','SLC', 1)}];
             end
-            seq.addBlock(spoilBlockContents{:});
-          end
         end
+        seq.addBlock(spoilBlockContents{:});
+      end
     end
-    seq.addBlock(mr.makeLabel('INC','REP', 1));
+end
+seq.addBlock(mr.makeDelay(5));
+seq.addBlock(mr.makeLabel('INC','REP', 1)); % make the sequence compatible with multiple runs/repetitions
 end
 
 %% check whether the timing of the sequence is correct
@@ -130,7 +116,7 @@ end
 
 %% prepare sequence export
 seq.setDefinition('FOV', [fov fov thickness*Nslices]);
-seq.setDefinition('Name', 'gre_rfshim');
+seq.setDefinition('Name', 'gre_lbl');
 seq.setDefinition('TE', TE) ; % 3 TE values
 seq.setDefinition('TR', TR) ;
 seq.write('gre_lbl.seq')       % Write to pulseq file

@@ -1,4 +1,4 @@
-% this is an experimental high-performance EPI sequence
+% this is an experimentaal high-performance EPI sequence
 % which uses split gradients to overlap blips with the readout
 % gradients combined with ramp-samping
 % strongly leaned towards the Siemens EPI_BOLD sequence 
@@ -15,9 +15,9 @@ seq=mr.Sequence(sys);      % Create a new sequence object
 fov=220e-3; Nx=96; Ny=Nx;  % Define FOV and resolution
 thickness=3e-3;            % slice thinckness in mm
 sliceGap=1.5e-3;             % slice gap im mm
-Nslices=4;
+Nslices=48;
 Nrep = 1 ;
-TR = 3000e-3 ;
+TR = 3700e-3 ;
 
 pe_enable=1;               % a flag to quickly disable phase encoding (1/0) as needed for the delay calibration
 ro_os=2;                   % oversampling factor (in contrast to the product sequence we don't really need it)
@@ -29,11 +29,11 @@ partFourierFactor=1;       % partial Fourier factor: 1: full sampling 0: start w
 Nnav=3;		   % navigator echoes for ghost supprerssion
 
 % Create fat-sat pulse 
-sat_ppm=-3.35;
-rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,...
-    'bandwidth',abs(sat_ppm*1e-6*sys.B0*sys.gamma),'freqPPM',sat_ppm,'use','saturation');
-rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase    
-
+sat_ppm=-3.45;
+sat_freq=sat_ppm*1e-6*sys.B0*sys.gamma;
+rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,'dwell',10e-6,...
+    'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
+rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
 gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',2e-3,...
@@ -82,7 +82,7 @@ adcDwell=floor(readoutTime/adcSamples*1e7)*1e-7;
 disp(['ADC bandwidth = ', num2str(1/adcDwell/1000), ' kHz']) ;
 fprintf('Actual RO oversampling factor is %g, Siemens recommends it to be above 1.3\n', deltak/gx.amplitude/adcDwell)
 % MZ: no idea, whether ceil,round or floor is better for the adcSamples...
-adc = mr.makeAdc(adcSamples,'Dwell',adcDwell,'Delay',blip_dur/2,'phaseModulation',0.1*rand(1,adcSamples));
+adc = mr.makeAdc(adcSamples,'Dwell',adcDwell,'Delay',blip_dur/2);
 % realign the ADC with respect to the gradient
 time_to_center=adc.dwell*((adcSamples-1)/2+0.5); % I've been told that Siemens samples in the center of the dwell period
 adc.delay=round((gx.riseTime+gx.flatTime/2-time_to_center)*1e6)*1e-6; % we adjust the delay to align the trajectory with the gradient. We have to aligh the delay to 1us 
@@ -116,22 +116,24 @@ gyPre = mr.makeTrapezoid('y',sys,'Area',gyPre.area,'Duration',mr.calcDuration(gx
 gyPre.amplitude=gyPre.amplitude*pe_enable;
 
 % slice positions
+%slicePositions=(thickness+sliceGap)*(0:(Nslices-1));
 slicePositions=(thickness+sliceGap)*((0:(Nslices-1)) - (Nslices-1)/2);
-slicePositions=slicePositions([1:2:Nslices 2:2:Nslices]); % reorder slices for an interleaved acquisition (optional)
+%slicePositions=slicePositions([1:2:Nslices 2:2:Nslices]); % reorder slices for an interleaved acquisition (optional)
 %slicePositions=slicePositions([1:3:Nslices 2:3:Nslices 3:3:Nslices]); % reorder slices for an interleaved acquisition (optional)
-% estimate sequence timing
+% Define sequence blocks
 minTR_1slice = mr.calcDuration(gz_fs) + mr.calcDuration(gz) + mr.calcDuration(gzReph)+...
     Nnav*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
     Ny_meas*mr.calcDuration(gx) ;
-
-% calculate minimal TE (or besster to say actual TE if we don't add any TE filling delays)
-min_TE = rf.shape_dur-rf.center + max(rf.ringdownTime, gz.fallTime) + mr.calcDuration(gzReph)+...
-    Nnav*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
-    Ny_pre*mr.calcDuration(gx) + mr.calcDuration(gx)/2;
-
 TRdelay = TR - minTR_1slice * Nslices ;
 TRdelay_perSlice = round(TRdelay / Nslices / sys.blockDurationRaster) * sys.blockDurationRaster ;
-assert(TRdelay_perSlice>0 ) ;
+TRdelay_perSlice =0;
+assert(TRdelay_perSlice>=0 ) ;
+
+TE = rf.shape_dur/2 + rf.ringdownTime + mr.calcDuration(gzReph)+...
+    Nnav*mr.calcDuration(gx) + mr.calcDuration(gyPre) + ...
+    Ny_meas/2*mr.calcDuration(gx) - mr.calcDuration(gx)/2;
+actualTR=(minTR_1slice+TRdelay_perSlice)*Nslices;
+disp(['actual TR = ', num2str(actualTR*1e3), ' ms', ', actual TE = ', num2str(1000*TE), ' ms']) ;
 
 % change orientation to match the siemens product sequence
 % reverse the polarity of all gradients in readout direction (Gx)
@@ -143,12 +145,13 @@ assert(TRdelay_perSlice>0 ) ;
 % initial readout gradient polarity
 ROpolarity = sign(gx.amplitude) ;
 % seq.addBlock(mr.makeLabel('SET','REP', 0)) ;
-for r=1:Nrep
+%for r=1:Nrep
     seq.addBlock(mr.makeLabel('SET', 'SLC', 0) ) ;
-    for s=1:Nslices
+    %for s=1:Nslices
+    s=1;
         seq.addBlock(rf_fs, gz_fs) ;
         rf.freqOffset=gz.amplitude*slicePositions(s);
-        rf.phaseOffset=-2*pi*rf.freqOffset*rf.center; % compensate for the slice-offset induced phase
+        rf.phaseOffset=-2*pi*rf.freqOffset*mr.calcRfCenter(rf); % compensate for the slice-offset induced phase
         seq.addBlock(rf,gz,trig);
         if Nnav>0
             gxPre = mr.scaleGrad(gxPre, -1) ; % reverse the readout gradient in advance for navigator
@@ -164,7 +167,6 @@ for r=1:Nrep
                 seq.addBlock(gx, adc);
                 gx = mr.scaleGrad(gx, -1) ;   % Reverse polarity of read gradient
             end
-            % softdelay TE
             seq.addBlock(gyPre,  ...
                 mr.makeLabel('SET','LIN', -1), ... % increment LIN by -1 for "llin" performs before adc below
                 mr.makeLabel('SET','NAV', 0), ...
@@ -193,12 +195,18 @@ for r=1:Nrep
         if sign(gx.amplitude) ~= ROpolarity % if the polarity of gx is not the same as original one
             gx = mr.scaleGrad(gx, -1) ;
         end
-       if s==1 && r==1
-           durPerSlc=sum(seq.blockDurations);
-       end
-       seq.addBlock(TRdelay_perSlice);
+       seq.addBlock(TRdelay_perSlice); 
+    %end
+    seq.addBlock(mr.makeLabel('INC','REP', 1)) ; % TODO: fixme
+%end
+
+% do multislice
+if (Nslices>1)
+    gw_pp={};
+    nBlk=length(seq.blockDurations);
+    for s=2:Nslices
+        [seq, gw_pp]= mr.transform(seq, 'translation', [0,0,slicePositions(s)-slicePositions(1)], 'gw_pp', gw_pp, 'sameSeq', true, 'blockRange',[1,nBlk]);
     end
-    seq.addBlock(mr.makeLabel('INC','REP', 1)) ;
 end
 
 %% check whether the timing of the sequence is correct
@@ -213,10 +221,11 @@ else
 end
 
 %[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos] = seq.calculateKspacePP();
+return
 
 %% do some visualizations
 
-seq.plot('Label', 'SEG,LIN,SLC', 'timeRange', [0 TR]) ;             % Plot all sequence waveforms
+seq.plot('Label', 'SEG,LIN,SLC', 'timeRange', [0 actualTR]) ;             % Plot all sequence waveforms
 
 seq.plot('timeDisp','us','showBlocks',1,'timeRange',[0 25e-3]); %detailed view
 
@@ -259,9 +268,9 @@ seq.setDefinition('ReceiverGainHigh',1);
 %seq.setDefinition('kSpaceCenterLine', Ny/2+1) ;
 seq.setDefinition('ReadoutOversamplingFactor',ro_os);
 seq.setDefinition('TargetGriddedSamples',Nx*ro_os); % number of samples after gridding (with oversamping)
-seq.setDefinition('TrapezoidGriddingParameters', [gx.riseTime gx.flatTime gx.fallTime adc.delay-gx.delay adc.dwell*adc.numSamples]); % rise,flat,fall,adc_delay,adc_dur
+seq.setDefinition('TrapezoidGriddingParameters', [gx.riseTime gx.flatTime gx.fallTime adc.delay-gx.delay adc.duration]); % rise,flat,fall,adc_delay,adc_dur
 
-seq.write('epi_rs_lbl.seq'); 
+seq.write('epi_rs.seq'); 
 
 % seq.install('siemens');
 

@@ -214,8 +214,8 @@ struct RfShimmingEvent
  */
 struct RotationEvent
 {
-	bool defined;           /**< @brief Indicates whether a rotation object was defined in this block */
-	double rotMatrix[9];    /**< @brief Gradient rotation matrix */
+	bool defined;             /**< @brief Indicates whether a rotation object was defined in this block */
+	double rotQuaternion[4];  /**< @brief Gradient rotation matrix */
 };
 
 /**

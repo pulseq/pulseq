@@ -8,11 +8,11 @@
 % strong gradient that may overload your scanner!
 
 % Set system limits
-lims = mr.opts('MaxGrad',38,'GradUnit','mT/m',...
+sys = mr.opts('MaxGrad',38,'GradUnit','mT/m',...
     'MaxSlew',180,'SlewUnit','T/m/s',...
     'rfRingdownTime', 10e-6, 'rfDeadtime', 100e-6, 'adcDeadTime', 10e-6, 'B0', 2.89);  
 
-seq=mr.Sequence(lims);     % Create a new sequence object
+seq=mr.Sequence(sys);     % Create a new sequence object
 fov=224e-3; Nx=112; Ny=Nx; % Define FOV and resolution
 thickness=2e-3;            % slice thinckness
 Nslices=3;
@@ -29,22 +29,22 @@ tRFref=3e-3;
 
 % Create fat-sat pulse 
 sat_ppm=-3.35;
-rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
+rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,...
     'bandwidth',abs(sat_ppm*1e-6*sys.B0*sys.gamma),'freqPPM',sat_ppm,'use','saturation');
 rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase    
-%rf_fs.phaseOffset=-2*pi*rf_fs.freqPPM*1e-6*lims.gamma*lims.B0*rf_fs.center; % compensate for the frequency-offset induced phase    
-gz_fs = mr.makeTrapezoid('z',lims,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
+%rf_fs.phaseOffset=-2*pi*rf_fs.freqPPM*1e-6*sys.gamma*sys.B0*rf_fs.center; % compensate for the frequency-offset induced phase    
+gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
 % Create 90 degree slice selection pulse and gradient
-[rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',lims,'Duration',tRFex,...
+[rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',tRFex,...
     'SliceThickness',thickness,'PhaseOffset',pi/2,'apodization',0.5,'timeBwProduct',4,...
     'use', 'excitation');
 
 % Create 180 degree slice refocusing pulse and gradients
-[rf180, gz180] = mr.makeSincPulse(pi,'system',lims,'Duration',tRFref,...
+[rf180, gz180] = mr.makeSincPulse(pi,'system',sys,'Duration',tRFref,...
     'SliceThickness',thickness,'apodization',0.5,'timeBwProduct',4,'use','refocusing');
-[~, gzr_t, gzr_a]=mr.makeExtendedTrapezoidArea('z',gz180.amplitude,0,-gzReph.area+0.5*gz180.amplitude*gz180.fallTime,lims);
-gz180n=mr.makeExtendedTrapezoid('z','system',lims,'times',[0 gz180.riseTime gz180.riseTime+gz180.flatTime+gzr_t]+gz180.delay, 'amplitudes', [0 gz180.amplitude gzr_a]);
+[~, gzr_t, gzr_a]=mr.makeExtendedTrapezoidArea('z',gz180.amplitude,0,-gzReph.area+0.5*gz180.amplitude*gz180.fallTime,sys);
+gz180n=mr.makeExtendedTrapezoid('z','system',sys,'times',[0 gz180.riseTime gz180.riseTime+gz180.flatTime+gzr_t]+gz180.delay, 'amplitudes', [0 gz180.amplitude gzr_a]);
 
 % define the output trigger to play out with every slice excitatuion
 trig=mr.makeDigitalOutputPulse('osc0','duration', 100e-6); % possible channels: 'osc0','osc1','ext1'
@@ -54,18 +54,18 @@ deltak=1/fov;
 kWidth = Nx*deltak;
 
 % Phase blip in shortest possible time
-blip_dur = ceil(2*sqrt(deltak/lims.maxSlew)/10e-6/2)*10e-6*2; % we round-up the duration to 2x the gradient raster time
+blip_dur = ceil(2*sqrt(deltak/sys.maxSlew)/10e-6/2)*10e-6*2; % we round-up the duration to 2x the gradient raster time
 % the split code below fails if this really makes a trpezoid instead of a triangle...
-gy = mr.makeTrapezoid('y',lims,'Area',-deltak,'Duration',blip_dur); % we use negative blips to save one k-space line on our way towards the k-space center
-%gy = mr.makeTrapezoid('y',lims,'amplitude',deltak/blip_dur*2,'riseTime',blip_dur/2, 'flatTime', 0);
+gy = mr.makeTrapezoid('y',sys,'Area',-deltak,'Duration',blip_dur); % we use negative blips to save one k-space line on our way towards the k-space center
+%gy = mr.makeTrapezoid('y',sys,'amplitude',deltak/blip_dur*2,'riseTime',blip_dur/2, 'flatTime', 0);
 
 % readout gradient is a truncated trapezoid with dead times at the beginnig
 % and at the end each equal to a half of blip_dur
 % the area between the blips should be defined by kWidth
 % we do a two-step calculation: we first increase the area assuming maximum
 % slewrate and then scale down the amlitude to fix the area 
-extra_area=blip_dur/2*blip_dur/2*lims.maxSlew; % check unit!;
-gx = mr.makeTrapezoid('x',lims,'Area',kWidth+extra_area,'duration',readoutTime+blip_dur);
+extra_area=blip_dur/2*blip_dur/2*sys.maxSlew; % check unit!;
+gx = mr.makeTrapezoid('x',sys,'Area',kWidth+extra_area,'duration',readoutTime+blip_dur);
 actual_area=gx.area-gx.amplitude/gx.riseTime*blip_dur/2*blip_dur/2/2-gx.amplitude/gx.fallTime*blip_dur/2*blip_dur/2/2;
 gx.amplitude=gx.amplitude/actual_area*kWidth;
 gx.area = gx.amplitude*(gx.flatTime + gx.riseTime/2 + gx.fallTime/2);
@@ -91,9 +91,9 @@ adc.delay=round((gx.riseTime+gx.flatTime/2-time_to_center)*1e6)*1e-6; % we adjus
 % FOV positioning requires alignment to grad. raster... -> TODO
 
 % split the blip into two halves and produce a combined synthetic gradient
-gy_parts = mr.splitGradientAt(gy, blip_dur/2, lims);
+gy_parts = mr.splitGradientAt(gy, blip_dur/2, sys);
 [gy_blipup, gy_blipdown,~]=mr.align('right',gy_parts(1),'left',gy_parts(2),gx);
-gy_blipdownup=mr.addGradients({gy_blipdown, gy_blipup}, lims);
+gy_blipdownup=mr.addGradients({gy_blipdown, gy_blipup}, sys);
 
 % pe_enable support
 gy_blipup.waveform=gy_blipup.waveform*pe_enable;
@@ -107,19 +107,19 @@ Ny_post=round(Ny/2+1); % PE lines after the k-space center including the central
 Ny_meas=Ny_pre+Ny_post;
 
 % Pre-phasing gradients
-gxPre = mr.makeTrapezoid('x',lims,'Area',-gx.area/2);
-gyPre = mr.makeTrapezoid('y',lims,'Area',Ny_pre*deltak);
+gxPre = mr.makeTrapezoid('x',sys,'Area',-gx.area/2);
+gyPre = mr.makeTrapezoid('y',sys,'Area',Ny_pre*deltak);
 [gxPre,gyPre]=mr.align('right',gxPre,'left',gyPre);
 % relax the PE prepahser to reduce stimulation
-gyPre = mr.makeTrapezoid('y',lims,'Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre));
+gyPre = mr.makeTrapezoid('y',sys,'Area',gyPre.area,'Duration',mr.calcDuration(gxPre,gyPre));
 gyPre.amplitude=gyPre.amplitude*pe_enable;
 
 % Calculate delay times
 durationToCenter = (Ny_pre+0.5)*mr.calcDuration(gx);
 rfCenterInclDelay=rf.delay + mr.calcRfCenter(rf);
 rf180centerInclDelay=rf180.delay + mr.calcRfCenter(rf180);
-delayTE1=ceil((TE/2 - mr.calcDuration(rf,gz) + rfCenterInclDelay - rf180centerInclDelay)/lims.gradRasterTime)*lims.gradRasterTime;
-delayTE2tmp=ceil((TE/2 - mr.calcDuration(rf180,gz180n) + rf180centerInclDelay - durationToCenter)/lims.gradRasterTime)*lims.gradRasterTime;
+delayTE1=ceil((TE/2 - mr.calcDuration(rf,gz) + rfCenterInclDelay - rf180centerInclDelay)/sys.gradRasterTime)*sys.gradRasterTime;
+delayTE2tmp=ceil((TE/2 - mr.calcDuration(rf180,gz180n) + rf180centerInclDelay - durationToCenter)/sys.gradRasterTime)*sys.gradRasterTime;
 assert(delayTE1>=0);
 %delayTE2=delayTE2tmp+mr.calcDuration(rf180,gz180n);
 gxPre.delay=0;
@@ -133,13 +133,13 @@ assert(delayTE2>=0);
 % delayTE1+delayTE2-delayTE2 is our big delta
 % we anticipate that we will use the maximum gradient amplitude, so we need
 % to shorten delayTE2 by gmax/max_sr to accommodate the ramp down 
-small_delta=delayTE2-ceil(lims.maxGrad/lims.maxSlew/lims.gradRasterTime)*lims.gradRasterTime;
+small_delta=delayTE2-ceil(sys.maxGrad/sys.maxSlew/sys.gradRasterTime)*sys.gradRasterTime;
 big_delta=delayTE1+mr.calcDuration(rf180,gz180n);
 % we define bFactCalc function below to eventually calculate time-optimal 
 % gradients. for now we just abuse it with g=1 to give us the coefficient
 g=sqrt(bFactor*1e6/bFactCalc(1,small_delta,big_delta)); % for now it looks too large!
-gr=ceil(g/lims.maxSlew/lims.gradRasterTime)*lims.gradRasterTime;
-gDiff=mr.makeTrapezoid('z','amplitude',g,'riseTime',gr,'flatTime',small_delta-gr,'system',lims);
+gr=ceil(g/sys.maxSlew/sys.gradRasterTime)*sys.gradRasterTime;
+gDiff=mr.makeTrapezoid('z',sys,'amplitude',g,'riseTime',gr,'flatTime',small_delta-gr);
 %assert(mr.calcDuration(gDiff)<=delayTE1); % not needed as we now use the
 %new feature by setting the required block duration 
 %assert(mr.calcDuration(gDiff)<=delayTE2); % dito

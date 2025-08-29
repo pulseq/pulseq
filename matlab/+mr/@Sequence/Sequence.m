@@ -57,6 +57,7 @@ classdef Sequence < handle
         softDelayLibrary; % Library of 'soft delay' extension events.
         softDelayHints1;  % Map of string hints that are the part of the 'soft delay' extension objects
         softDelayHints2;  % cell array of string hints that are the part of the 'soft delay' extension objects
+        rotationLibrary;  % Library of the rotation extension objects (rotation quaternions)
         extensionStringIDs;  % string IDs of the used extensions (cell array)
         extensionNumericIDs; % numeric IDs of the used extensions (numeric array)
 
@@ -87,6 +88,7 @@ classdef Sequence < handle
             obj.labelsetLibrary = mr.EventLibrary();
             obj.labelincLibrary = mr.EventLibrary();
             obj.rfShimLibrary = mr.EventLibrary();
+            obj.rotationLibrary = mr.EventLibrary();
             obj.extensionLibrary = mr.EventLibrary();
             obj.extensionStringIDs={};
             obj.extensionNumericIDs=[];
@@ -246,6 +248,11 @@ classdef Sequence < handle
                     end
                 end
 
+                % update report
+                if ~isempty(rep)
+                    errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' rep '\n' ] };
+                end
+                
                 % check shaped gradients that may potentially end/start at non-zero values
                 gradBookCurr=struct();
                 if ~isempty(ev) && iscell(ev)
@@ -255,16 +262,19 @@ classdef Sequence < handle
                             if g.first~=0 
                                 if g.delay~=0
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient starts at a non-zero value but defines a delay\n' ] };
+                                    is_ok=false;
                                 end
-                                if ~isfield(gradBook, g.channel) || gradBook.(g.channel)~=g.first
+                                if ~isfield(gradBook, g.channel) || abs(gradBook.(g.channel)-g.first) > 1 % 1 Hz/m is ~23 nT/m - this tolerance originates from the library compression; otherwise we have to increase the number of digits when generating search strings in the library code... %1e-6 % todo: real physical tolarance for gradient amplitudes
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient''s start value ' num2str(g.first) ' differs from the previous block end value\n' ] };
+                                    is_ok=false;
                                 else
                                     gradBook.(g.channel)=0; % reset as properly consumed
                                 end
                             end
-                            if g.last~=0 
+                            if abs(g.last)>eps 
                                 if abs(g.delay+g.shape_dur - dur) > eps
                                     errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' g.channel ' gradient ends at a non-zero value but does not last until the end of the block\n' ] };
+                                    is_ok=false;
                                 end
                                 gradBookCurr.(g.channel)=g.last; % update bookkeeping
                             end
@@ -309,14 +319,11 @@ classdef Sequence < handle
                     gradBookC = struct2cell(gradBook);
                     if any(0~=[gradBookC{:}])
                         errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' some gradients in the previous non-empty block are ending at non-zero values but are not continued here\n' ] };
+                        is_ok=false;
                     end
                     gradBook=gradBookCurr;
                 end
 
-                % update report
-                if ~isempty(rep)
-                    errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' ' rep '\n' ] };
-                end
                 %
                 totalDuration = totalDuration+dur;
             end
@@ -327,12 +334,18 @@ classdef Sequence < handle
                     if length(ev{en})==1 && isstruct(ev{en}) && strcmp(ev{en}.type,'grad') % length(ev{en})==1 excludes arrays of extensions 
                         if ev{en}.last~=0 % must be > sys.slewRate*sys.gradRasterTime
                             errorReport = { errorReport{:}, [ '   Block:' num2str(iB) ' gradients do not ramp to 0 at the end of the sequence\n' ] };
+                            is_ok=false;
                         end
                     end
                 end
             end
             
-            obj.setDefinition('TotalDuration', totalDuration);%sprintf('%.9g', totalDuration));
+            prevTotalDuration=obj.getDefinition('TotalDuration');
+            if ~isempty(prevTotalDuration) && prevTotalDuration~=totalDuration
+                errorReport = { errorReport{:}, [ '   TotalDuration definition of ' sprintf('%.9g', prevTotalDuration) 's was present in the sequence, but was incorrect. It is now ' sprintf('%.9g', totalDuration) 's\n' ] };
+                is_ok=false;
+            end
+            obj.setDefinition('TotalDuration', totalDuration);
         end
         
         function value=getDefinition(obj,key)
@@ -565,7 +578,7 @@ classdef Sequence < handle
                         if strcmp(event.use,'u')
                             event.use='undefined'; % make it little more user-friendly
                         end
-                        warning('Unknown or undefined RF pulse parameter ''use''=%s, which is not optional since v1.5.0',event.use);
+                        warning('Unknown or undefined RF pulse intended use ''use''=%s. Keep in mind that the ''use'' parameter is not optional since v1.5.0',event.use);
                         use = 'u'; % undefined
                 end
             else
@@ -735,6 +748,19 @@ classdef Sequence < handle
             id = obj.rfShimLibrary.find_or_insert(data(:)');
         end
 
+        function id=registerRotationEvent(obj, event)
+            % registerRotationEvent : Add the event to the libraries (object,
+            % shapes, etc and return the event's ID. This ID should be 
+            % stored in the object to accelerate addBlock()            
+            data = event.rotQuaternion;
+            % confirm that the rotation matrix is valid
+            if ( length(data) == 4 ) & ( abs(1.0 - sum(data.^2)) < 1e-6 )
+                id = obj.rotationLibrary.find_or_insert(data(:)');
+            else
+                error('invalid rotation quaternion detected during registerRotationEvent()');
+            end
+        end
+        
         %TODO: Replacing blocks in the middle of sequence can cause unused
         %events in the libraries. These can be detected and pruned.
         function setBlock(obj, index, varargin)
@@ -766,6 +792,7 @@ classdef Sequence < handle
             check_g = cell(1,3); % cell-array containing a structure, each with the index and pairs of gradients/times
             extensions = [];
             required_duration=[];
+            rotQuaternion = []; % rotation extension
             
             % Loop over events adding to library if necessary and creating
             % block event structure.
@@ -793,7 +820,9 @@ classdef Sequence < handle
                             check_g{channelNum}.start = [grad_start, event.first];
                             check_g{channelNum}.stop  = [grad_duration, event.last]; 
                             
-    
+                            if obj.blockEvents{index}(idx)>0
+                                error('Trying to add more than one gradient per axis on axis %s in block %d',event.channel,index);
+                            end
                             if isfield(event,'id')
                                 obj.blockEvents{index}(idx) = event.id;
                             else
@@ -815,6 +844,9 @@ classdef Sequence < handle
                             %                              event.fallTime + ...
                             %                              event.flatTime, 0];
                             
+                            if obj.blockEvents{index}(idx)>0
+                                error('Trying to add more than one gradient per axis on axis %s in block %d',event.channel,index);
+                            end
                             if isfield(event,'id')
                                 obj.blockEvents{index}(idx) = event.id;
                             else
@@ -898,6 +930,18 @@ classdef Sequence < handle
                             % ext=struct('type', 1, 'ref', id);
                             ext=struct('type', obj.getExtensionTypeID('RF_SHIMS'), 'ref', id);
                             extensions=[extensions ext];
+                        case 'rot3D'
+                            if ~isempty(rotQuaternion)
+                                error('Only one ''rotation'' extension event can be added per block');
+                            end
+                            rotQuaternion=event.rotQuaternion;
+                            if isfield(event,'id')
+                                id=event.id;
+                            else
+                                id = obj.registerRotationEvent(event);
+                            end
+                            ext=struct('type', obj.getExtensionTypeID('ROTATIONS'), 'ref', id);
+                            extensions=[extensions ext];
                         otherwise
                             error('Attempting to add an unknown event to the block.');
                     end
@@ -923,7 +967,7 @@ classdef Sequence < handle
                 % key mapping then... The trick is that we rely on the
                 % sorting of the extension IDs and then we can always find
                 % the last one in the list by setting the reference to the
-                % next to 0 and then proceed with the otehr elements.
+                % next to 0 and then proceed with the other elements.
                 [~,I]=sort([extensions(:).ref]);
                 extensions=extensions(I);
                 all_found=true;
@@ -989,8 +1033,15 @@ classdef Sequence < handle
                             end
                         end
                     end
+                    % now it's a pain, but we also need to extract the rotation extension of the previous block --
+                    warning('FIXME: need rotation extension of the previous non-zero block here...');
                 end
-                % check if connection to the previous block is correct using check_g
+                % check if connection to the previous block is correct using check_g and gradCheckData.lastGradVals
+                % up to here gradCheckData.lastGradVals are in physical coordinates, we transform them into current 
+                % logical coordinates of this block has rotation extension
+                if ~isempty(rotQuaternion)
+                    obj.gradCheckData.lastGradVals = mr.aux.quat.rotate(mr.aux.quat.conjugate(rotQuaternion), obj.gradCheckData.lastGradVals);
+                end
                 for i= 1:3 %length(check_g) % TODO: MZ: check this with external gradient channels !!!
                     cg=check_g{i}; % cg_temp is still a cell-array with a single element here...
                     % connection to the previous block in case of extended or shaped gradients
@@ -1023,8 +1074,12 @@ classdef Sequence < handle
                     end
     
                     % update the gradCheckData.lastGradVals(i)
-                    obj.gradCheckData.lastGradVals(i)=cg.stop(2);
+                    obj.gradCheckData.lastGradVals(i)=cg.stop(2); % we can play with the continuity check values by transforming them back and foth, here to physical, at the baginning of the check to current logical 
                 end
+                % now transfrom the gradCheckData.lastGradVals to physical coordinates if the present block has rotation
+                if ~isempty(rotQuaternion)
+                    obj.gradCheckData.lastGradVals = mr.aux.quat.rotate(rotQuaternion, obj.gradCheckData.lastGradVals);
+                end                
             end
             % finish updating gradCheckData (if current block duration is 0 we simply update the validity indicator)
             obj.gradCheckData.validForBlockNum = index;
@@ -1179,6 +1234,19 @@ classdef Sequence < handle
                         block.rfShim=struct('type','rfShim','shimVector',data(1:2:end).*exp(1i*2*pi*data(2:2:end)));
                     end
                 end
+                % unpack 3D rotations
+                rotation_ext=raw_block.ext(:,raw_block.ext(1,:)==obj.getExtensionTypeID('ROTATIONS'));
+                if ~isempty(rotation_ext)
+                    if size(rotation_ext,2)>1
+                        error('Only one rotation extension object per block is allowed');
+                    end
+                    data = obj.rotationLibrary.data(rotation_ext(2,1)).array;
+                    if addIDs
+                        block.rotation=struct('type','rot3D','rotQuaternion',data,'id',rotation_ext(2,1));
+                    else
+                        block.rotation=struct('type','rot3D','rotQuaternion',data);
+                    end
+                end
                 % unpack delay
                 delay_ext=raw_block.ext(:,raw_block.ext(1,:)==obj.getExtensionTypeID('DELAYS'));
                 if ~isempty(delay_ext)
@@ -1198,7 +1266,8 @@ classdef Sequence < handle
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET') && ...
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('LABELSET') && ...
                            raw_block.ext(1,i)~=obj.getExtensionTypeID('RF_SHIMS') && ...
-                           raw_block.ext(1,i)~=obj.getExtensionTypeID('DELAYS')
+                           raw_block.ext(1,i)~=obj.getExtensionTypeID('DELAYS') && ...
+                           raw_block.ext(1,i)~=obj.getExtensionTypeID('ROTATIONS')
                             warning('unknown extension ID %d', raw_block.ext(1,i));
                         end
                     end
@@ -1564,7 +1633,17 @@ classdef Sequence < handle
         
         function sp = plot(obj, varargin)
             %plot Plot the sequence in a new figure.
-            %   plot(seqObj) Plot the sequence
+            %   plot(seqObj) Plot the sequence 
+            %
+            %   Generates "classical" Pulseq 6-panel sequence plot. The
+            %   panels are "ADC", "RF magnitude", "RF phase", and three
+            %   gradient axes. ADC panel additionally shows digital output
+            %   pulses (a.k.a. triggers) as green diamonds with a line
+            %   indicatin the duration of the trigger pulse and input
+            %   triggers (e.g. cardiac) as triangles with a dot at the
+            %   center. ADC panal optionally also shows evolution of data
+            %   labels. RF phase panel shows RF phase at the center of the
+            %   RF pulse as a cross.
             %
             %   plot(...,'timeRange',[start stop]) Plot the sequence
             %   between the times specified by start and stop.
@@ -1833,6 +1912,20 @@ classdef Sequence < handle
             out_len=zeros(1,shape_channels); % the last "channel" is RF
             for iBc=blockRange(1):blockRange(2)
                 block = obj.getBlock(iBc);
+                
+                if isfield(block,'rotation')
+                    % apply the rotation to the current block and restore the block structure
+                    c=mr.rotate3D(block.rotation.rotQuaternion,block,'system',obj.sys);
+                    for i=1:3
+                        block.(gradChannels{i})=[];
+                    end
+                    for i=1:length(c)
+                        if isstruct(c{i}) && isfield(c{i},'type') && isfield(c{i},'channel')
+                            block.(['g' c{i}.channel])=c{i};
+                        end
+                    end
+                end
+                
                 iP=iP+1;
                 for j=1:length(gradChannels)
                     grad=block.(gradChannels{j});
@@ -1948,7 +2041,7 @@ classdef Sequence < handle
                         len=size(wave_data_local,2);
                         if wave_cnt(j)~=0 && wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime < wave_data_local(1,1)
                             if  wave_data{j}(2,wave_cnt(j))~=0
-                                if abs(wave_data{j}(2,wave_cnt(j)))>1e-6 % todo: real physical tolarance
+                                if abs(wave_data{j}(2,wave_cnt(j)))>1e-6 % todo: real physical tolarance for gradient amplitudes
                                     warning('waveforms_and_times(): forcing ramp-down from a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are possibly wrong. If using mr.makeArbitraryGrad() consider using explicit values for ''first'' and ''last'' and setting them correctly.', j, round(1e6*wave_data{j}(1,wave_cnt(j))));
                                     wave_data{j}(:,wave_cnt(j)+1)=[wave_data{j}(1,wave_cnt(j))+obj.gradRasterTime/2; 0]; % this is likely to cause memory reallocations
                                     wave_cnt(j)=wave_cnt(j)+1;
@@ -1958,7 +2051,7 @@ classdef Sequence < handle
                                 end
                             end
                             if wave_data_local(2,1)~=0
-                                if abs(wave_data_local(2,1))>1e-6 % todo: real physical tolarance
+                                if abs(wave_data_local(2,1))>1e-6 % todo: real physical tolarance for gradient amplitudes
                                     warning('waveforms_and_times(): forcing ramp-up to a non-zero gradient sample on axis %d at t=%d us \ncheck your sequence, some calculations are probably wrong.  If using mr.makeArbitraryGrad() consider using explicit values for ''first'' and ''last'' and setting them correctly.', j, round(1e6*wave_data_local(1,1)));
                                     wave_data_local=[[wave_data_local(1,1)-obj.gradRasterTime/2; 0] wave_data_local]; % this is likely to cause memory reallocations also later on
                                     len=len+1;

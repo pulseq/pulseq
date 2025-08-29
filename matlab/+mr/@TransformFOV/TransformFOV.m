@@ -75,6 +75,7 @@ classdef TransformFOV < handle
             adc = [];
             grads = cell(1,3);
             other = {};
+            rotExtQuaternion = [];
             for i = 1:length(block_events)
                 e=block_events{i};
                 if length(e)==1 && isstruct(e) && isfield(e, 'type')
@@ -104,6 +105,8 @@ classdef TransformFOV < handle
                                         obj.labels(e(j).label)=e(j).value;
                                 end
                             end
+                        case 'rot3D'
+                            rotExtQuaternion=e.rotQuaternion;
                         otherwise
                             other{end+1}=e;
                     end
@@ -174,6 +177,8 @@ classdef TransformFOV < handle
                 % this block has 'NOROT'. We restore the grads object below
                 if obj.labels.NOROT 
                     grads_backup=grads;
+                    % MZ: HA! we could rotate obj.translation (or it's copy) in the opposite direction instead
+                    % MZ: and, we could use the same mechanism to handle the rotation extention
                     grads=mr.rotate3D(obj.rotation',grads); % MZ: I guess we have to rotate the gradients "back" because we are normally in local logical coordinates, which would be "rotated" if there were NOROT flag
                     % MZ: please check if the above point is correct
                 end
@@ -314,7 +319,7 @@ classdef TransformFOV < handle
                 end
 
                 % now update the phase stored for the next block
-                obj.prior_phase_cycle = local_frac( obj.prior_phase_cycle + phase_cycle_this_block );
+                obj.prior_phase_cycle = local_frac( obj.prior_phase_cycle + phase_cycle_this_block ); 
             end
 
 
