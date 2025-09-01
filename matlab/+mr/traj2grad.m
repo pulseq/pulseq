@@ -75,3 +75,4 @@ function out=max_abs(in1, in2)
     abs1gtoe=abs(in1)>=abs(in2);
     out=in1.*abs1gtoe+in2.*(~abs1gtoe);
 end
+
