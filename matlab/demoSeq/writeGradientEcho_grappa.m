@@ -167,7 +167,7 @@ xlabel('adc number');
 
 %% plot sequence and k-space diagrams
 
-seq.plot('timeRange', [0 256]*TR, 'TimeDisp', 'ms', 'label', 'lin');
+seq.plot('timeRange', [0 256]*TR, 'TimeDisp', 'ms', 'label', 'lin,slc');
 
 % k-space trajectory calculation
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
