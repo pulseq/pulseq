@@ -133,7 +133,7 @@ min_TE = rf.shape_dur-rf.center + max(rf.ringdownTime, gz.fallTime) + mr.calcDur
 
 TRdelay = TR - (minTR_1slice + max_TE - min_TE) * Nslices ;
 TRdelay_perSlice = round(TRdelay / Nslices / sys.blockDurationRaster) * sys.blockDurationRaster ;
-assert(TRdelay_perSlice>0); % softdelay extenson requyires the delay block to have a non-zero duration
+assert(TRdelay_perSlice>0); % softdelay extenson requires the delay block to have a non-zero duration
 
 % change orientation to match the siemens product sequence
 % reverse the polarity of all gradients in readout direction (Gx)

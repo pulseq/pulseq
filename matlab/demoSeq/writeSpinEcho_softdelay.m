@@ -13,7 +13,7 @@ disp(['readout bandwidth = ', num2str(1/adcDur), ' Hz/pixel']) ;
 rfDur1 = 3e-3 ;
 rfDur2 = 8.8e-3 ;
 TR = 1400e-3 ;
-TE = 20e-3 ; % 20ms still works with the chosen parameters & sysyem props
+TE = 20e-3 ; % 20ms still works with the chosen parameters & system props
 spAx = 0 ;
 spAy = 0 ;
 spAz = 1500 ; % spoiler area in 1/m (=Hz/m*s) % MZ: need 5000 for my oil phantom
@@ -224,6 +224,15 @@ seq.setDefinition('ReceiverGainHigh',1);
 
 seq.write('se_softdelay.seq')       % Write to pulseq file
 %seq.install('siemens');    % copy to scanner
+
+%% apply soft delay values to see how the sequence timing is changing
+
+seq.applySoftDelay('TE',30e-3);
+seq.plot('showBlocks', 1, 'timeRange', TR*(Ndummy+[0 1]), 'timeDisp', 'us', 'stacked', 1) ;
+
+seq.applySoftDelay('TR',2000e-3);
+seq.plot('showBlocks', 1, 'timeRange', TR*(Ndummy+[0 1]), 'timeDisp', 'us', 'stacked', 1) ;
+
 return ;
 %% calculate k-space but only use it to check timing
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP;%('blockRange',[1,150]);
