@@ -205,7 +205,8 @@ if (Nslices>1)
     gw_pp={};
     nBlk=length(seq.blockDurations);
     for s=2:Nslices
-        [seq, gw_pp]= mr.transform(seq, 'translation', [0,0,slicePositions(s)-slicePositions(1)], 'gw_pp', gw_pp, 'sameSeq', true, 'blockRange',[1,nBlk]);
+        TF=mr.TransformFOV('translation', [0,0,slicePositions(s)-slicePositions(1)]);
+        seq= TF.applyToSeq(seq, 'sameSeq', true, 'blockRange',[1,nBlk]);
     end
 end
 
