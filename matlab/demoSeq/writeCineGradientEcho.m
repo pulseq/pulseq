@@ -124,10 +124,10 @@ return
 
 %% plot sequence and k-space diagrams
 
-seq.plot('timeRange', [0 5*TR]);
+seq.plot('timeRange', (lines_per_segment*phases+[0 3])*TR, 'stacked', true); % now also in/out triggers are visible (triangles and diamonds)
 
-% new single-function call for trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
+% k-space trajectory calculation
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 
 % plot k-spaces
 time_axis=(1:(size(ktraj,2)))*sys.gradRasterTime;
