@@ -24,6 +24,7 @@ classdef TransformFOV < handle
                 addParameter(parser, 'rotation',  [], @(m) (isnumeric(m) && all(size(m)==[3 3])));
                 addParameter(parser, 'translation',  [], @(m) (isnumeric(m) && size(m,2)==3 && length(m)==3));
                 %addParameter(parser, 'scale',  [], @(m) (isnumeric(m) && size(m,2)==3 && length(m)==3)); % MZ: TODO
+                addParamValue(parser, 'transform', [], @(m) (isnumeric(m) && all(size(m)==[4 4]))); 
                 addParameter(parser, 'prior_phase_cycle',  0, @(m) (isnumeric(m) && length(m)==1));
                 % addParameter(parser, 'high_accuracy',  false, @(m) (islogical(m) && length(m)==1));
                 addParameter(parser, 'system', [], @isstruct); 
@@ -32,7 +33,14 @@ classdef TransformFOV < handle
             parse(parser, varargin{:});
             opt = parser.Results;
 
-            if isempty(opt.rotation) && isempty(opt.translation)
+            if ~isempty(opt.transform)
+                if ~isempty(opt.rotation) || ~isempty(opt.translation)
+                    error('Neither ''translation'' nor ''rotation'' can be provided in combination with the ''transfrom'' option');
+                end
+                opt.rotation=opt.transform(1:3,1:3);
+                off=opt.transform(4,1:3); % TODO: check whether this is indeed the column
+                opt.translation=opt.rotation*off; % TODO: check the direction of the roration (or inverse)
+            elseif isempty(opt.rotation) && isempty(opt.translation)
                 error('At least one transforming parameter needs to be provided');
             end
 
