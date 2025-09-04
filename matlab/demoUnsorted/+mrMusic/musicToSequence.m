@@ -37,7 +37,7 @@ end
 % dummy MR sequence (FID)
 if addDummyRfAdc
     % non-selective pulse 
-    rf = mr.makeBlockPulse(pi/2,'Duration',0.3e-3, 'system', seq.sys);
+    rf = mr.makeBlockPulse(pi/2,'Duration',0.3e-3, 'use', 'excitation', 'system', seq.sys);
     % ADC event
     adc = mr.makeAdc(256,'Duration',3.2e-3, 'system', seq.sys,'delay',seq.sys.adcDeadTime);
     seq.addBlock(rf,mr.makeDelay(10e-3));
