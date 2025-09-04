@@ -95,7 +95,7 @@ seq.write('pns_test.seq');
 %[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GPA_K2298_2250V_793A_SC72CD_EGA.asc'); % TERRA-XR
 %[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GradSys_K2309_2250V_951A_XR_AS82.asc'); % Prisma @ xa60a
 [pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('idea/asc/MP_GradSys_P034_X60.asc'); % Cima.X
-[cns_ok, cns_n, cns_c, tcns]=seq.calcPNS('idea/asc/MP_GradSys_P034_X60.asc',true,true); % Cima.X CNS
+%[cns_ok, cns_n, cns_c, tcns]=seq.calcPNS('idea/asc/MP_GradSys_P034_X60.asc',true,true); % Cima.X CNS
 
 return
 %% load simulation results 
