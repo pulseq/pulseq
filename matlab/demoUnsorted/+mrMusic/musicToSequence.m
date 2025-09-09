@@ -11,6 +11,7 @@ if isempty(parser)
     parser.addParamValue('pulseqUseWave',false,@islogical);
     parser.addParamValue('addDummyRfAdc',true,@islogical);
     parser.addParamValue('amplitudeScale',1,@isnumeric);
+    parser.addParamValue('maxGradientDuration',0.5,@isnumeric); % maximum duration in seconds, 0 mean unlimited. apparently 0.5s is a good default for current Siemens systems
     parser.addParamValue('axesOrder',validAxes{1},...
         @(x) any(validatestring(x,validAxes)));
     %parser.addParamValue('defaultLegato',true,@islogical);
@@ -43,6 +44,17 @@ if addDummyRfAdc
     seq.addBlock(rf,mr.makeDelay(10e-3));
     seq.addBlock(adc,mr.makeDelay(20e-3));
     warning('OFF', 'mr:restoreShape');
+end
+
+% check whether we don't exceed the maximum duration (if it's provided) and
+% fix it in pitches and durations
+if opt.maxGradientDuration>0
+    iNeedsFixing=find(durations*barDurationSeconds);
+    for i=iNeedsFixing(end:-1:1) % go backwards because we will change the arrays
+        n=ceil(durations(i)*barDurationSeconds/opt.maxGradientDuration);
+        durations=[durations(1:(i-1)) ones(1,n)*durations(i)/n durations((i+1):end)];
+        pitches = [pitches(:,1:(i-1)) pitches(:,i*ones(1,n)) pitches(:,(i+1):end)];
+    end
 end
 
 %% generate the wave 
