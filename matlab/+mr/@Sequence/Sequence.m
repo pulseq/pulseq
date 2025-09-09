@@ -1764,11 +1764,24 @@ classdef Sequence < handle
             % remove horizontal lines with 0s. we detect 0 0 and insert a NaN in between
             for i=1:4
                 j=size(wave_data{i},2);
-                while j>1
-                    if wave_data{i}(2,j)==0 && wave_data{i}(2,j-1)==0 
-                        wave_data{i}(:,j:end+1)=[ [0.5*(wave_data{i}(1,j-1)+wave_data{i}(1,j));NaN] wave_data{i}(:,j:end)];
+                % this worked but was very slow...
+                %while j>1
+                %    if wave_data{i}(2,j)==0 && wave_data{i}(2,j-1)==0 
+                %        wave_data{i}(:,j:end+1)=[ [0.5*(wave_data{i}(1,j-1)+wave_data{i}(1,j));NaN] wave_data{i}(:,j:end)];
+                %    end
+                %    j=j-1;
+                %end                
+                iInserts=find((wave_data{i}(2,1:end-1)==0) .* (wave_data{i}(2,2:end)==0));
+                if ~isempty(iInserts)
+                    newWave=zeros(2,size(wave_data{i},2)+length(iInserts));
+                    c=1;
+                    for j=1:length(iInserts)
+                        newWave(:,(c+j-1):(iInserts(j)+j-1))=wave_data{i}(:,c:iInserts(j));
+                        newWave(:,iInserts(j)+j)=[0.5*(wave_data{i}(1,iInserts(j))+wave_data{i}(1,iInserts(j)+1));NaN];
+                        c=iInserts(j)+1;
                     end
-                    j=j-1;
+                    newWave(:,(c+length(iInserts)):end)=wave_data{i}(:,c:end);
+                    wave_data{i}=newWave;
                 end
             end
             
