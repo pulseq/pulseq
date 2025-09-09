@@ -6,7 +6,8 @@ function grad = makeExtendedTrapezoid(channel, varargin)
 %                             'amplitudes', amplitudes) 
 %   Create a gradient by specifying a set of points (amplitudes) at
 %   specified time points(times) at a given channel with given system 
-%   limits. This function returns an arbitrary gradient object. 
+%   limits. This function returns an extended or arbitrary gradient object,
+%   the latter if 'convert2arbitrary' is set to true.
 %
 %   See also  Sequence.addBlock  mr.opts  makeTrapezoid
 %
@@ -20,9 +21,9 @@ if isempty(parser)
     parser.FunctionName = 'makeExtendedTrapezoid';
     parser.addRequired('channel', ...
         @(x) any(validatestring(x, validChannels)));
+    parser.addOptional('system',[],@isstruct);
     parser.addParamValue('times', 0, @isnumeric);
     parser.addParamValue('amplitudes', 0, @isnumeric);
-    parser.addParamValue('system', [], @isstruct);
     parser.addParamValue('maxGrad', 0, @isnumeric);
     parser.addParamValue('maxSlew', 0, @isnumeric);
     parser.addParamValue('skip_check', false);
