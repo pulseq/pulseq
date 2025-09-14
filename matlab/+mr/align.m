@@ -11,10 +11,11 @@ function [varargout] = align(varargin)
 %   Possible values for align_spec are 'left', 'center', 'right'
 %   WARNING: 'center' may break graient raster alignment
 %   When a numerical parameter is passed amongst the events it is
-%   interpreted as a predefined duration of the block. If the duration of
-%   any of the events exceeds the desired duration an error will be thrown.
-%   The predified block duration is optionally returned as the last
-%   parameter in the output list
+%   interpreted as the required duration of the block. If the duration of
+%   any of the events exceeds this required duration an error will be thrown.
+%   The required block duration is optionally returned as the last
+%   parameter in the output list. If used within seq.addBlock() required
+%   duration is always passed at the end of the list of the block events.
 %
 %   See also  Sequence.addBlock
 %
