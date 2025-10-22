@@ -19,10 +19,16 @@ if isempty(parser)
         @(x) any(validatestring(x,validUnits)));
     parser.addOptional('toUnit',[],...
         @(x) any(validatestring(x,validUnits)));
-    parser.addParamValue('gamma',42.576e6,@isnumeric); % Hz/T
+    parser.addParamValue('gamma', [], @(x) isempty(x) || isnumeric(x)); 
 end
 parse(parser,in,varargin{:});
 opt = parser.Results;
+
+% Set default gamma if none is given
+if isempty(opt.gamma)
+    opt.gamma = 42.576e6; % Hz/T
+end
+
 
 % Set default output unit if not given
 if isempty(opt.toUnit)
