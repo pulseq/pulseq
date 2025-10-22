@@ -16,6 +16,13 @@ end
 parse(parser,varargin{:});
 opt = parser.Results;
 
+% define gamma explicitly for X-nuclei use
+if ~isempty(opt.system)
+    gamma = opt.system.gamma;
+else
+    gamma = [];
+end
+
 % find the RF pulses and list flip angles
 flipAnglesDeg=[];
 for k=obj.rfLibrary.keys
@@ -325,8 +332,8 @@ if ~isempty(opt.system) && any(gs > opt.system.maxSlew)
     msg_gs=' [some component EXCEEDED]';
 end
 report = { report{:},...
-    sprintf(['Max. Gradient: %.0f Hz/m == %.02f mT/m' msg_ga '\n'], [ga mr.convert(ga,'Hz/m','mT/m')]'),...
-    sprintf(['Max. Slew Rate: %g Hz/m/s == %.02f T/m/s' msg_gs '\n'], [gs mr.convert(gs,'Hz/m/s','T/m/s')]') };
+    sprintf(['Max. Gradient: %.0f Hz/m == %.02f mT/m' msg_ga '\n'], [ga mr.convert(ga,'Hz/m','mT/m', 'gamma', gamma)]'),...
+    sprintf(['Max. Slew Rate: %g Hz/m/s == %.02f T/m/s' msg_gs '\n'], [gs mr.convert(gs,'Hz/m/s','T/m/s', 'gamma', gamma)]') };
 msg_ga='';
 if ~isempty(opt.system) && ga_abs > opt.system.maxGrad
     msg_ga=' [EXCEEDED]';
@@ -336,8 +343,8 @@ if ~isempty(opt.system) && gs_abs > opt.system.maxSlew
     msg_gs=' [EXCEEDED]';
 end
 report = { report{:},...
-    sprintf(['Max. Absolute Gradient: %.0f Hz/m == %.02f mT/m' msg_ga '\n'], [ga_abs mr.convert(ga_abs,'Hz/m','mT/m')]'),...
-    sprintf(['Max. Absolute Slew Rate: %g Hz/m/s == %.02f T/m/s' msg_gs '\n'], [gs_abs mr.convert(gs_abs,'Hz/m/s','T/m/s')]') };
+    sprintf(['Max. Absolute Gradient: %.0f Hz/m == %.02f mT/m' msg_ga '\n'], [ga_abs mr.convert(ga_abs,'Hz/m','mT/m', 'gamma', gamma)]'),...
+    sprintf(['Max. Absolute Slew Rate: %g Hz/m/s == %.02f T/m/s' msg_gs '\n'], [gs_abs mr.convert(gs_abs,'Hz/m/s','T/m/s', 'gamma', gamma)]') };
 
 end
 
