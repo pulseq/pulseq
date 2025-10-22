@@ -9,9 +9,9 @@ persistent defaultUserOpts
 persistent defaultStandardOpts
 if isempty(defaultStandardOpts)
     defaultStandardOpts=struct(...
-        'maxGrad',mr.convert(40,'mT/m'),...   % Default: 40 mT/m
-        'maxSlew',mr.convert(170,'T/m/s'),... % Default: 170 mT/m/ms
-        'maxB1',mr.convert(20,'uT'),...	      % Default: 20 uT
+        'maxGrad',40,...   % Default: 40 mT/m
+        'maxSlew',170,... % Default: 170 mT/m/ms
+        'maxB1',20,...	      % Default: 20 uT
         'riseTime',[],...
         'rfDeadTime',0,...
         'rfRingdownTime',0,...
@@ -51,7 +51,7 @@ if isempty(parser)
     parser.addParamValue('slewUnit',validSlewUnits{1},...
         @(x) any(validatestring(x,validSlewUnits)));
     parser.addParamValue('b1Unit',validB1Units{1},...
-        @(x) any(validatestring(x,validSlewUnits)));
+        @(x) any(validatestring(x,validB1Units)));
     parser.addParamValue('maxGrad',[],@isnumeric);
     parser.addParamValue('maxSlew',[],@isnumeric);
     parser.addParamValue('maxB1',[],@isnumeric);
@@ -73,18 +73,24 @@ end
 parse(parser,varargin{:});
 opt = parser.Results;
 
+if isempty(opt.gamma) %define gamma for all conversions
+    gamma = defaultOpts.gamma;
+else
+    gamma = opt.gamma;
+end
+
 if isempty(opt.maxB1)
-    maxB1 = defaultOpts.maxB1;
+    maxB1 = mr.convert(defaultOpts.maxB1,'uT','gamma',gamma);
 else
     maxB1 = mr.convert(opt.maxB1,opt.b1Unit,'Hz','gamma',opt.gamma);
 end
 if isempty(opt.maxGrad)
-    maxGrad = defaultOpts.maxGrad;
+    maxGrad = mr.convert(defaultOpts.maxGrad,'mT/m','gamma',gamma);
 else
     maxGrad = mr.convert(opt.maxGrad,opt.gradUnit,'Hz/m','gamma',opt.gamma);
 end
 if isempty(opt.maxSlew)
-    maxSlew=defaultOpts.maxSlew;
+    maxSlew = mr.convert(defaultOpts.maxSlew,'T/m/s','gamma',gamma);
 else
     maxSlew = mr.convert(opt.maxSlew,opt.slewUnit,'Hz/m/s','gamma',opt.gamma);
 end
@@ -114,5 +120,6 @@ if opt.setAsDefault
     defaultUserOpts=out;
     parser=[];
 end
+
 
 end
