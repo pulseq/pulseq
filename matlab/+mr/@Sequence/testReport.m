@@ -335,11 +335,11 @@ report = { report{:},...
     sprintf(['Max. Gradient: %.0f Hz/m == %.02f mT/m' msg_ga '\n'], [ga mr.convert(ga,'Hz/m','mT/m', 'gamma', gamma)]'),...
     sprintf(['Max. Slew Rate: %g Hz/m/s == %.02f T/m/s' msg_gs '\n'], [gs mr.convert(gs,'Hz/m/s','T/m/s', 'gamma', gamma)]') };
 msg_ga='';
-if ~isempty(opt.system) && ga_abs > opt.system.maxGrad
+if ~isempty(opt.system) && ga_abs > round(sqrt(3)*opt.system.maxGrad)
     msg_ga=' [EXCEEDED]';
 end
 msg_gs='';
-if ~isempty(opt.system) && gs_abs > opt.system.maxSlew
+if ~isempty(opt.system) && gs_abs > round(sqrt(3)*opt.system.maxSlew)
     msg_gs=' [EXCEEDED]';
 end
 report = { report{:},...
