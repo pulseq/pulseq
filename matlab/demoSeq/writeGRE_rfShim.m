@@ -61,7 +61,6 @@ gxPre.id=seq.registerGradEvent(gxPre);
 gzReph.id=seq.registerGradEvent(gzReph);
 gx.id=seq.registerGradEvent(gx);
 gxSpoil.id=seq.registerGradEvent(gxSpoil);
-%gyPre.id=seq.registerGradEvent(gyPre);
 gzSpoil.id=seq.registerGradEvent(gzSpoil);
 
 % RF spoiling
@@ -133,7 +132,7 @@ seq.setDefinition('FOV', [fov fov thickness*Nslices]);
 seq.setDefinition('Name', 'gre_rfshim');
 seq.setDefinition('TE', TE) ; % 3 TE values
 seq.setDefinition('TR', TR) ;
-seq.write('gre_lbl.seq')       % Write to pulseq file
+seq.write('gre_rfshim.seq')       % Write to pulseq file
 
 %seq.install('siemens');
 %return
