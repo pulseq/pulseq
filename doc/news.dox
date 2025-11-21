@@ -1,6 +1,16 @@
 /**
   \page news News
 
+## November 2025: Monthly Pulseq/HarmonizedMRI user group meeting and mailing list
+
+We've just initiated the monthly user group, which will be heald as a monthly webinar. We intend to meet for a hour on the first Friday of the month! Anyone interested is welcome to join. Register <a href="https://umich.zoom.us/meeting/register/DDHjJS_lTtS9ADGvekSKQw">here</a>. For more details, go <a href="https://drive.google.com/drive/folders/1TBqcPHiFBNdjTZS_6Jb2JIfkquirwAGR?usp=sharing">here</a>.
+
+We have also created a HarmonizedMRI/Pulseq <a href="mailto:harmonizedmri@researchlist.partners.org">mailing list</a>. You are welcome subscribe by clicking the corresponding <a href="mailto:subscribe-harmonizedmri@researchlist.partners.org">subscribe link</a> (or sending an email to the address under the link). To unsubscribe click <a href="mailto:unsubscribe-harmonizedmri@researchlist.partners.org">here</a>.
+
+## August 2025: new minor release and new Pulseq interpreter release for Siemens
+
+We've reached a release state with our new Pulseq v1.5.1! Amongst the changes is the support of a few new extensions that are defined in the Pulseq file format revision 1.5.1. The new interpreter and Matlab reading routines are reverse-compatible with older versions of Pulseq toolboxes, but in order to benefit from the new features it is highly recommended to switch to the newest version of the Pulseq toolbox. The new features are aiming at improving usability of Pulseq by introducing support for RF shimming (useful at higher fields on scanners with parallel-transmit capabilities) and rotation extension (which allows to specify rotation operation for every block, especially useful for multu-shot non-Cartesian trajectories). There are also substantial buxfises and performance improvements throughout the code.  
+
 ## February 2025: new major release and new Pulseq interpreter release for Siemens
 
 We finally reach a release state with our new Pulseq v1.5.0! Amongst the important changes is the support of the new Pulseq file format revision 1.5.0. As you may judge from the second digit change, this is a substantial revision, which now includes updated to the RF pulse format, gradient pulse format and new fields in the ADC object. Additionally, support for the 'soft delay' extension is included, which allows for modifying some timing aspects of the readily exported Pulseq sequences. This release includes both a major update to the Matlab toolbox and is paired with a corresponding Siemens interpreter release. The new Matlab code defaults to the new file format, which is incompatieble with the previous interpreters. However, we also provide a function for exporting the sequences in the old v1.4.1 compatibility mode. The new interpreter provides support for both new v1.5.0 and legacy Pulseq files. 
@@ -12,10 +22,6 @@ We now provide initial experimental support for Octave as a drop-in FOSS preplac
 ## July 2024: new Pulseq Interpreter release for Siemens
 
 We finally reach a release state with our new Pulseq Release v1.4.3! Included are numerous performance improvements and bugfixes, as well as few new features. 
-
-## December 2023: new Pulseq Interpreter release for Siemens
-
-Right before the winter break we reach a release state with our new Pulseq Release v1.4.2! Included are numerous performance improvements and bugfixes, as well as few new features. To fully enjoy the wealth of the new features of this release on Siemens MR scanners, an upgrade of the Pulseq Siemens Interpreter Sequence to the corresponding version v1.4.2 is strongly recommended. 
 
 */
 
