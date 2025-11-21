@@ -2,7 +2,7 @@
 % extension
 
 system = mr.opts('MaxGrad',24,'GradUnit','mT/m',...
-    'MaxSlew',30,'SlewUnit','T/m/s',...
+    'MaxSlew',50,'SlewUnit','T/m/s',...
     'rfRingdownTime', 20e-6, 'rfDeadtime', 100e-6,...
     'adcDeadTime', 20e-6, 'B0', 2.89 ... % this is Siemens' 3T
 );
@@ -13,14 +13,14 @@ disp(['readout bandwidth = ', num2str(1/adcDur), ' Hz/pixel']) ;
 rfDur1 = 3e-3 ;
 rfDur2 = 8.8e-3 ;
 TR = 1400e-3 ;
-TE = 20e-3 ; % 20ms still works with the chosen parameters & sysyem props
+TE = 19e-3 ; % 19ms still works with the chosen parameters & system props
 spAx = 0 ;
 spAy = 0 ;
 spAz = 1500 ; % spoiler area in 1/m (=Hz/m*s) % MZ: need 5000 for my oil phantom
 ro_os = 2 ;
 sliceThickness = 5e-3 ;            % slice thickness
 sliceGap = 5e-3 ;               % slice gap
-Nslices = 11 ;
+Nslices = 2 ;
 fov=250e-3 ; Nx = 256 ;             % Define FOV and resolution
 Ny = Nx ;                          % number of radial spokes
 Ndummy = 1 ;                    % number of dummy scans
@@ -37,7 +37,7 @@ max_TE = 120e-3 ;
     'timeBwProduct',5,'dwell',rfDur1/500,'passbandRipple',1,'stopbandRipple',1e-2,...
     'filterType','ms','system',system,'use','excitation', 'PhaseOffset' ,pi/2); % MZ: other RF cycle
 
-% Create non-selective refocusing pulse
+% Create selective refocusing pulse
 [rf_ref, g_ref] =  mr.makeSLRpulse(pi,'duration',rfDur2,'SliceThickness',sliceThickness*sth_ref,...
     'timeBwProduct',6,'dwell',rfDur2/500,'passbandRipple',1,'stopbandRipple',1e-2,...
     'filterType','ms','system',system,'use','refocusing', 'PhaseOffset' ,0); % MZ: other RF cycle
@@ -52,9 +52,8 @@ hold on; plot(F2_180/g_ref.amplitude*1000,abs(ref_eff)); legend('ex (Mxy)','ref 
 fprintf('slice thicknes 90-degree excitation pulse: %.3f mm\n',sl_th_90*1e3);
 fprintf('slice thicknes 180-degree refocusing pulse: %.3f mm\n',sl_th_180*1e3);
 
-gamma_H1 = 42.58 ; % [MHz/T]
-rf_ex_peak = max(abs(rf_ex.signal))/gamma_H1 ; % [uT]
-rf_ref_peak = max(abs(rf_ref.signal))/gamma_H1 ; % [uT]
+rf_ex_peak = max(abs(rf_ex.signal))/system.gamma ; % [uT]
+rf_ref_peak = max(abs(rf_ref.signal))/system.gamma ; % [uT]
 disp(['The peak rf_ex amplitude = ', num2str(rf_ex_peak), ' uT']) ;
 disp(['The peak rf_ref amplitude = ', num2str(rf_ref_peak), ' uT']) ;
 
@@ -90,10 +89,10 @@ adc = mr.makeAdc(Nx*ro_os, system, 'Duration', adcDur, 'delay', gr.riseTime) ;
 disp(['ADC dwell time = ', num2str(adc.dwell*1e6), ' us']) ;
 
 grPredur = mr.calcDuration(g_ref_post) ; % use a fixed time to make this gradient visible on the plot
-grPre = mr.makeTrapezoid('x', 'system', system, 'Area', -(gr.area/2+deltak/2), 'Duration', grPredur, 'delay', mr.calcDuration(g_refC)-mr.calcDuration(g_ref_post) ) ;  % we need this "deltak/2" because of the ADC sampling taking place in the middle of the dwell time
+grPre = mr.makeTrapezoid('x', 'system', system, 'Area', (gr.area/2+deltak/2), 'Duration', grPredur) ;  % we need this "deltak/2" because of the ADC sampling taking place in the middle of the dwell time
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak ;
 PEscale = phaseAreas / max(abs(phaseAreas)) ;
-gyPre = mr.makeTrapezoid('y','Area', -max(abs(phaseAreas)), 'Duration', grPredur,'system', system, 'delay', mr.calcDuration(g_refC)-mr.calcDuration(g_ref_post) ) ;
+gyPre = mr.makeTrapezoid('y','Area', -max(abs(phaseAreas)), 'Duration', grPredur,'system', system ) ;
 
 gyPost = mr.makeTrapezoid('y','Area', max(abs(phaseAreas)), 'Duration', grPredur,'system', system) ;
 gx_spoil = mr.makeTrapezoid('x','Area', spAx,'system', system ) ; %, 'Duration', mr.calcDuration(gy)
@@ -104,9 +103,9 @@ slicePositions = (sliceThickness + sliceGap)*((0:(Nslices-1)) - (Nslices-1)/2) ;
 slicePositions = slicePositions([1:2:Nslices 2:2:Nslices]) ; % reorder slices for an interleaved acquisition (optional)
 %slicePositions=slicePositions([1:3:Nslices 2:3:Nslices 3:3:Nslices]); % reorder slices for an interleaved acquisition (optional)
 
-delayTE1 = TE/2 - ( mr.calcDuration(gz) - rf_ex.shape_dur/2 - rf_ex.delay) ...
-    - mr.calcDuration(g_refC) + g_ref.flatTime/2 + mr.calcDuration(g_ref_post) ;
-delayTE2 = TE/2 - g_ref.flatTime/2 - mr.calcDuration(g_ref_post) - mr.calcDuration(gr)/2 ;
+delayTE1 = TE/2 - ( mr.calcDuration(gz) - rf_ex.center - rf_ex.delay) ...
+    - rf_ref.center - rf_ref.delay - mr.calcDuration(grPre,gyPre);
+delayTE2 = TE/2 - ( mr.calcDuration(g_refC, g_SPx, g_SPy) - rf_ref.center - rf_ref.delay ) - mr.calcDuration(gr)/2 ;
 delayTR = TR - Nslices * ( rf_ex.delay + rf_ex.shape_dur/2 + TE + mr.calcDuration(gr)/2 + mr.calcDuration(gyPost, gx_spoil, gz_spoil)+max_TE-TE) ;
 delayTR_1slice = ceil(delayTR/Nslices/system.blockDurationRaster) * system.blockDurationRaster ;
 
@@ -114,8 +113,8 @@ delayTE1 = round(delayTE1 / system.gradRasterTime) * system.gradRasterTime ;
 delayTE2 = round(delayTE2 / system.gradRasterTime) * system.gradRasterTime ;
 delayTR_1slice = round(delayTR_1slice / system.gradRasterTime) * system.gradRasterTime ;
 
-assert(delayTE1 > 0) ;
-assert(delayTE2 > 0) ;
+assert(delayTE1 >= 10e-6); % for softDelays it needs to be positive
+assert(delayTE2 >= 10e-6); % for softDelays it needs to be positive
 assert(delayTR_1slice > 0) ;
 
 % change orientation to match the siemens product sequence
@@ -224,7 +223,7 @@ seq.setDefinition('ReceiverGainHigh',1);
 
 seq.write('se_softdelay.seq')       % Write to pulseq file
 %seq.install('siemens');    % copy to scanner
-return ;
+
 %% calculate k-space but only use it to check timing
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP;%('blockRange',[1,150]);
 %[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('trajectory_delay',[0 0 0]*1e-6); % play with anisotropic trajectory delays -- zoom in to see the trouble ;-)
@@ -242,8 +241,27 @@ figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold on;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 title('2D k-space trajectory'); xlabel('k_x /m^-^1'); ylabel('k_y /m^-^1');
-%
+
+% check TE and TR mannually
+
+t_echo=t_adc(round(Nx*ro_os/2)+1);
+i_ex=find(t_excitation<t_echo,1,'last');
+i_ref=find(t_refocusing<t_echo,1,'last');
+
+fprintf('Spin echo is produced at %g us after the excitation pulse\n', 1e6*(t_refocusing(i_ref)-t_excitation(i_ex))*2);
+fprintf('Echo column is sampled at %g us after the excitation pulse\n', 1e6*(t_echo-t_excitation(i_ex)));
+
+fprintf('TR per slice %g ms\n',(t_excitation(2)-t_excitation(1))*1e3);
+
 return
+
+%% apply soft delay values to see how the sequence timing is changing
+
+seq.applySoftDelay('TE',30e-3);
+seq.plot('showBlocks', 1, 'timeRange', TR*(Ndummy+[0 1]), 'timeDisp', 'us', 'stacked', 1) ;
+
+seq.applySoftDelay('TR',2000e-3);
+seq.plot('showBlocks', 1, 'timeRange', TR*(Ndummy+[0 1]), 'timeDisp', 'us', 'stacked', 1) ;
 
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits  
 
