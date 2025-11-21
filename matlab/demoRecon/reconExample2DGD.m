@@ -7,6 +7,7 @@ path='../../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='~/Dropbox/shared/data/siemens/';
 %path='~/Downloads/2021-07-12-090810/';
 %path='/raid/home_zaitsev/range_software/pulseq/IceNIH_RawSend/';
+path='/dev/shm/mr0mat/';
 pattern='*.seq';
 
 if path(end)~=filesep, path(end+1)=filesep; end
@@ -62,11 +63,12 @@ grad_offsets=[0 0 0];
 seq = mr.Sequence();              % Create a new sequence object
 seq.read(seq_file_path,'detectRFuse');
 %[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace('trajectory_delay', traj_recon_delay);
-[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('trajectory_delay', traj_recon_delay, 'gradient_offset', grad_offsets);
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing,~,~,~,pm_adc] = seq.calculateKspacePP('trajectory_delay', traj_recon_delay, 'gradient_offset', grad_offsets);
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
 axis('equal'); 
 title('2D k-space trajectory'); drawnow;
+
 
 %% Define FOV and resolution and simple off-resonance frequency correction 
 
@@ -127,7 +129,7 @@ end
 
 for s=1:Ns
     for c=1:channels
-        rawdata(:,s,c) = rawdata(:,s,c) .* exp(-1i*2*pi*t_adcEx'*offresonance);
+        rawdata(:,s,c) = rawdata(:,s,c) .* exp(-1i*(2*pi*t_adcEx(:)*offresonance+pm_adc(:))); % also apply phase modulation for FOV positioning
     end
 end
 
