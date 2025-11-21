@@ -19,7 +19,7 @@ rf_duration=0.5e-3;             % duration of the excitation pulse
 ro_duration=0.720e-3;           % read-out time: controls RO bandwidth and T2-blurring
 ro_os=2;                        % oversampling
 minRF_to_ADC_time=70e-6;        % the parameter wich defines TE together with ro_discard
-ro_discard=0;                   % dummy ADC samples to discard (due to ADC filter 
+ro_discard=0;                   % dummy ADC samples to discard (due to ADC filter) 
 ro_spoil=1;                     % extend RO to achieve spoiling
 
 % more in-depth parameters
@@ -103,7 +103,7 @@ for i=(-Ndummy+1):Nr
         else
             seq.addBlock(rf,gz,grc,grs);
         end
-        seq.addBlock(mr.makeDelay(delayTR));
+        seq.addBlock(delayTR);
     end
 end
 
