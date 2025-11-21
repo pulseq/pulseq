@@ -1,7 +1,7 @@
 %% init the music variables
 
 mrMusic.init('a_init', 460, ...  % tuned for avoiding resonances on CimaX
-    'temperament','meantone/4'); % 'BachWellTempered' %'meantone/4' 'Bach-Lehman'
+    'temperament','BachWellTempered'); % 'BachWellTempered' %'meantone/4' 'Bach-Lehman'
 
 %% melody definition
 
@@ -293,7 +293,7 @@ end
 return
 %% play
 
-seq.sound([1,1,1]);
+seq.sound('channelWeights',[1,1,1]);
 
 return
 %% optional slow step for checking whether we are staying within slew rate limits  
