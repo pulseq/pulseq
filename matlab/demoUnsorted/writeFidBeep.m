@@ -8,7 +8,7 @@ Nx=4096;
 Nrep=1;
 
 % Create non-selective pulse 
-rf = mr.makeBlockPulse(pi/2,'Duration',0.3e-3, 'system', system);
+rf = mr.makeBlockPulse(pi/2,'Duration',.6e-3, 'use', 'excitation', 'system', system);
 
 % Define delays and ADC events
 adc = mr.makeAdc(Nx,'Duration',512e-3, 'system', system,'delay',system.adcDeadTime);
