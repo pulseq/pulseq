@@ -54,10 +54,11 @@ catch
     twix_obj = mapVBVD(data_file_path);
     if iscell(twix_obj)
         data_unsorted = twix_obj{end}.image.unsorted();
+        seqHash_twix=twix_obj{end}.hdr.Dicom.tSequenceVariant;
     else
         data_unsorted = twix_obj.image.unsorted();
+        seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant;    
     end
-    seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant;
     if length(seqHash_twix)==32
         fprintf(['raw data contain pulseq-file signature ' seqHash_twix '\n']);
     end
@@ -126,10 +127,10 @@ if strcmp('petra',seq.getDefinition('Name'))
     waspi_samples=1; % 1 16 32 tested; BART (nlinv) does not seem to like waspi (background noise goes up)
     if ~isempty(SamplesPerShell)
         SamplesSPI=sum(SamplesPerShell(2:end));
-        data_mask=boolean([ones(SamplesPerShell(1),adc_len); ...
+        data_mask=logical([ones(SamplesPerShell(1),adc_len); ...
                           ones(SamplesSPI,waspi_samples), zeros(SamplesSPI,adc_len-waspi_samples)])';
     else
-        data_mask=boolean(ones(adc_len,readouts));
+        data_mask=logical(ones(adc_len,readouts));
     end    
     ktraj_adc=ktraj_adc(:,data_mask(:));
 
