@@ -150,6 +150,9 @@ classdef Sequence < handle
         
         % See testReport.m
         [ report ] = testReport( obj, varargin )
+
+        % See gradSpectrum.m
+        [R, Rax, F] = gradSpectrum(obj, FB, fmax, plt)
         
         function [duration, numBlocks, eventCount]=duration(obj)
             % duration() 
@@ -786,7 +789,7 @@ classdef Sequence < handle
             % Convert block structure to cell array of events
             varargin=mr.block2events(varargin);
 
-            obj.blockEvents{index}=zeros(1,7);
+            newBlock=zeros(1,7);
             duration = 0;
             
             check_g = cell(1,3); % cell-array containing a structure, each with the index and pairs of gradients/times
@@ -802,9 +805,9 @@ classdef Sequence < handle
                     switch event(1).type % we accept multiple extensions and one of the possibilities is an array of extensions
                         case 'rf'
                             if isfield(event,'id')
-                                obj.blockEvents{index}(2)=event.id;
+                                newBlock(2)=event.id;
                             else
-                                obj.blockEvents{index}(2) = obj.registerRfEvent(event);
+                                newBlock(2) = obj.registerRfEvent(event);
                             end
                             duration = max(duration, event.shape_dur + event.delay + event.ringdownTime);
                         case 'grad'
@@ -820,13 +823,13 @@ classdef Sequence < handle
                             check_g{channelNum}.start = [grad_start, event.first];
                             check_g{channelNum}.stop  = [grad_duration, event.last]; 
                             
-                            if obj.blockEvents{index}(idx)>0
+                            if newBlock(idx)>0
                                 error('Trying to add more than one gradient per axis on axis %s in block %d',event.channel,index);
                             end
                             if isfield(event,'id')
-                                obj.blockEvents{index}(idx) = event.id;
+                                newBlock(idx) = event.id;
                             else
-                                obj.blockEvents{index}(idx) = obj.registerGradEvent(event);
+                                newBlock(idx) = obj.registerGradEvent(event);
                             end
                             duration = max(duration, grad_duration);
     
@@ -844,21 +847,21 @@ classdef Sequence < handle
                             %                              event.fallTime + ...
                             %                              event.flatTime, 0];
                             
-                            if obj.blockEvents{index}(idx)>0
+                            if newBlock(idx)>0
                                 error('Trying to add more than one gradient per axis on axis %s in block %d',event.channel,index);
                             end
                             if isfield(event,'id')
-                                obj.blockEvents{index}(idx) = event.id;
+                                newBlock(idx) = event.id;
                             else
-                                obj.blockEvents{index}(idx) = obj.registerGradEvent(event);
+                                newBlock(idx) = obj.registerGradEvent(event);
                             end
                             duration=max(duration,event.delay+event.riseTime+event.flatTime+event.fallTime);
     
                         case 'adc'
                             if isfield(event,'id')
-                                obj.blockEvents{index}(6) = event.id;
+                                newBlock(6) = event.id;
                             else
-                                obj.blockEvents{index}(6) = obj.registerAdcEvent(event);
+                                newBlock(6) = obj.registerAdcEvent(event);
                             end
                             duration=max(duration,event.delay+event.numSamples*event.dwell+event.deadTime); % adcDeadTime is added after the sampling period (mr.makeADC also adds a delay before the actual sampling if it was shorter)
                         case 'delay' 
@@ -867,7 +870,7 @@ classdef Sequence < handle
                             %else
                             %    id = obj.registerDelayEvent(event);
                             %end
-                            %obj.blockEvents{index}(1)=id;
+                            %newBlock(1)=id;
                             % delay is not a true event any more so we account
                             % for the duration but do not add anything
                             duration=max(duration,event.delay);
@@ -878,7 +881,7 @@ classdef Sequence < handle
                                 else
                                     id=obj.registerControlEvent(e);
                                 end
-                                %obj.blockEvents{index}(7)=id; % now we just
+                                %newBlock(7)=id; % now we just
                                 % collect the list of extension objects and we will
                                 % add it to the event table later
                                 % ext=struct('type', 1, 'ref', id);
@@ -1000,12 +1003,12 @@ classdef Sequence < handle
                     if duration==0 && isempty(required_duration)
                         error('Soft delay extension can only be used in conjunstion with blocks of non-zero duration'); % otherwise the gradient checks get tedious
                     end
-                    if any(obj.blockEvents{index}(2:6)~=0)
+                    if any(newBlock(2:6)~=0)
                         error('Soft delay extension can only be used in empty blocks (blocks containing no conventional events such as RF, adc or gradients).')
                     end
                 end
                 % now we add the ID
-                obj.blockEvents{index}(7)=id;
+                newBlock(7)=id;
             end
             
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1088,6 +1091,9 @@ classdef Sequence < handle
             %%% GRADIENT CHECKS DONE                                    %%%
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             
+
+            % now copy the block into the internal data structure
+            obj.blockEvents{index}=newBlock;
             
             if ~isempty(required_duration)
                 if duration-required_duration>eps
@@ -1764,11 +1770,24 @@ classdef Sequence < handle
             % remove horizontal lines with 0s. we detect 0 0 and insert a NaN in between
             for i=1:4
                 j=size(wave_data{i},2);
-                while j>1
-                    if wave_data{i}(2,j)==0 && wave_data{i}(2,j-1)==0 
-                        wave_data{i}(:,j:end+1)=[ [0.5*(wave_data{i}(1,j-1)+wave_data{i}(1,j));NaN] wave_data{i}(:,j:end)];
+                % this worked but was very slow...
+                %while j>1
+                %    if wave_data{i}(2,j)==0 && wave_data{i}(2,j-1)==0 
+                %        wave_data{i}(:,j:end+1)=[ [0.5*(wave_data{i}(1,j-1)+wave_data{i}(1,j));NaN] wave_data{i}(:,j:end)];
+                %    end
+                %    j=j-1;
+                %end                
+                iInserts=find((wave_data{i}(2,1:end-1)==0) .* (wave_data{i}(2,2:end)==0));
+                if ~isempty(iInserts)
+                    newWave=zeros(2,size(wave_data{i},2)+length(iInserts));
+                    c=1;
+                    for j=1:length(iInserts)
+                        newWave(:,(c+j-1):(iInserts(j)+j-1))=wave_data{i}(:,c:iInserts(j));
+                        newWave(:,iInserts(j)+j)=[0.5*(wave_data{i}(1,iInserts(j))+wave_data{i}(1,iInserts(j)+1));NaN];
+                        c=iInserts(j)+1;
                     end
-                    j=j-1;
+                    newWave(:,(c+length(iInserts)):end)=wave_data{i}(:,c:end);
+                    wave_data{i}=newWave;
                 end
             end
             
@@ -2580,16 +2599,27 @@ classdef Sequence < handle
         
         function soundData=sound(obj, varargin)
             %sound()
-            %   "play out" the sequence through the system speaker
+            %   "play out" the sequence through the system speaker and
+            %   return the sound data (if needed). Optional parameters are
+            %   'blockRange', 'channelWeights', 'sampleRate',and
+            %   'onlyProduceSoundData'. The latter skips the "playing out"
+            %   part. Sound data is 2xN array sampled at the provided
+            %   'sampleRate' (default is CD quality 4411 Hz). The sound
+            %   vector is produced from the gradient waveforms with X and Y
+            %   mapped to challens 1 and 2, respectively, and Z split
+            %   between channels 1 ans 2.  The output is then
+            %   Gauss-filtered to reduce high-frequency ringing and
+            %   normalized to 0.95.
             %
 
             persistent parser
             if isempty(parser)
                 parser = inputParser;
-                parser.FunctionName = 'evalLabels';
+                parser.FunctionName = 'sound';
                 parser.addParamValue('blockRange',[1 inf],@(x)(isnumeric(x) && length(x)==2));
                 parser.addParamValue('channelWeights',[1 1 1],@(x)(isnumeric(x) && length(x)==3));
                 parser.addParamValue('onlyProduceSoundData',false,@(x)(islogical(x)));
+                parser.addParamValue('sampleRate',44100,@(x)(isnumeric(x) && isscalar(x) && x>0));
             end
             parse(parser,varargin{:});
             opt = parser.Results;
@@ -2601,7 +2631,7 @@ classdef Sequence < handle
             gw_data=obj.waveforms_and_times(false,opt.blockRange);
             total_duration=sum(obj.blockDurations);
             
-            sample_rate=44100; %Hz
+            sample_rate=opt.sampleRate; % default is 44100 Hz (CD quality)
             dwell_time=1/sample_rate;
             sound_length=floor(total_duration/dwell_time)+1;
             
