@@ -40,6 +40,7 @@ flipAnglesDeg=unique(flipAnglesDeg);
 
 % remove all ADC events that come before the first RF event (noise scans or alike)
 if ~isempty(t_excitation)
+    ktraj_adc=ktraj_adc(:,t_adc > t_excitation(1));
     t_adc = t_adc(t_adc > t_excitation(1));
 end
 
