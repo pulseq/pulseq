@@ -12,6 +12,11 @@
 #ifndef _EXTERNAL_SEQUENCE_H_
 #define _EXTERNAL_SEQUENCE_H_
 
+// optionally use SEQ_NAMESPACE
+#ifdef SEQ_NAMESPACE
+namespace SEQ_NAMESPACE {
+#endif
+
 //#define MASTER_SLAVE_FORMAT
 #define EXTERNAL_GRADS
 
@@ -246,6 +251,7 @@ enum Flags{
 	SMS, 
 	REF,
 	IMA,
+	OFF,
 	NOISE, // LAST_ADC_RELEVANT_FLAG
 	PMC, 
 	NOPOS,
@@ -356,7 +362,7 @@ class LabelStateAndBookkeeping
     LabelValueStorage m_currLabelValueStorage;
     MinMaxLabelStorage m_MinMaxLabelBookkeepingADC; // this only store min/max values in the context of the ADC, the conters
                                                     // may run out of counds temporarily but can be reset again before the ADC
-    std::map<int, std::vector<int> > m_mapFirstInSlc;
+    std::map<int, std::vector<int> > m_mapFirstInSlc; // QC: map container. int-> a slice index (e.g. 0, 1, 2, ...). std::vector<int> -> a label vector representintg the ADC-relevant label values for the first scan in that slice. 2025.06.30
     std::map<int, std::vector<int> > m_mapLastInSlc;
     std::vector<int>                m_lastInMeas;
     std::set<std::vector<int> > m_setFirstInSlc;
@@ -630,6 +636,18 @@ public:
 	bool     isLabel();
 
 	static double getBlockDurationRaster();
+    static double getGradientRaster();
+
+	void gradientsAt(double dTimeInBlock, std::vector<double>& vResult);
+    void gradMomentsAt(double dTimeInBlock, std::vector<double>& vResult);
+    void totalBlockGradMoments(std::vector<double>& vResult);
+    bool areAllGradientsConstantInRange(double dStartTimeInBlock, double dEndInBlock);
+
+protected:
+	// internal helper functions, should not be called directly
+    double gradMomentOneTrap(int i); 
+    double gradMomentOneExtTrap(int i);
+    double gradMomentOneArbitrary(int i);
 
 protected:
 	int index;          /**< @brief Index of this block */
@@ -665,6 +683,8 @@ protected:
 
 	// static for the duraton raster
 	static double s_blockDurationRaster;
+    // static for the gradient raster
+    static double s_gradientRaster;
 };
 
 // * ------------------------------------------------------------------ *
@@ -734,6 +754,7 @@ inline float*    SeqBlock::GetRFPhasePtr() { return &rfPhase[0]; }
 inline int       SeqBlock::GetRFLength() { return rfAmplitude.size(); }
 inline float     SeqBlock::GetRFDwellTime() { return rfDwellTime_us; }
 inline double SeqBlock::getBlockDurationRaster() {return SeqBlock::s_blockDurationRaster; }
+inline double SeqBlock::getGradientRaster() {return SeqBlock::s_gradientRaster; }
 
 inline void      SeqBlock::free() {
 	// Force the memory to be freed
@@ -1165,5 +1186,9 @@ inline bool ExternalSequence::getRfShimEventByID(int id, RfShimmingEvent& rfse) 
     return true;
 }
 	
+// optionally close SEQ_NAMESPACE
+#ifdef SEQ_NAMESPACE
+}; // namespace SEQ_NAMESPACE
+#endif
 
 #endif	//_EXTERNAL_SEQUENCE_H_
