@@ -18,7 +18,7 @@ if isempty(parser)
     parser.addParamValue('first',[],@isnumeric);
     parser.addParamValue('firstGradStepHalfRaster',true,@islogical);
     parser.addParamValue('conservativeSlewEstimate',false,@islogical);    
-    parser.addParamValue('system',[],@isstuct);
+    parser.addParamValue('system',[],@isstruct);
     parser.addParamValue('RasterTime',[],@isnumeric);
 end
 parse(parser,k,varargin{:});
@@ -75,3 +75,4 @@ function out=max_abs(in1, in2)
     abs1gtoe=abs(in1)>=abs(in2);
     out=in1.*abs1gtoe+in2.*(~abs1gtoe);
 end
+
