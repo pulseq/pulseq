@@ -13,7 +13,10 @@ supported_labels={ ...
         'PMC', ... # for MoCo/PMC Pulseq version to recognize blocks that can be prospectively corrected for motion 
         'NOROT','NOPOS','NOSCL', ... # instruct the interpreter to ignore the position, rotation or scaling of the FOV specified on the UI 
         'ONCE', ... # a 3-state flag that instructs the interpreter to alter the sequence when executing multiple repeats as follows: blocks with ONCE==0 are executed on every repetition; ONCE==1: only the first repetition; ONCE==2: only the last repetition
-        'TRID' ... # an integer ID of the TR (sequence segment) used by the GE interpreter (and some others) to optimize the execution on the scanner
+        'TRID', ... # an integer ID of the TR (sequence segment) used by the GE interpreter (and some others) to optimize the execution on the scanner
+	... % mgram: add labels for dictionary simulation
+	'START', ... # mgram; indicates start position for the MRF .seq simulation
+	'STOP' ... # mgram; indicates stop position for the MRF .seq simulation        
     };
 
 end
