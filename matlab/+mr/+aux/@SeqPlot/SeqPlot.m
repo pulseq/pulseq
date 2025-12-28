@@ -72,8 +72,8 @@ classdef SeqPlot < handle
                     @(x) any(validatestring(x,validTimeUnits)));
                 parser.addParamValue('label',[]);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
                 parser.addParamValue('hide',false);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
-                parser.addParamValue('stacked',false);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
-                parser.addParamValue('showGuides',true);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
+                parser.addParamValue('stacked',true);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel)) % mgram prefers stacked mode :D
+                parser.addParamValue('showGuides',false);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel)) % mgram disabled Guides -> slow
             end
             parse(parser,varargin{:});
             opt = parser.Results;
