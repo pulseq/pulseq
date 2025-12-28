@@ -206,6 +206,15 @@ classdef SeqPlot < handle
                         end
                         label_defined=true;
                     end
+                    if isfield(block, 'trig')
+                        if strcmp(block.trig.type, 'trigger')
+                            plot([t0 t0 t0+block.trig.duration t0+block.trig.duration]+block.trig.delay, [0 0.4 0.4 0],   'b-', 'Parent', obj.ax(1));
+                        end
+                        if strcmp(block.trig.type, 'output')
+                            plot([t0 t0 t0+block.trig.duration t0+block.trig.duration]+block.trig.delay, [0 -0.4 -0.4 0], 'g-', 'Parent', obj.ax(1));
+                        end
+                        ylim(obj.ax(1), [-0.5 0.5]);
+                    end
                 end
                 isValid = t0+seq.blockDurations(iB)>timeRange(1) && t0<=timeRange(2);
                 if isValid
