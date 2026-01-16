@@ -2,11 +2,13 @@ classdef TransformFOV < handle
 
     properties (Access = public)
         rotation=[]; % 3x3 rotation matrix or empty matrix if none
-        translation=[]; % 1x3 vector or empty matrix if none
+        translation=[]; % 1x3 vector or empty matrix if none        
     end
 
     properties (Access = private)
+        use_rotation_extension=false; % whether rotations should be explicitly applied to the gradients or implicitly by means of RotationExtension
         prior_phase_cycle=0;
+        rotation_quaternion=[]; % rotation quaternion version of the provided rotation matrix or empty matrix if none
         system;
         % high_accuracy;
         labels=struct('NOPOS',0,'NOROT',0,'NOSCL',0);
@@ -24,8 +26,9 @@ classdef TransformFOV < handle
                 addParameter(parser, 'rotation',  [], @(m) (isnumeric(m) && all(size(m)==[3 3])));
                 addParameter(parser, 'translation',  [], @(m) (isnumeric(m) && size(m,2)==3 && length(m)==3));
                 %addParameter(parser, 'scale',  [], @(m) (isnumeric(m) && size(m,2)==3 && length(m)==3)); % MZ: TODO
-                addParamValue(parser, 'transform', [], @(m) (isnumeric(m) && all(size(m)==[4 4]))); 
-                addParameter(parser, 'prior_phase_cycle',  0, @(m) (isnumeric(m) && length(m)==1));
+                addParamValue(parser, 'transform', [], @(m) (isnumeric(m) && all(size(m)==[4 4])));
+                addParameter(parser, 'use_rotation_extension',  false, @(m) (islogical(m) && numel(m)==1));
+                addParameter(parser, 'prior_phase_cycle',  0, @(m) (isnumeric(m) && numel(m)==1));
                 % addParameter(parser, 'high_accuracy',  false, @(m) (islogical(m) && length(m)==1));
                 addParameter(parser, 'system', [], @isstruct); 
             end
@@ -47,7 +50,12 @@ classdef TransformFOV < handle
             obj.rotation=opt.rotation;
             obj.translation=opt.translation;
             obj.prior_phase_cycle=opt.prior_phase_cycle;
+            obj.use_rotation_extension=opt.use_rotation_extension;
             % obj.high_accuracy=opt.high_accuracy;
+
+            if obj.use_rotation_extension && ~isempty(obj.rotation) 
+                obj.rotation_quaternion=mr.aux.quat.fromRotMat(obj.rotation);
+            end
 
             if isempty(opt.system)
                 obj.system=mr.opts();
@@ -150,7 +158,7 @@ classdef TransformFOV < handle
             %     update prior_phase_cycle =+ phase_cycle_this_block
             % end
 
-                % extract last time point of possible rf or adc in the block
+                % extract the first and the last time points of possible rf or adc in the block
                 if isempty(rf)
                     if isempty(adc)
                         % both ADC and RF are not defined
@@ -180,6 +188,14 @@ classdef TransformFOV < handle
                 if ~isempty(adc) && isfield(adc,'id')
                     adc=rmfield(adc,'id');
                 end
+                
+                % if the current block uses rotation extension and the
+                % TransformFOV object is configured not to use the rotation
+                % extension then we apply the rotation to the gradients now
+                if ~obj.use_rotation_extension && ~isempty(rotExtQuaternion)
+                    grads=mr.rotate3D(rotExtQuaternion,grads,'system',obj.sys);
+                    rotExtQuaternion=[]; % now that we have applied the current rotation, we can discard it
+                end
 
                 % MZ: I think we have to rotate the gradient "backwards" if
                 % this block has 'NOROT'. We restore the grads object below
@@ -187,7 +203,7 @@ classdef TransformFOV < handle
                     grads_backup=grads;
                     % MZ: HA! we could rotate obj.translation (or it's copy) in the opposite direction instead
                     % MZ: and, we could use the same mechanism to handle the rotation extention
-                    grads=mr.rotate3D(obj.rotation',grads); % MZ: I guess we have to rotate the gradients "back" because we are normally in local logical coordinates, which would be "rotated" if there were NOROT flag
+                    grads=mr.rotate3D(obj.rotation',grads,'system',obj.sys); % MZ: I guess we have to rotate the gradients "back" because we are normally in local logical coordinates, which would be "rotated" if there were NOROT flag
                     % MZ: please check if the above point is correct
                 end
                 
@@ -330,10 +346,22 @@ classdef TransformFOV < handle
                 obj.prior_phase_cycle = local_frac( obj.prior_phase_cycle + phase_cycle_this_block ); 
             end
 
-
             %% rotation
             if ~isempty(obj.rotation) && ~obj.labels.NOROT
-                grads = mr.rotate3D(obj.rotation,grads); 
+                if obj.use_rotation_extension
+                    if isempty(rotExtQuaternion)
+                        rotExtQuaternion=obj.rotation_quaternion;
+                    else
+                        rotExtQuaternion=mr.aux.quat.multiply(rotExtQuaternion, obj.rotation_quaternion); % TODO: check left or right rotation
+                    end
+                else
+                    grads = mr.rotate3D(obj.rotation,grads); 
+                end
+            end
+
+            %% rotation extension support
+            if ~isempty(rotExtQuaternion)
+                other{end+1}=mr.makeRotation(rotExtQuaternion);
             end
 
             %% output
