@@ -183,6 +183,7 @@ end
 %
 seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'spiral');
+seq.setDefinition('ReceiverGainHigh',1);
 seq.setDefinition('MaxAdcSegmentLength', adcSamplesPerSegment); % this is important for making the sequence run automatically on siemens scanners without further parameter tweaking
 
 seq.write('spiral.seq');   % Output sequence for scanner
@@ -191,7 +192,7 @@ seq.write('spiral.seq');   % Output sequence for scanner
 seq.plot();             % Plot sequence waveforms
 
 %% k-space trajectory calculation
-[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing, slicepos, t_slicepos, gw_pp, pm_adc] = seq.calculateKspacePP();
 
 % plot k-spaces
 figure; plot(t_ktraj, ktraj'); title('k-space components as functions of time'); % plot the entire k-space trajectory
