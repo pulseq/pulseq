@@ -747,8 +747,8 @@ classdef Sequence < handle
             % registerRfShimEvent : Add the event to the libraries (object,
             % shapes, etc and return the event's ID. This ID should be 
             % stored in the object to accelerate addBlock()            
-            data = [abs(event.shimVector);angle(event.shimVector)];
-            id = obj.rfShimLibrary.find_or_insert(data(:)');
+            data = [abs(event.shimVector(:)),angle(event.shimVector(:))].'; % make data(:) to produce an interleaving vector of amplitudes and phases
+            id = obj.rfShimLibrary.find_or_insert(data(:));
         end
 
         function id=registerRotationEvent(obj, event)
@@ -796,6 +796,7 @@ classdef Sequence < handle
             extensions = [];
             required_duration=[];
             rotQuaternion = []; % rotation extension
+            roundUpBlockDuration=false; % historical default
             
             % Loop over events adding to library if necessary and creating
             % block event structure.
@@ -958,6 +959,10 @@ classdef Sequence < handle
                         else
                             error('More than one numeric parameter given to setBlock()');
                         end
+                    elseif ischar(event) && strcmp(event,'roundUpBlockDuration')
+                        roundUpBlockDuration=true;
+                    else
+                        warning('Unknown parameter passed to block %d', index);
                     end
                 end
             end
@@ -1011,13 +1016,19 @@ classdef Sequence < handle
                 newBlock(7)=id;
             end
             
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %%% PERFORM GRADIENT CHECKS                                 %%%
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            
-            % see if we have the valid preceding gradient value data 
-            %gradCheckData % struct('validForBlockNum',0,'lastGradVals', [0 0 0]);
             if duration>0
+
+                if roundUpBlockDuration
+                    duration=ceil(duration/obj.sys.blockDurationRaster)*obj.sys.blockDurationRaster;
+                end
+
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                %%% PERFORM GRADIENT CHECKS                                 %%%
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                
+                % see if we have the valid preceding gradient value data 
+                %gradCheckData % struct('validForBlockNum',0,'lastGradVals', [0 0 0]);                
+
                 if index > 1 && obj.gradCheckData.validForBlockNum ~= index-1
                     % need to update gradCheckData
                     obj.gradCheckData.validForBlockNum = index-1;
