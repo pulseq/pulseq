@@ -15,7 +15,8 @@ void print_usage()
     printf("parsemr: standalone Pulseq file loader\n");
     printf("         This is a small C++ application intended \n"
            "         to test and demo the Pulseq C++ library code\n");
-    printf("usage: parsemr <sequence_file>\n");
+    printf("usage: parsemr <sequence_file> [-g] [-m] \n");
+    printf("  optional flags -g and -m can be used to request the parser to generate gradient waveform or gradient moment plots of the entire sequence as binary blobs\n");
 }
 
 int main(int argc, char** argv)
@@ -27,6 +28,16 @@ int main(int argc, char** argv)
     }
 
     std::string pulseqFilePath = argv[1];
+    bool        bGenerateWaveforms = false;
+    bool        bGenerateMoments = false;
+    for (int i = 2; i < argc; ++i)
+    {
+        if (0==strcmp(argv[i],"-g"))
+            bGenerateWaveforms=true;
+        if (0==strcmp(argv[i],"-m"))
+            bGenerateMoments=true;
+    }
+        
     // TODO: check if file exists and whether this is a Pulseq file
 
     // we create a dummy scope to see later on that the memoty has been freed without issues
@@ -41,6 +52,34 @@ int main(int argc, char** argv)
             return 1;
         }
 
+        // trim the extension from pulseqFilePath
+        int nDotPos=pulseqFilePath.rfind('.');
+        if (nDotPos > 0)
+            pulseqFilePath = pulseqFilePath.substr(0, nDotPos);
+
+        FILE* pFW = NULL;
+        if (bGenerateWaveforms)
+        {
+            std::string sW = pulseqFilePath + "_waveform.bin";
+            pFW = fopen(sW.c_str(), "wb");
+            if (pFW)
+                std::cout << "exporting gradient waveforms to " << sW << std::endl;
+            else
+                std::cout << "ERROR: failed to open " << sW << " for exporting gradient waveforms" << std::endl;
+
+        }
+            
+        FILE* pFM = NULL;
+        if (bGenerateMoments)
+        {
+            std::string sM = pulseqFilePath + "_moments.bin ";
+            pFM = fopen(sM.c_str(), "wb");
+            if (pFM)
+                std::cout << "exporting gradient moments to " << sM << std::endl;
+            else
+                std::cout << "ERROR: failed to open " << sM << " for exporting gradient moments" << std::endl;
+        }
+        
         // check the signature
         if (SequenceData.isSigned())
         {
@@ -79,14 +118,33 @@ int main(int argc, char** argv)
         int64_t                  llTotalDuration = 0;
         LabelStateAndBookkeeping labelStateAndBookkeeping;
         int                      iB;
+        bool                     bGradientConstantDuringAllAdcEvents = true;
+        bool                     bGradientConstantDuringAllRfPulses = true;
+        std::vector<double>      vdPrevMoments;
+
+        vdPrevMoments.resize(3);
+        vdPrevMoments[0] = 0.0;
+        vdPrevMoments[1] = 0.0;
+        vdPrevMoments[2] = 0.0;
+
         for (iB = 0; iB < SequenceData.GetNumberOfBlocks(); ++iB)
         {
             SeqBlock* pBlock = SequenceData.GetBlock(iB);
+            // decode the block's content 
+            if (!SequenceData.decodeBlock(pBlock))
+            {
+                std::cout << "ERROR: Failed to decode block number: " << iB << std::endl;
+                break;
+            }
             // look into the block, unpack content and collect some data or statistics
 
             if (pBlock->isRF())
             {
                 ++nRF;
+                if (!pBlock->areAllGradientsConstantInRange(
+                        pBlock->GetRFEvent().delay,
+                        pBlock->GetRFEvent().delay + pBlock->GetRFDwellTime() * pBlock->GetRFLength()))
+                    bGradientConstantDuringAllRfPulses = false;
             }
 
             // Process each gradient channel
@@ -127,6 +185,11 @@ int main(int argc, char** argv)
                 {
                     labelStateAndBookkeeping.updateBookkeepingRecordsADC();
                 }
+                if (!pBlock->areAllGradientsConstantInRange(
+                        pBlock->GetADCEvent().delay,
+                        pBlock->GetADCEvent().delay
+                            + pBlock->GetADCEvent().dwellTime * 1e-3 * pBlock->GetADCEvent().numSamples))
+                    bGradientConstantDuringAllAdcEvents = false;
             }
 
             if (pBlock->isRotation())
@@ -233,11 +296,43 @@ int main(int argc, char** argv)
                         break;
                 }
             }*/
+
+            if (pFW)
+            {
+                std::vector<double> ga;
+                for (int t = 0; t < pBlock->GetDuration(); ++t) // coint time in microseconds
+                {
+                    pBlock->gradientsAt(t, ga);
+                    fwrite(&ga[0], sizeof(double), 3, pFW);
+                }
+            }
+            if (pFM)
+            {
+                std::vector<double> gm;
+                for (int t = 0; t < pBlock->GetDuration(); ++t) // coint time in microseconds
+                {
+                    pBlock->gradMomentsAt(t, gm);
+                    gm[0] += vdPrevMoments[0];
+                    gm[1] += vdPrevMoments[1];
+                    gm[2] += vdPrevMoments[2];
+                    fwrite(&gm[0], sizeof(double), 3, pFM);
+                }
+                pBlock->totalBlockGradMoments(gm);
+                vdPrevMoments[0] += gm[0];
+                vdPrevMoments[1] += gm[1];
+                vdPrevMoments[2] += gm[2];
+            }
+
             llTotalDuration += int(0.5+pBlock->GetDuration());
 
             // free up the memory
             delete pBlock;
         }
+
+        if (pFW)
+            fclose(pFW);
+        if (pFM)
+            fclose(pFM);
 
         std::cout << "The sequence contains " << SequenceData.GetNumberOfBlocks() << " blocks with the total of\n";
         if (nRF)
@@ -257,6 +352,15 @@ int main(int argc, char** argv)
         if (nSoDe)
             std::cout << "\t " << nSoDe << " soft delay extension events\n";
 
+        if (bGradientConstantDuringAllRfPulses)
+            std::cout << "Gradients during all RF events are constant\n";
+        else
+            std::cout << "Gradient amplitude during some RF pulses varies\n";
+        if (bGradientConstantDuringAllAdcEvents)
+            std::cout << "Gradients during all ADC events are constant\n";
+        else
+            std::cout << "Gradient amplitude during some ADC events varies\n";
+        
         std::cout << std::endl;
         std::cout << "True total sequence duration: " << llTotalDuration << " us\n\n";
         // TODOs:

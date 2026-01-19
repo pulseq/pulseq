@@ -6,6 +6,6 @@ function rfShim = makeRfShim(shimVec)
 %
 %   See also  Sequence.addBlock
 
-rfShim=struct('type','rfShim','shimVector',shimVec);
+rfShim=struct('type','rfShim','shimVector',shimVec(:));
 
 end

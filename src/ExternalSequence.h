@@ -636,6 +636,18 @@ public:
 	bool     isLabel();
 
 	static double getBlockDurationRaster();
+    static double getGradientRaster();
+
+	void gradientsAt(double dTimeInBlock, std::vector<double>& vResult);
+    void gradMomentsAt(double dTimeInBlock, std::vector<double>& vResult);
+    void totalBlockGradMoments(std::vector<double>& vResult);
+    bool areAllGradientsConstantInRange(double dStartTimeInBlock, double dEndInBlock);
+
+protected:
+	// internal helper functions, should not be called directly
+    double gradMomentOneTrap(int i); 
+    double gradMomentOneExtTrap(int i);
+    double gradMomentOneArbitrary(int i);
 
 protected:
 	int index;          /**< @brief Index of this block */
@@ -671,6 +683,8 @@ protected:
 
 	// static for the duraton raster
 	static double s_blockDurationRaster;
+    // static for the gradient raster
+    static double s_gradientRaster;
 };
 
 // * ------------------------------------------------------------------ *
@@ -740,6 +754,7 @@ inline float*    SeqBlock::GetRFPhasePtr() { return &rfPhase[0]; }
 inline int       SeqBlock::GetRFLength() { return rfAmplitude.size(); }
 inline float     SeqBlock::GetRFDwellTime() { return rfDwellTime_us; }
 inline double SeqBlock::getBlockDurationRaster() {return SeqBlock::s_blockDurationRaster; }
+inline double SeqBlock::getGradientRaster() {return SeqBlock::s_gradientRaster; }
 
 inline void      SeqBlock::free() {
 	// Force the memory to be freed

@@ -24,7 +24,10 @@ const int ExternalSequence::MAX_LINE_SIZE = 256;
 const char ExternalSequence::COMMENT_CHAR = '#';
 std::string& str_trim(std::string& str);
 std::string str_tolower(std::string str);
+
+// TODO: get rid of this Siemens-specific initialization and make it more vendor-neutral
 double SeqBlock::s_blockDurationRaster = 10.0;
+double SeqBlock::s_gradientRaster = 10.0;
 
 /***********************************************************/
 ExternalSequence::ExternalSequence()
@@ -2214,4 +2217,407 @@ void LabelStateAndBookkeeping::dump_internal(const std::vector<int>& numVal, con
     if (c)
         <-- print new line */
     delete szSpe0;
+}
+
+// local service functions for calculating moments, etc...
+inline double sqr(double v)
+{
+    return v * v;
+}
+inline double linear_interpolation(double t1, double v1, double t2, double v2, double t)
+{
+    return ( v1*(t2 - t) + v2*(t - t1) ) / (t2 - t1);
+}
+inline double segment_integral(double v1, double v2, double t)
+{
+	// integrates a linear function defined by two points: (0,v1) and (1,v2) in the range [0, t]
+    return v1*t+0.5*(v2-v1)*sqr(t);
+}
+    // SeqBlock / gradient moment calculation functions 
+void SeqBlock::gradientsAt(double dTimeInBlock, std::vector<double>& vResult) // TODO: add optional parameter(s) to calculate at multiple time points separated by dwell time 
+{
+    vResult.resize(NUM_GRADS);
+    if (dTimeInBlock < 0.0 || dTimeInBlock > GetDuration())
+    {
+        for (int i = 0; i < NUM_GRADS; ++i) // print warning?
+            vResult[i] = 0.0;
+        return;
+    }
+		
+    for (int i = 0; i < NUM_GRADS; ++i)
+    {
+        if (isTrapGradient(i))
+        {
+			GradEvent& grad = GetGradEvent(i);
+			if (dTimeInBlock <= grad.delay || grad.amplitude == 0.0) 
+			{
+				vResult[i] = 0.0; // before the gradient start
+				continue;
+			}        
+            if (dTimeInBlock >= grad.delay + grad.rampUpTime + grad.flatTime + grad.rampDownTime)
+            {
+                vResult[i] = 0.0; // after the gradient end
+                continue;
+            }
+            if (dTimeInBlock < grad.delay + grad.rampUpTime)
+            {
+                // ramp-up // dTimeInBlock is > grad.delay because of the ckeck above
+                vResult[i] = linear_interpolation(grad.delay, 0.0, grad.delay + grad.rampUpTime, grad.amplitude, dTimeInBlock); 
+                continue;
+            }
+            else if (dTimeInBlock <= grad.delay + grad.rampUpTime + grad.flatTime)
+            {
+                // on plato
+				vResult[i] = grad.amplitude;
+                continue;
+            }
+            else
+            {
+				// ramp-down // because dTimeInBlock is < grad.delay + grad.rampUpTime + grad.flatTime + grad.rampDownTime (see check above)
+                vResult[i] = linear_interpolation(
+                    grad.delay + grad.rampUpTime + grad.flatTime, grad.amplitude,
+                    grad.delay + grad.rampUpTime + grad.flatTime + grad.rampDownTime, 0.0,
+                    dTimeInBlock);
+                continue;
+			}            
+        }
+        else if (isExtTrapGradient(i))
+        {
+            GradEvent& grad = GetGradEvent(i);
+            if (dTimeInBlock < grad.delay || grad.amplitude == 0.0) // < and not <=
+            {
+                vResult[i] = 0.0; // before the gradient start
+                continue;
+            }
+            double                   dTimeInGrad = dTimeInBlock - grad.delay;
+			const std::vector<long>& times = GetExtTrapGradTimes(i);
+            if (dTimeInGrad > times.back())
+            {
+                vResult[i] = 0.0; // after the gradient end
+                continue;
+            }
+            // now we know dTimeInGrad is bracketed between times[0] and times.back() (possibly including both)
+            const std::vector<float>& wave = GetExtTrapGradShape(i);
+            if (times[0] == dTimeInGrad)
+            {
+                vResult[i] = wave[0] * grad.amplitude; 
+                continue;
+            }
+            if (times.back() == dTimeInGrad)
+            {
+                vResult[i] = wave.back() * grad.amplitude;
+                continue;
+            }
+			// do a binary search
+            int nUpperBoundCnt = times.size();
+            int nLowerBoundCnt = 0;
+            int j;
+            while (nUpperBoundCnt - nLowerBoundCnt > 1)
+            {
+                j = (nUpperBoundCnt + nLowerBoundCnt) / 2;
+                if (times[j] >= dTimeInGrad)
+                    nUpperBoundCnt = j;
+                else
+                    nLowerBoundCnt = j;
+            }
+            vResult[i] = linear_interpolation(times[nLowerBoundCnt], wave[nLowerBoundCnt], times[nUpperBoundCnt], wave[nUpperBoundCnt], dTimeInGrad) * grad.amplitude; 
+            continue;
+        }
+        else if (isArbitraryGradient(i))
+        {
+            GradEvent& grad = GetGradEvent(i);
+            if (dTimeInBlock < grad.delay || grad.amplitude == 0.0) // < and not <=
+            {
+                vResult[i] = 0.0; // before the gradient start
+                continue;
+            }
+            double dTimeInGrad_RU = (dTimeInBlock - grad.delay - getGradientRaster() / 2) / getGradientRaster();
+            int nLen = GetArbGradNumSamples(i);
+            if (dTimeInGrad_RU > nLen - 0.5) // this 0.5 is here because of the half-raster shift above
+            {
+                vResult[i] = 0.0; // after the gradient end
+                continue;
+            }
+            int nLowerBoundCnt = floor(dTimeInGrad_RU);
+            int nUpperBoundCnt = ceil(dTimeInGrad_RU);
+            if (nLowerBoundCnt >= nLen)
+                nLowerBoundCnt = nLen - 1;
+			//if (nUpperBoundCnt>=nLen) nUpperBoundCnt=nLen-1;
+			float* pfShape = GetArbGradShapePtr(i);
+            if (nLowerBoundCnt < 0)
+            {
+				vResult[i] = linear_interpolation(0, grad.first, 0.5, pfShape[0]*grad.amplitude, dTimeInGrad_RU+0.5); 
+				continue;
+            }
+			if (nUpperBoundCnt >= nLen)
+            {
+				vResult[i] = linear_interpolation(nLowerBoundCnt+0.5, pfShape[nLen-1]*grad.amplitude, nLen, grad.last, dTimeInGrad_RU+0.5); 
+				continue;
+            }
+            if (nLowerBoundCnt == nUpperBoundCnt) 
+				vResult[i] =  pfShape[nLowerBoundCnt] * grad.amplitude;
+            else
+				vResult[i] = linear_interpolation(nLowerBoundCnt+0.5, pfShape[nLowerBoundCnt], nUpperBoundCnt+0.5, pfShape[nUpperBoundCnt], dTimeInGrad_RU+0.5) * grad.amplitude;
+			continue;
+        }
+		// no gradient in the block on the i-th axis
+        vResult[i] = 0.0;
+    }
+}
+
+void SeqBlock::gradMomentsAt(double dTimeInBlock, std::vector<double>& vResult) // TODO: add optional parameter(s) to calculate at multiple time points separated by dwell time // another optional parameter can be used for caching e.g. moment vector and a time point in a single vector
+{
+    vResult.resize(NUM_GRADS);
+    if (dTimeInBlock < 0.0)
+    {
+        for (int i = 0; i < NUM_GRADS; ++i)
+			vResult[i] = 0.0; 
+		// print warning?
+        return;
+    }
+    if (dTimeInBlock >= GetDuration())
+    {
+        totalBlockGradMoments(vResult); // print warning? for the == case no warning needed
+        return;
+    }
+
+    for (int i = 0; i < NUM_GRADS; ++i)
+    {
+        if (isTrapGradient(i))
+        {
+			GradEvent& grad = GetGradEvent(i);
+			if (dTimeInBlock <= grad.delay || grad.amplitude == 0.0) 
+			{
+				vResult[i] = 0.0; // before the gradient start or zero amplitude
+				continue;
+			} 
+			double dTimeInGrad = dTimeInBlock - grad.delay;
+            if (dTimeInGrad >= grad.rampUpTime + grad.flatTime + grad.rampDownTime)
+            {
+                vResult[i] = gradMomentOneTrap(i); // after the gradient end
+                continue;
+            }
+            if (dTimeInGrad <= grad.rampUpTime)
+            {
+                // ramp-up 
+                vResult[i] = 0.5 * grad.amplitude * sqr(dTimeInGrad) / grad.rampUpTime; //linear_ramp_integral(0.0, 0.0, grad.rampUpTime, grad.amplitude, dTimeInGrad); 
+                continue;
+            }
+            else if (dTimeInGrad <= grad.rampUpTime + grad.flatTime)
+            {
+                // on plato
+                vResult[i] = grad.amplitude * (dTimeInGrad - 0.5* grad.rampUpTime);
+                continue;
+            }
+            else
+            {
+				// ramp-down // because dTimeInGrad is < grad.rampUpTime + grad.flatTime + grad.rampDownTime (see check above)
+                vResult[i] = grad.amplitude * (dTimeInGrad - 0.5*grad.rampUpTime + (-0.5*sqr(dTimeInGrad) + dTimeInGrad*(grad.rampUpTime+grad.flatTime) - 0.5*sqr(grad.rampUpTime+grad.flatTime))/grad.rampDownTime);
+                continue;
+			}            
+        }
+        else if (isExtTrapGradient(i))
+        {
+            GradEvent& grad = GetGradEvent(i);
+            if (dTimeInBlock <= grad.delay || grad.amplitude == 0.0) // <= and not <, in contrast to getAmplitude
+            {
+                vResult[i] = 0.0; // before or at the gradient start
+                continue;
+            }
+            double dTimeInGrad = dTimeInBlock - grad.delay;
+			const std::vector<long>& times = GetExtTrapGradTimes(i);
+            if (dTimeInGrad >= times.back())
+            {
+                vResult[i] = gradMomentOneExtTrap(i); // at or after the gradient end
+                continue;
+            }
+            // now we know dTimeInGrad is bracketed between times[0] and times.back() (now excluding both)
+            const std::vector<float>& wave = GetExtTrapGradShape(i);
+            // in contrast to getAmplitude we don't need a binary search because we integrate all segments up to the current one...
+		    int nMax = times.size()-1;
+			double dM=0;
+            for (int j = 0; j < nMax; ++j)
+            {
+                if (dTimeInGrad <= times[j])
+                    break;
+                if (dTimeInGrad >= times[j+1])
+					dM+=(times[j+1]-times[j])*(wave[j+1]+wave[j]); // we will multiply it by 0.5 below
+				else 
+					dM += (dTimeInGrad - times[j]) * ((wave[j+1]-wave[j])*(dTimeInGrad - times[j])/(times[j+1]-times[j]) + 2*wave[j]); // we will multiply it by 0.5 below
+			}
+            vResult[i] = grad.amplitude * 0.5 * dM; 
+            continue;
+        }
+        else if (isArbitraryGradient(i))
+        {
+            GradEvent& grad = GetGradEvent(i);
+            if (dTimeInBlock <= grad.delay || grad.amplitude == 0.0) // <= and not < in cotrast to getAmplitude
+            {
+                vResult[i] = 0.0; // before or at the gradient start
+                continue;
+            }
+            double dTimeInGrad_RU = (dTimeInBlock - grad.delay) / getGradientRaster(); // for the integral calculaton the sum is correct at raster edges -- no 0.5 raster shift  //  - getGradientRaster() / 2
+            int nLen = GetArbGradNumSamples(i);
+            if (dTimeInGrad_RU >= nLen) // this 0.5 is here because of the half-raster shift above
+            {
+                vResult[i] = 0*gradMomentOneArbitrary(i); // after the gradient end
+                continue;
+            }
+            float* pfShape = GetArbGradShapePtr(i);
+            if (dTimeInGrad_RU < 0.5)
+            {
+                vResult[i] = 0.5*getGradientRaster()*segment_integral(grad.first, grad.amplitude * pfShape[0], dTimeInGrad_RU*2);//grad.first*(dTimeInBlock - grad.delay) + (grad.amplitude * pfShape[0]-grad.first)*sqr(dTimeInBlock - grad.delay)*2/getGradientRaster();
+				continue;
+            }
+            if (dTimeInGrad_RU > nLen-0.5)
+            {
+				vResult[i] = gradMomentOneArbitrary(i) - 0.5*getGradientRaster()*segment_integral(grad.last, grad.amplitude * pfShape[nLen-1], (nLen-dTimeInGrad_RU)*2);//- grad.last*(grad.delay+nLen*getGradientRaster() - dTimeInBlock) - (grad.amplitude * pfShape[nLen-1]-grad.last)*sqr(grad.delay+nLen*getGradientRaster() - dTimeInBlock)/getGradientRaster(); 
+				continue;
+            }
+            int nLowerBoundCnt = floor(dTimeInGrad_RU-0.5);
+            int nUpperBoundCnt = ceil(dTimeInGrad_RU - 0.5);
+            // if (nLowerBoundCnt >= nLen)
+            //    nLowerBoundCnt = nLen - 1;
+            // if (nUpperBoundCnt>=nLen) nUpperBoundCnt=nLen-1;
+            double dM = grad.first / grad.amplitude * 0.25 + pfShape[0] * 0.25; // account for .first effect 
+			double test = 0.5 * segment_integral(grad.first / grad.amplitude, pfShape[0], 1);
+            for (int j = 1; j < nLowerBoundCnt; ++j)
+                dM += pfShape[j];            
+			if (nLowerBoundCnt>0)
+                dM += (pfShape[0] + pfShape[nLowerBoundCnt]) * 0.5;
+            if (nLowerBoundCnt == nUpperBoundCnt) 
+				vResult[i] = grad.amplitude * getGradientRaster() * dM;
+            else
+                vResult[i] = grad.amplitude * getGradientRaster() * (dM + segment_integral(pfShape[nLowerBoundCnt], pfShape[nUpperBoundCnt],dTimeInGrad_RU-0.5-nLowerBoundCnt));
+			continue;
+        }
+		// no gradient in the block on the i-th axis
+        vResult[i] = 0.0;
+    }
+}
+
+void SeqBlock::totalBlockGradMoments(std::vector<double>& vResult)
+{
+    vResult.resize(NUM_GRADS);
+    for (int i = 0; i < NUM_GRADS; ++i)
+    {
+        if (isTrapGradient(i))
+        {
+            vResult[i] = gradMomentOneTrap(i);
+            continue;
+        }
+        if (isExtTrapGradient(i))
+        {
+            vResult[i] = gradMomentOneExtTrap(i); 
+            continue;
+        }
+        if (isArbitraryGradient(i))
+        {
+            vResult[i] = gradMomentOneArbitrary(i);
+            continue;
+        }
+        // no gradient in the block on the i-th axis
+        vResult[i] = 0.0;
+    }
+}
+
+double SeqBlock::gradMomentOneTrap(int i)
+{
+    GradEvent& grad = GetGradEvent(i);
+    return grad.amplitude * (grad.flatTime + 0.5 * (grad.rampUpTime + grad.rampDownTime));
+}
+
+double SeqBlock::gradMomentOneExtTrap(int i)
+{
+	const std::vector<long>& times = GetExtTrapGradTimes(i);
+    const std::vector<float>& wave = GetExtTrapGradShape(i);
+    int nMax = times.size()-1;
+	double dM=0;
+    for (int j = 0; j<nMax; ++j)
+        dM+=(times[j+1]-times[j])*(wave[j+1]+wave[j]); // we will multiply it by 0.5 below
+    return GetGradEvent(i).amplitude * 0.5 * dM;
+}
+
+double SeqBlock::gradMomentOneArbitrary(int i)
+{
+    int nLen = GetArbGradNumSamples(i);
+    float* pfShape = GetArbGradShapePtr(i);
+    double dM = ((GetGradEvent(i).first + GetGradEvent(i).last)/GetGradEvent(i).amplitude - pfShape[0] - pfShape[nLen-1])*0.25; // TODO: is this correct??? // account for .first and .last effects (for compatibility with Matlab, but it should really have only a very minor effect)
+    for (int j = 0; j < nLen; ++j)
+        dM += pfShape[j]; 
+    return GetGradEvent(i).amplitude * getGradientRaster() * dM;
+}
+
+bool SeqBlock::areAllGradientsConstantInRange(double dStartTimeInBlock, double dEndTimeInBlock)
+{
+	// constrain the times to the block
+    if (dStartTimeInBlock < 0.0)
+        dStartTimeInBlock = 0.0; // print warning?
+    if (dEndTimeInBlock > GetDuration())
+        dEndTimeInBlock = GetDuration(); // print warning?
+    for (int i = 0; i < NUM_GRADS; ++i)
+    {
+        if (isTrapGradient(i))
+        {
+            GradEvent& grad = GetGradEvent(i);
+            if (grad.amplitude != 0.0)
+            {
+				// check if the period (dStartTimeInBlock, dEndTimeInBlock) overlaps with the ramp-up
+                if (grad.delay < dEndTimeInBlock && grad.delay + grad.rampUpTime > dStartTimeInBlock)
+                    return false;
+                // check if the period (dStartTimeInBlock, dEndTimeInBlock) overlaps with the ramp-down
+                if (grad.delay + grad.rampUpTime + grad.flatTime < dEndTimeInBlock
+                    && grad.delay + grad.rampUpTime + grad.flatTime + grad.rampDownTime > dStartTimeInBlock)
+                    return false;
+            }
+        }
+        else if (isExtTrapGradient(i))
+        {
+            GradEvent& grad = GetGradEvent(i);
+            if (grad.amplitude!=0.0)
+            {
+                const std::vector<long>&  times = GetExtTrapGradTimes(i);
+                const std::vector<float>& wave  = GetExtTrapGradShape(i);
+                int nExtShapeSize = times.size();
+				// similar to a normal trapezoid, check if any ramp overlaps with the period (dStartTimeInBlock, dEndTimeInBlock)
+                for (int j = 0; j < nExtShapeSize - 1; ++j)
+                {
+                    if (grad.delay + times[j] >= dEndTimeInBlock)
+                        break; // no need to iterate further, we are already out of the period (dStartTimeInBlock, dEndTimeInBlock)
+                    if (grad.delay + times[j+1] <= dStartTimeInBlock)
+                        continue; // skip check as we are not yet in the period (dStartTimeInBlock, dEndTimeInBlock)
+                    if (wave[j] != wave[j + 1]) 
+                        return false;                    
+                }
+            }
+        }
+        else if (isArbitraryGradient(i))
+        {
+            GradEvent& grad = GetGradEvent(i);
+            if (grad.amplitude != 0.0)
+            {
+				if (grad.delay >= dEndTimeInBlock)
+					continue; // skip the rest as we are out of the period (dStartTimeInBlock, dEndTimeInBlock)
+                int nLen = GetArbGradNumSamples(i);
+                double dShapeDur = getGradientRaster() * nLen;
+                if (grad.delay + dShapeDur <= dStartTimeInBlock)
+                    continue; // skip the rest as we are out of the period (dStartTimeInBlock, dEndTimeInBlock)
+                // calculate the sample range that needs to be checked
+                int nStart = floor((dStartTimeInBlock - grad.delay) / getGradientRaster());
+                if (nStart < 0)
+                    nStart = 0;
+                int nEnd = ceil((dEndTimeInBlock - grad.delay) / getGradientRaster());
+                if (nEnd >= nLen)
+                    nEnd = nLen - 1;
+                if (nStart >= nEnd)
+                    continue;
+				// now look at the shape and compare samples to the first one
+                float* pfShape = GetArbGradShapePtr(i);				
+                for (int j = nStart + 1; j <= nEnd; ++j)
+                    if (pfShape[nStart] != pfShape[j])
+                        return false;
+            }
+        }
+    }
+    return true;
 }

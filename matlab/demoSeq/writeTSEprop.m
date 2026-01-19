@@ -237,7 +237,8 @@ end
 nb=length(seq.blockDurations);
 np=14;
 for nr=1:(np-1)
-    TF=mr.TransformFOV('rotation',rotz(180/np*nr));
+    %TF=mr.TransformFOV('rotation',rotz(180/np*nr)); % option without rotation extension
+    TF=mr.TransformFOV('rotation',rotz(180/np*nr),'use_rotation_extension', true); % better option for modern interpreters resulting in smaller files
     seq=TF.applyToSeq(seq,'sameSeq',true,'blockRange',[1,nb]);
 end
 

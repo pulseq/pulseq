@@ -111,7 +111,7 @@ elseif opt.duration>0
                 fallTime = riseTime;
             end    
             amplitude = opt.area/(opt.duration-0.5*riseTime-0.5*fallTime);
-            possible = opt.duration>(riseTime+fallTime) & abs(amplitude)<maxGrad;
+            possible = opt.duration>=(riseTime+fallTime) & abs(amplitude)<maxGrad;
             assert(possible,['Requested area is too large for this gradient duration. Probably amplitude is violated (' num2str(round(abs(amplitude)/maxGrad*100)) '%)']);    
         end    
     end

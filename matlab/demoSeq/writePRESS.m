@@ -150,6 +150,7 @@ end
 
 seq.setDefinition('FOV', voxel);
 seq.setDefinition('Name', 'press');
+seq.setDefinition('ReceiverGainHigh',1);
 seq.write('press.seq')       % Write to pulseq file
 
 %% calculate k-space but only use it to check timing
