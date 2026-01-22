@@ -1498,8 +1498,17 @@ classdef Sequence < handle
             end
             
             % now calculate the actual k-space trajectory based on the
-            % gradient waveforms
-            gw=obj.gradient_waveforms();
+            % gradient waveforms (interp on grad raster time)
+            wave_data=obj.waveforms_and_times();
+            tmax=max([wave_data{1}(1,end) wave_data{2}(1,end) wave_data{3}(1,end)]);
+            dt=obj.gradRasterTime; % time raster
+            nt=ceil(tmax/dt);
+            %tmax=nt*dt;
+
+            gw=zeros(3,nt);
+            for i=1:3
+                gw(i,:)=interp1(wave_data{i}(1,:),wave_data{i}(2,:),((1:nt)-0.5)*dt,'linear',0);
+            end
             i_excitation=round(t_excitation/obj.gradRasterTime);
             i_refocusing=round(t_refocusing/obj.gradRasterTime);
 %             ii_next_excitation=min(length(i_excitation),1);
@@ -2848,3 +2857,4 @@ classdef Sequence < handle
         end
     end
 end % classdef
+
