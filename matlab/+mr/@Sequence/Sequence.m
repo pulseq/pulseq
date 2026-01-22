@@ -1994,13 +1994,13 @@ classdef Sequence < handle
                                 out_len(j)=out_len(j)+4;
                                 shape_pieces{j,iP}=[
                                     curr_dur+grad.delay+cumsum([0 grad.riseTime grad.flatTime grad.fallTime]);...
-                                    grad.amplitude*[0 1 1 0]];
+                                    grad.amplitude*obj.sys.gamma*[0 1 1 0]];
                             else
                                 if (abs(grad.riseTime)>eps && abs(grad.fallTime)>eps) % we skip 'empty' gradients
                                     out_len(j)=out_len(j)+3;
                                     shape_pieces{j,iP}=[
                                         curr_dur+grad.delay+cumsum([0 grad.riseTime grad.fallTime]);...
-                                        grad.amplitude*[0 1 0]];
+                                        grad.amplitude*obj.sys.gamma*[0 1 0]];
                                 else
                                     if abs(grad.amplitude)>eps
                                         warning('''empty'' gradient with non-zero magnitude detected in block %d',iBc);
@@ -2848,3 +2848,4 @@ classdef Sequence < handle
         end
     end
 end % classdef
+
