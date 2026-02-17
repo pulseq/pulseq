@@ -198,9 +198,9 @@ for ii = 1:length(grads)
     end
     %warning('addGradient(): potentially incorrect handling of delays... TODO: fixme!');
     if g.delay - common_delay > 0
-        warning('addGradient(): zerofilling the shape, running unchecked code...');
-        t_delay = 0:target_raster:g.delay-common_delay-target_raster;
-        waveforms{ii} = [t_delay*0 waveforms{ii}];
+        %warning('addGradient(): zerofilling the shape, running unchecked code...');
+        t_delay = (0:target_raster:g.delay-common_delay-target_raster).';
+        waveforms{ii} = [t_delay*0; waveforms{ii}];
     end
     max_length = max(max_length, length(waveforms{ii}));
 end
