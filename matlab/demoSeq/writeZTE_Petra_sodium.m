@@ -19,7 +19,8 @@ rf_duration=50e-6;              % duration of the excitation pulse
 ro_duration=1800e-6;            % read-out time: controls RO bandwidth and T2-blurring
 minRF_to_ADC_time=50e-6;        % the parameter wich defines TE together with ro_discard
 %ro_discard=4;                   % how many ADC samples are contaminated by RF switching artifacts and alike
-rfSpoilingInc=117;              % RF spoiling increment
+% RF spoiling increment = 84° for smoother transient decay, https://doi.org/10.1002/mrm.1910350216, 169° for diffusion independent rf spoiling in steady-state https://doi.org/10.1371/journal.pone.0324455
+rfSpoilingInc=84;              % RF spoiling increment
 
 % system limits
 sys = mr.opts('MaxGrad', 36, 'GradUnit', 'mT/m', ...
