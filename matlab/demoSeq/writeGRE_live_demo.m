@@ -71,7 +71,8 @@ end
 for i=start:Ny
     if step > 2
         % Vary RF phase quasi-randomly
-        rand_phase = mod(117*(i^2 + i + 2), 360)*pi/180;
+        % RF spoiling phase increment = 84° for smoother transient decay, https://doi.org/10.1002/mrm.1910350216, 169° for diffusion independent rf spoiling in steady-state https://doi.org/10.1371/journal.pone.0324455
+        rand_phase = mod(84*(i^2 + i + 2), 360)*pi/180;
         [rf, gz] = mr.makeSincPulse(alpha*pi/180, 'Duration', 4e-3,...
                                     'SliceThickness', 5e-3, ...
                                     'apodization', 0.5, ...

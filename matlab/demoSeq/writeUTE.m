@@ -19,7 +19,8 @@ ro_asymmetry=1;                 % 0: fully symmetric 1: half-echo
 minRF_to_ADC_time=50e-6;        % the parameter wich defines TE (together with the RO asymmetyry)
 
 % more in-depth parameters
-rfSpoilingInc=117;              % RF spoiling increment
+% RF spoiling increment = 84° for smoother transient decay, https://doi.org/10.1002/mrm.1910350216, 169° for diffusion independent rf spoiling in steady-state https://doi.org/10.1371/journal.pone.0324455
+rfSpoilingInc=84;              % RF spoiling increment
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(alpha*pi/180,'Duration',1e-3,...
