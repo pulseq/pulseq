@@ -392,6 +392,7 @@ classdef TransformFOV < handle
                 seq2=seq;
             else
                 seq2 = mr.Sequence(seq.sys);
+                seq2.definitions = seq.definitions; % copy definitions
             end
 
             obj.labels=struct('NOPOS',0,'NOROT',0,'NOSCL',0);
