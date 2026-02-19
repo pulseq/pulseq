@@ -1593,9 +1593,9 @@ classdef Sequence < handle
                 labels=opt.init;
             end
 
-            if ~strcmp(opt.evolution,'none')
-                label_evol={};
-            end
+            %if ~strcmp(opt.evolution,'none')
+            label_evol={};
+            %end
 
             if ~isfinite(opt.blockRange(2))
                 opt.blockRange(2)=length(obj.blockEvents);
