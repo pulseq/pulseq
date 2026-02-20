@@ -29,6 +29,9 @@ end
 if nargin < 3
     fmax = 3000;
 end
+if ~exist('FB','var') 
+    FB=[];
+end
 
 % Read ASC file if provided
 if ischar(FB)
