@@ -22,8 +22,9 @@ if isempty(defaultStandardOpts)
         'blockDurationRaster',10e-6,...
         'adcSamplesLimit',0,... % 0 means no limit
         'rfSamplesLimit',0,... % 0 means no limit
-        'adcSamplesDivisor',4,... % the number of which the adc.numSamples should be integer multiple 
-        'gamma',42576000,...
+        'adcSamplesDivisor',4,... % the number of which the adc.numSamples should be integer multiple
+        'flag_ge',false,... % Default: not a GE system
+        'gamma',42577478,...
         'B0',1.5...
     );
 end
@@ -66,6 +67,7 @@ if isempty(parser)
     parser.addParamValue('adcSamplesLimit',defaultOpts.adcSamplesLimit,@isnumeric);
     parser.addParamValue('rfSamplesLimit',defaultOpts.rfSamplesLimit,@isnumeric);
     parser.addParamValue('adcSamplesDivisor',defaultOpts.adcSamplesDivisor,@isnumeric);
+    parser.addParamValue('flag_ge',defaultOpts.flag_ge,@(x) islogical(x) || isnumeric(x));
     parser.addParamValue('gamma',defaultOpts.gamma,@isnumeric); % Hz/T
     parser.addParamValue('B0',defaultOpts.B0,@isnumeric); % T
     parser.addParamValue('setAsDefault',false,@islogical);
@@ -107,6 +109,7 @@ out.blockDurationRaster = opt.blockDurationRaster;
 out.adcSamplesLimit = opt.adcSamplesLimit;
 out.rfSamplesLimit = opt.rfSamplesLimit;
 out.adcSamplesDivisor = opt.adcSamplesDivisor;
+out.flag_ge = logical(opt.flag_ge);
 out.gamma=opt.gamma;
 out.B0=opt.B0;
 
