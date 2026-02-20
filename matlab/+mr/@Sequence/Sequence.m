@@ -70,7 +70,12 @@ classdef Sequence < handle
         rfID2NameMap;   % optional names of objects in the plot
         adcID2NameMap;  % optional names of objects in the plot
         gradID2NameMap; % optional names of objects in the plot
-        
+
+        % GE TRID helper state (name -> numeric ID mapping)
+        tridName2Id;   % containers.Map('char' -> int32)
+        tridId2Name;   % cell array, index = numeric ID
+        tridHistory;   % cell array storing TRID calls in order
+
         sys;
     end
     
@@ -102,6 +107,11 @@ classdef Sequence < handle
             else
                 sys=varargin{1};
             end
+            if ~isfield(sys, 'flag_ge') || isempty(sys.flag_ge)
+                sys.flag_ge = false;
+            end
+            sys.flag_ge = logical(sys.flag_ge);
+
             obj.sys = sys;
             obj.rfRasterTime = sys.rfRasterTime;
             obj.gradRasterTime = sys.gradRasterTime;
@@ -117,11 +127,26 @@ classdef Sequence < handle
             obj.rfID2NameMap = containers.Map('KeyType', 'int32', 'ValueType', 'char'); 
             obj.adcID2NameMap = containers.Map('KeyType', 'int32', 'ValueType', 'char'); 
             obj.gradID2NameMap = containers.Map('KeyType', 'int32', 'ValueType', 'char'); 
-            
+            obj.tridName2Id = containers.Map('KeyType','char','ValueType','int32');
+            obj.tridId2Name = {};
+            obj.tridHistory = {};
+
             obj.gradCheckData=struct('validForBlockNum',0,'lastGradVals', [0 0 0]);
 
         end
-        
+
+        function addTRID(obj, label_name)
+            %addTRID Add a GE TRID segment label (by name).
+            %   The TRID label is only emitted if obj.sys.flag_ge==true.
+            %   label_name is mapped to a numeric TRID ID automatically
+            %   (first occurrence defines the ID).
+            if ~isfield(obj.sys,'flag_ge') || ~obj.sys.flag_ge
+                return;
+            end
+            id = obj.getOrCreateTridId(label_name);
+            obj.addBlock(mr.makeLabel('SET','TRID', double(id)));
+        end
+
         
         % See read.m
         read(obj,filename,varargin)
@@ -2846,5 +2871,25 @@ classdef Sequence < handle
             obj.extensionStringIDs{1+length(obj.extensionStringIDs)}=str;
             assert(length(obj.extensionNumericIDs)==length(obj.extensionStringIDs))
         end
+
+        function id = getOrCreateTridId(obj, label_name)
+            if isstring(label_name)
+                label_name = char(label_name);
+            end
+            if ~ischar(label_name) || isempty(label_name)
+                error('TRID label_name must be a non-empty char/string.');
+            end
+    
+            if isKey(obj.tridName2Id, label_name)
+                id = obj.tridName2Id(label_name);
+            else
+                id = int32(numel(obj.tridId2Name) + 1);
+                obj.tridName2Id(label_name) = id;
+                obj.tridId2Name{double(id),1} = label_name;
+            end
+    
+            obj.tridHistory{end+1,1} = label_name;
+        end
+
     end
 end % classdef
