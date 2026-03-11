@@ -133,7 +133,8 @@ classdef Sequence < handle
             obj.gradCheckData=struct('validForBlockNum',0,'lastGradVals', [0 0 0]);
 
         end
-
+        
+        
         function addTRID(obj, label_name)
             %addTRID Add a GE TRID segment label (by name).
             %   The TRID label is ignored if obj.sys.flag_trid==false.
@@ -145,7 +146,7 @@ classdef Sequence < handle
             id = obj.getOrCreateTridId(label_name);
             obj.addBlock(mr.makeLabel('SET','TRID', double(id)));
         end        
-        
+
         % See read.m
         read(obj,filename,varargin)
         
@@ -2869,6 +2870,7 @@ classdef Sequence < handle
             obj.extensionStringIDs{1+length(obj.extensionStringIDs)}=str;
             assert(length(obj.extensionNumericIDs)==length(obj.extensionStringIDs))
         end
+
         function id = getOrCreateTridId(obj, label_name)
             if isstring(label_name)
                 label_name = char(label_name);
