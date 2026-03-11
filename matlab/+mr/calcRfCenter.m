@@ -1,4 +1,4 @@
-function [tc ic]=calcRfCenter(rf)
+function [tc, ic, fi]=calcRfCenter(rf)
 %calcRfCenter Calculate the 'center' of the RF pulse
 %   Returns the time point of the effective rotation calculated as the peak
 %   of the RF amplitude for the shaped pulses and the center of the pulse
@@ -6,8 +6,15 @@ function [tc ic]=calcRfCenter(rf)
 %   part of the shape. Delay field of the RF object is not taken into
 %   account.
 %
-%   The main return value is the time point of the center, the optional
-%   return value is the corresponding position in the rf envelope array.
+%   Return values:
+%     tc: the time point of the center relative to the beginning of the RF
+%         shape, meaning the edge of the raster cell. This is the main 
+%         return value.
+%     ic: This optional return value contains the corresponding position
+%         in the rf envelope array. This is a value rounded to the next
+%         integer.
+%     fi: Fractional index in the range of -0.5 to 0.5 containing the
+%         fractional position towards the previous or subsequent sample.
 %    
 
 %     % detect zero-padding
@@ -36,6 +43,15 @@ function [tc ic]=calcRfCenter(rf)
         ipeak=find(abs(rf.signal)>=rfmax*0.99999);
         tc=(rf.t(ipeak(1))+rf.t(ipeak(end)))/2;
         ic=ipeak(round(end/2));
+    end
+
+    ft=tc-rf.t(ic);
+    if ft>1e-9 % 1 ns
+        fi=ft/(rf.t(ic+1)-rf.t(ic));
+    elseif ft<-1e-9 % -1 ns
+        fi=ft/(rf.t(ic)-rf.t(ic-1));
+    else
+        fi=0;
     end
 
 %     % detect the excitation peak (this code is far from being ideal...)

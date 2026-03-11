@@ -246,8 +246,12 @@ classdef SeqPlot < handle
                     end
                     if ~isempty(block.rf)
                         rf=block.rf;
-                        [tc,ic]=mr.calcRfCenter(rf);
-                        sc=rf.signal(ic);
+                        [tc,ic,fi]=mr.calcRfCenter(rf);
+                        if fi==0
+                            sc=rf.signal(ic);
+                        else
+                            sc=rf.signal(ic)*(1-abs(fi))+rf.signal(ic+sign(fi))*abs(fi);
+                        end
                         if max(abs(diff(rf.t)-rf.t(2)+rf.t(1)))<1e-9 && length(rf.t)>100
                             % homogeneous sampling and long pulses -- use lower time resolution for better display and performance
                             dt=rf.t(2)-rf.t(1);
