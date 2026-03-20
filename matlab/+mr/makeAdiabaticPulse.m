@@ -122,11 +122,11 @@ else
     % this probably only works on linux and maybe also on mac
     [status, result]=system('which python3');
     if status==0
-        python=strip(result);
+        python=mr.aux.strstrip(result);
     else
         [status, result]=system('which python');
         if status==0
-            python=strip(result);
+            python=mr.aux.strstrip(result);
         else
             error('python executable not found');
         end
