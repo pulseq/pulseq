@@ -37,6 +37,9 @@ gradRasterTime = system.gradRasterTime;
     
 % round the time point to the gradient raster;
 timeindex = round(timepoint / gradRasterTime);
+if abs(timepoint-timeindex*gradRasterTime)>1e-6
+    warning('splitting the gradint at a point that is not on a gradient raster edge, substantial rounding is applied');
+end
 timepoint = timeindex * gradRasterTime;
 timeindex = timeindex + 1; % convert to Matlab convention
 
@@ -44,38 +47,57 @@ ch = grad.channel;
 
 if strcmp(grad.type, 'grad')
     % check if we have an arbitrary gradient or an exended trapezoid
-    if abs(grad.tt(1)-0.5*gradRasterTime)<1e-10 && ... 
-       all(abs(grad.tt(2:end)-grad.tt(1:end-1)-gradRasterTime)<1e-10)
-        % arbitrary gradient -- the most trivial conversion
-        % if timepoint is out of range we have nothing to do
-        if timeindex == 1 || timeindex >= length(grad.tt)
-            varargout{1} = grad;
-        else
-            grad1=grad;
-            grad2=grad;
-            grad1.last=0.5*(grad.waveform(timeindex-1)+grad.waveform(timeindex)); % FIXME: retrive the double-sampling point (e.g. the corner of the trapezoid)
-            grad2.first=grad1.last;
-            grad2.delay=grad.delay + timepoint;
-            grad1.tt=grad.tt(1:(timeindex-1));
-            grad1.waveform=grad.waveform(1:(timeindex-1));
-            grad2.tt=grad.tt(timeindex:end) - timepoint;
-            grad2.waveform=grad.waveform(timeindex:end);
-			grad1.shape_dur = grad1.tt(end) + grad1.tt(1);
-            grad2.shape_dur = grad2.tt(end) + grad2.tt(1);
-
-            if nargout==1
-                varargout{1} = [grad1 grad2];
-            else
-                varargout{1} = grad1;
-                varargout{2} = grad2;
+    if abs(grad.tt(1)-0.5*gradRasterTime)<1e-10
+        % it can be an arbitrary gradient or arbitrary gradient with oversampling
+        isArb=all(abs(grad.tt(2:end)-grad.tt(1:end-1)-gradRasterTime)<1e-10);
+        isArbOs=all(abs(grad.tt(2:end)-grad.tt(1:end-1)-gradRasterTime*0.5)<1e-10);
+        if isArb || isArbOs
+            if isArbOs
+                % update timeindex to account for dencier sampling
+                timeindex = (timeindex-1)*2; 
             end
+            % arbitrary gradient -- the most trivial conversion
+            % if timepoint is out of range we have nothing to do
+            if timeindex == 1 || timeindex >= length(grad.tt)
+                varargout{1} = grad;
+            else
+                grad1=grad;
+                grad2=grad;
+                if isArbOs
+                    grad1.last=grad.waveform(timeindex);
+                else
+                    grad1.last=0.5*(grad.waveform(timeindex-1)+grad.waveform(timeindex)); % FIXME: retrive the double-sampling point (e.g. the corner of the trapezoid)
+                end
+                grad2.first=grad1.last;
+                grad2.delay=grad.delay + timepoint;
+                grad1.tt=grad.tt(1:(timeindex-1));
+                grad1.waveform=grad.waveform(1:(timeindex-1));
+                if isArbOs
+                    grad2.tt=grad.tt(timeindex+1:end) - timepoint;
+                    grad2.waveform=grad.waveform(timeindex+1:end);
+                else
+                    grad2.tt=grad.tt(timeindex:end) - timepoint;
+                    grad2.waveform=grad.waveform(timeindex:end);
+                end
+			    grad1.shape_dur = grad1.tt(end) - grad1.tt(1) + gradRasterTime;
+                grad2.shape_dur = grad2.tt(end) - grad2.tt(1) + gradRasterTime;
+    
+                if nargout==1
+                    varargout{1} = [grad1 grad2];
+                else
+                    varargout{1} = grad1;
+                    varargout{2} = grad2;
+                end
+            end
+            %figure; plot(grad.tt, grad.waveform); hold on; plot(grad1.tt, grad1.waveform); plot(grad2.delay+grad2.tt, grad2.waveform);
+            return; % early return to protect the subsequent code
         end
-        return; % early return
-    else
-        % we have an extended trapezoid -- excellent choice!
-        times      = grad.tt';
-        amplitudes = grad.waveform'; % QC: to match the matrix size for times1 and amplitudes1 below. 2025.01.02
     end
+
+    % we have an extended trapezoid (by excluding arbitrary grad) -- excellent choice!
+    times      = grad.tt';
+    amplitudes = grad.waveform'; % QC: to match the matrix size for times1 and amplitudes1 below. 2025.01.02
+    
 elseif strcmp(grad.type, 'trap')    
     grad.delay    = round(grad.delay   /gradRasterTime)*gradRasterTime; % MZ: was ceil
     grad.riseTime = round(grad.riseTime/gradRasterTime)*gradRasterTime; % MZ: was ceil

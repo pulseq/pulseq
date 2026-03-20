@@ -39,18 +39,40 @@ function test_single_output(testCase)
     mid = mr.calcDuration(g) / 2;
     grads = mr.splitGradientAt(g, mid, sys);
     testCase.verifyEqual(length(grads), 2);
+    testCase.verifyEqual(mr.calcDuration(grads(1)), grads(2).delay, 'AbsTol', 1e-9); 
+    testCase.verifyEqual(mr.calcDuration(grads(1)), mr.calcDuration(grads(2))-grads(2).delay, 'AbsTol', 1e-9); % FIXME: this test will fail if mid is not in grad raster, but 'Duration' above is well divisible by 2
 end
 
 %% Test split arbitrary gradient
 function test_split_arbitrary(testCase)
     sys = mr.opts();
-    w = linspace(0, 20000, 21)';
-    w = [w; flipud(w(1:end-1))];  % triangle, odd count for oversampling
+    w = linspace(0, 20000, 20)';
+    w = [w; w(end:-1:1)]; 
     g = mr.makeArbitraryGrad('x', w, sys, 'first', 0, 'last', 0);
     mid = mr.calcDuration(g) / 2;
     [g1, g2] = mr.splitGradientAt(g, mid, sys);
     testCase.verifyEqual(g1.channel, 'x');
     testCase.verifyEqual(g2.channel, 'x');
+    testCase.verifyEqual([g1.waveform; g2.waveform], w);
+    testCase.verifyEqual(g1.last, g2.first, 'AbsTol', 1e-6);
+    testCase.verifyEqual(g1.shape_dur+g2.shape_dur, length(w)*sys.gradRasterTime, 'AbsTol', 1e-9);
+end
+
+%% Test split arbitrary gradient
+function test_split_arbitrary_with_oversampling(testCase)
+    sys = mr.opts();
+    w = linspace(0, 20000, 21)';
+    %w = [w(2:end); w(end); w(end:-1:2)];  % odd count for oversampling, removing the end-zeros because they will be in first/last
+    w1 = [w(2:end); w(end-1:-1:2)];  % odd count for oversampling, removing the end-zeros because they will be in first/last
+    g = mr.makeArbitraryGrad('x', w1, sys, 'first', 0, 'last', 0, 'oversampling', true);
+    mid = mr.calcDuration(g) / 2;
+    [g1, g2] = mr.splitGradientAt(g, mid, sys);
+    testCase.verifyEqual(g1.channel, 'x');
+    testCase.verifyEqual(g1.waveform, w(2:end-1));
+    testCase.verifyEqual(g2.waveform, w(end-1:-1:2));
+    testCase.verifyEqual(g1.last, g2.first,'AbsTol', 1e-6);
+    testCase.verifyEqual(g1.last, w(end),'AbsTol', 1e-6);
+    testCase.verifyEqual(g1.shape_dur+g2.shape_dur, (length(w1)+1)*sys.gradRasterTime*0.5, 'AbsTol', 1e-9);
 end
 
 %% Test split extended trapezoid
@@ -62,6 +84,7 @@ function test_split_extended_trap(testCase)
     [g1, g2] = mr.splitGradientAt(g, 5e-4, sys);
     testCase.verifyTrue(strcmp(g1.type, 'grad'));
     testCase.verifyTrue(strcmp(g2.type, 'grad'));
+    testCase.verifyEqual(g1.shape_dur+g2.shape_dur, g.shape_dur, 'AbsTol', 1e-9);
 end
 
 %% Helper
