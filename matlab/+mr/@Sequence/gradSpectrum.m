@@ -148,9 +148,17 @@ xlabel('frequency / Hz');
 if ~isempty(FB)
     for i=1:length(FB)
         if FB(i).freq > 0
-            xline(FB(i).freq,'-');
-            xline(FB(i).freq-FB(i).bw/2,'--');
-            xline(FB(i).freq+FB(i).bw/2,'--');
+            if exist('xline','file')
+                xline(FB(i).freq,'-');
+                xline(FB(i).freq-FB(i).bw/2,'--');
+                xline(FB(i).freq+FB(i).bw/2,'--');
+            else
+                % Octave fallback
+                yl=ylim;
+                line([1 1]*FB(i).freq, yl, 'Color','k','LineStyle','-');
+                line([1 1]*(FB(i).freq-FB(i).bw/2), yl, 'Color','k','LineStyle','--');
+                line([1 1]*(FB(i).freq+FB(i).bw/2), yl, 'Color','k','LineStyle','--');
+            end
         end
     end
 end
