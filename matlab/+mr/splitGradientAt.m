@@ -60,6 +60,8 @@ if strcmp(grad.type, 'grad')
             grad1.waveform=grad.waveform(1:(timeindex-1));
             grad2.tt=grad.tt(timeindex:end) - timepoint;
             grad2.waveform=grad.waveform(timeindex:end);
+			grad1.shape_dur = grad1.tt(end) + grad1.tt(1);
+            grad2.shape_dur = grad2.tt(end) + grad2.tt(1);
 
             if nargout==1
                 varargout{1} = [grad1 grad2];
