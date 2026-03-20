@@ -60,20 +60,17 @@ if strcmp(grad.type, 'trap')
     %rampdown.t = rampdown.t*gradRasterTime;
     
     % flattop
-%     flattop = struct;
-%     flattop.type = 'grad';
-%     flattop.channel = ch;
-% %     flattop.delay = (grad.delay + grad.riseTime + gradRasterTime); 
-    times = [0, grad.flatTime];
-    amplitudes = [grad.amplitude grad.amplitude ];
-    flattop = mr.makeExtendedTrapezoid(ch, 'system', system, 'times', times,...
-                                        'amplitudes', amplitudes, ...
-                                        'skip_check', true);
-    flattop.delay = (grad.delay + grad.riseTime); 
-%     flattop.t = 0:gradRasterTime:(rampdown.delay-1*gradRasterTime-grad.delay-grad.riseTime);
-%     flattop.waveform = grad.amplitude*ones(size(flattop.t));
-%     flattop.first = grad.amplitude;
-%     flattop.last = grad.amplitude;
+    if grad.flatTime > eps
+        times = [0, grad.flatTime];
+        amplitudes = [grad.amplitude grad.amplitude ];
+        flattop = mr.makeExtendedTrapezoid(ch, 'system', system, 'times', times,...
+                                            'amplitudes', amplitudes, ...
+                                            'skip_check', true);
+        flattop.delay = (grad.delay + grad.riseTime); 
+    else
+        % triangle -- no flatTop
+        flattop=[];
+    end
 
     grads = [rampup flattop rampdown];
 elseif strcmp(grad.type, 'grad')
