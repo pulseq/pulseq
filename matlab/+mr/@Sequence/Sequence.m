@@ -133,6 +133,13 @@ classdef Sequence < handle
             obj.gradCheckData=struct('validForBlockNum',0,'lastGradVals', [0 0 0]);
 
         end
+
+        function copyDefinitions(obj, otherSeq)
+            % copy all definitions from another sequence
+            % in future we may add optional include or exclude filters as
+            % optional parameters
+            obj.definitions=otherSeq.definitions;
+        end
         
         
         function addTRID(obj, label_name)
@@ -2799,7 +2806,7 @@ classdef Sequence < handle
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "rm -f ' pulseq_seq_path '/' name '.seq"']);
                     system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/' name '.seq"']);
                 else
-                    error(['Failed to copy the sequence file to the scanner, the returned error message is: ' strip(retmes)]);
+                    error(['Failed to copy the sequence file to the scanner, the returned error message is: ' mr.aux.strstrip(retmes)]);
                 end
             end
             
