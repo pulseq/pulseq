@@ -35,7 +35,6 @@ function test_run_all_demo_seqs(testCase)
             fprintf('***** running sequence: %s *****\n', currSeq{1});
             eval(currSeq{1});
             succeededSeqs{end+1}=currSeq{1};
-            close all;
         catch ME
             %testCase.verifyFail(...
             %    sprintf('Script %s threw: %s', s, ME.message));
@@ -43,6 +42,9 @@ function test_run_all_demo_seqs(testCase)
             fprintf('error message: %s\n', ME.message);
             failedSeqs{end+1}=['failed sequence: ''' currSeq{1} ''', error message: ' ME.message ' '];
         end
+        close all;
+        mr.opts('resetDefault',true);
+        mr.aux.globalVars('reset','SupportedLabels');
     end
     testCase.log(1, ['Succeded sequences:' sprintf(' %s', succeededSeqs{:})]);
     if isempty(failedSeqs)

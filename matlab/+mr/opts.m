@@ -71,9 +71,16 @@ if isempty(parser)
     parser.addParamValue('gamma',defaultOpts.gamma,@isnumeric); % Hz/T
     parser.addParamValue('B0',defaultOpts.B0,@isnumeric); % T
     parser.addParamValue('setAsDefault',false,@islogical);
+    parser.addParamValue('resetDefault',false,@islogical);
 end
 parse(parser,varargin{:});
 opt = parser.Results;
+
+if opt.resetDefault
+    defaultUserOpts=[];
+    parser=[];
+    return;
+end
 
 if isempty(opt.maxB1)
     maxB1 = defaultOpts.maxB1;
