@@ -2800,11 +2800,15 @@ classdef Sequence < handle
                 ok = ok & status == 0;
                 if ok
                     if ~isempty(filepath)
-                        system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "mkdir -p ' pulseq_seq_path '/' filepath '"']);
+                        mkdir_add=['mkdir -p ' pulseq_seq_path '/' filepath ';'];
+                    else
+                        mkdir_add=[];
                     end
-                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "chmod a+rw ' pulseq_seq_path '/external_tmp.seq"']);
-                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "rm -f ' pulseq_seq_path '/' name '.seq"']);
-                    system(['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/' name '.seq"']);
+                    sys_cmd=['ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "chmod a+rw ' pulseq_seq_path '/external_tmp.seq ;' mkdir_add ' rm -f ' pulseq_seq_path '/' name '.seq; mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/' name '.seq; ls -l ' pulseq_seq_path '/' name '.seq"'];
+                    fprintf('running command: %s\n',sys_cmd);
+                    [status,cmdout] = system(sys_cmd);
+                    %[status,cmdout] = system(['start cmd /c ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "rm -f ' pulseq_seq_path '/' name '.seq"']);
+                    %[status,cmdout] = system(['start cmd /c ssh -oBatchMode=yes -oStrictHostKeyChecking=no -oHostKeyAlgorithms=+ssh-rsa root@' ice_ip ' "mv ' pulseq_seq_path '/external_tmp.seq ' pulseq_seq_path '/' name '.seq"']);
                 else
                     error(['Failed to copy the sequence file to the scanner, the returned error message is: ' mr.aux.strstrip(retmes)]);
                 end
