@@ -44,8 +44,9 @@ function test_run_all_demo_seqs(testCase)
             close all;
         end
     end
+    testCase.log(['Succeded sequences: ' succeededSeqs{:}]);
     if isempty(failedSeqs)
-        testCase.verifySucceded(['Succeded sequences: ' succeededSeqs{:}]);
+        testcase.verifyTrue(true);
     else
         testCase.verifyFail(['Failed sequences: ' failedSeqs{:}]);
     end
