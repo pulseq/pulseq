@@ -46,9 +46,9 @@ function [tc, ic, fi]=calcRfCenter(rf)
     end
 
     ft=tc-rf.t(ic);
-    if ft>1e-9 % 1 ns
+    if ic<length(rf.t) && ft>1e-9 % 1 ns
         fi=ft/(rf.t(ic+1)-rf.t(ic));
-    elseif ft<-1e-9 % -1 ns
+    elseif ic>1 && ft<-1e-9 % -1 ns
         fi=ft/(rf.t(ic)-rf.t(ic-1));
     else
         fi=0;
