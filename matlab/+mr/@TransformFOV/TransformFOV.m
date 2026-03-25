@@ -40,7 +40,7 @@ classdef TransformFOV < handle
             %   use_rotation_extension: defines whether the gradient events
             %                are rotated immediately by the function, or
             %                whether the rotation extension should be used
-            %                and th3e actual rotatuion will then be applied
+            %                and the actual rotation will then be applied
             %                by the interpreter. If the input sequence
             %                readily uses rotation extension and
             %                'use_rotation_extension' is False, the

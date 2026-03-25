@@ -13,21 +13,24 @@ defaultM = false;
 defaultD = 0;
 %temporalTolerance=1e-9; % 1ns
 
-p=inputParser;
-addRequired(p, 'obj');
-
-% addParameter(p, 'calcB', defaultB);
-% addParameter(p, 'calcm1', defaultM);
-% addParameter(p, 'calcm2', defaultM);
-% addParameter(p, 'calcm3', defaultM);
-% addParameter(p, 'Ndummy', defaultD);
-
-% Add optional arguments with default values
-addOptional(p, 'calcB', defaultB);
-addOptional(p, 'calcm1', defaultM);
-addOptional(p, 'calcm2', defaultM);
-addOptional(p, 'calcm3', defaultM);
-addOptional(p, 'Ndummy', defaultD);
+persistent p;
+if isempty(p)
+    p=mr.aux.InputParserCompat;
+    addRequired(p, 'obj');
+    
+    % addParameter(p, 'calcB', defaultB);
+    % addParameter(p, 'calcm1', defaultM);
+    % addParameter(p, 'calcm2', defaultM);
+    % addParameter(p, 'calcm3', defaultM);
+    % addParameter(p, 'Ndummy', defaultD);
+    
+    % Add optional arguments with default values
+    addOptional(p, 'calcB', defaultB);
+    addOptional(p, 'calcm1', defaultM);
+    addOptional(p, 'calcm2', defaultM);
+    addOptional(p, 'calcm3', defaultM);
+    addOptional(p, 'Ndummy', defaultD);
+end
 
 % Parse the input
 parse(p, obj, varargin{:});

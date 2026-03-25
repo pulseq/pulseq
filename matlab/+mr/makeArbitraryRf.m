@@ -13,15 +13,16 @@ function [rf, gz, gzr, delay] = makeArbitraryRf(signal,flip,varargin)
 %
 %   [rf, gz]=makeArbitraryRf(..., 'Bandwidth', bw, 'SliceThickness', st) 
 %   Create RF pulse and corresponding slice select gradient. The bandwidth
-%   of the pulse must be given for the specified shape.
+%   of the pulse must be given for the specified shape. You can also check
+%   yourself after creating the pulse object by calling mr.calcRfBandwidth()
 %
-%   See also  Sequence.makeSincPulse, Sequence.addBlock
+%   See also  mr.calcRfBandwidth mr.makeSincPulse, Sequence.addBlock
 
 validPulseUses = mr.getSupportedRfUse();
 
 persistent parser
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'makeArbitraryRf';
     
     % RF params
@@ -104,8 +105,7 @@ end
 
 if nargout>1
     assert(opt.sliceThickness > 0, 'SliceThickness must be provided');
-    assert(opt.bandwidth > 0, 'Bandwidth of pulse must be provided');
-    warning('FIXME: there are some potential issues with the bandwidth and related parameters, double check (e-mail communication)');
+    assert(opt.bandwidth > 0 || opt.timeBwProduct > 0, 'Bandwidth or BW-time-product of the pulse must be provided');
     if opt.maxGrad > 0
         system.maxGrad = opt.maxGrad;
     end

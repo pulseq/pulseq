@@ -1,6 +1,6 @@
 % set system limits
 sys = mr.opts('MaxGrad', 22, 'GradUnit', 'mT/m', ...
-    'MaxSlew', 120, 'SlewUnit', 'T/m/s', ... 
+    'MaxSlew', 120, 'SlewUnit', 'T/m/s', ...
     'rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
 
 seq=mr.Sequence(sys);           % Create a new sequence object
@@ -8,7 +8,7 @@ fov=256e-3; Nx=128; Ny=Nx;      % Define FOV and resolution
 alpha=10;                       % flip angle
 sliceThickness=3e-3;            % slice
 TR=12e-3;                       % repetition time TR
-TE=5e-3;                        % echo time TE  
+TE=5e-3;                        % echo time TE
 %TE=[7.38 9.84]*1e-3;            % alternatively give a vector here to have multiple TEs (e.g. for field mapping)
 
 % more in-depth parameters
@@ -16,7 +16,7 @@ TE=5e-3;                        % echo time TE
 rfSpoilingInc=84;              % RF spoiling increment
 roDuration=3.2e-3;              % ADC duration
 
-% Create fat-sat pulse 
+% Create fat-sat pulse
 % (in Siemens interpreter from January 2019 duration is limited to 8.192 ms, and although product EPI uses 10.24 ms, 8 ms seems to be sufficient)
 % B0=2.89; % 1.5 2.89 3.0
 % sat_ppm=-3.45;
@@ -39,7 +39,7 @@ gzReph = mr.makeTrapezoid('z',sys,'Area',-gz.area/2,'Duration',1e-3);
 phaseAreas = ((0:Ny-1)-Ny/2)*deltak;
 gyPre = mr.makeTrapezoid('y',sys,'Area',max(abs(phaseAreas)),'Duration',mr.calcDuration(gxPre));
 peScales=phaseAreas/gyPre.area;
-        
+
 
 % gradient spoiling
 gxSpoil=mr.makeTrapezoid('x',sys,'Area',2*Nx*deltak);
@@ -107,8 +107,8 @@ figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
 axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
-%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
+%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits
 
-rep = seq.testReport;
-fprintf([rep{:}]);
+%rep = seq.testReport;
+%fprintf([rep{:}]);
 

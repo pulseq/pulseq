@@ -18,7 +18,7 @@ function [varargout] = splitGradientAt(grad, timepoint, varargin)
 persistent parser
 
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'splitGradientAt';
 	parser.addRequired('grad', @isstruct);
     parser.addRequired('timepoint', @isnumeric);

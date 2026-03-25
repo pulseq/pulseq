@@ -18,7 +18,7 @@ function adc=makeAdc(num,varargin)
 
 persistent parser
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'makeAdc';
     
     addRequired(parser,'numSamples',@(x)(isnumeric(x) && (fix(x)-x)==0));

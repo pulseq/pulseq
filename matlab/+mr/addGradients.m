@@ -12,7 +12,7 @@ function grad = addGradients(grads, varargin)
 persistent parser
 
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'addGradients';
 	parser.addRequired('grads');
     parser.addOptional('system', [], @isstruct);

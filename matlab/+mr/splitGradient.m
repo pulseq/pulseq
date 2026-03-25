@@ -16,7 +16,7 @@ function [grads] = splitGradient(grad, varargin)
 persistent parser
 
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'splitGradient';
 	parser.addRequired('grad', @isstruct);
     parser.addOptional('system', [], @isstruct);

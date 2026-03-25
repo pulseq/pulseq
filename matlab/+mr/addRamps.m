@@ -14,7 +14,7 @@ function varargout=addRamps(k,varargin)
 
 persistent parser
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'addRamps';
     parser.addRequired('k',@(x)(isnumeric(x)||iscell(x)));
     parser.addOptional('system',[],@isstruct);
