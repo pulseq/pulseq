@@ -32,8 +32,9 @@ function test_run_all_demo_seqs(testCase)
     failedSeqs={};
     for currSeq=demoSeqs
         try
+            fprintf('***** running sequence: %s *****\n', currSeq{1});
             eval(currSeq{1});
-            succeededSeqs{end+1}=currSeq;
+            succeededSeqs{end+1}=currSeq{1};
             close all;
         catch ME
             %testCase.verifyFail(...
@@ -41,12 +42,11 @@ function test_run_all_demo_seqs(testCase)
             fprintf('failed sequence: %s\n', currSeq{1});
             fprintf('error message: %s\n', ME.message);
             failedSeqs{end+1}=['failed sequence: ''' currSeq{1} ''', error message: ' ME.message ' '];
-            close all;
         end
     end
-    testCase.log(['Succeded sequences: ' succeededSeqs{:}]);
+    testCase.log(1, ['Succeded sequences:' sprintf(' %d', succeededSeqs{:})]);
     if isempty(failedSeqs)
-        testcase.verifyTrue(true);
+        testCase.verifyTrue(true);
     else
         testCase.verifyFail(['Failed sequences: ' failedSeqs{:}]);
     end
