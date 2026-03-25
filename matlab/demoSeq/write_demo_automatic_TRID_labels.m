@@ -21,7 +21,7 @@
 % version: Maximilian Gram; University of Wuerzburg; 09.03.2026 
 
 %% init system and seq object
-clear
+%clear % MZ: NO, no clearing!
 
 % set system limits: example for GE raster times
 sys = mr.opts('MaxGrad', 40,  'GradUnit', 'mT/m', ...
