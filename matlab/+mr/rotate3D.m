@@ -1,12 +1,15 @@
 function [varargout] = rotate3D(rotation, varargin)
 %rotate3D rotate all objects (gradients) in the block by a rotation matrix
 %
-%   [...] = rotate(rotMat, obj <, obj> ...);
+%   [...] = rotate3D(rotation, obj <, obj> ...);
 %
 %   Rotates the corresponding gradinet object(s) by the provided rotation
 %   represented either as a 3x3 rotation matrix or a unit quaternion with
-%   the scalar component at the first position; non-gradient objects are
-%   not affected.   
+%   the scalar component at the first position, or a polar rotatiion
+%   packaged into a 2D vector [phi, theta] expressed in radians or a single
+%   scalar corresponding to a rotation about Z (e.g. phi) in radians; Keep
+%   in mind that for a single Z axis rotation mr.rotate() can be faster.
+%   Non-gradient objects are not affected.
 %
 %   Optional parameter list may include the keyword 'system' followed by a
 %   system limits struct. The system can only be provided in the beginning
@@ -42,6 +45,25 @@ if size(rotation)==[3 3]
     rotMat=rotation;
 elseif length(rotation)==4
     rotMat=mr.aux.quat.toRotMat(rotation);
+elseif length(rotation)==2
+    % phi & theta
+    phi = rotation(1);
+    theta = rotation(2);
+    assert( ( phi >= -pi ) && ( phi < 2*pi) , 'makeRotation:invalidTheta',...
+        'rotation angle phi (%.2f) is invalid. should be within [-pi,2*pi] radians',phi);
+    assert( ( theta >= -pi ) && ( theta <= pi) , 'makeRotation:invalidPhi',...
+        'rotation angle theta (%.2f) is invalid. should be within [-pi,pi] radians',theta);
+    q1=[cos(theta/2) 0 sin(theta/2) 0]; % y axis
+    q2=[cos(phi/2) 0 0 sin(phi/2)]; % z axis
+    rotQuaternion=mr.aux.quat.multiply(q2,q1); % ok, looks like the order is right
+    rotMat=mr.aux.quat.toRotMat(rotQuaternion);
+elseif numel(rotation)==1
+    % phi 
+    phi = rotation;
+    assert( ( phi >= -pi ) && ( phi < 2*pi) , 'makeRotation:invalidTheta',...
+        'rotation angle phi (%.2f) is invalid. should be within [-pi,2*pi] radians',phi);
+    q=[cos(phi/2) 0 0 sin(phi/2)]; % z axis
+    rotMat=mr.aux.quat.toRotMat(q);
 else
     error('The parameter ''rotation'' must either bi a 3x3 matrix or a quaternion');
 end

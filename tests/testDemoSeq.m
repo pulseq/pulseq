@@ -44,7 +44,7 @@ function test_run_all_demo_seqs(testCase)
             failedSeqs{end+1}=['failed sequence: ''' currSeq{1} ''', error message: ' ME.message ' '];
         end
     end
-    testCase.log(1, ['Succeded sequences:' sprintf(' %d', succeededSeqs{:})]);
+    testCase.log(1, ['Succeded sequences:' sprintf(' %s', succeededSeqs{:})]);
     if isempty(failedSeqs)
         testCase.verifyTrue(true);
     else

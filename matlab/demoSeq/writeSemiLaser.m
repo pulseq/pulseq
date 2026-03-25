@@ -17,6 +17,12 @@ rf_180_duration= 4.6e-3; % refocusing pulse duration
 % create and populate the sequence
 seq = mr.Sequence(system);              % Create a new sequence object
 
+% check dependencies
+if ~mr.aux.isSigPyAvailable()
+    warning('This sequence relies on python and sigpy to generate RF pulses, the script will stop now before failing');
+    return;
+end
+
 % Create excitation pulse and gradient
 rf_90= mr.makeSLRpulse(pi/2,'duration',rf_90_duration,'timeBwProduct',7.88,'dwell',rf_90_duration/500,'passbandRipple',1,'stopbandRipple',1e-2,'filterType','ms','system',system,...
     'use','excitation'); 

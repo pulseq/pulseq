@@ -73,11 +73,11 @@ for i=(1-Ndummy):Nr
     rf_phase=mod(rf_phase+rf_inc, 360.0);
     %
     phi=delta*(i-1);
-    seq.addBlock(mr.rotate3D(rotz(phi/pi*180),rf,gzComb,gxPre));
+    seq.addBlock(mr.rotate3D(phi,rf,gzComb,gxPre)); % we could have provided a rotation matrix e.g. by rotz(phi/pi*180), but we avoid dependency on the robotics toolbox...
     if (i>0)
-        seq.addBlock(mr.rotate3D(rotz(phi/pi*180),gx,adc,gzSpoil));
+        seq.addBlock(mr.rotate3D(phi,gx,adc,gzSpoil));
     else
-        seq.addBlock(mr.rotate3D(rotz(phi/pi*180),gx,gzSpoil));
+        seq.addBlock(mr.rotate3D(phi,gx,gzSpoil));
     end
     if TR<=0
         TR=seq.duration;

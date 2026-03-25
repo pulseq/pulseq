@@ -30,6 +30,12 @@ sth_ex = 1 ;
 sth_ref = 1.25 ;
 max_TE = 120e-3 ;
 
+% check dependencies
+if ~mr.aux.isSigPyAvailable()
+    warning('This sequence relies on python and sigpy to generate RF pulses, the script will stop now before failing');
+    return;
+end
+
 % Create 90 degree slice selection pulse and gradient and even the
 % refocusing gradient; we will not use the latter however but will subtract 
 % its area from the first (left) spoiler

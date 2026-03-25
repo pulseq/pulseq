@@ -33,8 +33,13 @@ ax.n1=strfind('xyz',ax.d1);
 ax.n2=strfind('xyz',ax.d2);
 ax.n3=strfind('xyz',ax.d3);
 
-%%
+%% check dependencies
+if ~mr.aux.isSigPyAvailable()
+    warning('This sequence relies on python and sigpy to generate RF pulses, the script will stop now before failing');
+    return;
+end
 
+%%
 % Create alpha-degree hard pulse and gradient
 rf = mr.makeBlockPulse(alpha*pi/180,sys,'Duration',rfLen, 'use', 'excitation');
 rf180 = mr.makeAdiabaticPulse('hypsec',sys,'Duration',10.24e-3,'dwell',1e-5,...
