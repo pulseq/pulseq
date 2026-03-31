@@ -20,6 +20,11 @@ jobs:
           cache: true
           products: >
             Curve_Fitting_Toolbox
+            
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install sigpy
 
       - name: Run tests
         uses: matlab-actions/run-command@v2
