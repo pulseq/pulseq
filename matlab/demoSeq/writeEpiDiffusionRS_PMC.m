@@ -1,16 +1,16 @@
 % this is an experimental high-performance EPI sequence
 % which uses split gradients to overlap blips with the readout
 % gradients combined with ramp-samping
-% it further features diffusion weighting using the standard 
+% it further features diffusion weighting using the standard
 % Stejskal-Tanner scheme
 %
-% IMPORTANT NOTICE: be aware, that this sequence potentially uses very 
+% IMPORTANT NOTICE: be aware, that this sequence potentially uses very
 % strong gradient that may overload your scanner!
 
 % Set system limits
 lims = mr.opts('MaxGrad',38,'GradUnit','mT/m',...
     'MaxSlew',180,'SlewUnit','T/m/s',...
-    'rfRingdownTime', 10e-6, 'rfDeadtime', 100e-6, 'B0', 2.89);  
+    'rfRingdownTime', 10e-6, 'rfDeadtime', 100e-6, 'B0', 2.89);
 
 seq=mr.Sequence(lims);     % Create a new sequence object
 fov=224e-3; Nx=112; Ny=Nx; % Define FOV and resolution
@@ -27,7 +27,23 @@ partFourierFactor=0.75;    % partial Fourier factor: 1: full sampling 0: start w
 tRFex=3e-3;
 tRFref=3e-3;
 
-% Create fat-sat pulse 
+% in Octave local functions need to be defined before they are used, so it nees to be placed here and not at the end of the fileclear a
+function b=bFactCalc(g, delta, DELTA)
+% see DAVY SINNAEVE Concepts in Magnetic Resonance Part A, Vol. 40A(2) 39–65 (2012) DOI 10.1002/cmr.a
+% b = gamma^2  g^2 delta^2 sigma^2 (DELTA + 2 (kappa - lambda) delta)
+% in pulseq we don't need gamma as our gradinets are Hz/m
+% however, we do need 2pi as diffusion equations are all based on phase
+% for rect gradients: sigma=1 lambda=1/2 kappa=1/3
+% for trapezoid gradients: TODO
+sigma=1;
+%lambda=1/2;
+%kappa=1/3;
+kappa_minus_lambda=1/3-1/2;
+b= (2*pi * g * delta * sigma)^2 * (DELTA + 2*kappa_minus_lambda*delta);
+end
+
+
+% Create fat-sat pulse
 sat_ppm=-3.45;
 sat_freq=sat_ppm*1e-6*lims.B0*lims.gamma;
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',lims,'Duration',8e-3,...
@@ -62,7 +78,7 @@ gy = mr.makeTrapezoid('y',lims,'Area',-deltak,'Duration',blip_dur); % we use neg
 % and at the end each equal to a half of blip_dur
 % the area between the blips should be defined by kWidth
 % we do a two-step calculation: we first increase the area assuming maximum
-% slewrate and then scale down the amlitude to fix the area 
+% slewrate and then scale down the amlitude to fix the area
 extra_area=blip_dur/2*blip_dur/2*lims.maxSlew; % check unit!;
 gx = mr.makeTrapezoid('x',lims,'Area',kWidth+extra_area,'duration',readoutTime+blip_dur);
 actual_area=gx.area-gx.amplitude/gx.riseTime*blip_dur/2*blip_dur/2/2-gx.amplitude/gx.fallTime*blip_dur/2*blip_dur/2/2;
@@ -73,7 +89,7 @@ gx.flatArea = gx.amplitude*gx.flatTime;
 % calculate ADC
 % we use ramp sampling, so we have to calculate the dwell time and the
 % number of samples, which are will be qite different from Nx and
-% readoutTime/Nx, respectively. 
+% readoutTime/Nx, respectively.
 adcDwellNyquist=deltak/gx.amplitude/ro_os;
 % round-down dwell time to 100 ns
 adcDwell=floor(adcDwellNyquist*1e7)*1e-7;
@@ -82,7 +98,7 @@ adcSamples=floor(readoutTime/adcDwell/4)*4; % on Siemens the number of ADC sampl
 adc = mr.makeAdc(adcSamples,'Dwell',adcDwell,'Delay',blip_dur/2);
 % realign the ADC with respect to the gradient
 time_to_center=adc.dwell*((adcSamples-1)/2+0.5); % I've been told that Siemens samples in the center of the dwell period
-adc.delay=round((gx.riseTime+gx.flatTime/2-time_to_center)*1e6)*1e-6; % we adjust the delay to align the trajectory with the gradient. We have to aligh the delay to 1us 
+adc.delay=round((gx.riseTime+gx.flatTime/2-time_to_center)*1e6)*1e-6; % we adjust the delay to align the trajectory with the gradient. We have to aligh the delay to 1us
 % this rounding actually makes the sampling points on odd and even readouts
 % to appear misalligned. However, on the real hardware this misalignment is
 % much stronger anyways due to the grdient delays
@@ -135,10 +151,10 @@ assert(delayTE2>=0);
 % delayTE2 is our window for small_delta
 % delayTE1+delayTE2-delayTE2 is our big delta
 % we anticipate that we will use the maximum gradient amplitude, so we need
-% to shorten delayTE2 by gmax/max_sr to accommodate the ramp down 
+% to shorten delayTE2 by gmax/max_sr to accommodate the ramp down
 small_delta=delayTE2-ceil(lims.maxGrad/lims.maxSlew/lims.gradRasterTime)*lims.gradRasterTime;
 big_delta=delayTE1+mr.calcDuration(rf180,gz180n);
-% we define bFactCalc function below to eventually calculate time-optimal 
+% we define bFactCalc function below to eventually calculate time-optimal
 % gradients. for now we just abuse it with g=1 to give us the coefficient
 g=sqrt(bFactor*1e6/bFactCalc(1,small_delta,big_delta)); % for now it looks too large!
 gr=ceil(g/lims.maxSlew/lims.gradRasterTime)*lims.gradRasterTime;
@@ -212,7 +228,11 @@ xlabel('block number');
 blockStartTime=cumsum([0 seq.blockDurations]);
 halfIntIndex=1:0.5:length(seq.blockDurations);
 figure; hold on;
-xline(blockStartTime,'color','#808080');
+if ~mr.aux.isOctave()
+  xline(blockStartTime,'color','#808080');
+else
+  plot([blockStartTime; blockStartTime],[-0.05 1.05].'*ones(size(blockStartTime)),'color','#808080');
+end
 plot(blockStartTime(round(halfIntIndex)),lbls.PMC(floor(halfIntIndex)),'-','LineWidth',1);
 ylim([-0.05 1.05]);
 title('evolution of the PMC flag with block lines');
@@ -226,28 +246,16 @@ seq.paperPlot('blockRange',[1 41]);
 seq.setDefinition('FOV', [fov fov thickness*Nslices]);
 seq.setDefinition('Name', 'epi-diff');
 
-seq.write('epidiff_rs_pmc.seq'); 
+seq.write('epidiff_rs_pmc.seq');
 
 % seq.install('siemens');
 
 % seq.sound(); % simulate the seq's tone
+return
 
-%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
+%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits
 
-rep = seq.testReport; 
-fprintf([rep{:}]); 
+rep = seq.testReport;
+fprintf([rep{:}]);
 
-%%
-function b=bFactCalc(g, delta, DELTA)
-% see DAVY SINNAEVE Concepts in Magnetic Resonance Part A, Vol. 40A(2) 39–65 (2012) DOI 10.1002/cmr.a
-% b = gamma^2  g^2 delta^2 sigma^2 (DELTA + 2 (kappa - lambda) delta)
-% in pulseq we don't need gamma as our gradinets are Hz/m
-% however, we do need 2pi as diffusion equations are all based on phase
-% for rect gradients: sigma=1 lambda=1/2 kappa=1/3 
-% for trapezoid gradients: TODO
-sigma=1;
-%lambda=1/2;
-%kappa=1/3;
-kappa_minus_lambda=1/3-1/2;
-b= (2*pi * g * delta * sigma)^2 * (DELTA + 2*kappa_minus_lambda*delta);
-end
+
