@@ -81,3 +81,9 @@ hold; plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.');
 
 seq.write('epi.seq');   % Output sequence for scanner
 % seq.sound(); % simulate the seq's tone
+
+%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits
+
+rep = seq.testReport;
+fprintf([rep{:}]);
+
