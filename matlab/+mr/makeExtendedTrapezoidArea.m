@@ -1,107 +1,193 @@
-function [grad, times, amplitudes] = makeExtendedTrapezoidArea(channel, Gs, Ge, A, sys)
-% make shortest possible extended trapezoid with a given area
-% which starts and ends (optionally) as non-zero gradient values
+function [grad, times, amplitudes] = makeExtendedTrapezoidArea(channel, grad_start, grad_end, area, sys)
+% Make the shortest possible extended trapezoid for a given area and edge values
+% This version is the one with the fixed flat top and was derived from the
+% corresponding PyPulseq version by by Mehmet Emin Öztürk. This implementation
+% is both faster and more accurate than the previous one and it runs in Octave.
+% Main methodology in explained in Python version
+% Some variable names might also be different
 
-% This is an upgraded version of the makeExtendedTrapezoidArea function
-% modified by Mehmet Emin Öztürk in 2024,
-% who is a Master student from Bilkent University, Turkey.
-
-SR=sys.maxSlew*0.99; % otherwise we run into rounding errors during resampling
-
-Tp=0;
-obj1=@(x) (A-testGA(x,0,SR,sys.gradRasterTime,Gs,Ge)).^2;
-
-% we seem to need a multistart...
-[Gp(1),obj1val(1),exitf(1)] = fminsearch(obj1,-sys.maxGrad);
-[Gp(2),obj1val(2),exitf(2)] = fminsearch(obj1,0);
-[Gp(3),obj1val(3),exitf(3)] = fminsearch(obj1,sys.maxGrad);
-[~,imin]=min(obj1val);
-Gp=Gp(imin);
-obj1val=obj1val(imin);
-exitf=exitf(imin);
-
-if  obj1val>1e-3 || ... % the search did not converge
-    abs(Gp)> sys.maxGrad
-    Gp=sys.maxGrad*sign(Gp);
-    obj2=@(x) (A-testGA(Gp,x,SR,sys.gradRasterTime,Gs,Ge)).^2;
-    [T,obj2val,exitf] = fminsearch(obj2,0);
-    Tp=ceil(T/sys.gradRasterTime)*sys.gradRasterTime;
-    
-    % fix the ramps
-    Tru=ceil(abs(Gp-Gs)/SR/sys.gradRasterTime)*sys.gradRasterTime;
-    Trd=ceil(abs(Gp-Ge)/SR/sys.gradRasterTime)*sys.gradRasterTime;
-    obj3=@(x) (A-testGA1(x,Tru,Tp,Trd, Gs,Ge)).^2;
-
-    %obj3=@(x) (A-testGA(x,Tp,SR,sys.gradRasterTime,Gs,Ge)).^2;
-    [Gp,obj3val,exitf] = fminsearch(obj3,Gp);
-    assert(obj3val<1e-3); % did the final search converge?
-end
-
-if Tp<=0
-    Tp=-sys.gradRasterTime;
-    SR = sys.maxSlew*0.99;
-    area = 0;
-    while abs(area-A)>1e-3
-        Tp = Tp+sys.gradRasterTime;
-        obj3=@(x) (A-testGA1(x,ceil(abs(x-Gs)/SR/sys.gradRasterTime)*sys.gradRasterTime, ...
-            Tp,ceil(abs(x-Ge)/SR/sys.gradRasterTime)*sys.gradRasterTime, ...
-            Gs,Ge)).^2;
-        [Gp,~,~] = fminsearch(obj3,Gp);
-        if abs(Gp)>sys.maxGrad
-            Gp = sys.maxGrad*sign(Gp); 
-
-        end
-        Tru=ceil(abs(Gp-Gs)/SR/sys.gradRasterTime)*sys.gradRasterTime;
-        Trd=ceil(abs(Gp-Ge)/SR/sys.gradRasterTime)*sys.gradRasterTime;
-
-        area=testGA1(Gp, Tru, Tp, Trd, Gs, Ge);
+    if nargin < 5 || isempty(sys)
+        sys = default_opts(); % Define your default system
     end
-end
-assert(Tp>=0); % this was a nasty error condition when some of the above did not converge
 
-if Tp>0
-    times=cumsum([0 Tru Tp Trd]);
-    amplitudes=[Gs Gp Gp Ge];
-else
-    Tru=ceil(abs(Gp-Gs)/SR/sys.gradRasterTime)*sys.gradRasterTime;
-    Trd=ceil(abs(Gp-Ge)/SR/sys.gradRasterTime)*sys.gradRasterTime;
-    
-    if Trd>0
-        if Tru>0
-            times=cumsum([0 Tru Trd]);
-            amplitudes=[Gs Gp Ge];
-        else
-            times=cumsum([0 Trd]);
-            amplitudes=[Gs Ge];
+    max_slew = sys.maxSlew * 0.99;
+    max_grad = sys.maxGrad * 0.99;
+    raster_time = sys.gradRasterTime;
+
+    min_duration = max(round(calc_ramp_time(grad_end, grad_start, max_slew, raster_time) / raster_time), 2);
+
+    % Estimate upper bound duration
+    max_duration = max( ...
+        [round(calc_ramp_time(0, grad_start, max_slew, raster_time) / raster_time), ...
+        round(calc_ramp_time(0, grad_end, max_slew, raster_time) / raster_time), ...
+        min_duration]);
+
+    % Try to find a solution linearly
+    solution = [];
+    for duration = min_duration:max_duration
+        solution = find_solution(duration, area, grad_start, grad_end, max_slew, max_grad, raster_time);
+        if ~isempty(solution)
+            break;
         end
+    end
+
+    % Binary search if linear search failed
+    if isempty(solution)
+        duration = max_duration;
+        while isempty(solution)
+            duration = duration * 2;
+            solution = find_solution(duration, area, grad_start, grad_end, max_slew, max_grad, raster_time);
+        end
+
+        solution = binary_search(@(d) find_solution(d, area, grad_start, grad_end, max_slew, max_grad, raster_time), ...
+                                 floor(duration/2), duration);
+    end
+
+    time_ramp_up = solution(1) * raster_time;
+    flat_time    = solution(2) * raster_time;
+    time_ramp_down = solution(3) * raster_time;
+    grad_amp     = solution(4);
+
+    % Generate final time vector and amplitudes
+    if flat_time > 0
+        times = cumsum([0, time_ramp_up, flat_time, time_ramp_down]);
+        amplitudes = [grad_start, grad_amp, grad_amp, grad_end];
     else
-        times=cumsum([0 Tru]);
-        amplitudes=[Gs Ge];
+        times = cumsum([0, time_ramp_up, time_ramp_down]);
+        amplitudes = [grad_start, grad_amp, grad_end];
+    end
+
+    grad=mr.makeExtendedTrapezoid(channel,'system',sys,'times',times, 'amplitudes', amplitudes);
+    if abs(grad.area - area) >= 1e-3
+        error('Could not find a solution for area=%.6f.', area);
     end
 end
 
 
-grad=mr.makeExtendedTrapezoid(channel,'system',sys,'times',times, 'amplitudes', amplitudes);
-grad.area=testGA1(Gp, Tru, Tp, Trd, Gs, Ge);
-assert(abs(grad.area-A)<1e-3);
-assert(SR <= sys.maxSlew)
-assert(all(abs(amplitudes)<=sys.maxGrad))
+function time = to_raster(time_val, raster_time)
+    time = ceil(time_val / raster_time) * raster_time;
 end
 
-function ga = testGA(Gp, Tp, SR, dT, Gs, Ge)
-Tru=ceil(abs(Gp-Gs)/SR/dT)*dT;
-Trd=ceil(abs(Gp-Ge)/SR/dT)*dT;
-%ga=0.5*Tru*(Gp+Gs)+Gp*Tp+0.5*(Gp+Ge)*Trd;
-ga=testGA1(Gp, Tru, Tp, Trd, Gs, Ge);
+function t = calc_ramp_time(g1, g2, max_slew, raster_time)
+    t = to_raster(abs(g1 - g2) / max_slew, raster_time);
 end
 
-function ga = testGA1(Gp, Tru, Tp, Trd, Gs, Ge)
-ga=0.5*Tru.*(Gp+Gs)+Gp.*Tp+0.5*(Gp+Ge).*Trd;
+function sol = binary_search(fun, low, high)
+    while low < high - 1
+        mid = floor((low + high) / 2);
+        if ~isempty(fun(mid))
+            high = mid;
+        else
+            low = mid;
+        end
+    end
+    sol = fun(high);
 end
 
 
-function ga = testGA2(Gp, SR, Gs, Ge, dT)
-Tru=ceil(abs(Gp-Gs)/SR/dT)*dT;
-Trd=ceil(abs(Gp-Ge)/SR/dT)*dT;
-ga=0.5*Tru*(Gp+Gs)+0.5*(Gp+Ge)*Trd;
+function sol = find_solution(duration, area, grad_start, grad_end, max_slew, max_grad, raster_time)
+    sign_area = sign(area);
+    grad_amp = sign_area * max_grad;
+
+    % Convert to raster steps
+    ru_min = abs(grad_amp - grad_start) / max_slew / raster_time;
+    rd_min = abs(grad_amp - grad_end) / max_slew / raster_time;
+    flat_time = max(duration - ru_min - rd_min, 0);
+
+    % Check if feasible
+    approx_area = ru_min * (grad_amp + grad_start) + ...
+                  rd_min * (grad_amp + grad_end) + ...
+                  2 * flat_time * grad_amp;
+
+    if abs(2 * area / raster_time) > abs(approx_area)
+        sol = [];
+        return;
+    end
+
+    % Easy early solution: max_grad
+    ru = (duration * max_slew * raster_time + sign_area * (grad_end - grad_start)) / (2 * max_slew * raster_time);
+    if sign_area * grad_start + ru * max_slew * raster_time > max_grad + 1e-5
+        ru_steps = round(abs(grad_start - sign_area * max_grad) / max_slew / raster_time);
+        rd_steps = round(abs(grad_end - sign_area * max_grad) / max_slew / raster_time);
+        flat_steps = duration - ru_steps - rd_steps;
+        if flat_steps > 0
+            grad_amp = -(ru_steps * raster_time * grad_start + ...
+                         rd_steps * raster_time * grad_end - 2 * area) / ...
+                        ((ru_steps + 2 * flat_steps + rd_steps) * raster_time);
+            amps = [grad_start, grad_amp, grad_amp, grad_end];
+            t = cumsum([0, ru_steps, flat_steps, rd_steps]) * raster_time;
+            slew = diff(amps) ./ diff(t);
+            if max(abs(slew)) < max_slew + 1e-5 && max(abs(amps)) < max_grad
+                sol = [ru_steps, flat_steps, rd_steps, grad_amp];
+                return;
+            end
+        end
+    end
+
+    % Conservative downscaling
+    while abs(2 * area / raster_time) < abs(approx_area)
+        grad_amp = grad_amp / 2;
+        if abs(grad_amp) < abs(max_grad) / 10
+            ru_min = 0; rd_min = 0;
+            flat_time = max(duration - ru_min - rd_min, 0);
+            break;
+        end
+        ru_min = abs(grad_amp - grad_start) / max_slew / raster_time;
+        rd_min = abs(grad_amp - grad_end) / max_slew / raster_time;
+        flat_time = max(duration - ru_min - rd_min, 0);
+        approx_area = ru_min * (grad_amp + grad_start) + ...
+                      rd_min * (grad_amp + grad_end) + ...
+                      2 * flat_time * grad_amp;
+    end
+
+    % Convert to integer steps
+    ru_min = floor(ru_min);
+    rd_min = floor(rd_min);
+    ru_limit = ceil(abs(sign_area * max_grad - grad_start) / max_slew / raster_time) + 1;
+    rd_limit = ceil(abs(sign_area * max_grad - grad_end) / max_slew / raster_time) + 1;
+
+    % All combinations
+    [RU, RD] = meshgrid(ru_min:ru_limit, rd_min:rd_limit);
+    RU = RU(:);
+    RD = RD(:);
+    valid_mask = RD < (duration - RU);
+    RU = RU(valid_mask);
+    RD = RD(valid_mask);
+
+    % Flat = 0 case
+    num = (2 * area - duration * (grad_end + grad_start) * raster_time);
+    denom_min = (grad_start - grad_end + sign_area * duration * max_slew * raster_time);
+    denom_max = (-grad_start + grad_end + sign_area * duration * max_slew * raster_time);
+    ru_flat0_min = round(num / denom_min / raster_time);
+    ru_flat0_max = duration - round(num / denom_max / raster_time);
+
+    RU = [RU; (ru_flat0_min:ru_flat0_max)'];
+    RD = [RD; (duration - (ru_flat0_min:ru_flat0_max))'];
+
+    % Filter invalid ones
+    flat = duration - RU - RD;
+    valid = flat >= 0 & RU > 0 & RD > 0;
+    RU = RU(valid); RD = RD(valid); flat = flat(valid);
+
+    % Calculate amp
+    grad_amp = -(RU * raster_time * grad_start + RD * raster_time * grad_end - 2 * area) ./ ...
+               ((RU + 2 * flat + RD) * raster_time);
+
+    % Slew
+    slew1 = abs(grad_start - grad_amp) ./ (RU * raster_time);
+    slew2 = abs(grad_end - grad_amp) ./ (RD * raster_time);
+
+    % Valid gradient/slew combinations
+    valid = abs(grad_amp) <= max_grad + 1e-5 & slew1 <= max_slew + 1e-5 & slew2 <= max_slew + 1e-5;
+    if ~any(valid)
+        sol = [];
+        return;
+    end
+
+    % Pick lowest slew
+    ind = find(valid);
+    [~, min_idx] = min(slew1(ind) + slew2(ind));
+    best = ind(min_idx);
+
+    sol = [RU(best), flat(best), RD(best), grad_amp(best)];
 end
