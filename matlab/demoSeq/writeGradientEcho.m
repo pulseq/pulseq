@@ -109,6 +109,6 @@ hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits
 
-%rep = seq.testReport;
-%fprintf([rep{:}]);
+rep = seq.testReport;
+fprintf([rep{:}]);
 
