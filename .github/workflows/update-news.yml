@@ -1,0 +1,54 @@
+# Fetch the latest Announcements from GitHub Discussions and rebuild
+# the project website (Doxygen) whenever Discussions change or on a
+# weekly schedule.
+#
+# The generated announcements.html is committed back to the repository
+# so that the Doxygen build always has an up-to-date snippet.
+
+name: Update News from Discussions
+
+on:
+  # Run whenever a discussion is created, edited, or deleted
+  discussion:
+    types: [created, edited, deleted]
+
+  # Also run weekly to catch any changes we might have missed
+  schedule:
+    - cron: "0 6 * * *"  # Every night at 06:00 UTC
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+permissions:
+  contents: write       # to push the updated announcements.html
+  discussions: read     # to query discussions via GraphQL
+
+jobs:
+  update-announcements:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Fetch latest announcements
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 doc/fetch_announcements.py -n 3
+
+      - name: Commit updated snippet (if changed)
+        run: |
+          cd doc
+          if git diff --quiet announcements.html 2>/dev/null; then
+            echo "No changes to announcements.html"
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add announcements.html
+            git commit -m "Update announcements from GitHub Discussions"
+            git push
+          fi

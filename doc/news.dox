@@ -1,6 +1,8 @@
 /**
   \page news News
 
+\htmlinclude announcements.html
+
 ## February 24-26, 2026: A Three-Day ISMRM Virtual Meeting Series "Vendor-Agnostic Pulse Sequence Programming with Pulseq II"
 
 This is the second incarnation of the ISMRM Virtual Meeting Series dedicated to Pulseq. This three day course will provide a comprehensive introduction to Pulseq and its ecosystem, covering: (1) core and advanced Pulseq concepts; (2) vendor-specific implementation details and workflows, including hardware and patient safety considerations; (3) representative applications and third-party tools contributed by the user community; and (4) intellectual property and licensing issues relevant to open science. Please proceed to the <a href="https://github.com/pulseq/ISMRM-Virtual-Meeting--February-24-26-2026"> dedicated GitHub repository</a> for more information.
