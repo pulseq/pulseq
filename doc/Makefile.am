@@ -89,8 +89,8 @@ install-html-local: html $(EXTRA_DIST)
 
 html: 
 	test -d html || mkdir html
-	if test -d seqs; then cp -r seqs/* html/; fi
-	if test -d recon; then cp -r recon/* html/; fi
+	if test -d seqs; then cp -r seqs/* html/ || true; fi
+	if test -d recon; then cp -r recon/* html/ || true; fi
 	cp matlab.css html/
 	cp specification.pdf html/
 	cp pulseq_shapes_and_times.pdf html/
