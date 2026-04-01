@@ -1,9 +1,7 @@
-# Fetch the latest Announcements from GitHub Discussions and rebuild
-# the project website (Doxygen) whenever Discussions change or on a
-# weekly schedule.
+# Fetch the latest Announcements from GitHub Discussions, rebuild the
+# Doxygen website, and push the result to pulseq/pulseq.github.io.
 #
-# The generated announcements.html is committed back to the repository
-# so that the Doxygen build always has an up-to-date snippet.
+# Triggers when Discussions change, on a daily schedule, or manually.
 
 name: Update News from Discussions
 
@@ -12,24 +10,41 @@ on:
   discussion:
     types: [created, edited, deleted]
 
-  # Also run weekly to catch any changes we might have missed
+  # Also run daily to catch any changes we might have missed
   schedule:
-    - cron: "0 6 * * *"  # Every night at 06:00 UTC
+    - cron: "0 6 * * 1"  # Every Sunday-to-Monday night at 06:00 UTC
 
   # Allow manual trigger
   workflow_dispatch:
 
 permissions:
-  contents: write       # to push the updated announcements.html
+  contents: write       # to push announcements.html back to this repo
   discussions: read     # to query discussions via GraphQL
 
 jobs:
-  update-announcements:
+  update-website:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      # -----------------------------------------------------------
+      # 1. Check out both repositories side-by-side so that
+      #    make install-html (which copies to ../pulseq.github.io)
+      #    finds the target directory.
+      # -----------------------------------------------------------
+      - name: Checkout source repository (pulseq_internal)
         uses: actions/checkout@v4
+        with:
+          path: pulseq_internal
 
+      - name: Checkout website repository (pulseq.github.io)
+        uses: actions/checkout@v4
+        with:
+          repository: pulseq/pulseq.github.io
+          token: ${{ secrets.WEBSITE_DEPLOY_TOKEN }}
+          path: pulseq.github.io
+
+      # -----------------------------------------------------------
+      # 2. Fetch latest announcements from GitHub Discussions
+      # -----------------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -38,17 +53,58 @@ jobs:
       - name: Fetch latest announcements
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 doc/fetch_announcements.py -n 3
+        working-directory: pulseq_internal/doc
+        run: python3 fetch_announcements.py -n 3
 
-      - name: Commit updated snippet (if changed)
+      - name: Commit announcements.html to source repo (if changed)
+        id: check_announcements
+        working-directory: pulseq_internal
         run: |
-          cd doc
-          if git diff --quiet announcements.html 2>/dev/null; then
+          if git diff --quiet doc/announcements.html 2>/dev/null; then
             echo "No changes to announcements.html"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             git config user.name  "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add announcements.html
+            git add doc/announcements.html
             git commit -m "Update announcements from GitHub Discussions"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # -----------------------------------------------------------
+      # 3. Install build dependencies and build the Doxygen website
+      # -----------------------------------------------------------
+      - name: Install build dependencies
+        if: steps.check_announcements.outputs.changed == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            doxygen graphviz texlive-latex-base texlive-latex-recommended \
+            texlive-latex-extra texlive-fonts-recommended \
+            imagemagick autoconf automake make
+
+      - name: Configure and build website
+        if: steps.check_announcements.outputs.changed == 'true'
+        working-directory: pulseq_internal
+        run: |
+          autoreconf -fi
+          ./configure --enable-documentation
+          make install-html
+
+      # -----------------------------------------------------------
+      # 4. Push updated website to pulseq.github.io
+      # -----------------------------------------------------------
+      - name: Push to pulseq.github.io
+        if: steps.check_announcements.outputs.changed == 'true'
+        working-directory: pulseq.github.io
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "Website content unchanged, nothing to push."
+          else
+            git add -A
+            git commit -m "Rebuild website (updated announcements)"
             git push
           fi
