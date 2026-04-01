@@ -90,7 +90,8 @@ jobs:
         run: |
           autoreconf -fi
           ./configure --enable-documentation
-          make install-html
+          make html
+          cp doc/html/news.html ../pulseq.github.io/
 
       # -----------------------------------------------------------
       # 4. Push updated website to pulseq.github.io
