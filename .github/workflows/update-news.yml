@@ -30,10 +30,10 @@ jobs:
       #    make install-html (which copies to ../pulseq.github.io)
       #    finds the target directory.
       # -----------------------------------------------------------
-      - name: Checkout source repository (pulseq_internal)
+      - name: Checkout source repository (pulseq)
         uses: actions/checkout@v4
         with:
-          path: pulseq_internal
+          path: pulseq
 
       - name: Checkout website repository (pulseq.github.io)
         uses: actions/checkout@v4
@@ -53,12 +53,12 @@ jobs:
       - name: Fetch latest announcements
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        working-directory: pulseq_internal/doc
+        working-directory: pulseq/doc
         run: python3 fetch_announcements.py -n 3
 
       - name: Commit announcements.html to source repo (if changed)
         id: check_announcements
-        working-directory: pulseq_internal
+        working-directory: pulseq
         run: |
           if git diff --quiet doc/announcements.html 2>/dev/null; then
             echo "No changes to announcements.html"
@@ -86,7 +86,7 @@ jobs:
 
       - name: Configure and build website
         if: steps.check_announcements.outputs.changed == 'true'
-        working-directory: pulseq_internal
+        working-directory: pulseq
         run: |
           autoreconf -fi
           ./configure --enable-documentation
