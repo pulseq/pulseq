@@ -88,8 +88,8 @@ install-html-local: html $(EXTRA_DIST)
 
 html: 
 	test -d html || mkdir html
-	test -d seqs || cp -r seqs/* html/
-	test -d recon || cp -r recon/* html/
+	test -d seqs && cp -r seqs/* html/
+	test -d recon && cp -r recon/* html/
 	cp matlab.css html/
 	cp specification.pdf html/
 	cp pulseq_shapes_and_times.pdf html/
