@@ -31,6 +31,7 @@ double SeqBlock::s_gradientRaster = 10.0;
 
 /***********************************************************/
 ExternalSequence::ExternalSequence()
+	: m_isArbGradCenterSampling(true)
 {
 	m_blocks.clear();	// probably not needed.
 	version_major=0;
@@ -1434,10 +1435,19 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 				block->gradWaveforms[iC-GX] = std::vector<float>((waveform.size()+1)/2);
 				std::vector<float>::iterator it_os=waveform.begin();
 				for (std::vector<float>::iterator it=block->gradWaveforms[iC-GX].begin(); it !=block->gradWaveforms[iC-GX].end(); ++it){
-					*it=*it_os;
-					// std::advance(it_os,2); // this doen't work because of the odd number of elements 
-					++it_os;
-					if (it_os!=waveform.end())
+					if (m_isArbGradCenterSampling)
+					{
+						*it = *it_os;
+						// std::advance(it_os,2); // this doen't work because of the odd number of elements 
+						++it_os;
+					}
+					else
+					{
+						++it_os;
+						*it = *it_os;
+					}
+
+					if (it_os != waveform.end())
 						++it_os;
 				}
 			}
