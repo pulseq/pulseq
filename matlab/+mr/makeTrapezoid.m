@@ -1,23 +1,90 @@
 function grad=makeTrapezoid(channel, varargin)
 %makeTrapezoid Create a trapezoid gradient event.
-%   g=makeTrapezoid(channel, ...) Create trapezoid gradient on
-%   the given channel.
 %
-%   g=makeTrapezoid(channel,lims,...) Create trapezoid with the specificed 
-%   gradient limits (e.g. amplitude, slew).
+%   PURPOSE
+%     Build a trapezoidal gradient event struct (rise / flat-top / fall)
+%     for a given logical channel. The returned struct is consumed by
+%     mr.Sequence/addBlock to add the gradient to a sequence.
 %
-%   g=makeTrapezoid(...,'Duration',d,'Area',a) Create a
-%   trapezoid gradient with given duration (s) and total area (1/m)
-%   including ramps.
+%   SIGNATURES
+%     g = mr.makeTrapezoid(channel, ...)                       % uses mr.opts() defaults
+%     g = mr.makeTrapezoid(channel, system, ...)               % system as 2nd positional arg
+%     g = mr.makeTrapezoid(channel, ..., 'system', system)     % system as name/value
+%     g = mr.makeTrapezoid(channel, ..., 'Duration', d, 'Area', a)
+%     g = mr.makeTrapezoid(channel, ..., 'FlatTime', ft, 'FlatArea', fa)
+%     g = mr.makeTrapezoid(channel, ..., 'FlatTime', ft, 'Amplitude', amp)
+%     g = mr.makeTrapezoid(channel, ..., 'Area', a)            % shortest possible timing
 %
-%   g=makeTrapezoid(...,'FlatTime',d,'FlatArea',a) Create a
-%   trapezoid gradient with given flat-top time and flat-top
-%   area not including ramps.
+%     Exactly one of 'Area', 'FlatArea', or 'Amplitude' must be supplied.
+%     Timing is determined by 'FlatTime' if given, else 'Duration' if given,
+%     else the shortest realizable timing for the requested 'Area'.
+%     Parameter names are case-insensitive.
 %
-%   g=makeTrapezoid(...,'Amplitude',a) Create a trapezoid gradient with
-%   given amplitude (Hz/m).
+%   INPUTS
+%     channel     char    'x'|'y'|'z'                                   required
+%     system      struct  from mr.opts; defaults to mr.opts() if omitted optional
+%     'Duration'  double  total duration including ramps, seconds, >0   name/value
+%     'Area'      double  total gradient area including ramps, 1/m      name/value
+%     'FlatTime'  double  flat-top duration, seconds                    name/value
+%     'FlatArea'  double  flat-top-only area, 1/m                       name/value
+%     'Amplitude' double  flat-top amplitude, Hz/m                      name/value
+%     'maxGrad'   double  override system.maxGrad, Hz/m                 name/value
+%     'maxSlew'   double  override system.maxSlew, Hz/m/s               name/value
+%     'riseTime'  double  force rise time, seconds                      name/value
+%     'fallTime'  double  force fall time, seconds (requires riseTime)  name/value
+%     'delay'     double  pre-event delay, seconds, default 0           name/value
 %
-%   See also  Sequence.addBlock  mr.opts
+%   OUTPUT
+%     grad  struct with fields:
+%       .type       char,    always 'trap' (includes degenerate triangle, flatTime=0)
+%       .channel    char,    'x'|'y'|'z'
+%       .amplitude  double,  flat-top amplitude, Hz/m
+%       .riseTime   double,  ramp-up duration, seconds
+%       .flatTime   double,  flat-top duration, seconds (0 for triangular)
+%       .fallTime   double,  ramp-down duration, seconds
+%       .area       double,  total area including ramps, 1/m
+%                            (= amplitude * (flatTime + riseTime/2 + fallTime/2))
+%       .flatArea   double,  flat-top-only area, 1/m  (= amplitude * flatTime)
+%       .delay      double,  pre-event delay, seconds
+%       .first      double,  gradient value at t=0,  Hz/m  (always 0 for trap)
+%       .last       double,  gradient value at end,  Hz/m  (always 0 for trap)
+%
+%   ERRORS
+%     makeTrapezoid:invalidArguments
+%       - 'fallTime' specified without 'riseTime'.
+%       - Not exactly one of 'Area' / 'FlatArea' / 'Amplitude' supplied.
+%       - 'FlatTime' supplied without 'FlatArea' or 'Amplitude'.
+%       - Neither 'Area' nor 'Duration' supplied.
+%     makeTrapezoid:invalidDuration
+%       - Requested area cannot be realized within the requested duration
+%         under maxGrad/maxSlew. Error message reports the minimum
+%         achievable duration in microseconds.
+%     makeTrapezoid:invalidAmplitude
+%       - Computed amplitude exceeds maxGrad.
+%     Assertion failure
+%       - With explicit riseTime+duration: duration < riseTime+fallTime,
+%         or computed amplitude exceeds maxGrad.
+%
+%   NOTES
+%     - All ramp/flat times are rounded up to system.gradRasterTime.
+%     - Internal storage uses Hz/m and Hz/m/s regardless of the units
+%       passed to mr.opts (mr.opts converts on input). Use mr.convert
+%       if you need physical units (mT/m, T/m/s, etc.).
+%     - Caches an inputParser in a persistent variable for performance;
+%       no other global state.
+%
+%   EXAMPLE
+%     sys = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
+%                   'MaxSlew', 170, 'SlewUnit', 'T/m/s');
+%     Nx = 256;  fov = 256e-3;  deltak = 1/fov;
+%     % Readout gradient with fixed flat-top area
+%     gx    = mr.makeTrapezoid('x', sys, 'FlatArea', Nx*deltak, 'FlatTime', 6.4e-3);
+%     % Matching prephaser: half the (negative) area of the readout
+%     gxPre = mr.makeTrapezoid('x', sys, 'Area', -gx.area/2, 'Duration', 1e-3);
+%
+%   SEE ALSO
+%     mr.opts, mr.makeExtendedTrapezoid, mr.makeArbitraryGrad,
+%     mr.calcDuration, mr.Sequence/addBlock
 
 persistent parser
 
