@@ -52,7 +52,7 @@ if isempty(parser)
     parser.addParamValue('slewUnit',validSlewUnits{1},...
         @(x) any(validatestring(x,validSlewUnits)));
     parser.addParamValue('b1Unit',validB1Units{1},...
-        @(x) any(validatestring(x,validSlewUnits)));
+        @(x) any(validatestring(x,validB1Units)));
     parser.addParamValue('maxGrad',[],@isnumeric);
     parser.addParamValue('maxSlew',[],@isnumeric);
     parser.addParamValue('maxB1',[],@isnumeric);
