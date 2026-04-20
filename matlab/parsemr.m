@@ -17,7 +17,8 @@ try
         
         try
             % Read text file
-            seq.read(file,'detectRFuse');
+            %seq.read(file,'detectRFuse');
+            seq.read(file);
         catch
             % Read binary file
             seq.readBinary(file);
@@ -38,6 +39,6 @@ try
     end
 catch e
     disp(e)
-    fprintf('Error detected, exiting MATLAB...\n');
+    fprintf('Error detected, exiting ...\n');
     rethrow(e)
 end

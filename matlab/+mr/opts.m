@@ -22,7 +22,8 @@ if isempty(defaultStandardOpts)
         'blockDurationRaster',10e-6,...
         'adcSamplesLimit',0,... % 0 means no limit
         'rfSamplesLimit',0,... % 0 means no limit
-        'adcSamplesDivisor',4,... % the number of which the adc.numSamples should be integer multiple 
+        'adcSamplesDivisor',4,... % the number of which the adc.numSamples should be integer multiple
+        'flag_trid', true,... % default: true; false -> can be used to ignore seq.addTRID() statements
         'gamma',42576000,...
         'B0',1.5...
     );
@@ -51,7 +52,7 @@ if isempty(parser)
     parser.addParamValue('slewUnit',validSlewUnits{1},...
         @(x) any(validatestring(x,validSlewUnits)));
     parser.addParamValue('b1Unit',validB1Units{1},...
-        @(x) any(validatestring(x,validSlewUnits)));
+        @(x) any(validatestring(x,validB1Units)));
     parser.addParamValue('maxGrad',[],@isnumeric);
     parser.addParamValue('maxSlew',[],@isnumeric);
     parser.addParamValue('maxB1',[],@isnumeric);
@@ -66,12 +67,20 @@ if isempty(parser)
     parser.addParamValue('adcSamplesLimit',defaultOpts.adcSamplesLimit,@isnumeric);
     parser.addParamValue('rfSamplesLimit',defaultOpts.rfSamplesLimit,@isnumeric);
     parser.addParamValue('adcSamplesDivisor',defaultOpts.adcSamplesDivisor,@isnumeric);
+    parser.addParamValue('flag_trid',defaultOpts.flag_trid,@(x) islogical(x) || isnumeric(x));
     parser.addParamValue('gamma',defaultOpts.gamma,@isnumeric); % Hz/T
     parser.addParamValue('B0',defaultOpts.B0,@isnumeric); % T
     parser.addParamValue('setAsDefault',false,@islogical);
+    parser.addParamValue('resetDefault',false,@islogical);
 end
 parse(parser,varargin{:});
 opt = parser.Results;
+
+if opt.resetDefault
+    defaultUserOpts=[];
+    parser=[];
+    return;
+end
 
 if isempty(opt.maxB1)
     maxB1 = defaultOpts.maxB1;
@@ -107,6 +116,7 @@ out.blockDurationRaster = opt.blockDurationRaster;
 out.adcSamplesLimit = opt.adcSamplesLimit;
 out.rfSamplesLimit = opt.rfSamplesLimit;
 out.adcSamplesDivisor = opt.adcSamplesDivisor;
+out.flag_trid = logical(opt.flag_trid);
 out.gamma=opt.gamma;
 out.B0=opt.B0;
 

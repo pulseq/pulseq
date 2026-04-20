@@ -30,7 +30,8 @@ if BUILD_DOCS
 DOXY_STAMP = doxygen-build.stamp
 DOXY_FILE = doxy.conf
 DOXY_AUX = header.html footer.html customstyles.css matlab.css DoxygenLayout.xml
-HTML_AUX = $(top_srcdir)/doc/html/demoWriteGre.html $(top_srcdir)/doc/html/demoWriteRf.html $(top_srcdir)/doc/html/demoRead.html $(top_srcdir)/doc/html/Sequence.html
+#HTML_AUX = $(top_srcdir)/doc/html/demoWriteGre.html $(top_srcdir)/doc/html/demoWriteRf.html $(top_srcdir)/doc/html/demoRead.html $(top_srcdir)/doc/html/Sequence.html
+HTML_AUX =
 WEBSITE_AUX = $(LATEX_BASENAME).pdf logo_hires.png README.md favicon.ico images/gre.png images/rf2d.png images/overview.png
 EXTRA_DIST += $(DOXY_FILE).in doxygen-build.stamp
 
@@ -88,8 +89,8 @@ install-html-local: html $(EXTRA_DIST)
 
 html: 
 	test -d html || mkdir html
-	test -d seq || cp -r seqs/* html/
-	test -d recon || cp -r recon/* html/
+	if test -d seqs; then cp -r seqs/* html/ || true; fi
+	if test -d recon; then cp -r recon/* html/ || true; fi
 	cp matlab.css html/
 	cp specification.pdf html/
 	cp pulseq_shapes_and_times.pdf html/

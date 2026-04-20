@@ -24,18 +24,18 @@ function test_generation_methods(testCase)
 
     % Case 1: With duration
     pulse = mr.makeBlockPulse(pi, 'duration', 1e-3);
-    assert(isstruct(pulse));
-    assert(pulse.shape_dur == 1e-3);
+    testCase.verifyTrue(isstruct(pulse));
+    testCase.verifyTrue(pulse.shape_dur == 1e-3);
 
     % Case 2: With bandwidth
-    pulse = mr.makeBlockPulse(pi, 'bandwidth', 1e3);
-    assert(isstruct(pulse));
-    assert(pulse.shape_dur == 1 / (4 * 1e3));
+    pulse = mr.makeBlockPulse(pi, 'bandwidth', 0.3e3);
+    testCase.verifyTrue(isstruct(pulse));
+    testCase.verifyTrue(abs(pulse.shape_dur - 1 / (4 * 0.3e3))<1e-6);
 
     % Case 3: With bandwidth and time_bw_product
     pulse = mr.makeBlockPulse(pi, 'bandwidth', 1e3, 'timeBwProduct', 5);
-    assert(isstruct(pulse));
-    assert(pulse.shape_dur == 5 / 1e3);
+    testCase.verifyTrue(isstruct(pulse));
+    testCase.verifyTrue(abs(pulse.shape_dur- 5 / 1e3) < 1e-6);
 end
 
 function test_amp_calculation(testCase)

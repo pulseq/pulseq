@@ -13,21 +13,24 @@ defaultM = false;
 defaultD = 0;
 %temporalTolerance=1e-9; % 1ns
 
-p=inputParser;
-addRequired(p, 'obj');
-
-% addParameter(p, 'calcB', defaultB);
-% addParameter(p, 'calcm1', defaultM);
-% addParameter(p, 'calcm2', defaultM);
-% addParameter(p, 'calcm3', defaultM);
-% addParameter(p, 'Ndummy', defaultD);
-
-% Add optional arguments with default values
-addOptional(p, 'calcB', defaultB);
-addOptional(p, 'calcm1', defaultM);
-addOptional(p, 'calcm2', defaultM);
-addOptional(p, 'calcm3', defaultM);
-addOptional(p, 'Ndummy', defaultD);
+persistent p;
+if isempty(p)
+    p=mr.aux.InputParserCompat;
+    addRequired(p, 'obj');
+    
+    % addParameter(p, 'calcB', defaultB);
+    % addParameter(p, 'calcm1', defaultM);
+    % addParameter(p, 'calcm2', defaultM);
+    % addParameter(p, 'calcm3', defaultM);
+    % addParameter(p, 'Ndummy', defaultD);
+    
+    % Add optional arguments with default values
+    addOptional(p, 'calcB', defaultB);
+    addOptional(p, 'calcm1', defaultM);
+    addOptional(p, 'calcm2', defaultM);
+    addOptional(p, 'calcm3', defaultM);
+    addOptional(p, 'Ndummy', defaultD);
+end
 
 % Parse the input
 parse(p, obj, varargin{:});
@@ -124,9 +127,9 @@ if calcB
     qx_pp = cell(1,R);
    
     for i = 1:R
-        qx_pp{i}=fnint(gx_pp{i});
-        qy_pp{i}=fnint(gy_pp{i});
-        qz_pp{i}=fnint(gz_pp{i});
+        qx_pp{i}=compat_fnint(gx_pp{i});
+        qy_pp{i}=compat_fnint(gy_pp{i});
+        qz_pp{i}=compat_fnint(gz_pp{i});
 
         qx_pp{i}.coefs = qx_pp{i}.coefs*2*pi;
         qy_pp{i}.coefs = qy_pp{i}.coefs*2*pi;
@@ -157,7 +160,7 @@ if calcB
                     coefs(k,:)=conv(q_pp{i}.coefs(k,:),q_pp{j}.coefs(k,:));
                 end
                 Bpp_div = mkpp(qx_pp{m}.breaks,coefs);
-                Bpp = fnint(Bpp_div);
+                Bpp = compat_fnint(Bpp_div);
                 %evaluate b-value at TE
                 B(m,i,j) = ppval(Bpp,tSeq(3 + 3*(m-1+Ndummy)));
             end
@@ -193,9 +196,9 @@ if calcm1
         tgy_pp = mkpp(gy_pp{i}.breaks, new_cy);
         tgz_pp = mkpp(gz_pp{i}.breaks, new_cz);
 
-        m1x_pp{i}=fnint(tgx_pp);
-        m1y_pp{i}=fnint(tgy_pp);
-        m1z_pp{i}=fnint(tgz_pp);
+        m1x_pp{i}=compat_fnint(tgx_pp);
+        m1y_pp{i}=compat_fnint(tgy_pp);
+        m1z_pp{i}=compat_fnint(tgz_pp);
         m1x_pp{i}.coefs = m1x_pp{i}.coefs*2*pi;
         m1y_pp{i}.coefs = m1y_pp{i}.coefs*2*pi;
         m1z_pp{i}.coefs = m1z_pp{i}.coefs*2*pi;
@@ -239,9 +242,9 @@ if calcm2
         tgy_pp = mkpp(gy_pp{i}.breaks, new_cy);
         tgz_pp = mkpp(gz_pp{i}.breaks, new_cz);
         
-        m2x_pp{i}=fnint(tgx_pp);
-        m2y_pp{i}=fnint(tgy_pp);
-        m2z_pp{i}=fnint(tgz_pp);
+        m2x_pp{i}=compat_fnint(tgx_pp);
+        m2y_pp{i}=compat_fnint(tgy_pp);
+        m2z_pp{i}=compat_fnint(tgz_pp);
         m2x_pp{i}.coefs = m2x_pp{i}.coefs*2*pi;
         m2y_pp{i}.coefs = m2y_pp{i}.coefs*2*pi;
         m2z_pp{i}.coefs = m2z_pp{i}.coefs*2*pi;
@@ -296,9 +299,9 @@ if calcm3
         tgy_pp = mkpp(gy_pp{i}.breaks, new_cy);
         tgz_pp = mkpp(gz_pp{i}.breaks, new_cz);
         
-        m3x_pp{i}=fnint(tgx_pp);
-        m3y_pp{i}=fnint(tgy_pp);
-        m3z_pp{i}=fnint(tgz_pp);
+        m3x_pp{i}=compat_fnint(tgx_pp);
+        m3y_pp{i}=compat_fnint(tgy_pp);
+        m3z_pp{i}=compat_fnint(tgz_pp);
         m3x_pp{i}.coefs = m3x_pp{i}.coefs*2*pi;
         m3y_pp{i}.coefs = m3y_pp{i}.coefs*2*pi;
         m3z_pp{i}.coefs = m3z_pp{i}.coefs*2*pi;
@@ -357,5 +360,14 @@ function idx=sintlookup(what,where)
         if isempty(i), continue; end
         idx(c)=wb+i(end)-1;
         wb=idx(c);
+    end
+end
+
+function pp_out = compat_fnint(pp_in)
+% Octave-compatible wrapper: use ppint (built-in) on Octave, fnint on MATLAB
+    if mr.aux.isOctave()
+        pp_out = ppint(pp_in);
+    else
+        pp_out = fnint(pp_in);
     end
 end

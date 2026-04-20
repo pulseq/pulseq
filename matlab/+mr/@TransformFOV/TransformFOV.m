@@ -1,8 +1,9 @@
 classdef TransformFOV < handle
 
     properties (Access = public)
-        rotation=[]; % 3x3 rotation matrix or empty matrix if none
-        translation=[]; % 1x3 vector or empty matrix if none        
+        rotation=[];    % 3x3 rotation matrix or empty matrix if none
+        translation=[]; % 1x3 vector or empty matrix if none
+        scale=[];       % 1x3 vector or empty if none
     end
 
     properties (Access = private)
@@ -17,6 +18,45 @@ classdef TransformFOV < handle
     methods
 
         function obj = TransformFOV(varargin)
+            % Creates an instance of the TransformFOV object, which can
+            % then be applied to shift, rotate or scale the imaging volume
+            % either of a single block, range of blocks or the entire
+            % sequence. The optional input parameters are:
+            %   rotation:    3x3 rotation matrix
+            %   translation: 1x3 translation vector in the original
+            %                (non-rotated) logical Pulseq coordinates
+            %   scale:       1x3 scailing vector in the original
+            %                (non-rotated) logical Pulseq coordinates
+            %   transform:   4x4 homogeneous transform matrix, used as an
+            %                alternative to a combination of 'rotation' and
+            %                'translation'. If 'tansform' is specified
+            %                neither 'translation' nor 'rotation' can be
+            %                used. However, 'scale' parameter can be used
+            %                in combination with 'transform'. In contrast
+            %                to 'translation', the translation part of the
+            %                'transform' matrix is in the world/lab (e.g.
+            %                new, rotated) coordinates in accordance with
+            %                the standard homogeneous transform definition 
+            %   use_rotation_extension: defines whether the gradient events
+            %                are rotated immediately by the function, or
+            %                whether the rotation extension should be used
+            %                and the actual rotation will then be applied
+            %                by the interpreter. If the input sequence
+            %                readily uses rotation extension and
+            %                'use_rotation_extension' is False, the
+            %                gradient events  will be transformed by the
+            %                stored rotation extension information prior to
+            %                further calculations
+            %   prior_phase_cycle: allows to specify previously accumulated
+            %                phase, e.g. for combining different instances
+            %                of the FOV position classes
+            %
+            % The order of transformations is as follows: 
+            % scale, translation, rotation. Translation and rotation can be
+            % mixed in into the homogeneous transform matrix, but that
+            % must exclude scaling, which then may still be provided
+            % separately 
+            %
 
             persistent parser
             if isempty(parser)
@@ -25,11 +65,10 @@ classdef TransformFOV < handle
                 
                 addParameter(parser, 'rotation',  [], @(m) (isnumeric(m) && all(size(m)==[3 3])));
                 addParameter(parser, 'translation',  [], @(m) (isnumeric(m) && size(m,2)==3 && length(m)==3));
-                %addParameter(parser, 'scale',  [], @(m) (isnumeric(m) && size(m,2)==3 && length(m)==3)); % MZ: TODO
-                addParamValue(parser, 'transform', [], @(m) (isnumeric(m) && all(size(m)==[4 4])));
+                addParameter(parser, 'scale',  [], @(m) (isnumeric(m) && size(m,2)==3 && length(m)==3)); 
+                addParameter(parser, 'transform', [], @(m) (isnumeric(m) && all(size(m)==[4 4])));
                 addParameter(parser, 'use_rotation_extension',  false, @(m) (islogical(m) && numel(m)==1));
                 addParameter(parser, 'prior_phase_cycle',  0, @(m) (isnumeric(m) && numel(m)==1));
-                % addParameter(parser, 'high_accuracy',  false, @(m) (islogical(m) && length(m)==1));
                 addParameter(parser, 'system', [], @isstruct); 
             end
 
@@ -42,16 +81,18 @@ classdef TransformFOV < handle
                 end
                 opt.rotation=opt.transform(1:3,1:3);
                 off=opt.transform(4,1:3); % TODO: check whether this is indeed the column
-                opt.translation=opt.rotation*off; % TODO: check the direction of the roration (or inverse)
-            elseif isempty(opt.rotation) && isempty(opt.translation)
+                opt.translation=opt.rotation*off'; % TODO: check the direction of the rotation (or inverse)
+                %off=opt.transform(1:3,4); % alternative - translation column of the standard 4x4 homogeneous matrix
+                %opt.translation=(opt.rotation*off)'; % TODO: check the direction of the rotation (or inverse)
+            elseif isempty(opt.rotation) && isempty(opt.translation) && isempty(opt.scale)
                 error('At least one transforming parameter needs to be provided');
             end
 
             obj.rotation=opt.rotation;
             obj.translation=opt.translation;
+            obj.scale=opt.scale;
             obj.prior_phase_cycle=opt.prior_phase_cycle;
             obj.use_rotation_extension=opt.use_rotation_extension;
-            % obj.high_accuracy=opt.high_accuracy;
 
             if obj.use_rotation_extension && ~isempty(obj.rotation) 
                 obj.rotation_quaternion=mr.aux.quat.fromRotMat(obj.rotation);
@@ -80,7 +121,7 @@ classdef TransformFOV < handle
                 end
             end
 
-            % see if we get a block as a single struct and convert it to block_events
+            % see if we've got a block as a single struct, then convert it to a cell array
             if (isstruct(block_events) && isfield(block_events, 'blockDuration')) || ...
                (iscell(block_events) && ~isempty(block_events) && isstruct(block_events{1}) && isfield(block_events{1}, 'blockDuration'))
                 block_events=mr.block2events(block_events);
@@ -134,29 +175,40 @@ classdef TransformFOV < handle
 
             gradRasterTime = obj.system.gradRasterTime;
 
+            %% scale (apply it first prior to any other transformation)
+            if ~isempty(obj.scale)
+                %channel2index=struct('x',1,'y',2,'z',3);
+                for i=1:length(grads)
+                    %grads{i}=mr.scaleGrad(grads{i},obj.scale(channel2index.(grads{i}.channel)),obj.system);
+                    if ~isempty(grads{i})
+                        grads{i}=mr.scaleGrad(grads{i},obj.scale(i),obj.system);
+                    end
+                end
+            end
+            
             %% translation
             if ~isempty(obj.translation)
-            % big picture of the algorithm
-
-            % if ~isempty(obj.translation)
-            %     phase_cycle_this_block = 0
-            %     if NOPOS==0
-            %         apply prior_phase_cycle to rf-adc
-            %     end
-            %     for i=1:3
-            %         g = grad{i};
-            %         if ~isempty(g)
-            %             if translation(i)~=0
-            %                 generate piecewise polynomial of the current gradient
-            %                 if NOPOS==0
-            %                     apply phase and freq offsets to rf-adc by the current gradient
-            %                 end
-            %                 update phase_cycle_this_block by the current gradient
-            %             end
-            %         end
-            %     end
-            %     update prior_phase_cycle =+ phase_cycle_this_block
-            % end
+                % big picture of the algorithm
+        
+                % if ~isempty(obj.translation)
+                %     phase_cycle_this_block = 0
+                %     if NOPOS==0
+                %         apply prior_phase_cycle to rf-adc
+                %     end
+                %     for i=1:3
+                %         g = grad{i};
+                %         if ~isempty(g)
+                %             if translation(i)~=0
+                %                 generate piecewise polynomial of the current gradient
+                %                 if NOPOS==0
+                %                     apply phase and freq offsets to rf-adc by the current gradient
+                %                 end
+                %                 update phase_cycle_this_block by the current gradient
+                %             end
+                %         end
+                %     end
+                %     update prior_phase_cycle =+ phase_cycle_this_block
+                % end
 
                 % extract the first and the last time points of possible rf or adc in the block
                 if isempty(rf)
@@ -199,6 +251,7 @@ classdef TransformFOV < handle
 
                 % MZ: I think we have to rotate the gradient "backwards" if
                 % this block has 'NOROT'. We restore the grads object below
+                % WARNING: I don't think this is compatible with obj.use_rotation_extension
                 if obj.labels.NOROT 
                     grads_backup=grads;
                     % MZ: HA! we could rotate obj.translation (or it's copy) in the opposite direction instead
@@ -392,6 +445,7 @@ classdef TransformFOV < handle
                 seq2=seq;
             else
                 seq2 = mr.Sequence(seq.sys);
+                seq2.copyDefinitions(seq); % copy definitions from the source sequence
             end
 
             obj.labels=struct('NOPOS',0,'NOROT',0,'NOSCL',0);

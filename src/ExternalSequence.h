@@ -253,7 +253,7 @@ enum Flags{
 	IMA,
 	OFF,
 	NOISE, // LAST_ADC_RELEVANT_FLAG
-	PMC, 
+	//PMC, // ignore in this version -- we don't allocate an ID then
 	NOPOS,
 	NOROT,
 	NOSCL,
@@ -1078,6 +1078,7 @@ class ExternalSequence
 	 * @return 1 if labels references are not recognized
 	 * @return -1 if labels/values references are invalid
 	 */
+    enum dl_ret{dl_ok = 0, dl_unknown = 1, dl_ignored = 2, dl_error = -1};
 	int decodeLabel(ExtType, int&, char*, LabelEvent&);
 
 	// *** Static helper function ***

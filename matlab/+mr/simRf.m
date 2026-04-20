@@ -47,6 +47,9 @@ end
         
 [bw,f0]=mr.calcRfBandwidth(rf,0.5,df*10,dt);
 
+% our bandwidth here is the total bandwidth relative to 0, so we have to add the center frequency
+bw = abs(bw) + abs(f0);
+
 % adapt time stepping -- just some compromizes -- we stick to dt~1/bw/50
 if bw>4e3
     dt=5e-6;

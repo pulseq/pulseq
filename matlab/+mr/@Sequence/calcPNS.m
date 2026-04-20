@@ -97,7 +97,7 @@ for c=calcCNS
             p=[h.Parent];
             a=p(1);
             t=a.Title.String;
-            title(replace(t,'PNS','CNS'));
+            title(strrep(t,'PNS','CNS'));
         end
     end
 end

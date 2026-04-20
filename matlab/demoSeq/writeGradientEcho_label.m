@@ -17,7 +17,8 @@ TE=4.3e-3;
 %TE=[7.38 9.84 15]*1e-3;            % alternatively give a vector here to have multiple TEs (e.g. for field mapping)
 
 % more in-depth parameters
-rfSpoilingInc=117;              % RF spoiling increment
+% RF spoiling increment = 84° for smoother transient decay, https://doi.org/10.1002/mrm.1910350216, 169° for diffusion independent rf spoiling in steady-state https://doi.org/10.1371/journal.pone.0324455
+rfSpoilingInc=84;              % RF spoiling increment
 roDuration=3.2e-3;              % ADC duration
 
 % Create fat-sat pulse 

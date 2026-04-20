@@ -19,7 +19,8 @@ sl_spoil=2;                     % spoil area compared to the slice thickness
 % the system specs below
 
 % more in-depth parameters
-rfSpoilingInc=117;              % RF spoiling increment
+% RF spoiling increment = 84° for smoother transient decay, https://doi.org/10.1002/mrm.1910350216, 169° for diffusion independent rf spoiling in steady-state https://doi.org/10.1371/journal.pone.0324455
+rfSpoilingInc=84;              % RF spoiling increment
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(alpha*pi/180,'Duration',400e-6,...
@@ -72,11 +73,11 @@ for i=(1-Ndummy):Nr
     rf_phase=mod(rf_phase+rf_inc, 360.0);
     %
     phi=delta*(i-1);
-    seq.addBlock(mr.rotate3D(rotz(phi/pi*180),rf,gzComb,gxPre));
+    seq.addBlock(mr.rotate3D(phi,rf,gzComb,gxPre)); % we could have provided a rotation matrix e.g. by rotz(phi/pi*180), but we avoid dependency on the robotics toolbox...
     if (i>0)
-        seq.addBlock(mr.rotate3D(rotz(phi/pi*180),gx,adc,gzSpoil));
+        seq.addBlock(mr.rotate3D(phi,gx,adc,gzSpoil));
     else
-        seq.addBlock(mr.rotate3D(rotz(phi/pi*180),gx,gzSpoil));
+        seq.addBlock(mr.rotate3D(phi,gx,gzSpoil));
     end
     if TR<=0
         TR=seq.duration;

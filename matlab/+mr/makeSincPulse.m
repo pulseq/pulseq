@@ -10,16 +10,16 @@ function [rf, gz, gzr, delay] = makeSincPulse(flip,varargin)
 %   Create arbitrary RF pulse with frequency offset specified in PPM (e.g.
 %   actual frequency offset proportional to the true Larmor frequency), in
 %   this example -3.3 ppm as often used for fat saturation; can be combined
-%   with the 'freqOffset' specified in Hz. 
+%   with the 'freqOffset' specified in Hz.
 %
 %   [rf, gz]=makeSincPulse(...,'SliceThickness',st) Return the
 %   slice select gradient corresponding to given slice thickness (m).
 %
-%   [rf, gz]=makeSincPulse(flip,lims,...) Create slice selection gradient 
+%   [rf, gz]=makeSincPulse(flip,lims,...) Create slice selection gradient
 %   with the specificed gradient limits (e.g. amplitude, slew).
 %
-%   [rf, gz, gzr]=makeSincPulse(flip,lims,...) Create slice selection and 
-%   slice refocusing gradients with the specificed gradient limits 
+%   [rf, gz, gzr]=makeSincPulse(flip,lims,...) Create slice selection and
+%   slice refocusing gradients with the specificed gradient limits
 %   (e.g. amplitude, slew) and taking into account 'centerpos' parameter
 %
 %   See also  Sequence.addBlock
@@ -28,12 +28,13 @@ validPulseUses = mr.getSupportedRfUse();
 
 persistent parser
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'makeSincPulse';
-    
+
     % RF params
     addRequired(parser, 'flipAngle', @isnumeric);
     addOptional(parser, 'system', [], @isstruct);
+    %addParamValue(parser, 'system', [], @isstruct);
     addParamValue(parser, 'duration', 0, @isnumeric);
     addParamValue(parser, 'freqOffset', 0, @isnumeric);
     addParamValue(parser, 'phaseOffset', 0, @isnumeric);
@@ -105,7 +106,7 @@ if nargout > 1
     if opt.maxSlew > 0
         system.maxSlew = opt.maxSlew;
     end
-    
+
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
     gz = mr.makeTrapezoid('z', system, 'flatTime', opt.duration, ...
@@ -115,7 +116,7 @@ if nargout > 1
         gz.delay = ceil((rf.delay - gz.riseTime)/system.gradRasterTime)*system.gradRasterTime; % round-up to gradient raster
     end
     if rf.delay < (gz.riseTime+gz.delay)
-        rf.delay = gz.riseTime+gz.delay; % these are on the grad raster already which is coarser 
+        rf.delay = gz.riseTime+gz.delay; % these are on the grad raster already which is coarser
     end
 end
 
@@ -127,7 +128,7 @@ end
 % end
 if rf.ringdownTime > 0 && nargout > 3
     delay=mr.makeDelay(mr.calcDuration(rf)+rf.ringdownTime);
-end 
+end
 
 % RF amplitude check
 rf_amplitude=max(abs(rf.signal));
@@ -139,13 +140,13 @@ function y = sinc(x)
     % sinc Calculate the sinc function:
     %   sinc(x) = sin(pi*x)/(pi*x)
     %
-    % This is a useful helper function for those without the signal 
-    % processing toolbox 
-    
-    i = find(x == 0);                                                              
+    % This is a useful helper function for those without the signal
+    % processing toolbox
+
+    i = find(x == 0);
     x(i) = 1;
-    y = sin(pi*x)./(pi*x);                                                     
-    y(i) = 1;   
+    y = sin(pi*x)./(pi*x);
+    y(i) = 1;
 end
 
 end

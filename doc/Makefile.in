@@ -260,7 +260,8 @@ EXTRA_DIST = $(static_docs) $(am__append_1) $(am__append_2)
 @BUILD_DOCS_TRUE@DOXY_STAMP = doxygen-build.stamp
 @BUILD_DOCS_TRUE@DOXY_FILE = doxy.conf
 @BUILD_DOCS_TRUE@DOXY_AUX = header.html footer.html customstyles.css matlab.css DoxygenLayout.xml
-@BUILD_DOCS_TRUE@HTML_AUX = $(top_srcdir)/doc/html/demoWriteGre.html $(top_srcdir)/doc/html/demoWriteRf.html $(top_srcdir)/doc/html/demoRead.html $(top_srcdir)/doc/html/Sequence.html
+#HTML_AUX = $(top_srcdir)/doc/html/demoWriteGre.html $(top_srcdir)/doc/html/demoWriteRf.html $(top_srcdir)/doc/html/demoRead.html $(top_srcdir)/doc/html/Sequence.html
+@BUILD_DOCS_TRUE@HTML_AUX = 
 @BUILD_DOCS_TRUE@WEBSITE_AUX = $(LATEX_BASENAME).pdf logo_hires.png README.md favicon.ico images/gre.png images/rf2d.png images/overview.png
 doc_DATA = $(EXTRA_DIST)
 PULSEQ_WEBSITE_DIR = $(top_srcdir)/../pulseq.github.io/
@@ -532,8 +533,8 @@ install-html-local: html $(EXTRA_DIST)
 
 html: 
 	test -d html || mkdir html
-	test -d seq || cp -r seqs/* html/
-	test -d recon || cp -r recon/* html/
+	if test -d seqs; then cp -r seqs/* html/ || true; fi
+	if test -d recon; then cp -r recon/* html/ || true; fi
 	cp matlab.css html/
 	cp specification.pdf html/
 	cp pulseq_shapes_and_times.pdf html/

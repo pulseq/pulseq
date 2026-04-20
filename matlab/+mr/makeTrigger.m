@@ -10,7 +10,7 @@ function trig = makeTrigger(channel, varargin)
 
 persistent parser
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'makeTrigger';
     
     addOptional(parser, 'delay', 0, @isnumeric);

@@ -7,7 +7,7 @@ path='../../IceNIH_RawSend/'; % directory to be scanned for data files
 
 pattern='*.dat';
 D=dir([path filesep pattern]);
-[~,I]=sort(string({D(:).datenum}));
+[~,I]=sort({D(:).datenum});
 data_file_path=[path filesep D(I(end-0)).name];
 
 fprintf(['loading `' data_file_path '´ ...\n']);

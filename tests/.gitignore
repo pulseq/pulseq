@@ -1,2 +1,2 @@
-*.matlab.out
-*.seq
+legacy/*.matlab.out
+legacy/*.seq

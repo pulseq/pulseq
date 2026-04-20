@@ -60,7 +60,8 @@ end
 % Drive magnetization to the steady state
 for iY=1:Ndummy
     % RF
-    rf.phaseOffset = mod(117*(iY^2+iY+2)*pi/180,2*pi);
+    % RF spoiling phase increment = 84° for smoother transient decay, https://doi.org/10.1002/mrm.1910350216, 169° for diffusion independent rf spoiling in steady-state https://doi.org/10.1371/journal.pone.0324455
+    rf.phaseOffset = mod(84*(iY^2+iY+2)*pi/180,2*pi);
     seq.addBlock(rf,rfDelay);
     % Gradients
     seq.addBlock(gxPre,gyPre(floor(Ny/2)));
@@ -79,7 +80,8 @@ for iZ=1:Nz
     gzReph.id = seq.registerGradEvent(gzReph);
     for iY=1:Ny
         % RF spoiling
-        rf.phaseOffset = mod(117*(iY^2+iY+2)*pi/180,2*pi);
+        % RF spoiling phase increment = 84° for smoother transient decay, https://doi.org/10.1002/mrm.1910350216, 169° for diffusion independent rf spoiling in steady-state https://doi.org/10.1371/journal.pone.0324455
+        rf.phaseOffset = mod(84*(iY^2+iY+2)*pi/180,2*pi);
         adc.phaseOffset = rf.phaseOffset;
         
         % Excitation

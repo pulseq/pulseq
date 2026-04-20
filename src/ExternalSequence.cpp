@@ -642,10 +642,11 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 							if (nRet<0) {
 								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelset event\n" << buffer << std::endl );
 								return false;
-							}else if(nRet>0) {
-								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** decoding labelset event returned 0\n" << buffer << std::endl );
-							} 
-							m_labelsetLibrary[nID] = label;
+							}else if(nRet==dl_ok) {
+                                m_labelsetLibrary[nID] = label;
+							} else if(nRet==dl_unknown) {
+								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** decoding labelset event returned dl_unknown\n" << buffer << std::endl );
+							}							
 							break;
 						case EXT_LABELINC: 
 							if (3!=sscanf(buffer, "%d%d%s", &nID, &nVal, szLabelID)) {
@@ -656,11 +657,11 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 							if (nRet<0) {
 								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode labelinc event\n" << buffer << std::endl );
 								return false;
-							}else if(nRet>0) {
-								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: decoding labelinc event returnd 0\n" << buffer << std::endl );
+							}else if(nRet==dl_ok) {
+                                m_labelincLibrary[nID] = label;
+							} else if(nRet==dl_unknown) {
+								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: decoding labelinc event returnd dl_unknown\n" << buffer << std::endl );
 							}
-
-							m_labelincLibrary[nID] = label;
 							break;
 						case EXT_DELAY: 
 							{
@@ -1215,15 +1216,25 @@ SeqBlock*	ExternalSequence::GetBlock(int index) {
 							block->rotation=m_rotationLibrary[itEL->second.ref]; // do we have to check whether it can be found?
 						}
 						break;
-					case EXT_LABELSET:
-						//do we have to check anything ? //MZ: TODO: check that we find the evet in the library TODO: check for conflicts between set and inc
-							// ok, lets find the labelset in the library
-							block->labelset.push_back(m_labelsetLibrary[itEL->second.ref]); // do we have to check whether it can be found?
+					case EXT_LABELSET: 
+						{
+							//do we have to check anything ? yes, if we ignore some labels they will not be in the library, but will be in the time table
+						    // old code : block->labelset.push_back(m_labelsetLibrary[itEL->second.ref]); // do we have to check whether it can be found?
+                            std::map<int, LabelEvent>::const_iterator itLBL = m_labelsetLibrary.find(itEL->second.ref);
+                            if (itLBL!=m_labelsetLibrary.end())
+								block->labelset.push_back(itLBL->second);
+							// MZ: TODO: check for conflicts between set and inc
+						}
 						break;
 					case EXT_LABELINC:
-						//do we have to check anything ? //MZ: TODO: check that we find the evet in the library TODO: check for conflicts between set and inc
-							// ok, lets find the labelinc in the library
-							block->labelinc.push_back(m_labelincLibrary[itEL->second.ref]); // do we have to check whether it can be found?
+                        {
+							// do we have to check anything ? yes, if we ignore some labels they will not be in the library, but will be in the time table
+							// old code : block->labelinc.push_back(m_labelincLibrary[itEL->second.ref]); // do we have to check whether it can be found?
+                            std::map<int, LabelEvent>::const_iterator itLBL = m_labelincLibrary.find(itEL->second.ref);
+                            if (itLBL != m_labelincLibrary.end())
+                                block->labelinc.push_back(itLBL->second);
+							// MZ: TODO: check for conflicts between set and inc
+						}
 						break;
 					case EXT_DELAY:
 						if (block->softDelay.numID>=0) {
@@ -1654,6 +1665,9 @@ int ExternalSequence::getline(std::istream& is, char *buffer, int MAX_SIZE, bool
 	m_labelMap.mapFlagIdToStr[LBL]=#LBL;\
 	m_labelMap.mapStrToLabel[#LBL]=std::make_pair(LABEL_UNKNOWN,LBL);
 
+#define LABELMAP_IGNORE(LBL)               \
+    m_labelMap.mapStrToLabel[#LBL]  = std::make_pair(LABEL_UNKNOWN, FLAG_UNKNOWN);
+
 int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, LabelEvent& label)
 {
 	//initialize label map if needed
@@ -1677,17 +1691,15 @@ int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, L
 		LABELMAP_FLAG(IMA);
 		LABELMAP_FLAG(OFF);
 		LABELMAP_FLAG(NOISE);
-		LABELMAP_FLAG(PMC);
 		LABELMAP_FLAG(NOPOS);
 		LABELMAP_FLAG(NOROT);
 		LABELMAP_FLAG(NOSCL);
+        LABELMAP_IGNORE(PMC); // "actively" ignore these labels (e.g. without warnings)
+        LABELMAP_IGNORE(TRID);
 		// check if all labels/flags have been added to the map
-		//print_msg(WARNING_MSG, std::ostringstream().flush() << "*** m_labelMap.mapLabelIdToStr.size()= " << m_labelMap.mapLabelIdToStr.size());
-		//print_msg(WARNING_MSG, std::ostringstream().flush() << "*** m_labelMap.mapFlagIdToStr.size()= " << m_labelMap.mapFlagIdToStr.size());
-		//print_msg(WARNING_MSG, std::ostringstream().flush() << "*** m_labelMap.mapStrToLabel.size()= " << m_labelMap.mapStrToLabel.size());
 		assert(m_labelMap.mapLabelIdToStr.size()==NUM_LABELS);
 		assert(m_labelMap.mapFlagIdToStr.size()==NUM_FLAGS);
-		assert(m_labelMap.mapStrToLabel.size()==NUM_LABELS+NUM_FLAGS);
+		assert(m_labelMap.mapStrToLabel.size()>=NUM_LABELS+NUM_FLAGS); // LABELMAP_IGNORE makes this map longer
 	}
 
 	// now search
@@ -1696,11 +1708,17 @@ int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, L
 	{
 		//label.defined=false; // when no label is founded, reset label.defined to false
 		print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: unknown label specification\n");
-		return 1;
+        return dl_unknown;
 	}
 
 	int nKnownLBL=it->second.first;
 	int nKnownFG=it->second.second;
+
+	if (nKnownLBL == LABEL_UNKNOWN && nKnownFG == FLAG_UNKNOWN)
+    {
+		// "actively" ignored label -- return a corresponding value without a warning
+        return dl_ignored;
+    }
 	
 	//assemble LabelEvent
 	if (nKnownFG !=FLAG_UNKNOWN){
@@ -1711,37 +1729,33 @@ int ExternalSequence::decodeLabel(ExtType exttype, int& nVal, char* szLabelID, L
 		label.numVal=std::make_pair(nKnownLBL,nVal);
 	}
 
-	//here we check if the labels/flags are valid //No boundary check, boundary check moves to prep()
+	//here we check if the labels/flags are valid //No boundary check, boundary check has been moved to prep()
 	if (exttype==EXT_LABELSET){				//here we check if the values are valid
 		if (nKnownLBL!=LABEL_UNKNOWN){
-			/*if (nVal<0){
-				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELSET for int-type MDH Headers is incorrect\n");
-				return -1;
-			}else*/
-				return 0;
+            return dl_ok;
 		}else if (nKnownFG!=FLAG_UNKNOWN){
 			if ((nVal!=0)&&(nVal!=1)){
-				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELSET for bool-type MDH Headers is incorrect\n");
-				return -1;
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELSET for bool-type labls is incorrect\n");
+                return dl_error;
 			}else
-				return 0;
+                return dl_ok;
 		}else{
 			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: EXT_LABELSET only support LABEL&&FLAG\n");
-			return -1;					 
+            return dl_ok; // this should never happen					 
 		}
 	}else if (exttype==EXT_LABELINC){
 		if (nKnownLBL!=LABEL_UNKNOWN){			
-			return 0;				 
+			return dl_ok;				 
 		}else if (nKnownFG!=FLAG_UNKNOWN){				// EXT_LABELINC should NOT be used for bool type MDH Headers
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELINC is NOT for bool-type MDH Headers\n");
-			return -1;
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification LABELINC is NOT compatible with bool-type labels\n");
+            return dl_error;
 		}else {
 			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: EXT_LABELINC only support LABEL&&FLAG\n");
-			return -1;	
+            return dl_error; // this should never happen	
 		}		
 	}else{											// No ExtType recognized
-		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification is NOT recognized\n");
-		return -1;					 
+        print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Extension specification " << exttype << " is NOT recognized\n");
+        return dl_error;					 
 	}
 }
 
@@ -2190,7 +2204,7 @@ void LabelStateAndBookkeeping::dump_internal(const std::vector<int>& numVal, con
     ExternalSequence::print_msg(
         NORMAL_MSG, std::ostringstream().flush() << szSpe << " NAV " << flagVal[NAV] << " REV " << flagVal[REV]);
     ExternalSequence::print_msg(
-        NORMAL_MSG, std::ostringstream().flush() << szSpe << " SMS " << flagVal[SMS] << " PMC " << flagVal[PMC]);
+        NORMAL_MSG, std::ostringstream().flush() << szSpe << " SMS " << flagVal[SMS] );
     ExternalSequence::print_msg(
         NORMAL_MSG,
         std::ostringstream().flush() << szSpe << " REF " << flagVal[REF] << " IMA " << flagVal[IMA] << " NOISE "
@@ -2241,7 +2255,8 @@ void SeqBlock::gradientsAt(double dTimeInBlock, std::vector<double>& vResult) //
     {
         for (int i = 0; i < NUM_GRADS; ++i) // print warning?
             vResult[i] = 0.0;
-        return;
+        ExternalSequence::print_msg(WARNING_MSG, std::ostringstream().flush() << "WARNINNG: gradientsAt() requesting gradient value before or after block boundary!");
+		return;
     }
 		
     for (int i = 0; i < NUM_GRADS; ++i)
@@ -2252,24 +2267,28 @@ void SeqBlock::gradientsAt(double dTimeInBlock, std::vector<double>& vResult) //
 			if (dTimeInBlock <= grad.delay || grad.amplitude == 0.0) 
 			{
 				vResult[i] = 0.0; // before the gradient start
+				//ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "gradientsAt() requesting gradient before gradient");
 				continue;
 			}        
             if (dTimeInBlock >= grad.delay + grad.rampUpTime + grad.flatTime + grad.rampDownTime)
             {
                 vResult[i] = 0.0; // after the gradient end
-                continue;
+                //ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "gradientsAt() requesting gradient after gradient");
+				continue;
             }
             if (dTimeInBlock < grad.delay + grad.rampUpTime)
             {
                 // ramp-up // dTimeInBlock is > grad.delay because of the ckeck above
                 vResult[i] = linear_interpolation(grad.delay, 0.0, grad.delay + grad.rampUpTime, grad.amplitude, dTimeInBlock); 
-                continue;
+                //ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "gradientsAt() requesting gradient on ramp-up");
+				continue;
             }
             else if (dTimeInBlock <= grad.delay + grad.rampUpTime + grad.flatTime)
             {
                 // on plato
 				vResult[i] = grad.amplitude;
-                continue;
+                //ExternalSequence::print_msg(NORMAL_MSG,std::ostringstream().flush() << "gradientsAt() requesting gradient on plato, vResult[" << i << "]=" << vResult[i]);
+				continue;
             }
             else
             {
@@ -2278,7 +2297,8 @@ void SeqBlock::gradientsAt(double dTimeInBlock, std::vector<double>& vResult) //
                     grad.delay + grad.rampUpTime + grad.flatTime, grad.amplitude,
                     grad.delay + grad.rampUpTime + grad.flatTime + grad.rampDownTime, 0.0,
                     dTimeInBlock);
-                continue;
+                ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "gradientsAt() requesting gradient on ramp-down");
+				continue;
 			}            
         }
         else if (isExtTrapGradient(i))

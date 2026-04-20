@@ -45,7 +45,7 @@ function [kout, success] = calcRamp(k0,kend,varargin)
 
 persistent parser
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'calcRamp';
     parser.addRequired('k0',@isnumeric);
     parser.addRequired('kend',@isnumeric);

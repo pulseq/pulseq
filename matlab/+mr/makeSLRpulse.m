@@ -36,7 +36,7 @@ validPulseUses = mr.getSupportedRfUse();
 
 persistent parser
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'makeSLRpulse';
     
     % RF params
@@ -50,7 +50,7 @@ if isempty(parser)
     addParamValue(parser, 'timeBwProduct', 4, @isnumeric);
     addParamValue(parser, 'passbandRipple', 0.01, @isnumeric);
     addParamValue(parser, 'stopbandRipple', 0.01, @isnumeric);
-    addParamValue(parser, 'filterType', 'mt', @isstr);
+    addParamValue(parser, 'filterType', 'ms', @isstr);
     %addParamValue(parser, 'apodization', 0, @isnumeric);
     %addParamValue(parser, 'centerpos', 0.5, @isnumeric);
     % Slice params
@@ -100,11 +100,11 @@ else
     % this probably only works on linux and maybe also on mac
     [status, result]=system('which python3');
     if status==0
-        python=strip(result);
+        python=mr.aux.strstrip(result);
     else
         [status, result]=system('which python');
         if status==0
-            python=strip(result);
+            python=mr.aux.strstrip(result);
         else
             error('python executable not found');
         end
@@ -148,7 +148,7 @@ end
 [status, result]=system(cmd);
 
 if status~=0
-    error('executing python command failed');
+    error('executing python command failed, error message was: %s', result);
 end
 
 lines = regexp(result,'\n','split'); % the response from the python call contains some garbage 

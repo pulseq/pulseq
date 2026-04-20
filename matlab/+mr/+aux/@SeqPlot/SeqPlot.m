@@ -17,15 +17,15 @@ classdef SeqPlot < handle
     %
     %   plot(...,'showBlocks',1) Plot grid and tick labels at the
     %   block boundaries. Accepts a numeric or a boolean parameter.
-    % 
+    %
     %   plot(...,'stacked',1) Rearrange the plots such they are vertically
     %   stacked and share the same x-axis. Accepts a numeric or a boolean
     %   parameter.
     %
-    %   plot(...,'showGuides',1) How dynamic hairline guides that follow 
-    %   the data cursor to help verifying event alignment. Accepts a 
+    %   plot(...,'showGuides',1) How dynamic hairline guides that follow
+    %   the data cursor to help verifying event alignment. Accepts a
     %   numeric or a boolean parameter.
-    % 
+    %
     %   f=plot(...) Return the new figure handle.
     %
 
@@ -77,7 +77,7 @@ classdef SeqPlot < handle
             end
             parse(parser,varargin{:});
             opt = parser.Results;
-            
+
             if mr.aux.isOctave()
               if opt.stacked
                 warning('Option stacked is not (yet) supported by Octave');
@@ -95,7 +95,7 @@ classdef SeqPlot < handle
             set(obj.f, 'Visible', 'off')
 
             if ~mr.aux.isOctave()
-              obj.ax = gobjects(1,6);              
+              obj.ax = gobjects(1,6);
             end
             for i=1:6
                 obj.ax(i)=subplot(3,2,i);
@@ -105,7 +105,7 @@ classdef SeqPlot < handle
             arrayfun(@(x)grid(x,'on'),obj.ax);
             labels={'ADC/lbl/trig','RF mag (Hz)','RF/ADC ph (rad)','Gx (kHz/m)','Gy (kHz/m)','Gz (kHz/m)'};
             arrayfun(@(x)ylabel(obj.ax(x),labels{x}),1:6);
-            
+
             tFactorList = [1 1e3 1e6];
             tFactor = tFactorList(strcmp(opt.timeDisp,validTimeUnits));
             xlabel(obj.ax(3),['t (' opt.timeDisp ')']);
@@ -123,20 +123,24 @@ classdef SeqPlot < handle
                 end
             end
             if ~isempty(label_indexes_2plot)
-                label_colors_2plot=parula(length(label_indexes_2plot)+1); % need +1 because the ADC plot by itself also "eats up" one color
+                if mr.aux.isOctave()
+                    label_colors_2plot=turbo(length(label_indexes_2plot)+1); % need +1 because the ADC plot by itself also "eats up" one color
+                else
+                    label_colors_2plot=parula(length(label_indexes_2plot)+1); % need +1 because the ADC plot by itself also "eats up" one color
+                end
                 label_colors_2plot=[label_colors_2plot(end,:); label_colors_2plot(1:end-1,:)]; % we like these colors better ?
             end
 
             % time format
             switch opt.timeDisp
-                case 'us' 
+                case 'us'
                     timeFormat='%.1f';
                 case 'ms'
                     timeFormat='%.4f';
-                otherwise 
+                otherwise
                     timeFormat='%.7f';
             end
-            
+
             % data cursor callback
             if ~mr.aux.isOctave()
               hDCM = datacursormode(obj.f);
@@ -176,7 +180,7 @@ classdef SeqPlot < handle
                 end
             end
             %
-            gradChannels={'gx','gy','gz'};                    
+            gradChannels={'gx','gy','gz'};
 
             % loop through blocks
             for iB=1:length(seq.blockEvents)
@@ -230,7 +234,7 @@ classdef SeqPlot < handle
                         end
                         full_freqOffset=adc.freqOffset+adc.freqPPM*1e-6*seq.sys.gamma*seq.sys.B0;
                         full_phaseOffset=adc.phaseOffset+adc.phasePPM*1e-6*seq.sys.gamma*seq.sys.B0;
-                        p2=plot(tFactor*(t0+t), angle(exp(1i*(full_phaseOffset+adc.phaseModulation)).*exp(1i*2*pi*t*full_freqOffset)),'b.','MarkerSize',1,'Parent',obj.ax(3)); % plot ADC phase 
+                        p2=plot(tFactor*(t0+t), angle(exp(1i*(full_phaseOffset+adc.phaseModulation)).*exp(1i*2*pi*t*full_freqOffset)),'b.','MarkerSize',1,'Parent',obj.ax(3)); % plot ADC phase
                         % labels/counters/flags
                         if label_defined && ~isempty(label_indexes_2plot)
                             set(obj.ax(1),'ColorOrder',label_colors_2plot);
@@ -246,8 +250,12 @@ classdef SeqPlot < handle
                     end
                     if ~isempty(block.rf)
                         rf=block.rf;
-                        [tc,ic]=mr.calcRfCenter(rf);
-                        sc=rf.signal(ic);
+                        [tc,ic,fi]=mr.calcRfCenter(rf);
+                        if fi==0
+                            sc=rf.signal(ic);
+                        else
+                            sc=rf.signal(ic)*(1-abs(fi))+rf.signal(ic+sign(fi))*abs(fi);
+                        end
                         if max(abs(diff(rf.t)-rf.t(2)+rf.t(1)))<1e-9 && length(rf.t)>100
                             % homogeneous sampling and long pulses -- use lower time resolution for better display and performance
                             dt=rf.t(2)-rf.t(1);
@@ -288,7 +296,7 @@ classdef SeqPlot < handle
                         else
                             p1=plot(tFactor*(t0+t+rf.delay),  abs(s),'Parent',obj.ax(2));
                             p2=plot(tFactor*(t0+t+rf.delay),  angle(s*exp(1i*full_phaseOffset).*exp(1i*2*pi*t    *full_freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*full_phaseOffset).*exp(1i*2*pi*tc*full_freqOffset)),'xb', 'Parent',obj.ax(3));
-                        end                        
+                        end
                     end
                     for j=1:length(gradChannels)
                         grad=block.(gradChannels{j});
@@ -323,7 +331,7 @@ classdef SeqPlot < handle
             ylim(obj.ax(3),[-pi pi]);
             % make Y-axes little bit less tight
             arrayfun(@(x) ylim(x, ylim(x) + 0.03*[-1 1]*sum(ylim(x).*[-1 1])), obj.ax(2:end));
-            
+
 
             if opt.showGuides
               if mr.aux.isOctave()
@@ -376,7 +384,7 @@ classdef SeqPlot < handle
             end
         end
 
-        function out=DataTipHandler(obj, tfactor, timeFormat, src, event) 
+        function out=DataTipHandler(obj, tfactor, timeFormat, src, event)
             if ~isa(event,'matlab.graphics.internal.DataTipEvent') || ...
                ~isprop(event, 'Position') || length(event.Position)<2 || ...
                ~isprop(event, 'Target')
@@ -386,8 +394,8 @@ classdef SeqPlot < handle
             ax=src.Host.Parent;
             % get the relevant target from the y-axes title
             at=lower(ax.YLabel.String);
-            if strcmp(at(1:3),'adc') || ... 
-               (strcmp(at(1:6),'rf/adc') && strcmp(event.Target.LineStyle,'none') && strcmp(event.Target.Marker,'.')) % we need to check whether we are dealing with the ADC phase, which is also shown in the same panel as the RF                
+            if strcmp(at(1:3),'adc') || ...
+               (strcmp(at(1:6),'rf/adc') && strcmp(event.Target.LineStyle,'none') && strcmp(event.Target.Marker,'.')) % we need to check whether we are dealing with the ADC phase, which is also shown in the same panel as the RF
                 field='adc';
             else
                 field=at(1:2);
@@ -397,8 +405,8 @@ classdef SeqPlot < handle
             t0=t;
             if isa(event.Target,'matlab.graphics.chart.primitive.Line')
                 % for trapezoid gradients the last point may belong to the next block
-                t0=event.Target.XData(1); 
-            end            
+                t0=event.Target.XData(1);
+            end
             iB=obj.hSeq.findBlockByTime(t0/tfactor);
             rb=obj.hSeq.getRawBlockContentIDs(iB);
             out={['\bf\color{blue}t:\rm\color{black}' sprintf(timeFormat,t)],...
@@ -409,7 +417,7 @@ classdef SeqPlot < handle
                 % we could add handling of the trigger/label data tips here
                 % specifically for the adc panel but it would imply a
                 % substantial performance hit because we'd have to unpack
-                % extensions, etc... 
+                % extensions, etc...
             else
                 try
                     switch field(1)
@@ -421,11 +429,11 @@ classdef SeqPlot < handle
                             name = obj.hSeq.gradID2NameMap(rb.(field));
                     end
                     out{3}=['\bf\color{blue}blk:\rm\color{black}' num2str(iB) ' \bf\color{blue}' field '\_id:\rm\color{black}' num2str(rb.(field)) ' ''\bf\color{darkGreen}' name '\rm\color{black}'''];
-                catch 
+                catch
                     out{3}=['\bf\color{blue}blk:\rm\color{black}' num2str(iB) ' \bf\color{blue}' field '\_id:\rm\color{black}' num2str(rb.(field))];
                 end
             end
-            
+
             % we need to delay the call of the update, otherwise the plot
             % object generates an exception
             t=timer('StartDelay',0e-3,'Period',1e-3,'TimerFcn',@(~,~)updateGuides(obj,t));
@@ -435,7 +443,7 @@ classdef SeqPlot < handle
         function updateGuides(obj, tPos)
             % updateGuides(tPos)
             %   updates the time-position for all vertical line objects in
-            %   all axes 
+            %   all axes
 
             for ii = 1:numel(obj.vLines)
                 set(obj.vLines(ii), 'Value', tPos);

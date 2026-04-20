@@ -12,7 +12,7 @@ validGradUnits={'Hz/m','mT/m','rad/ms/mm'};
 validSlewUnits={'Hz/m/s','mT/m/ms','T/m/s','rad/ms/mm/ms'};
 validUnits=cat(2,validB1Units,validGradUnits,validSlewUnits);
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'convert';
     parser.addRequired('in',@isnumeric);
     parser.addRequired('fromUnit',...

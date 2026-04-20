@@ -226,38 +226,38 @@ end
 
 function seq = seq_make_sinc_pulses()
     seq = mr.Sequence();
-    seq.addBlock(mr.makeSincPulse(1, 'duration', 1e-3,'use','excitation'));
+    seq.addBlock(mr.makeSincPulse(1, 'duration', 2e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(1, 'duration', 1e-3, 'delay', 1e-3,'use','excitation'));
+    seq.addBlock(mr.makeSincPulse(1, 'duration', 2e-3, 'delay', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3,'use','excitation'));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 2e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3,'use','excitation'));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 2e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 2e-3, 'phaseOffset', pi/2,'use','excitation'));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 4e-3, 'phaseOffset', pi/2,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3, 'phaseOffset', pi/2, 'freqOffset', 1e3,'use','excitation'));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 2e-3, 'phaseOffset', pi/2, 'freqOffset', 1e3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3, 'timeBwProduct', 1,'use','excitation'));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 2e-3, 'timeBwProduct', 1,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 1e-3, 'apodization', 0.1,'use','excitation'));
+    seq.addBlock(mr.makeSincPulse(pi/2, 'duration', 2e-3, 'apodization', 0.1,'use','excitation'));
 end
 
 function seq = seq_make_block_pulses()
     seq = mr.Sequence();
-    seq.addBlock(mr.makeBlockPulse(1, 'duration', 4e-3,'use','excitation'));
+    seq.addBlock(mr.makeBlockPulse(pi/4, 'duration', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeBlockPulse(1, 'duration', 4e-3, 'delay', 1e-3,'use','excitation'));
+    seq.addBlock(mr.makeBlockPulse(pi/4, 'duration', 1e-3, 'delay', 1e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 4e-3,'use','excitation'));
+    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 2e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 1e-3,'use','excitation'));
+    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 2e-3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
     seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 2e-3, 'phaseOffset', pi/2,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 1e-3, 'phaseOffset', pi/2, 'freqOffset', 1e3,'use','excitation'));
+    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 2e-3, 'phaseOffset', pi/2, 'freqOffset', 1e3,'use','excitation'));
     seq.addBlock(mr.makeDelay(1));
-    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 1e-3, 'timeBwProduct', 1,'use','excitation'));
+    seq.addBlock(mr.makeBlockPulse(pi/2, 'duration', 2e-3, 'timeBwProduct', 1,'use','excitation'));
 end
 
 function seq = seq1()

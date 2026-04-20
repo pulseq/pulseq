@@ -10,6 +10,8 @@ elseif strcmp(get_set,'set')
         error('globalVars: missing the third argument');
     end    
     eval([var '=val;']);
+elseif strcmp(get_set,'reset')
+    clear(var);
 else
     error('globalVars: the first parameter must be either get or set');
 end

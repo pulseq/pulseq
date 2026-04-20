@@ -17,7 +17,7 @@ function sd = makeSoftDelay(varargin)
 
 persistent parser
 if isempty(parser)
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'makeSoftDelay';
     
     addRequired(parser, 'numID', @isnumeric);

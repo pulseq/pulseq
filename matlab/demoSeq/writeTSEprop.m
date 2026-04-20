@@ -237,8 +237,8 @@ end
 nb=length(seq.blockDurations);
 np=14;
 for nr=1:(np-1)
-    %TF=mr.TransformFOV('rotation',rotz(180/np*nr)); % option without rotation extension
-    TF=mr.TransformFOV('rotation',rotz(180/np*nr),'use_rotation_extension', true); % better option for modern interpreters resulting in smaller files
+    %TF=mr.TransformFOV('rotation',rotm_z(pi/np*nr)); % option without rotation extension
+    TF=mr.TransformFOV('rotation',rotm_z(pi/np*nr),'use_rotation_extension', true); % better option for modern interpreters resulting in smaller files
     seq=TF.applyToSeq(seq,'sameSeq',true,'blockRange',[1,nb]);
 end
 
@@ -282,3 +282,8 @@ seq.write('tse-prop.seq')
 
 % seq.install('siemens');
 
+function m=rotm_z(phi) 
+  c=cos(phi);
+  s=sin(phi);
+  m=[c -s 0; s c 0; 0 0 1];
+end

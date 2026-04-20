@@ -17,7 +17,7 @@ persistent parser
 
 if isempty(parser)
     validChannels = {'x', 'y', 'z'};
-    parser = inputParser;
+    parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'makeExtendedTrapezoid';
     parser.addRequired('channel', ...
         @(x) any(validatestring(x, validChannels)));

@@ -67,7 +67,7 @@ gy_parts = mr.splitGradientAt(gy, blip_dur/2, lims);
 %gy_blipdown=gy_parts(2);
 %gy_blipup.delay=gx.riseTime+gx.flatTime+gx.fallTime-blip_dur/2;
 %gy_blipdown.delay=0;
-[gy_blipup, gy_blipdown]=mr.align('right',gy_parts(1),'left',gy_parts(2),gx);
+[gy_blipup, gy_blipdown,~]=mr.align('right',gy_parts(1),'left',gy_parts(2),gx);
 gy_blipdownup=mr.addGradients({gy_blipdown, gy_blipup}, lims);
 
 % pe_enable support

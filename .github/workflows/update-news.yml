@@ -1,0 +1,111 @@
+# Fetch the latest Announcements from GitHub Discussions, rebuild the
+# Doxygen website, and push the result to pulseq/pulseq.github.io.
+#
+# Triggers when Discussions change, on a daily schedule, or manually.
+
+name: Update News from Discussions
+
+on:
+  # Run whenever a discussion is created, edited, or deleted
+  discussion:
+    types: [created, edited, deleted]
+
+  # Also run daily to catch any changes we might have missed
+  schedule:
+    - cron: "0 6 * * 1"  # Every Sunday-to-Monday night at 06:00 UTC
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+permissions:
+  contents: write       # to push announcements.html back to this repo
+  discussions: read     # to query discussions via GraphQL
+
+jobs:
+  update-website:
+    runs-on: ubuntu-latest
+    steps:
+      # -----------------------------------------------------------
+      # 1. Check out both repositories side-by-side so that
+      #    make install-html (which copies to ../pulseq.github.io)
+      #    finds the target directory.
+      # -----------------------------------------------------------
+      - name: Checkout source repository (pulseq)
+        uses: actions/checkout@v4
+        with:
+          path: pulseq
+
+      - name: Checkout website repository (pulseq.github.io)
+        uses: actions/checkout@v4
+        with:
+          repository: pulseq/pulseq.github.io
+          token: ${{ secrets.WEBSITE_DEPLOY_TOKEN }}
+          path: pulseq.github.io
+
+      # -----------------------------------------------------------
+      # 2. Fetch latest announcements from GitHub Discussions
+      # -----------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Fetch latest announcements
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: pulseq/doc
+        run: python3 fetch_announcements.py -n 3
+
+      - name: Commit announcements.html to source repo (if changed)
+        id: check_announcements
+        working-directory: pulseq
+        run: |
+          if git diff --quiet doc/announcements.html 2>/dev/null; then
+            echo "No changes to announcements.html"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add doc/announcements.html
+            git commit -m "Update announcements from GitHub Discussions"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # -----------------------------------------------------------
+      # 3. Install build dependencies and build the Doxygen website
+      # -----------------------------------------------------------
+      - name: Install build dependencies
+        if: steps.check_announcements.outputs.changed == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            doxygen graphviz texlive-latex-base texlive-latex-recommended \
+            texlive-latex-extra texlive-fonts-recommended \
+            imagemagick autoconf automake make
+
+      - name: Configure and build website
+        if: steps.check_announcements.outputs.changed == 'true'
+        working-directory: pulseq
+        run: |
+          autoreconf -fi
+          ./configure --enable-documentation
+          make html
+          cp doc/html/news.html ../pulseq.github.io/
+
+      # -----------------------------------------------------------
+      # 4. Push updated website to pulseq.github.io
+      # -----------------------------------------------------------
+      - name: Push to pulseq.github.io
+        if: steps.check_announcements.outputs.changed == 'true'
+        working-directory: pulseq.github.io
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "Website content unchanged, nothing to push."
+          else
+            git add -A
+            git commit -m "Rebuild website (updated announcements)"
+            git push
+          fi

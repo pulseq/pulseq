@@ -16,6 +16,12 @@ TE=120e-3;
 spA=0.6e3; % spoiler area in 1/m (=Hz/m*s)
 spB=2.0e3; % spoiler area in 1/m (=Hz/m*s)
 
+%% check dependencies
+if ~mr.aux.isSigPyAvailable()
+    warning('This sequence relies on python and sigpy to generate RF pulses, the script will stop now before failing');
+    return;
+end
+
 %% Create slice-selective excitation and refocusing pulses
 % [rf_ex, g_ex, g_exReph] = mr.makeSincPulse(pi/2,'Duration',rfDurEx,...
 %     'SliceThickness',voxel(1),'apodization',0.5,'timeBwProduct',8,'system',system);
