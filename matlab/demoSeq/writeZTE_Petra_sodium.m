@@ -30,11 +30,96 @@ sys = mr.opts('MaxGrad', 36, 'GradUnit', 'mT/m', ...
 seq=mr.Sequence(sys);           % Create a new sequence object
 seq_sar=mr.Sequence(sys);       % Create an auxillary sequence object for SAR testing
 
+%% local functions (moved to the front for compatibility with Octave)
+function [phi, theta, im]=spherical_samples(Kr,dK,R)
+% the number of samples equals the ceil of the area of the sphere divided
+% by the area around every sample
+Ns=ceil(4*pi*((Kr/dK)^2)/R);
+np=0:(Ns-1);
+alpha_gold=pi*(3-sqrt(5));
+phi=np*alpha_gold;
+%theta=0.5*pi*sqrt(np/Ns); % from Davide Piccini  https://doi.org/10.1002/mrm.22898
+theta=acos(1-2*np/(Ns-1));  % from  Anton Semechko (2020). Suite of functions to perform uniform sampling of a sphere (https://github.com/AntonSemechko/S2-Sampling-Toolbox), GitHub. Retrieved October 3, 2020.
+
+xp=sin(theta).*cos(phi);
+yp=sin(theta).*sin(phi);
+zp=cos(theta);
+%figure; sphere; colormap gray;
+%hold on; plot3(xp,yp,zp,'.');
+
+% looking for the optimal interleaving factor
+nm=round(Ns/2); % middle of the trajetory
+sr=round(sqrt(Ns));
+v0=[xp(nm); yp(nm); zp(nm)];
+v=[xp(nm+(1:sr)); yp(nm+(1:sr)); zp(nm+(1:sr))];
+%figure;plot(vecnorm((v-v0(:,ones(size(v,2),1)))));
+[dKm,im]=min(vecnorm((v-v0(:,ones(size(v,2),1)))));
+
+% fprintf('requested dK=%g achieved minimal dK=%g, min acceleration: %g, Ns=%d\n', dK/sqrt(R), dKm*Kr, (dKm*Kr/dK)^2,Ns);
+
+% v=[xp; yp; zp]*Kr/dK/sqrt(R)*100;
+% md=zeros(1,Ns);
+% d=zeros(1,Ns);
+% for i=1:Ns
+%     d=vecnorm(v(:,i*ones(1,Ns))-v);
+%     d(i)=NaN;
+%     md(i)=min(d);
+% end
+% fprintf('dKmin=%g%%, dKmed=%g%% dKmax=%g%%\n', min(md),median(md),max(md));
+
+end
+
+function populate_subsequence(sys,seq,rf,adc,phi,theta,im,Ns,Ag,TR,Tt,FN, FO)
+%Azc=Ag*(TR-Tt)/(TR+Tt);  %*0.35;
+Azc=0; % for MoCo we need "no-gradient" event blocks to be able to apply updates
+
+Gr=mr.makeExtendedTrapezoid('z','times',[0 TR-Tt],'amplitudes',[Ag Ag]); % this is a constant graient with no ramps
+
+% pre-ramp the gradient to Azc
+if abs(Azc)>eps
+    Tpr=max(2,ceil(Azc/sys.maxSlew/sys.gradRasterTime))*sys.gradRasterTime;
+    assert(Tpr<=TR);
+    % this "dummy TR" doe not have an RF pulse, which is not good when it is called for the inner shells... but otherwise there would be no enough spoiling...
+    seq.addBlock(mr.align('right',mr.makeDelay(TR),mr.makeExtendedTrapezoid('z','system',sys,'times',[0,Tpr],'amplitudes',[0,Azc])));
+end
+
+% the loop itself
+for j=1:im
+    Glast=struct('x',0,'y',0,'z',Azc);
+    for i=j:im:Ns
+        Gcr=mr.rotate('z',phi(i),mr.rotate('y',theta(i),Gr));
+        Gcurr=struct('x',0,'y',0,'z',0);
+        for g=1:length(Gcr)
+            Gcurr.(Gcr{g}.channel)=Gcr{g}.waveform(1);
+        end
+        seq.addBlock( ...
+            mr.makeExtendedTrapezoid('x','system',sys,'times',[0,Tt],'amplitudes',[Glast.x,Gcurr.x]), ...
+            mr.makeExtendedTrapezoid('y','system',sys,'times',[0,Tt],'amplitudes',[Glast.y,Gcurr.y]), ...
+            mr.makeExtendedTrapezoid('z','system',sys,'times',[0,Tt],'amplitudes',[Glast.z,Gcurr.z]));
+        for f=-FN:FN % 'slices' loop (frequency offsets)
+            rf.freqOffset=f*FO;
+            rf.phaseOffset=-2*pi*f*FO*rf.t(end)/2;
+            seq.addBlock( [{rf, adc}, Gcr] );
+        end
+        Glast=Gcurr;
+    end
+    rf_aux=rf;
+    rf_aux.delay=rf.delay+Tt;
+    if (j==im)
+        Azc=0; % on the last interleave we ramp down to 0
+    end
+    seq.addBlock( rf_aux, ...
+        mr.makeExtendedTrapezoid('x','system',sys,'times',[0,TR],'amplitudes',[Glast.x,0]), ...
+        mr.makeExtendedTrapezoid('y','system',sys,'times',[0,TR],'amplitudes',[Glast.y,0]), ...
+        mr.makeExtendedTrapezoid('z','system',sys,'times',[0,TR],'amplitudes',[Glast.z,Azc]));
+end
+end
+
 %% create main sequence elements
 
-% %create alpha-degree block pulse 
+% %create alpha-degree block pulse
 % rf = mr.makeBlockPulse(alpha*pi/180,'Duration',rf_duration,'system',sys);
-%or create alpha-degree gaussian pulse 
+%or create alpha-degree gaussian pulse
 rf = mr.makeGaussPulse(alpha*pi/180,'Duration',rf_duration,'timeBwProduct',3,'system',sys,...
     'use','excitation');
 Tenc=rf_duration/2+minRF_to_ADC_time+ro_duration; %encoding time
@@ -85,7 +170,7 @@ for s=nKspi:-1:1
     fprintf('Effective "slice thinckess" %f mm\n',  1/Ag*rfbw*1e3);
     populate_subsequence(sys,seq,rf,adc,phi,theta,im,Ns,Ag,TR,Tt,NF,FO);
 end
-% sample the centere of k-space 
+% sample the centere of k-space
 seq.addBlock(mr.makeDelay(Tt));
 seq.addBlock(rf, adc, mr.makeDelay(TR-Tt));
 SamplesBookkeeping=[SamplesBookkeeping 1];
@@ -98,19 +183,19 @@ fprintf('Total number of SPI samples: %d; a Cartesian patch would require %d\n',
 % Tspi1=mr.calcDuration(rf)+sys.rfRingdownTime;
 % adc.delay=adc.delay+Tt-Tspi1;
 % Tspi2=TR-Tspi1;
-% 
+%
 % g=mr.makeTrapezoid('x','system',sys,'area',dK*Kspi,'duration',minRF_to_ADC_time);
 % gx=g;gx.channel='x';
 % gy=g;gy.channel='y';
 % gz=g;gz.channel='z';
-% 
+%
 % gxr=g;gxr.channel='x';
 % gyr=g;gyr.channel='y';
 % gzSpoil=mr.makeTrapezoid('x','system',sys,'area',Kmax*(1+xSpoil),'duration',minRF_to_ADC_time);
-% 
+%
 % fprintf('Populating SPI loop (~%d TRs)\n', round(pi/6*((2*Kspi+1)^3)));
 % tic;
-% 
+%
 % % SPI loop itself
 % gxr.amplitude=0;
 % gyr.amplitude=0;
@@ -176,14 +261,14 @@ seq_sar.write('zte_petra_sar.seq');
 return
 
 % %% test binary storing
-% 
+%
 % seq.writeBinary('zte_petra.bin');
-% seq_bin=mr.Sequence();          
+% seq_bin=mr.Sequence();
 % seq_bin.readBinary('zte_petra.bin');
 % seq_bin.write('zte_petra_bin.seq');
 % return
 
-%% visualize the 3D k-space 
+%% visualize the 3D k-space
 tic;
 [kfa,~,kf]=seq.calculateKspacePP();
 toc
@@ -269,94 +354,10 @@ axis('equal'); % enforce aspect ratio for the correct trajectory display
 hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
 
-%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits  
+%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slewrate limits
 
 rep = seq.testReport;
 fprintf([rep{:}]);
 return
 
-%% local functions
-function [phi, theta, im]=spherical_samples(Kr,dK,R)
-% the number of samples equals the ceil of the area of the sphere divided
-% by the area around every sample
-Ns=ceil(4*pi*((Kr/dK)^2)/R); 
-np=0:(Ns-1);
-alpha_gold=pi*(3-sqrt(5));
-phi=np*alpha_gold;
-%theta=0.5*pi*sqrt(np/Ns); % from Davide Piccini  https://doi.org/10.1002/mrm.22898
-theta=acos(1-2*np/(Ns-1));  % from  Anton Semechko (2020). Suite of functions to perform uniform sampling of a sphere (https://github.com/AntonSemechko/S2-Sampling-Toolbox), GitHub. Retrieved October 3, 2020. 
-
-xp=sin(theta).*cos(phi);
-yp=sin(theta).*sin(phi);
-zp=cos(theta);
-%figure; sphere; colormap gray;
-%hold on; plot3(xp,yp,zp,'.');
-
-% looking for the optimal interleaving factor
-nm=round(Ns/2); % middle of the trajetory
-sr=round(sqrt(Ns));
-v0=[xp(nm); yp(nm); zp(nm)];
-v=[xp(nm+(1:sr)); yp(nm+(1:sr)); zp(nm+(1:sr))];
-%figure;plot(vecnorm((v-v0(:,ones(size(v,2),1)))));
-[dKm,im]=min(vecnorm((v-v0(:,ones(size(v,2),1)))));
-
-% fprintf('requested dK=%g achieved minimal dK=%g, min acceleration: %g, Ns=%d\n', dK/sqrt(R), dKm*Kr, (dKm*Kr/dK)^2,Ns);
-
-% v=[xp; yp; zp]*Kr/dK/sqrt(R)*100;
-% md=zeros(1,Ns);
-% d=zeros(1,Ns);
-% for i=1:Ns
-%     d=vecnorm(v(:,i*ones(1,Ns))-v);
-%     d(i)=NaN;
-%     md(i)=min(d);
-% end
-% fprintf('dKmin=%g%%, dKmed=%g%% dKmax=%g%%\n', min(md),median(md),max(md));
-
-end
-
-function populate_subsequence(sys,seq,rf,adc,phi,theta,im,Ns,Ag,TR,Tt,FN, FO)
-%Azc=Ag*(TR-Tt)/(TR+Tt);  %*0.35;
-Azc=0; % for MoCo we need "no-gradient" event blocks to be able to apply updates
-
-Gr=mr.makeExtendedTrapezoid('z','times',[0 TR-Tt],'amplitudes',[Ag Ag]); % this is a constant graient with no ramps
-
-% pre-ramp the gradient to Azc
-if abs(Azc)>eps
-    Tpr=max(2,ceil(Azc/sys.maxSlew/sys.gradRasterTime))*sys.gradRasterTime;
-    assert(Tpr<=TR);
-    % this "dummy TR" doe not have an RF pulse, which is not good when it is called for the inner shells... but otherwise there would be no enough spoiling... 
-    seq.addBlock(mr.align('right',mr.makeDelay(TR),mr.makeExtendedTrapezoid('z','system',sys,'times',[0,Tpr],'amplitudes',[0,Azc])));
-end
-
-% the loop itself
-for j=1:im
-    Glast=struct('x',0,'y',0,'z',Azc);
-    for i=j:im:Ns
-        Gcr=mr.rotate('z',phi(i),mr.rotate('y',theta(i),Gr));
-        Gcurr=struct('x',0,'y',0,'z',0);
-        for g=1:length(Gcr)
-            Gcurr.(Gcr{g}.channel)=Gcr{g}.waveform(1);
-        end
-        seq.addBlock( ...
-            mr.makeExtendedTrapezoid('x','system',sys,'times',[0,Tt],'amplitudes',[Glast.x,Gcurr.x]), ...
-            mr.makeExtendedTrapezoid('y','system',sys,'times',[0,Tt],'amplitudes',[Glast.y,Gcurr.y]), ...
-            mr.makeExtendedTrapezoid('z','system',sys,'times',[0,Tt],'amplitudes',[Glast.z,Gcurr.z]));
-        for f=-FN:FN % 'slices' loop (frequency offsets)
-            rf.freqOffset=f*FO;
-            rf.phaseOffset=-2*pi*f*FO*rf.t(end)/2;
-            seq.addBlock( [{rf, adc}, Gcr] );
-        end
-        Glast=Gcurr;
-    end
-    rf_aux=rf;
-    rf_aux.delay=rf.delay+Tt;
-    if (j==im)
-        Azc=0; % on the last interleave we ramp down to 0
-    end
-    seq.addBlock( rf_aux, ...
-        mr.makeExtendedTrapezoid('x','system',sys,'times',[0,TR],'amplitudes',[Glast.x,0]), ...
-        mr.makeExtendedTrapezoid('y','system',sys,'times',[0,TR],'amplitudes',[Glast.y,0]), ...
-        mr.makeExtendedTrapezoid('z','system',sys,'times',[0,TR],'amplitudes',[Glast.z,Azc])); 
-end
-end
 

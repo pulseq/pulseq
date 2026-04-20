@@ -11,18 +11,18 @@ phi=0;%pi/4; % orientation of the readout e.g. for manual interleaving
 % Set system limits
 sys = mr.opts('MaxGrad',20,'GradUnit','mT/m',...
     'MaxSlew',150,'SlewUnit','T/m/s',...
-    'rfRingdownTime', 20e-6, 'rfDeadtime', 100e-6, 'adcDeadTime', 10e-6, 'adcSamplesLimit', 8192);  
+    'rfRingdownTime', 20e-6, 'rfDeadtime', 100e-6, 'adcDeadTime', 10e-6, 'adcSamplesLimit', 8192);
 seq=mr.Sequence(sys);          % Create a new sequence object
 %warning('OFF', 'mr:restoreShape'); % restore shape is not compatible with spirals and will throw a warning from each plot() or calcKspace() call
 
-% Create fat-sat pulse 
+% Create fat-sat pulse
 % (in Siemens interpreter from January 2019 duration is limited to 8.192 ms, and although product EPI uses 10.24 ms, 8 ms seems to be sufficient)
 B0=2.89; % 1.5 2.89 3.0
 sat_ppm=-3.35;
 sat_freq=sat_ppm*1e-6*B0*sys.gamma;
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,'dwell',10e-6,...
     'bandwidth',abs(sat_freq),'freqPPM',sat_ppm,'use','saturation');
-rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase    
+rf_fs.phasePPM=-2*pi*rf_fs.freqPPM*rf_fs.center; % compensate for the frequency-offset induced phase
 
 gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
 
@@ -96,6 +96,10 @@ fprintf('duration smooth %d us\n', round(1e6*dt_grad*length(kopt)));
 
 [gos, sos]=mr.traj2grad(kopt,'RasterTime',dt_grad,'firstGradStepHalfRaster',~gradOversampling);
 
+if ~exist('yline')
+  yline= @(y,varargin) plot(xlim, [y y], varargin(:));
+end
+
 figure;plot([gos;abs(gos(1,:)+1i*gos(2,:))]');
 hold on; yline(sys.maxGrad,'--'); title('gradient with the abs constraint');
 
@@ -111,7 +115,7 @@ spiral_grad_shape=gos;
 % calculate ADC
 % round-down dwell time to 10 ns
 adcTime = dt_grad*size(spiral_grad_shape,2);
-% actually it is trickier than that: the (Siemens) interpreter sequence 
+% actually it is trickier than that: the (Siemens) interpreter sequence
 % per default will try to split the trajectory into segments with the number of samples <8192
 % and every of these segments will have to have duration aligned to the
 % gradient raster time
@@ -122,19 +126,19 @@ adcTime = dt_grad*size(spiral_grad_shape,2);
 % adcSamples=adcSegments*adcSamplesPerSegment;
 % adcDwell=round(adcTime/adcSamples/100e-9)*100e-9; % on Siemens adcDwell needs to be aligned to 100ns (if my memory serves me right)
 % adcSegmentDuration=adcSamplesPerSegment*adcDwell; % with the 100 samples above and the 100ns alignment we automatically fullfill the segment alignment requirement
-% if mod(adcSegmentDuration, sys.gradRasterTime)>eps 
+% if mod(adcSegmentDuration, sys.gradRasterTime)>eps
 %     error('ADC segmentation model results in incorrect segment duration');
 % end
 % % update segment count
 % adcSegments=floor(adcTime/adcSegmentDuration);
 
-adcSamplesDesired=kRadius*kSamples/interleaves; 
-adcDwell=max(round(adcTime/adcSamplesDesired/sys.adcRasterTime)*sys.adcRasterTime, 1e-6); 
+adcSamplesDesired=kRadius*kSamples/interleaves;
+adcDwell=max(round(adcTime/adcSamplesDesired/sys.adcRasterTime)*sys.adcRasterTime, 1e-6);
 adcSamplesDesired=ceil(adcTime/adcDwell);
-[adcSegments,adcSamplesPerSegment]=mr.calcAdcSeg(adcSamplesDesired,adcDwell,sys); 
+[adcSegments,adcSamplesPerSegment]=mr.calcAdcSeg(adcSamplesDesired,adcDwell,sys);
 
 adcSamples=adcSegments*adcSamplesPerSegment;
-% we would like to sample the point k=1 with the furst ADC sample (i.e. at 
+% we would like to sample the point k=1 with the furst ADC sample (i.e. at
 % t=adcDwell/2), so we advance the ADC and round the delay to the RF raster time
 adc = mr.makeAdc(adcSamples,'Dwell',adcDwell,'Delay',round((mr.calcDuration(gzReph)-adcDwell/2)/sys.rfRasterTime)*sys.rfRasterTime);%lims.adcDeadTime);
 
@@ -149,7 +153,7 @@ else
     end
 end
 
-% readout grad 
+% readout grad
 gx = mr.makeArbitraryGrad('x',spiral_grad_shape(1,:),'Delay',mr.calcDuration(gzReph),'first',0,'last', spiral_grad_shape(1,end),'system',sys,'oversampling',gradOversampling);
 gy = mr.makeArbitraryGrad('y',spiral_grad_shape(2,:),'Delay',mr.calcDuration(gzReph),'first',0,'last', spiral_grad_shape(2,end),'system',sys,'oversampling',gradOversampling);
 
@@ -169,10 +173,10 @@ gy_spoil=mr.makeExtendedTrapezoid('y','times',[0 mr.calcDuration(gz_spoil)],'amp
 % gx_combined=mr.addGradients([gx,gx_spoil], lims);
 % gy_combined=mr.addGradients([gy,gy_spoil], lims);
 % gz_combined=mr.addGradients([gzReph,gz_spoil], lims);
- 
+
 % Define sequence blocks
 for s=1:Nslices
-    seq.addBlock(rf_fs,gz_fs); % fat-sat    
+    seq.addBlock(rf_fs,gz_fs); % fat-sat
     rf.freqOffset=gz.amplitude*sliceThickness*(s-1-(Nslices-1)/2);
     seq.addBlock(rf,gz);
     seq.addBlock(mr.rotate('z',phi,gzReph,gx,gy,adc,'system',sys));
@@ -208,7 +212,7 @@ seq.setDefinition('MaxAdcSegmentLength', adcSamplesPerSegment); % this is import
 
 seq.write('spiral.seq');   % Output sequence for scanner
 
-% the sequence is ready, so let's see what we got 
+% the sequence is ready, so let's see what we got
 seq.plot();             % Plot sequence waveforms
 
 %% k-space trajectory calculation
@@ -221,10 +225,10 @@ hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); title('2D k-space');
 
 % seq.install('siemens');
 return
-%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits  
+%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits
 
-rep = seq.testReport; 
-fprintf([rep{:}]); 
+rep = seq.testReport;
+fprintf([rep{:}]);
 
 return
 % %% playground / an effort to produce semi-analytical trajectories -- does not work yet
@@ -234,10 +238,10 @@ return
 % u=0;
 % uu=0;
 % du=1e-6;
-% dt=5e-6; % 5us - gradient raster with oversamplingset 
+% dt=5e-6; % 5us - gradient raster with oversamplingset
 % OPTIONS = optimoptions('fmincon','Algorithm','sqp','StepTolerance',1e-10,'Display','off');
-% while u<=umax 
-%     %u_glim=fmincon(@(x) abs(parametric_2D_trajectory(x,deltak)-k)-sys.maxGrad*dt,u+du,-1,-(u+du),[],[],[],[],[],OPTIONS); 
+% while u<=umax
+%     %u_glim=fmincon(@(x) abs(parametric_2D_trajectory(x,deltak)-k)-sys.maxGrad*dt,u+du,-1,-(u+du),[],[],[],[],[],OPTIONS);
 %     %u_slim=fmincon(@(x) abs((parametric_2D_trajectory(x,deltak)-k)/dt-g)-sys.maxSlew*dt,u+du,-1,-(u+du),[],[],[],[],[],OPTIONS);
 %     u_glim=fzero(@(x) abs(parametric_2D_trajectory(x,deltak)-k)-sys.maxGrad*dt,[u+du, u+3]);
 %     fSlewLim=@(x) abs((parametric_2D_trajectory(x,deltak)-k)/dt-g)-sys.maxSlew*dt;
@@ -247,16 +251,16 @@ return
 %         n_u=find(fSlewLim(u_test)*fSlewLim(u_range(2))<0,1);
 %         if isempty(n_u)
 %             u_range(1)=u_test(n_u);
-%         end        
+%         end
 %         u_range(1)=u_test(n_u);
 %     end
 %     u_slim=fzero(fSlewLim,u_range);
-%     %u_glim=fsolve(@(x) abs(parametric_2D_trajectory(x,deltak)-k)-sys.maxGrad*dt,u+3); 
+%     %u_glim=fsolve(@(x) abs(parametric_2D_trajectory(x,deltak)-k)-sys.maxGrad*dt,u+3);
 %     %u_slim=fsolve(@(x) abs((parametric_2D_trajectory(x,deltak)-k)/dt-g)-sys.maxSlew*dt,u+3);
-%     %u_glim=fminbnd(@(x) abs(abs(k-parametric_2D_trajectory(x,deltak))-sys.maxGrad*dt),u+du,umax); 
+%     %u_glim=fminbnd(@(x) abs(abs(k-parametric_2D_trajectory(x,deltak))-sys.maxGrad*dt),u+du,umax);
 %     %u_slim=fminbnd(@(x) abs(abs((k-parametric_2D_trajectory(x,deltak))/dt-g)-sys.maxSlew*dt),u+du,umax);
 %     u_min=min(u_glim,u_slim);
-%     if u-u_min<0.25 
+%     if u-u_min<0.25
 %         u = u_min;
 %     else
 %         u = u +0.125
@@ -268,21 +272,21 @@ return
 %     k=k1;
 % end
 % %%
-% 
+%
 % figure; plot(parametric_2D_trajectory(uu,deltak));
 % figure; plot(abs(diff(parametric_2D_trajectory(uu,deltak))));
 % figure; plot(abs(diff(diff(parametric_2D_trajectory(uu,deltak)))));
-% 
+%
 % %%
 % function cmplx_spiral=parametric_2D_trajectory(turn,pitch)
 %   % turn is the angle in cycles, meaning 1 is the compele turn around
 %   cmplx_spiral=pitch*turn.*exp(1i*2*pi*turn);
 % end
-% 
+%
 % function cmplx_spiral=parametric_2D_trajectory_diff(turn,pitch)
 %   cmplx_spiral=pitch*(turn*2*1i*pi + 1).*exp(1i*2*pi*turn);
 % end
-% 
+%
 % function cmplx_spiral=parametric_2D_trajectory_diff_diff(turn,pitch)
 %   cmplx_spiral=-pitch*4*(turn*pi - 1i).*exp(1i*2*pi*turn);
 % end
