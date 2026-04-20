@@ -1,6 +1,17 @@
 % simple test that runs all demo sequences
 function tests = testDemoSeq
+  if exist('functiontests')
     tests = functiontests(localfunctions);
+  else
+    lf=localfunctions();
+    for i=1:length(lf)
+      f=lf{i};
+      n=func2str(f);
+      if length(n)>3 && strcmp(n(1:4),'test')
+        f();
+      end
+    end
+  end
 end
 
 function test_run_all_demo_seqs(testCase)
@@ -30,9 +41,11 @@ function test_run_all_demo_seqs(testCase)
     % now run all sequences one after another
     succeededSeqs={};
     failedSeqs={};
+    finishedSeconds=[];
     for currSeq=demoSeqs
         try
             fprintf('***** running sequence: %s *****\n', currSeq{1});
+            tstart=tic;
             eval(currSeq{1});
             succeededSeqs{end+1}=currSeq{1};
         catch ME
@@ -42,14 +55,27 @@ function test_run_all_demo_seqs(testCase)
             fprintf('error message: %s\n', ME.message);
             failedSeqs{end+1}=['failed sequence: ''' currSeq{1} ''', error message: ' ME.message ' '];
         end
+        finishedSeconds(end+1)=toc(tstart);
+        fprintf('===== sequence %s finished after %.2g seconds =====\n', currSeq{1}, finishedSeconds(end));
         close all;
         mr.opts('resetDefault',true);
         mr.aux.globalVars('reset','SupportedLabels');
     end
-    testCase.log(1, ['Succeded sequences:' sprintf(' %s', succeededSeqs{:})]);
-    if isempty(failedSeqs)
-        testCase.verifyTrue(true);
+    if mr.aux.isOctave()
+      fprintf('%s\n',['Succeded sequences:' sprintf(' %s', succeededSeqs{:})]);
+      if isempty(failedSeqs)
+        fprintf('%s\n',['Failed sequences: ' failedSeqs{:}]);
+      end
     else
+      if isempty(failedSeqs)
+        for i=1:length(succeededSeqs)
+            succeededSeqs{i}=[succeededSeqs{i} sprintf('(%.2gs)',finishedSeconds(i))];
+        end
+        testCase.log(1, ['Succeded sequences:' sprintf(' %s', [succeededSeqs{:}])]);
+        testCase.verifyTrue(true);
+      else
+        testCase.log(1, ['Succeded sequences:' sprintf(' %s', succeededSeqs{:})]);
         testCase.verifyFail(['Failed sequences: ' failedSeqs{:}]);
+      end
     end
 end
