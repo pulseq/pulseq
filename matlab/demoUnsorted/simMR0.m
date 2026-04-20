@@ -7,8 +7,8 @@ persistent parser
 if isempty(parser)
     parser = inputParser;
     parser.FunctionName = 'simMR0';
-     
-    addParamValue(parser, 'pythonCmd', '', @(x)isstring(x)||ischar(x)); % optional Python executable path 
+
+    addParamValue(parser, 'pythonCmd', '', @(x)isstring(x)||ischar(x)); % optional Python executable path
     addParamValue(parser, 'workPath', '', @(x)isstring(x)||ischar(x)); % optional path to the temporary directory for files stored by the function
     addParamValue(parser, 'baseName', 'mr0sim', @(x)isstring(x)||ischar(x)); % optional file name for the sequence and simulation result files in the temporary directory
     addParamValue(parser, 'noCleanUp', false, @(x)islogical(x)||isnumeric(x)); % leave sequence and simulated signal files in place
@@ -44,14 +44,14 @@ if exist(sigpath,'file')
     delete(sigpath);
 end
 
-% get phantom 
+% get phantom
 if ~exist([workPath filesep 'numerical_brain_cropped.mat'],'file')
     url='https://github.com/MRsources/MRzero-Core/raw/main/documentation/playground_mr0/numerical_brain_cropped.mat';
     % try wget (common in Lunix/Unix)
     [status,cmdout] = system(['cd ' workPath '&& wget ' url]);
     if 0~=status
         % try curl (usually included in Windows)
-        [status,cmdout] = system(['cd ' workPath ' && curl -L -O ' url]); 
+        [status,cmdout] = system(['cd ' workPath ' && curl -L -O ' url]);
         if 0~=status
             warning("Failed to download numerical phantom, maybe your firewall is too cautious? \nThe simulation with MR0 will probably fail \nDownload the phantom from %s and store it under %s", url, workPath);
 
@@ -60,7 +60,7 @@ if ~exist([workPath filesep 'numerical_brain_cropped.mat'],'file')
 end
 
 helper={
-'import MRzeroCore as mr0'; 
+'import MRzeroCore as mr0';
 'import scipy.io'
 'dB0 = 0';
 'sz = [128, 128]';
@@ -98,38 +98,26 @@ for i=1:length(helper)
 end
 fclose(fid);
 
-% find/check python 
+% find/check python
 if ~isempty(opt.pythonCmd)
     [status, result]=system([opt.pythonCmd ' --version']);
     if status~=0
         error(['provided python executable ''' opt.pythonCmd ''' returns an error on the version check']);
     end
+    [status, result] = system(sprintf('%s  -c "import sigpy" 2>/dev/null',opt.pythonCmd));
+    if status~=0
+        error(['provided python executable ''' opt.pythonCmd ''' returns an error on the sigPy check']);
+    end
     python=opt.pythonCmd;
-elseif ispc()
-    % on Windows we rely on the PATH settings
-    [status, result]=system('python --version');
-    if status==0
-        python='python';
-    else
-        [status, result]=system('py --version');
-        if status~=0
-            error('python executable not found, please check your system PATH settings');
-        end
-        python='py';
-    end
 else
-    % this probably only works on linux and maybe also on mac
-    [status, result]=system('which python3');
-    if status==0
-        python=mr.aux.strstrip(result);
-    else
-        [status, result]=system('which python');
-        if status==0
-            python=mr.aux.strstrip(result);
-        else
-            error('python executable not found');
-        end
+    [avail, python]=mr.aux.isSigPyAvailable();
+    if ~avail
+        error('python executable with installed sigPy not found, please check your system PATH settings and Python installation');
     end
+end
+% add quotes in case Python install path contains spaces or alike characters
+if python(1)~='"'
+  python=['"' python '"'];
 end
 
 seq.write_v141(seqpath);

@@ -7,7 +7,7 @@ function [rf, gz, gzr, delay] = makeSLRpulse(flip,varargin)
 %
 % sigpy.mri.rf.dzrf = dzrf(n=64, tb=4, ptype='st', ftype='ls', d1=0.01, d2=0.01, cancel_alpha_phs=False)
 %     Primary function for design of pulses using the SLR algorithm.
-%     
+%
 %     Args:
 %         n (int): number of time points.
 %         tb (int): pulse time bandwidth product.
@@ -20,17 +20,17 @@ function [rf, gz, gzr, delay] = makeSLRpulse(flip,varargin)
 %         d1 (float): passband ripple level in :math:'M_0^{-1}'.
 %         d2 (float): stopband ripple level in :math:'M_0^{-1}'.
 %         filterType (str): filter type to use, e.g. sinc (ms),
-%         least-squares (ls), etc. Refer to sigpy.rf documentation. 
-%     
+%         least-squares (ls), etc. Refer to sigpy.rf documentation.
+%
 %     Returns:
 %         rf (array): designed RF pulse.
-%     
+%
 %     References:
 %         Pauly, J., Le Roux, Patrick., Nishimura, D., and Macovski, A.(1991).
 %         Parameter Relations for the Shinnar-LeRoux Selective Excitation
 %         Pulse Design Algorithm.
 %         IEEE Transactions on Medical Imaging, Vol 10, No 1, 53-65.
-% 
+%
 
 validPulseUses = mr.getSupportedRfUse();
 
@@ -38,7 +38,7 @@ persistent parser
 if isempty(parser)
     parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'makeSLRpulse';
-    
+
     % RF params
     addRequired(parser, 'flipAngle', @isnumeric);
     addOptional(parser, 'system', [], @isstruct);
@@ -61,8 +61,8 @@ if isempty(parser)
     addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
     addParamValue(parser, 'use', 'excitation', @(x) any(validatestring(x,validPulseUses)));
-    % optional Python command 
-    addParamValue(parser, 'pythonCmd', '', @(x)isstring(x)||ischar(x));    
+    % optional Python command
+    addParamValue(parser, 'pythonCmd', '', @(x)isstring(x)||ischar(x));
 end
 parse(parser, flip, varargin{:});
 opt = parser.Results;
@@ -77,38 +77,26 @@ if opt.dwell==0
     opt.dwell=sys.rfRasterTime;
 end
 
-% find/check python 
+% find/check python
 if ~isempty(opt.pythonCmd)
     [status, result]=system([opt.pythonCmd ' --version']);
     if status~=0
         error(['provided python executable ''' opt.pythonCmd ''' returns an error on the version check']);
     end
+    [status, result] = system(sprintf('%s  -c "import sigpy" 2>/dev/null',opt.pythonCmd));
+    if status~=0
+        error(['provided python executable ''' opt.pythonCmd ''' returns an error on the sigPy check']);
+    end
     python=opt.pythonCmd;
-elseif ispc()
-    % on Windows we rely on the PATH settings
-    [status, result]=system('python --version');
-    if status==0
-        python='python';
-    else
-        [status, result]=system('py --version');
-        if status~=0
-            error('python executable not found, please check your system PATH settings');
-        end
-        python='py';
-    end
 else
-    % this probably only works on linux and maybe also on mac
-    [status, result]=system('which python3');
-    if status==0
-        python=mr.aux.strstrip(result);
-    else
-        [status, result]=system('which python');
-        if status==0
-            python=mr.aux.strstrip(result);
-        else
-            error('python executable not found');
-        end
+    [avail, python]=mr.aux.isSigPyAvailable();
+    if ~avail
+        error('python executable with installed sigPy not found, please check your system PATH settings and Python installation');
     end
+end
+% add quotes in case Python install path contains spaces or alike characters
+if python(1)~='"'
+  python=['"' python '"'];
 end
 
 add_opt='';
@@ -134,13 +122,13 @@ end
 N = round(opt.duration/opt.dwell);
 % on Windows it looks like the $ and '' are not needed and ; can be used in place of \n
 if ispc()
-    cmd=[python ' -c "import sigpy.mri.rf;pulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
-                ',' num2str(opt.timeBwProduct) ',ptype=''' ptype '''' ... 
+    cmd=[python ' -c "import sigpy.mri.rf;pulse=sigpy.mri.rf.dzrf(' num2str(N) ...
+                ',' num2str(opt.timeBwProduct) ',ptype=''' ptype '''' ...
                 ',d1=' num2str(opt.passbandRipple) ',d2=' num2str(opt.stopbandRipple) ...
                 ',ftype=''' opt.filterType '''' add_opt ');print(*pulse)"'];
 else
-    cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.dzrf(' num2str(N) ... 
-                ',' num2str(opt.timeBwProduct) ',ptype=\''' ptype '\''' ... 
+    cmd=[python ' -c $''import sigpy.mri.rf\npulse=sigpy.mri.rf.dzrf(' num2str(N) ...
+                ',' num2str(opt.timeBwProduct) ',ptype=\''' ptype '\''' ...
                 ',d1=' num2str(opt.passbandRipple) ',d2=' num2str(opt.stopbandRipple) ...
                 ',ftype=\''' opt.filterType '\''' add_opt ')\nprint(*pulse)'''];
 end
@@ -151,7 +139,7 @@ if status~=0
     error('executing python command failed, error message was: %s', result);
 end
 
-lines = regexp(result,'\n','split'); % the response from the python call contains some garbage 
+lines = regexp(result,'\n','split'); % the response from the python call contains some garbage
 % look for a usable result vector
 for i=1:length(lines)
     try
@@ -199,7 +187,7 @@ if nargout > 1
     if opt.maxSlew > 0
         sys.maxSlew = opt.maxSlew;
     end
-    
+
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
     gz = mr.makeTrapezoid('z', sys, 'flatTime', opt.duration, ...
@@ -209,7 +197,7 @@ if nargout > 1
         gz.delay = ceil((rf.delay - gz.riseTime)/sys.gradRasterTime)*sys.gradRasterTime; % round-up to gradient raster
     end
     if rf.delay < (gz.riseTime+gz.delay)
-        rf.delay = gz.riseTime+gz.delay; % these are on the grad raster already which is coarser 
+        rf.delay = gz.riseTime+gz.delay; % these are on the grad raster already which is coarser
     end
 end
 
