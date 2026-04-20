@@ -181,7 +181,11 @@ classdef TransformFOV < handle
                 for i=1:length(grads)
                     %grads{i}=mr.scaleGrad(grads{i},obj.scale(channel2index.(grads{i}.channel)),obj.system);
                     if ~isempty(grads{i})
-                        grads{i}=mr.scaleGrad(grads{i},obj.scale(i),obj.system);
+                        if (isfield(grads{i},'id'))
+                            grads{i}=mr.scaleGrad(rmfield(grads{i},'id'),obj.scale(i),obj.system);
+                        else
+                            grads{i}=mr.scaleGrad(grads{i},obj.scale(i),obj.system);
+                        end
                     end
                 end
             end

@@ -27,6 +27,10 @@ end
 parse(parser, grad, timepoint, varargin{:});
 opt = parser.Results;
 
+if isfield(grad,'id')
+    error('attempting to split readily registered object! please register objects after calling this function or deregister the argument by calling rmfield(...,''id'')');
+end
+
 if isempty(opt.system)
     system=mr.opts();
 else

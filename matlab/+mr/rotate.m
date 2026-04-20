@@ -8,6 +8,10 @@ function [varargout] = rotate(raxis, angle, varargin)
 %   non-gradient objects are not affected. 
 %   Possible rotation axes are 'x', 'y' or 'z'.
 %
+%   The objects that contain the field 'id' but are not modified by this
+%   function are passed through without modification. For the gradients
+%   that are modified, the field 'id' is removed automatically.
+%
 %   Optional parameter list may include the keyword 'system' followed by a
 %   system limits struct. The system can only be provided in the beginning or 
 %   at the ent of the list of optional parameters.
@@ -100,6 +104,7 @@ rotated2=cell(1,length(irotate1)+length(irotate2));
 max_mag=0; % measure of the relevant amplitude
 for i=1:length(irotate1)
     g=va{irotate1(i)};
+    if isfield(g,'id'), g=rmfield(g,'id'); end
     max_mag=max(max_mag, getGradAbsMag(g));
     rotated1{i}=mr.scaleGrad(g,cos(angle));
     g=mr.scaleGrad(g,sin(angle));
@@ -109,6 +114,7 @@ end
 o=length(irotate1);
 for i=1:length(irotate2)
     g=va{irotate2(i)};
+    if isfield(g,'id'), g=rmfield(g,'id'); end
     max_mag=max(max_mag, getGradAbsMag(g));
     rotated2{i+o}=mr.scaleGrad(g,cos(angle));
     g=mr.scaleGrad(g,-sin(angle));
