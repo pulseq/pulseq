@@ -25,6 +25,12 @@ function test_run_all_demo_seqs(testCase)
     catch
         addpath(fullfile(currDir,'../matlab'));
     end
+    
+    if mr.aux.isOctave
+      excludedSeqs{end+1}='writeZTE_Petra'; % it works but takes too long to generate (like one day?)
+      excludedSeqs{end+1}='writeZTE_Petra_sodium'; % even longer...
+    end
+    
     demoDir=fullfile(currDir,'../matlab/demoSeq');
     d = dir(fullfile(demoDir, '*.m'));
     demoSeqs={};
@@ -56,21 +62,25 @@ function test_run_all_demo_seqs(testCase)
             failedSeqs{end+1}=['failed sequence: ''' currSeq{1} ''', error message: ' ME.message ' '];
         end
         finishedSeconds(end+1)=toc(tstart);
-        fprintf('===== sequence %s finished after %.2g seconds =====\n', currSeq{1}, finishedSeconds(end));
+        fprintf('===== sequence %s finished after %.3g seconds =====\n', currSeq{1}, finishedSeconds(end));
         close all;
         mr.opts('resetDefault',true);
         mr.aux.globalVars('reset','SupportedLabels');
     end
+
+    if isempty(failedSeqs)
+      for i=1:length(succeededSeqs)
+        succeededSeqs{i}=[succeededSeqs{i} sprintf('(%.3gs)',finishedSeconds(i))];
+      end
+    end
+
     if mr.aux.isOctave()
       fprintf('%s\n',['Succeded sequences:' sprintf(' %s', succeededSeqs{:})]);
-      if isempty(failedSeqs)
+      if ~isempty(failedSeqs)
         fprintf('%s\n',['Failed sequences: ' failedSeqs{:}]);
       end
     else
       if isempty(failedSeqs)
-        for i=1:length(succeededSeqs)
-            succeededSeqs{i}=[succeededSeqs{i} sprintf('(%.2gs)',finishedSeconds(i))];
-        end
         testCase.log(1, ['Succeded sequences:' sprintf(' %s', [succeededSeqs{:}])]);
         testCase.verifyTrue(true);
       else
