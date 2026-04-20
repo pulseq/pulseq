@@ -12,6 +12,7 @@ if isempty(defaultStandardOpts)
         'maxGrad',mr.convert(40,'mT/m'),...   % Default: 40 mT/m
         'maxSlew',mr.convert(170,'T/m/s'),... % Default: 170 mT/m/ms
         'maxB1',mr.convert(20,'uT'),...	      % Default: 20 uT
+        'maxFreqOffset',250e3,... % Default: +-250 kHz -- maximum frequency offset for ADC and RF; some systems may have it higher, but they are probably rare (e.g. Siemens Terra seems to accept 400kHz)
         'riseTime',[],...
         'rfDeadTime',0,...
         'rfRingdownTime',0,...
@@ -57,6 +58,7 @@ if isempty(parser)
     parser.addParamValue('maxSlew',[],@isnumeric);
     parser.addParamValue('maxB1',[],@isnumeric);
     parser.addParamValue('riseTime',[],@isnumeric);
+    parser.addParamValue('maxFreqOffset',defaultOpts.maxFreqOffset,@isnumeric);
     parser.addParamValue('rfDeadTime',defaultOpts.rfDeadTime,@isnumeric);
     parser.addParamValue('rfRingdownTime',defaultOpts.rfRingdownTime,@isnumeric);
     parser.addParamValue('adcDeadTime',defaultOpts.adcDeadTime,@isnumeric);
@@ -105,6 +107,7 @@ end
 out.maxGrad = maxGrad;
 out.maxSlew = maxSlew;
 out.maxB1 = maxB1;
+out.maxFreqOffset = opt.maxFreqOffset;
 out.riseTime = opt.riseTime;
 out.rfDeadTime = opt.rfDeadTime;
 out.rfRingdownTime = opt.rfRingdownTime;
