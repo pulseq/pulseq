@@ -6,6 +6,22 @@ function [ report ] = testReport( obj, varargin )
 %
 % maxim.zaitsev@uniklinik-freiburg.de
 
+    function skey = makeSkey(iKey)
+        if iKey>=0
+            skey=['p' sprintf('%d',iKey)];
+        else
+            skey=['m' sprintf('%d',-iKey)];
+        end
+    end
+
+    function s = optionalOut(format, number)
+        if any(abs(number)>eps)
+            s=sprintf(format, number);
+        else
+            s=[];
+        end
+    end
+
 persistent parser
 if isempty(parser)
     parser = inputParser;
@@ -116,38 +132,74 @@ if (k_scale~=0)
     k_repeat=zeros(1,k_len);
     k_storage=zeros(1,k_len);
     k_storage_next=1;
-    % containers.Map only supports string as a key... (in older matlabs)
-    % in Octave we use the built-in, in Matlab the Java version
-    if mr.aux.isOctave()
-      kmap = containers.Map('KeyType', 'char', 'ValueType', 'int32');
-      for i=1:k_len
-        key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold))); 
-        % containers.Map does not have a proper find function so we use direct
-        % access and catch the possible error
-        try
-          k_storage_ind = kmap(key_string);
-        catch
-          k_storage_ind=k_storage_next;
-          kmap(key_string)=k_storage_ind;
-          k_storage_next=k_storage_next+1;
-        end
-        k_storage(k_storage_ind)=k_storage(k_storage_ind)+1;
-        k_repeat(i) = k_storage(k_storage_ind);
-      end
-    else
-      kmap = java.util.HashMap;
-      for i=1:k_len
-        key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold))); 
-        k_storage_ind = kmap.get(key_string);
-        if isempty(k_storage_ind)
-            k_storage_ind=k_storage_next;
-            kmap.put(key_string,k_storage_ind);
-            k_storage_next=k_storage_next+1;
-        end
-        k_storage(k_storage_ind)=k_storage(k_storage_ind)+1;
-        k_repeat(i) = k_storage(k_storage_ind);
-      end
+    % the fastest option should be dictionary(), if it is available
+    hasDict=false;
+    try
+        kmap=configureDictionary("string","double"); %is too new and only supported sice 2023; %containers.Map('KeyType','char','ValueType','double'); %  works as well but is substantially slower
+        hasDict=true;
+    catch
     end
+    if hasDict
+        for i=1:k_len
+            key = sprintf('a%d', int32(k_bins+round(ktraj_adc(:,i)/k_threshold)));
+            k_storage_ind=kmap.lookup(key,'FallbackValue',0);
+            if k_storage_ind==0
+                k_storage_ind=k_storage_next;
+                kmap(key)=k_storage_ind;
+                k_storage_next=k_storage_next+1;
+            end
+            k_storage(k_storage_ind)=k_storage(k_storage_ind)+1;
+            k_repeat(i) = k_storage(k_storage_ind);
+        end
+    else
+        % we use strings in combination with structs to go fast... (matlab is strange)
+        kmap = struct();
+        for i=1:k_len
+            key = sprintf('a%d', int32(k_bins+round(ktraj_adc(:,i)/k_threshold)));
+            assert(length(key)<=63);
+            if isfield(kmap,key)
+                k_storage_ind = kmap.(key);
+            else
+                k_storage_ind=k_storage_next;
+                kmap.(key)=k_storage_ind;
+                k_storage_next=k_storage_next+1;
+            end
+            k_storage(k_storage_ind)=k_storage(k_storage_ind)+1;
+            k_repeat(i) = k_storage(k_storage_ind);
+        end
+    end
+    % % containers.Map only supports string as a key... (in older matlabs)
+    % % in Octave we use the built-in, in Matlab the Java version
+    % if mr.aux.isOctave()
+    %   kmap = containers.Map('KeyType', 'char', 'ValueType', 'int32');
+    %   for i=1:k_len
+    %     key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold))); 
+    %     % containers.Map does not have a proper find function so we use direct
+    %     % access and catch the possible error
+    %     try
+    %       k_storage_ind = kmap(key_string);
+    %     catch
+    %       k_storage_ind=k_storage_next;
+    %       kmap(key_string)=k_storage_ind;
+    %       k_storage_next=k_storage_next+1;
+    %     end
+    %     k_storage(k_storage_ind)=k_storage(k_storage_ind)+1;
+    %     k_repeat(i) = k_storage(k_storage_ind);
+    %   end
+    % else
+    %   kmap = java.util.HashMap;
+    %   for i=1:k_len
+    %     key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold))); 
+    %     k_storage_ind = kmap.get(key_string);
+    %     if isempty(k_storage_ind)
+    %         k_storage_ind=k_storage_next;
+    %         kmap.put(key_string,k_storage_ind);
+    %         k_storage_next=k_storage_next+1;
+    %     end
+    %     k_storage(k_storage_ind)=k_storage(k_storage_ind)+1;
+    %     k_repeat(i) = k_storage(k_storage_ind);
+    %   end
+    % end
     % at this point k_storage(1:(k_storage_next-1)) is our visit frequency map
     Repeats_max=max(k_storage(1:(k_storage_next-1)));
     Repeats_min=min(k_storage(1:(k_storage_next-1)));
@@ -172,31 +224,28 @@ if (k_scale~=0)
     k_counters=zeros(size(ktraj_rep1));
     dims=size(ktraj_rep1,1);
     %ordering=cell(1,dims);
-    if mr.aux.isOctave()
+    if hasDict
       for j=1:dims
-          kmap = containers.Map('KeyType', 'int32', 'ValueType', 'int32');
+          kmap=configureDictionary("int32","int32");%dictionary(int32.empty(1,0),int32.empty(1,0));%configureDictionary("int32","int32"); % containers.Map('KeyType', 'int32', 'ValueType', 'int32'); %  works as well but is substantially slower
           k_storage=zeros(1,k_len);
           k_storage_next=1; 
           for i=1:size(ktraj_rep1,2)
               key=int32(round(ktraj_rep1(j,i)/k_threshold));
-              try
-                k_storage_ind = kmap(key);
-              catch
-                % attempt to account for rounding errors
-                try
-                  k_storage_ind = kmap(key+1);
-                catch
+              k_storage_ind = kmap.lookup(key,'FallbackValue',int32(0));
+              if k_storage_ind==0
                   % attempt to account for rounding errors
-                  try
-                    k_storage_ind = kmap(key-1);
-                  catch
-                    k_storage_ind=k_storage_next;
-                    kmap(key)=k_storage_ind;
-                    k_storage_next=k_storage_next+1;
-                    k_storage(k_storage_ind)=ktraj_rep1(j,i);
-                    %fprintf('%d:%d(%g) ',k_storage_ind,key,ktraj_rep1(j,i));
+                  k_storage_ind = kmap.lookup(key+1,'FallbackValue',int32(0));
+                  if k_storage_ind==0
+                      k_storage_ind = kmap.lookup(key-1,'FallbackValue',int32(0));
+                      % did not find anywhere...
+                      if k_storage_ind==0
+                          k_storage_ind=k_storage_next;
+                          kmap(key)=k_storage_ind;
+                          k_storage_next=k_storage_next+1;
+                          k_storage(k_storage_ind)=ktraj_rep1(j,i);
+                          %fprintf('%d:%d(%g) ',k_storage_ind,key,ktraj_rep1(j,i));
+                      end
                   end
-                end
               end
               %assert(k_storage_ind==k_storage(k_storage_ind));
               k_counters(j,i) = k_storage_ind;
@@ -205,31 +254,60 @@ if (k_scale~=0)
           %fprintf('\n');
       end
     else
-      kmap = java.util.HashMap;
       for j=1:dims
-          %kmap = containers.Map('KeyType', 'int32', 'ValueType', 'int32');
           k_storage=zeros(1,k_len);
           k_storage_next=1; 
-          kmap.clear();
+          kmap = struct(); % use struct() as a replacement for dict()
           for i=1:size(ktraj_rep1,2)
               key=int32(round(ktraj_rep1(j,i)/k_threshold));
-              k_storage_ind = kmap.get(key);
-              if isempty(k_storage_ind) % attempt to account for rounding errors
-                  k_storage_ind = kmap.get(key+1);
-              end
-              if isempty(k_storage_ind) % attempt to account for rounding errors
-                  k_storage_ind = kmap.get(key-1);
-              end
-              if isempty(k_storage_ind)
-                  k_storage_ind=k_storage_next;
-                  kmap.put(key,k_storage_ind);
-                  k_storage_next=k_storage_next+1;
-                  k_storage(k_storage_ind)=ktraj_rep1(j,i);
-                  %fprintf('%d:%d(%g) ',k_storage_ind,key,ktraj_rep1(j,i));
+              skey=makeSkey(key);
+              try
+                k_storage_ind = kmap.(skey);
+              catch
+                  skey1=makeSkey(key+1); % attempt to account for rounding errors
+                  try 
+                    k_storage_ind = kmap.(skey1);
+                  catch
+                      skey1=makeSkey(key-1); % attempt to account for rounding errors
+                      try 
+                          k_storage_ind = kmap.(skey1);
+                      catch
+                          k_storage_ind=k_storage_next;
+                          kmap.(skey)=k_storage_ind;
+                          k_storage_next=k_storage_next+1;
+                          k_storage(k_storage_ind)=ktraj_rep1(j,i);
+                          %fprintf('%d:%d(%g) ',k_storage_ind,key,ktraj_rep1(j,i));
+                      end
+                  end
               end
               %assert(k_storage_ind==k_storage(k_storage_ind));
               k_counters(j,i) = k_storage_ind;
           end
+          % for i=1:size(ktraj_rep1,2)
+          %     key=int32(round(ktraj_rep1(j,i)/k_threshold));
+          %     skey=makeSkey(key);
+          %     if isfield(kmap,skey)
+          %       k_storage_ind = kmap.(skey);
+          %     else
+          %         skey1=makeSkey(key+1); % attempt to account for rounding errors
+          %         if isfield(kmap,skey1) 
+          %           k_storage_ind = kmap.(skey1);
+          %         else
+          %             skey1=makeSkey(key-1); % attempt to account for rounding errors
+          %             if isfield(kmap,skey1) 
+          %                 k_storage_ind = kmap.(skey1);
+          %             else
+          %                 k_storage_ind=k_storage_next;
+          %                 kmap.(skey)=k_storage_ind;
+          %                 k_storage_next=k_storage_next+1;
+          %                 k_storage(k_storage_ind)=ktraj_rep1(j,i);
+          %                 %fprintf('%d:%d(%g) ',k_storage_ind,key,ktraj_rep1(j,i));
+          %             end
+          %         end
+          %     end
+          %     %assert(k_storage_ind==k_storage(k_storage_ind));
+          %     k_counters(j,i) = k_storage_ind;
+          % end
           %ordering{j}=cell2mat(kmap.values);
           %fprintf('\n');
       end
@@ -285,12 +363,23 @@ end
 [timing_ok, timing_error_report] = obj.checkTiming();
 
 report = { sprintf('Number of blocks: %d\n',numBlocks),...
-           [ sprintf('Number of events:\n'),...
-             sprintf('   RF:   %6d\n',eventCount(2)),...
-             sprintf('   Gx:   %6d\n',eventCount(3)),...
-             sprintf('   Gy:   %6d\n',eventCount(4)),...
-             sprintf('   Gz:   %6d\n',eventCount(5)),...
-             sprintf('   ADC:  %6d\n',eventCount(6))],...
+           [ sprintf(    'Number of events:\n'),...
+             optionalOut('   RF:   %6d\n',eventCount(2)),...
+             optionalOut('   Gx:   %6d\n',eventCount(3)),...
+             optionalOut('   Gy:   %6d\n',eventCount(4)),...
+             optionalOut('   Gz:   %6d\n',eventCount(5)),...
+             optionalOut('   ADC:  %6d\n',eventCount(6))],...
+           [ sprintf(    'Event library use:\n'),...
+             optionalOut('   RF:    %6d\n',numel(obj.rfLibrary.keys)),...
+             optionalOut('   Grad:  %6d\n',numel(obj.gradLibrary.keys)),...
+             optionalOut('   Shape: %6d\n',numel(obj.shapeLibrary.keys)),...
+             optionalOut('   ADC:   %6d\n',numel(obj.adcLibrary.keys)),...
+             optionalOut('   Extn:  %6d\n',numel(obj.extensionLibrary.keys)),...
+             optionalOut('   Trigg: %6d\n',numel(obj.trigLibrary.keys)),...
+             optionalOut('   Label: %6d\n',numel(obj.labelsetLibrary.keys)+numel(obj.labelincLibrary.keys)),...
+             optionalOut('   RfShm: %6d\n',numel(obj.rfShimLibrary.keys)),...
+             optionalOut('   Rot:   %6d\n',numel(obj.rotationLibrary.keys)),...
+             optionalOut('   SoDel: %6d\n',numel(obj.softDelayLibrary.keys))],...
            [ sprintf('Sequence duration: %.6fs\n',duration),...
              sprintf('TE: %.6fs\n',TE),...
              sprintf('TR: %.6fs\n',TR) ],...
