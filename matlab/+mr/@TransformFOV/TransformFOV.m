@@ -26,7 +26,11 @@ classdef TransformFOV < handle
             %   translation: 1x3 translation vector in the original
             %                (non-rotated) logical Pulseq coordinates
             %   scale:       1x3 scailing vector in the original
-            %                (non-rotated) logical Pulseq coordinates
+            %                (non-rotated) logical Pulseq coordinates. The
+            %                provided vector is the *gradient* scailing
+            %                vector, so the FOV size is *divided* by the
+            %                provided values. Scaling of 0 on one or
+            %                several axes sets gradients on these axes to 0
             %   transform:   4x4 homogeneous transform matrix, used as an
             %                alternative to a combination of 'rotation' and
             %                'translation'. If 'tansform' is specified
