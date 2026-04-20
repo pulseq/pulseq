@@ -182,6 +182,9 @@ classdef Sequence < handle
         % See testReport.m
         [ report ] = testReport( obj, varargin )
 
+        % See autoLabel.m
+        [labels, aux] = autoLabel(seq, varargin)
+
         % See gradSpectrum.m
         [R, Rax, F] = gradSpectrum(obj, FB, fmax, plt)
 
@@ -260,6 +263,10 @@ classdef Sequence < handle
                         rep = [rep ' time between the end of the RF pulse at ' num2str((b.rf.delay+b.rf.t(end))*1e6) ' and the end of the block at ' num2str(dur*1e6) 'us is shorter than rfRingdownTime'];
                         is_ok = false;
                     end
+                    if abs(b.rf.freqOffset) > obj.sys.maxFreqOffset || abs(b.rf.freqPPM*1e-6*obj.sys.gamma) > obj.sys.maxFreqOffset || abs(b.rf.freqOffset + b.rf.freqPPM*1e-6*obj.sys.gamma) > obj.sys.maxFreqOffset
+                        rep = [rep ' frequency offset of the RF pulse exceeds the maximum allowed value of ' num2str(obj.sys.maxFreqOffset) 'Hz'];
+                        is_ok = false;
+                    end
                 end
 
                 % check ADC dead times, dwell times and numbers of samples
@@ -279,6 +286,10 @@ classdef Sequence < handle
                     if abs(b.adc.numSamples/obj.sys.adcSamplesDivisor-round(b.adc.numSamples/obj.sys.adcSamplesDivisor)) > eps
                         rep = [rep ' adc: numSamples is not an integer multiple of sys.adcSamplesDivisor'];
                         is_ok=false;
+                    end
+                    if abs(b.adc.freqOffset) > obj.sys.maxFreqOffset || abs(b.adc.freqPPM*1e-6*obj.sys.gamma) > obj.sys.maxFreqOffset || abs(b.adc.freqOffset + b.adc.freqPPM*1e-6*obj.sys.gamma) > obj.sys.maxFreqOffset
+                        rep = [rep ' frequency offset of the ADC object exceeds the maximum allowed value of ' num2str(obj.sys.maxFreqOffset) 'Hz'];
+                        is_ok = false;
                     end
                 end
 
@@ -1079,7 +1090,7 @@ classdef Sequence < handle
                         end
                     end
                     % now it's a pain, but we also need to extract the rotation extension of the previous block --
-                    warning('FIXME: need rotation extension of the previous non-zero block here...');
+                    warning('mr:fixmePreviousRotationExtension','FIXME: need rotation extension of the previous non-zero block here...');
                 end
                 % check if connection to the previous block is correct using check_g and gradCheckData.lastGradVals
                 % up to here gradCheckData.lastGradVals are in physical coordinates, we transform them into current
