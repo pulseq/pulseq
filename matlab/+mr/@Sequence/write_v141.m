@@ -55,9 +55,9 @@ for i = 1:length(obj.blockEvents)
     %fprintf(fid,[idFormatStr ' %2d %2d %3d %3d %3d %2d 0\n'],[i obj.blockEvents{i}]);
     bd=obj.blockDurations(i)/obj.blockDurationRaster;
     bdr=round(bd);
-    assert(abs(bdr-bd)<1e-6); % this may still trigger false alarms for very long delays due to the limited accuracy of the double 
+    assert(abs(bdr-bd)<1e-6); % this may still trigger false alarms for very long delays due to the limited accuracy of the double
     fprintf(fid,[idFormatStr ' %3d %3d %3d %3d %3d %2d %2d\n'], ...
-            [i bdr obj.blockEvents{i}(2:end)]); 
+            [i bdr obj.blockEvents{i}(2:end)]);
 end
 fprintf(fid, '\n');
 
@@ -81,7 +81,7 @@ trapGradMask = obj.gradLibrary.type == 't';
 
 if any(arbGradMask)
     fprintf(fid, '# Format of arbitrary gradients:\n');
-    fprintf(fid, '#   time_shape_id of 0 means default timing (stepping with grad_raster starting at 1/2 of grad_raster)\n');    
+    fprintf(fid, '#   time_shape_id of 0 means default timing (stepping with grad_raster starting at 1/2 of grad_raster)\n');
     fprintf(fid, '# id amplitude amp_shape_id time_shape_id delay\n'); % do we need delay ???
     fprintf(fid, '# ..      Hz/m       ..         ..          us\n');
     fprintf(fid, '[GRADIENTS]\n');
@@ -159,7 +159,7 @@ if ~isempty(obj.trigLibrary.keys)
     keys = obj.trigLibrary.keys;
     for k = keys
         fprintf(fid, '%d %d %d %d %d\n', ...
-                [k round(obj.trigLibrary.data(k).array.*[1 1 1e6 1e6])]); 
+                [k round(obj.trigLibrary.data(k).array.*[1 1 1e6 1e6])]);
     end
     fprintf(fid, '\n');
 end
@@ -174,7 +174,7 @@ if ~isempty(obj.labelsetLibrary.keys) || ~isempty(obj.labelincLibrary.keys)
         fprintf(fid, ['extension LABELSET ',num2str(tid),'\n']);
         keys = obj.labelsetLibrary.keys;
         for k = keys
-                fprintf(fid, '%d %d %s\n', ... 
+                fprintf(fid, '%d %d %s\n', ...
                     k, obj.labelsetLibrary.data(k).array(1),lbls{obj.labelsetLibrary.data(k).array(2)});
         end
         fprintf(fid, '\n');
@@ -187,7 +187,7 @@ if ~isempty(obj.labelsetLibrary.keys) || ~isempty(obj.labelincLibrary.keys)
         lbls=mr.getSupportedLabels();
         keys = obj.labelincLibrary.keys;
         for k = keys
-                fprintf(fid, '%d %d %s\n', ... 
+                fprintf(fid, '%d %d %s\n', ...
                     k, obj.labelincLibrary.data(k).array(1),lbls{obj.labelincLibrary.data(k).array(2)});
         end
         fprintf(fid, '\n');
@@ -219,25 +219,25 @@ fclose(fid);
 
 if create_signature
     % sign the file (this version with re/loading the file is a factor 2 faster than the sprintf() based one that kept a memory-copy of the data written)
-    
+
     % re-open and read in the file
     fid=fopen(filename, 'r');
     buf=fread(fid);
     fclose(fid);
-    
+
     % calculate the digest
     if mr.aux.isOctave()
-      md5hash=hash('MD5',buf); % Octave-specific function
+      md5hash=hash('MD5',char(buf(:)')); % Octave-specific function
     else
       md5hash=md5_java(buf); % Matlab Java hack
     end
     %fprintf('%s\n',md5hash);
-    
+
     % store the signature in the object
     obj.signatureType='md5';
     obj.signatureFile='text';
     obj.signatureValue=md5hash;
-    
+
     % re-open the file for appending
     fid=fopen(filename, 'a');
     fprintf(fid, '\n[SIGNATURE]\n'); % the preceding new line BELONGS to the signature (and needs to be sripped away to recalculate the signature)
@@ -251,14 +251,14 @@ end
 
 end
 
-function out=md5_java(buf) 
+function out=md5_java(buf)
     import java.security.*;
     import java.math.*;
     import java.lang.String;
-    
+
     md = MessageDigest.getInstance('MD5');
     hash = md.digest(double(buf));
     bi = BigInteger(1, hash);
-    
+
     out=char(String.format('%032x', bi));
 end
