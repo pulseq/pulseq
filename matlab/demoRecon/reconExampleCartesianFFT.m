@@ -10,8 +10,9 @@
 
 %% Load the latest file from the specified directory
 path='../../IceNIH_RawSend/'; % directory to be scanned for data files
-%path='/data/Dropbox/ismrm2021pulseq_liveDemo/dataLive/Vienna_7T_Siemens'; % directory to be scanned for data files
-path='/dev/shm/mr0mat/';
+%path='/dev/shm/mr0mat/';
+%path='/dev/shm/koma_mat/';
+%path='/ad/O/Permanent/Holl/auto_lable/myRARE/meas_data_pulseq';
 
 pattern='*.seq';
 D=dir([path filesep pattern]);
@@ -62,7 +63,7 @@ axis('equal'); title('2D kx/kz k-space trajectory');
 
 %% Analyze the trajectory data (ktraj_adc)
 fprintf('analyzing the k-space trajectory ...\n');
-[labels, aux] = seq.autoLabel('skipApply',true);
+[labels, aux] = seq.autoLabel('skipApply',true,'reflect',[2,3]); % Siemens raw data require reflect on axes 2 and possibly 3
 
 %% build kindex_mat from labels
 % the code below currently ignores FID / CSI even if it is Cartesian per se, but autoLabel() also doe not support it (TODO?)
@@ -94,7 +95,8 @@ if isfield(labels, 'SLC'), nDims=nDims+1; end
 if isfield(labels, 'REP'), nDims=nDims+1; end
 
 lLBL=length(labels.LIN);
-kindex_mat=zeros(nDims,lRO*lLBL); % <<-- this is wrong for now
+kindex_mat=zeros(nDims,lRO*lLBL); 
+nDimInUse=nFFTs;
 
 if isfield(labels, 'REV')
     kindex_mat(1,:)=reshape(kindexRO(labels.REV+1,:)',[1 lRO*lLBL]);
@@ -106,10 +108,13 @@ if isfield(labels, 'PAR')
     kindex_mat(3,:)=reshape(ones(lRO,1)*(labels.PAR+1),[1 lRO*lLBL]);
 end
 if isfield(labels, 'SLC')
-    kindex_mat(nFFTs+1,:)=reshape(ones(lRO,1)*(labels.SLC+1),[1 lRO*lLBL]);
+    nDimInUse=nDimInUse+1;
+    [~,sliceReorder]=sort(aux.SlicePositions); % anatomic/spatial slice sorting
+    kindex_mat(nDimInUse,:)=reshape(ones(lRO,1)*(sliceReorder(labels.SLC+1)),[1 lRO*lLBL]);
 end
 if isfield(labels, 'REP')
-    kindex_mat(nFFTs+1,:)=reshape(ones(lRO,1)*(labels.REP+1),[1 lRO*lLBL]);
+    nDimInUse=nDimInUse+1;
+    kindex_mat(nDimInUse,:)=reshape(ones(lRO,1)*(labels.REP+1),[1 lRO*lLBL]);
 end
 
 kindex_end=max(kindex_mat,[],2);
@@ -175,7 +180,7 @@ if nFFTs>=2
     %figure;
     
     for ii = 1:channels
-        images(:,:,:,:,ii) = fftshift(fft2(fftshift(data(:,:,:,:,ii)))); % 1.4.0. does not need inversion of the read direction
+        images(:,:,:,:,ii) = ifftshift(ifft2(fftshift(data(:,:,:,:,ii)))); 
         %for ni = 1:nImages
             %tmp = abs(images(:,:,ni,ii));
             %tmp = tmp./max(tmp(:));
@@ -205,7 +210,7 @@ end
 
 %% 3D image now
 if nFFTs>2
-    images3D=fftshift(fft(fftshift(images,3),[],3),3);
+    images3D=ifftshift(ifft(fftshift(images,3),[],3),3);
     if channels>1
         sos3D=abs(sum(images3D.*conj(images3D),ndims(images3D))).^(1/2);    
         im3D=sos3D./max(sos3D(:));

@@ -104,9 +104,9 @@ if ~isempty(opt.pythonCmd)
     if status~=0
         error(['provided python executable ''' opt.pythonCmd ''' returns an error on the version check']);
     end
-    [status, result] = system(sprintf('%s  -c "import sigpy" 2>/dev/null',opt.pythonCmd));
+    [status, result] = system(sprintf('%s  -c "import MRzeroCore" 2>/dev/null',opt.pythonCmd));
     if status~=0
-        error(['provided python executable ''' opt.pythonCmd ''' returns an error on the sigPy check']);
+        error(['provided python executable ''' opt.pythonCmd ''' returns an error on the MRzeroCore check']);
     end
     python=opt.pythonCmd;
 else
@@ -120,14 +120,26 @@ if python(1)~='"'
   python=['"' python '"'];
 end
 
-seq.write_v141(seqpath);
 %seq.write(seqpath); % as of May 2025, MR0 needs v141
+% looks like MR0 uses inverted coordinates, so we have to invert the axes
+TF=mr.TransformFOV('scale',[-1 -1 -1]);
+seq2=TF.applyToSeq(seq);
+seq2.write_v141(seqpath);
+% do the actual simulation
 [status,cmdout] = system(['cd ' workPath ' && ' python ' helper.py']);
+if status~=0
+    % produce a warning and still try to recover the data
+    warning('simulation command seem to have failed, returned command output is:\n%s\n',cmdout);
+end
+% load the result
 data=load(sigpath);
 out=data.signal;
-
+% optional clean-up
 if ~opt.noCleanUp
     delete(seqpath);
     delete(sigpath);
+else
+    % save the unmodified sequence (for image recon)
+    seq.write_v141(seqpath);
 end
 end

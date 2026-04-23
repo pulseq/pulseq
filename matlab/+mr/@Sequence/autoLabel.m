@@ -11,8 +11,21 @@ function [labels, aux] = autoLabel(seq, varargin)
 %   values starting from the first specified block to the last
 %   one.
 %
+%   autoLabel(...,'reflect',[1,2]) Reflect k-space trajectories along
+%   directions 1 and 2 (any number of directions between 0 and 3 can be
+%   specified) prior to generating label ranges. If used in combination
+%   with 'reorder', it is performed first.
+%
+%   autoLabel(...,'reorder',[2,1]) Reorder axes of k-space trajectories
+%   (in this example by swapping directions 1 and 2 prior to generating
+%   label ranges (reordering vector can contain 2 or 3 entries). If used in
+%   combination with 'reflsect', it is performed last.
+%
 %   autoLabel(...,'useLabels',labels_struct) Skip label evolution
 %   detection and only apply externally-calculated labels to the sequence.
+%
+%   autoLabel(...,'useAux',aux_struct) use externally-calculated aux struct
+%   to apply definitions the sequence. Une combination with 'useLabels'.
 %
 %   autoLabel(...,'skipApply',true) Skip applying label evolution to the
 %   sequence and onoly return the labaels struct.
@@ -25,16 +38,30 @@ if isempty(parser)
     parser.FunctionName = 'autoLabel';
     parser.addParamValue('blockRange',[1 inf],@(x)(isnumeric(x) && length(x)==2));
     parser.addParamValue('useLabels',struct([]),@(x)(isempty(x) || isstruct(x)));
+    parser.addParamValue('useAux',struct([]),@(x)(isempty(x) || isstruct(x)));    
     parser.addParamValue('skipApply',false,@(x)(islogical(x) && isscalar(x)));
+    parser.addParamValue('reflect', [], @(x)(isnumeric(x) && numel(x)<4));
+    parser.addParamValue('reorder', [], @(x)(isnumeric(x) && numel(x)<4));
 end
 parse(parser,varargin{:});
 opt = parser.Results;
 
-% if isempty(opt.useLabels)
-%     labels=struct();
-% else
-%     labels=opt.useLabels;
-% end
+if ~isempty(opt.useLabels) && (~isempty(opt.reflect) || ~isempty(opt.reorder))
+    error('Optional parameters ''reflect'' or ''reorder'' only effective for the detection part and cannot be used together with ''useLabels''');
+end
+
+if ~isempty(opt.reflect) && numel(opt.reflect)~=numel(unique(opt.reflect))
+    error('All indices in ''reflect'' must be unique');
+end
+
+if ~isempty(opt.reorder)
+    if numel(opt.reorder)~=numel(unique(opt.reorder))
+        error('All indices in ''reorder'' must be unique');
+    end
+    if numel(opt.reorder)~=3 && min(opt.reorder)==1 && max(opt.reorder)==2
+        error('If ''reorder'' contains two indices they must be [1 2] or [2 1]');
+    end
+end
 
 if ~isfinite(opt.blockRange(2))
     opt.blockRange(2)=length(seq.blockEvents);
@@ -42,18 +69,50 @@ end
 
 aux = struct();
 
+%% index ADCs, part 1
+blockStartTimes=cumsum([0 seq.blockDurations]);
+blockStartTimes=blockStartTimes(opt.blockRange(1):opt.blockRange(2));
+adcLengths=[];
+b_adc=[];
+for iB=opt.blockRange(1):opt.blockRange(2)
+    block = seq.getBlock(iB);
+    if ~isempty(block.adc)
+        adcLengths(end+1)=block.adc.numSamples;
+        b_adc(end+1)=iB-opt.blockRange(1)+1;
+    end
+end
+adcStartCounts=cumsum([1, adcLengths(1:end-1)]);
+% b_adc=zeros(size(t_adcStarts));
+% for i=1:numel(t_adcStarts)
+%     b_adc(i)=find(blockStartTimes<t_adcStarts(i),1,'last');
+% end
+
 if isempty(opt.useLabels)
 
     %% preparing calculations
     [ktraj_adc, t_adc, ~, ~, t_excitation, ~, slicepos, t_slicepos, gw_pp] = seq.calculateKspacePP('blockRange',opt.blockRange);
-    blockStartTimes=cumsum([0 seq.blockDurations]);
-    blockStartTimes=blockStartTimes(opt.blockRange(1):opt.blockRange(2));
     
-    %% slice positions
+    t_adcStarts=t_adc(adcStartCounts);
+    firstNonNoiseAdc=find(t_adcStarts>t_excitation(1),1,'first');
+    firstNonNoiseAdcSampe=find(t_adc>t_excitation(1),1,'first');
+    nReadouts = numel(t_adcStarts)-firstNonNoiseAdc+1;
+    
     sliceGrads=zeros(size(slicepos));
     for i=1:3
         sliceGrads(i,:)=ppval(gw_pp{i},t_slicepos);
     end
+    
+    if ~isempty(opt.reflect)
+        ktraj_adc(opt.reflect,:)=-ktraj_adc(opt.reflect,:);
+        slicepos(opt.reflect,:)=-slicepos(opt.reflect,:);
+        sliceGrads(opt.reflect,:)=-sliceGrads(opt.reflect,:);
+    end
+    if ~isempty(opt.reorder)
+        ktraj_adc(1:numel(opt.reorder),:)=ktraj_adc(opt.reorder,:);
+        slicepos(1:numel(opt.reorder),:)=slicepos(opt.reorder,:);
+        sliceGrads(1:numel(opt.reorder),:)=sliceGrads(opt.reorder,:);
+    end
+    %% slice positions
     [~,i]=max(abs(sliceGrads));
     mainSliceGradSigns=sign(sliceGrads(sub2ind(size(sliceGrads),i,1:size(sliceGrads,2))));
     sliceNormals=normalize(sliceGrads,'norm').*mainSliceGradSigns(ones(1,3),:);
@@ -65,7 +124,22 @@ if isempty(opt.useLabels)
     for i=1:numel(t_usp)
         b_usp(i) = find(blockStartTimes<t_usp(i),1,'last');
     end
-    [sortedSlicePositions, ~, sliceCountersSorted] = unique(sliceOffsets);
+    [sortedSlicePositions, ~, sliceCountersSorted] = unique(sliceOffsets);    
+
+    % aux.SliceThickness
+    % aux.SliceGap
+    % todo: more checks, e.g. if all slice thickeness and gaps are the same...
+    GAs1=vecnorm(sliceGrads(:,1));
+    if GAs1>0
+        bSlice1=find(blockStartTimes<t_slicepos(1),1,'last');
+        b=seq.getBlock(bSlice1);
+        bw=mr.calcRfBandwidth(b.rf);
+        aux.sliceThickness=bw/GAs1;
+        if length(sortedSlicePositions)>1
+            aux.sliceGap=diff(sortedSlicePositions(1:2))-aux.sliceThickness;
+        end
+    end
+
     % useful results:
     %   uniqueSlicePositions : speaks for itself, sorted in the order of occurence
     %   sliceCountersAcquisitionOrder : slice cointers in the acquisition order
@@ -74,23 +148,8 @@ if isempty(opt.useLabels)
     %   sortedSlicePositions : slice positions in the accending order
     %   sliceCountersSorted : slice counters corresponding to the sorted slice order
     
-    %% index ADCs
-    adcLengths=[];
-    for iB=opt.blockRange(1):opt.blockRange(2)
-        block = seq.getBlock(iB);
-        if ~isempty(block.adc)
-            adcLengths(end+1)=block.adc.numSamples;
-        end
-    end
-    adcStartCounts=cumsum([1, adcLengths(1:end-1)]);
-    t_adcStarts=t_adc(adcStartCounts);
-    b_adc=zeros(size(t_adcStarts));
-    for i=1:numel(t_adcStarts)
-        b_adc(i)=find(blockStartTimes<t_adcStarts(i),1,'last');
-    end
-    firstNonNoiseAdc=find(t_adcStarts>t_excitation(1),1,'first');
-    firstNonNoiseAdcSampe=find(t_adc>t_excitation(1),1,'first');
-    sliceCountersAdc=zeros(size(t_adcStarts)-firstNonNoiseAdc+1);
+    %% index ADCs, part 2
+    sliceCountersAdc=zeros(1,nReadouts);
     for i=firstNonNoiseAdc:numel(t_adcStarts)
         j=find(t_slicepos<t_adcStarts(i),1,'last');
         sliceCountersAdc(i-firstNonNoiseAdc+1)=find(uniqueSlicePositions==sliceOffsets(j),1,'first');
@@ -103,8 +162,7 @@ if isempty(opt.useLabels)
     %   firstNonNoiseAdcSample : index of the first ADC sample after the noise scan
     %   sliceCountersAdc : slice counters per ADC
     
-    %% readout analysis
-    nReadouts = numel(t_adcStarts)-firstNonNoiseAdc+1;
+    %% readout analysis    
     cEchoPos = zeros(1,nReadouts);
     gradReadout = zeros(3,nReadouts);
     signReadout = zeros(1,nReadouts);
@@ -118,6 +176,12 @@ if isempty(opt.useLabels)
         [~,cEchoPos(i)]=min(vecnorm(ktraj_adc(:,c1:c2)-kspaceCenterPoint)); % for echos positioned between samples there can be some jitter... to reduce jitter we compare not to 0 but to the smallest absolute...
         for j=1:3
             gradReadout(j,i) = ppval(gw_pp{j},t_adc(c1+cEchoPos(i)-1));        
+        end
+        if ~isempty(opt.reflect)
+            gradReadout(opt.reflect,i)=-gradReadout(opt.reflect,i);
+        end
+        if ~isempty(opt.reorder)
+            gradReadout(1:numel(opt.reorder),i)=gradReadout(opt.reorder,i);
         end
         % store the most central readout trajectory as a reference
         if c1<=kspaceCenterSample && c2>=kspaceCenterSample
@@ -220,7 +284,7 @@ if isempty(opt.useLabels)
     kindex_min=min(kindex,[],2);
     kindex_mat=kindex-kindex_min(:,ones(1,size(ktraj_adc,2)))+1;
     kindex_end=max(kindex_mat,[],2);
-    sampler=zeros(kindex_end');
+    sampler=zeros(length(uniqueSlicePositions),prod(kindex_end));
     repeat=zeros(1,size(ktraj_adc,2));
     for i=1:size(kindex_mat,2)
         switch size(kindex_mat,1)
@@ -231,8 +295,9 @@ if isempty(opt.useLabels)
             otherwise
                 ind=kindex_mat(1,i); %sub2ind(kindex_end,kindex_mat(1,i));
         end
-        repeat(i)=sampler(ind);
-        sampler(ind)=repeat(i)+1;
+        r=sampler(sliceCountersAdc(i),ind);
+        repeat(i)=r;
+        sampler(sliceCountersAdc(i),ind)=r+1;
     end
     % if (max(repeat(:))>0)
     %     kindex=[kindex;(repeat+1)];
@@ -298,8 +363,32 @@ if isempty(opt.useLabels)
             labels.REP=repeat(:).';
         end
     end
+
+    if isfield(labels,'LIN'), aux.kSpaceCenterLine = labels.LIN(cCentralReadout); end
+    if isfield(labels,'PAR'), aux.kSpaceCenterPartition = labels.PAR(cCentralReadout); end
+    aux.kSpaceCenterSample = cCentralReadoutCenter-1;
+    if length(uniqueSlicePositions)>1, aux.SlicePositions = uniqueSlicePositions; end
+    % aux.kSpacePhaseEncodingLines
+    % aux.PhaseResolution
+    % aux.ReadoutOversamplingFactor
+    % aux.SliceGap
+    % aux.SlicePositions
+    % aux.SliceThickness
+    % aux.TargetGriddedSamples
+    % aux.TrapezoidGriddingParameterss
+    % aux.AccelerationFactorPE
+    % aux.AccelerationFactor3D
+    % aux.FirstFourierLine
+    % aux.FirstRefLine
+    % aux.FirstFourier3D
+    % aux.FirstRef3D
+
 else
     labels=opt.useLabels;
+end
+
+if ~isempty(opt.useAux)
+    aux=opt.useAux;
 end
 
 %% apply labels
@@ -324,6 +413,21 @@ if ~opt.skipApply
         end
     end
     warning(warnBcp);
+
+    % convert usable fields of aux to sequence definitions
+    fieldsToExport={'kSpaceCenterLine','kSpaceCenterPartition','kSpaceCenterSample','kSpacePhaseEncodingLines',...
+        'PhaseResolution','ReadoutOversamplingFactor','SliceGap','SlicePositions','SliceThickness',...
+        'TargetGriddedSamples','TrapezoidGriddingParameters','AccelerationFactorPE','AccelerationFactor3D',...
+        'FirstFourierLine','FirstRefLine','FirstFourier3D','FirstRef3D'};
+    for i=1:length(fieldsToExport)
+        if isfield(aux,fieldsToExport{i})
+            prevDef=seq.getDefinition(fieldsToExport{i});
+            if ~isempty(prevDef)
+                warning('Overwriting existing sequence definition %s = %s', fieldsToExport{i}, num2str(prevDef));
+            end
+            seq.setDefinition(fieldsToExport{i},aux.(fieldsToExport{i})); 
+        end
+    end
 end
 
 %% test/plot label settings
