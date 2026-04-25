@@ -30,7 +30,11 @@ parse(parser, varargin{:});
 opt = parser.Results;
 
 if length(regexp(opt.hint, '(\s+)','split'))>1
-    error('makeSoftDelay: parameter ''hint'' may not contain white space caharacters');
+    error('makeSoftDelay: parameter ''hint'' may not contain white space characters');
+end
+
+if opt.factor==0
+    error('makeSoftDelay: parameter ''factor'' must be nonzero');
 end
 
 sd.type   = 'softDelay';
