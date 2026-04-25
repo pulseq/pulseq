@@ -54,7 +54,7 @@ function testCalcADC(testCase)
         if modeNum == 1
             mode = 'shorten';
         else
-            mode = 'lenghen';
+            mode = 'lengthen';
         end
 
         % Update system settings
