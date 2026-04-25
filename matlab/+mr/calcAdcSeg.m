@@ -18,13 +18,8 @@ if ~exist('mode', 'var')
     mode='shorten';
 end
 
-switch mode
-    case 'shorten'
-        iMode=-1;
-    case 'lenghen'
-        iMode=1;
-    otherwise
-        error('In mr.calcAdcSeg(...,mode) mode should be either ''shorten'' or ''lenghen''');
+if ~strcmp(mode,'shorten') && ~strcmp(mode,'lengthen')
+    error('In mr.calcAdcSeg(...,mode) mode should be either ''shorten'' or ''lengthen''');
 end
 
 t_eps=1e-9; % TODO: shift it to the system parameters???
@@ -44,10 +39,10 @@ if gcd_adcDiv~=system.adcSamplesDivisor
     samplesStep=samplesStep*system.adcSamplesDivisor/gcd_adcDiv;
 end
 
-if mode=='shorten'
-    numSamplesStepped=floor(numSamples/samplesStep); 
+if strcmp(mode,'shorten')
+    numSamplesStepped=floor(numSamples/samplesStep);
 else
-    numSamplesStepped=ceil(numSamples/samplesStep); 
+    numSamplesStepped=ceil(numSamples/samplesStep);
 end
 
 while numSamplesStepped>0 && numSamplesStepped<2*numSamples/samplesStep
@@ -71,7 +66,7 @@ while numSamplesStepped>0 && numSamplesStepped<2*numSamples/samplesStep
     if (adcSamplesPerSegment<=system.adcSamplesLimit && adcSegments<=128)
         break
     end
-    if mode=='shorten'
+    if strcmp(mode,'shorten')
         numSamplesStepped=numSamplesStepped-1; % try again with a smaller number of samples
     else
         numSamplesStepped=numSamplesStepped+1; % try again with a greater number of samples
