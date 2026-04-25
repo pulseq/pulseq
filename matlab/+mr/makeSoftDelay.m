@@ -33,6 +33,10 @@ if length(regexp(opt.hint, '(\s+)','split'))>1
     error('makeSoftDelay: parameter ''hint'' may not contain white space caharacters');
 end
 
+if opt.factor==0
+    error('makeSoftDelay: parameter ''factor'' must be nonzero');
+end
+
 sd.type   = 'softDelay';
 sd.num    = opt.numID;
 sd.hint   = opt.hint;
