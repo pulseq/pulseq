@@ -84,6 +84,15 @@ else
     if any(abs(round(opt.times/system.gradRasterTime)*system.gradRasterTime-opt.times)>1e-8) % 10ns is an acceptable rounding error
         error('All time points must be on a gradient raster or "convert2arbitrary" option must be used.');
     end
+    % check slew rate and gradient amplitude against the active limits
+    % the convert2arbitrary branch above gets these checks via mr.makeArbitraryGrad
+    slew = (opt.amplitudes(2:end)-opt.amplitudes(1:end-1)) ./ (opt.times(2:end)-opt.times(1:end-1));
+    if ~isempty(slew) && max(abs(slew))>maxSlew
+        error('Slew rate violation (%.0f%%)',max(abs(slew))/maxSlew*100);
+    end
+    if max(abs(opt.amplitudes))>maxGrad
+        error('Gradient amplitude violation (%.0f%%)',max(abs(opt.amplitudes))/maxGrad*100);
+    end
     %
     grad.type = 'grad';
     grad.channel = opt.channel;
