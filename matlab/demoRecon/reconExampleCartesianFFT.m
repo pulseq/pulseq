@@ -41,9 +41,15 @@ else
     fprintf(['loading `' data_file_path '´ ...\n']);
     twix_obj = mapVBVD(data_file_path);
     if iscell(twix_obj)
-        data_unsorted = twix_obj{end}.image.unsorted();
+        data_unsorted = twix_obj{end}.image.unsorted(); 
+        seqHash_twix=twix_obj{end}.hdr.Dicom.tSequenceVariant;
     else
-        data_unsorted = twix_obj.image.unsorted();
+        data_unsorted = twix_obj.image.unsorted(); 
+        seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant;
+    end
+    
+    if length(seqHash_twix)==32
+        fprintf(['raw data contain pulseq-file signature ' seqHash_twix '\n']);
     end
 end
 [adc_len,channels,readouts]=size(data_unsorted);
@@ -52,6 +58,8 @@ end
 fprintf(['loading `' seq_file_path '´ ...\n']);
 seq = mr.Sequence();              % Create a new sequence object
 seq.read(seq_file_path,'detectRFuse');
+seqName=seq.getDefinition('Name');
+if ~isempty(seqName), fprintf('sequence name: %s\n',seqName); end
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 figure; plot(ktraj(1,:),ktraj(2,:),'b',...
              ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % a 2D plot
@@ -63,8 +71,8 @@ axis('equal'); title('2D kx/kz k-space trajectory');
 
 %% Analyze the trajectory data (ktraj_adc)
 fprintf('analyzing the k-space trajectory ...\n');
-[labels, aux] = seq.autoLabel('skipApply',true,'reflect',[1,2,3]); % Siemens raw data require reflect on axes 1,2 and possibly 3 ??? for now there seems to be a contradiction between 2D-multislice and 3D sequences
-
+%[labels, aux] = seq.autoLabel('skipApply',true,'reflect',[1,2,3]); % Siemens raw data require reflect on axes 1,2 and possibly 3 ??? for now there seems to be a contradiction between 2D-multislice and 3D sequences
+[labels, aux] = seq.autoLabel('skipApply',true); % Siemens raw data expect FFT (and not iFFT) for image recon, but we dont need to change indexes here because we already conjugated the data (TODO: verify with the field-mapping / multi-echo sequence in the same fat-water phantom)
 %% build kindex_mat from labels
 % the code below currently ignores FID / CSI even if it is Cartesian per se, but autoLabel() also doe not support it (TODO?)
 lRO=size(aux.kReadout,2);
@@ -153,20 +161,24 @@ kindex_end=max(kindex_mat,[],2);
 data_coils_last = permute(data_unsorted, [1, 3, 2]);
 data_coils_last = reshape(data_coils_last, [adc_len*readouts, channels]);
 
-data=zeros([kindex_end' channels]);
+data=zeros([prod(kindex_end), channels]);
 if (size(kindex_mat,1)==4)
-    for i=1:size(kindex_mat,2)
-        data(kindex_mat(1,i),kindex_mat(2,i),kindex_mat(3,i),kindex_mat(4,i),:)=data_coils_last(i,:);
-    end
+    %for i=1:size(kindex_mat,2)
+    %    data(kindex_mat(1,i),kindex_mat(2,i),kindex_mat(3,i),kindex_mat(4,i),:)=data_coils_last(i,:);
+    %end
+    data(sub2ind(kindex_end,kindex_mat(1,:),kindex_mat(2,:),kindex_mat(3,:),kindex_mat(4,:)),:)=data_coils_last;
 elseif (size(kindex_mat,1)==3)
-    for i=1:size(kindex_mat,2)
-        data(kindex_mat(1,i),kindex_mat(2,i),kindex_mat(3,i),:)=data_coils_last(i,:);
-    end
-else
-    for i=1:size(kindex_mat,2)
-        data(kindex_mat(1,i),kindex_mat(2,i),:)=data_coils_last(i,:);
-    end
+    % for i=1:size(kindex_mat,2)
+    %     data(kindex_mat(1,i),kindex_mat(2,i),kindex_mat(3,i),:)=data_coils_last(i,:);
+    % end
+    data(sub2ind(kindex_end,kindex_mat(1,:),kindex_mat(2,:),kindex_mat(3,:)),:)=data_coils_last;
+    else
+    %for i=1:size(kindex_mat,2)
+    %    data(kindex_mat(1,i),kindex_mat(2,i),:)=data_coils_last(i,:);
+    %end
+    data(sub2ind(kindex_end,kindex_mat(1,:),kindex_mat(2,:)),:)=data_coils_last;
 end
+data=reshape(data,[kindex_end',channels]);
 
 ndimsData=numel(kindex_end)+1;
 if ndimsData<5
@@ -185,7 +197,7 @@ if nFFTs>=2
     %figure;
     
     for ii = 1:channels
-        images(:,:,:,:,ii) = ifftshift(ifft2(fftshift(data(:,:,:,:,ii)))); 
+        images(:,:,:,:,ii) = ifftshift(fft2(fftshift(data(:,:,:,:,ii)))); 
         %for ni = 1:nImages
             %tmp = abs(images(:,:,ni,ii));
             %tmp = tmp./max(tmp(:));
@@ -205,7 +217,13 @@ if nFFTs==2
         sos=abs(sum(images.*conj(images),ndims(images))).^(1/2);
         sos=sos./max(sos(:));    
         imab(sos); title('reconstructed image(s), sum-of-squares');
-        imwrite(rot90(sos), [basic_file_path '_img_combined.png']);
+        if size(sos,3)==1
+            imwrite(rot90(sos), [basic_file_path '_img_combined.png']);
+        else
+            for s=1:size(sos,3)
+                imwrite(rot90(squeeze(sos(:,:,s))), [basic_file_path '_img_sc_' num2str(s) '_ombined.png']);
+            end
+        end        
     else
         imab(abs(images)); title('reconstructed image(s)');
     end
@@ -215,7 +233,7 @@ end
 
 %% 3D image now
 if nFFTs>2
-    images3D=ifftshift(ifft(fftshift(images,3),[],3),3);
+    images3D=ifftshift(fft(fftshift(images,3),[],3),3);
     if channels>1
         sos3D=abs(sum(images3D.*conj(images3D),ndims(images3D))).^(1/2);    
         im3D=sos3D./max(sos3D(:));
@@ -225,4 +243,14 @@ if nFFTs>2
     
     figure;imab(im3D);colormap('gray');title('all reconstructed image(s)');
     figure;imab(im3D(:,:,end/2+1));colormap('gray'); title('central partition');
+    figure;imab((squeeze(im3D(end/2+1,:,:))).');colormap('gray'); title('central column');
+end
+
+%% reconstruct field map (optional, a wild hack for now, but one way we will have TE information or ECO counter)
+if size(images,3)>=2
+    cmplx_diff=images(:,:,2,:).*conj(images(:,:,1,:));
+    phase_diff_image=angle(sum(cmplx_diff,4));
+    figure;
+    imab(phase_diff_image);colormap('jet');
+    title('phase difference(s) echo2-echo1');
 end

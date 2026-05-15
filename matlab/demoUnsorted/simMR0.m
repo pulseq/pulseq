@@ -121,10 +121,7 @@ if python(1)~='"'
 end
 
 %seq.write(seqpath); % as of May 2025, MR0 needs v141
-% looks like MR0 uses inverted coordinates, so we have to invert the axes
-TF=mr.TransformFOV('scale',[-1 -1 -1]);
-seq2=TF.applyToSeq(seq);
-seq2.write_v141(seqpath);
+seq.write_v141(seqpath);
 % do the actual simulation
 [status,cmdout] = system(['cd ' workPath ' && ' python ' helper.py']);
 if status~=0
@@ -138,8 +135,5 @@ out=data.signal;
 if ~opt.noCleanUp
     delete(seqpath);
     delete(sigpath);
-else
-    % save the unmodified sequence (for image recon)
-    seq.write_v141(seqpath);
 end
 end
