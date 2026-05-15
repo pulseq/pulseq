@@ -13,13 +13,21 @@ function [labels, aux] = autoLabel(seq, varargin)
 %
 %   autoLabel(...,'reflect',[1,2]) Reflect k-space trajectories along
 %   directions 1 and 2 (any number of directions between 0 and 3 can be
-%   specified) prior to generating label ranges. If used in combination
-%   with 'reorder', it is performed first.
+%   specified) prior to generating label ranges. Affects both Fourier
+%   encoding dimensions (redout, phase and partition encoding) and the
+%   slice ordering. If used in combination with 'reorder', it is performed
+%   first. 
 %
 %   autoLabel(...,'reorder',[2,1]) Reorder axes of k-space trajectories
 %   (in this example by swapping directions 1 and 2 prior to generating
 %   label ranges (reordering vector can contain 2 or 3 entries). If used in
-%   combination with 'reflsect', it is performed last.
+%   combination with 'reflect', it is performed last.
+% 
+%   autoLabel(...,'mirrorFourier',true) Mirrors all Fourier encoding
+%   directions, e.g. if ifft() is used instead of fft() by the image
+%   reconstruction algorithm. It essentially reverts all Fourier encoding
+%   dimensions (readout, phase, partition encoding) but does not affect
+%   slice ordering. Can be arbitrarily combined with 'reflect'.
 %
 %   autoLabel(...,'useLabels',labels_struct) Skip label evolution
 %   detection and only apply externally-calculated labels to the sequence.
@@ -40,9 +48,10 @@ if isempty(parser)
     parser.addParamValue('useLabels',struct([]),@(x)(isempty(x) || isstruct(x)));
     parser.addParamValue('useAux',struct([]),@(x)(isempty(x) || isstruct(x)));    
     parser.addParamValue('skipApply',false,@(x)(islogical(x) && isscalar(x)));
+    parser.addParamValue('mirrorFourier', false, @(x)(islogical(x) && isscalar(x)));
     parser.addParamValue('reflect', [], @(x)(isnumeric(x) && numel(x)<4));
     parser.addParamValue('reorder', [], @(x)(isnumeric(x) && numel(x)<4));
-    parser.addParamValue('noPlots', false, @(x)(logical(x) && isscalar(x)));
+    parser.addParamValue('noPlots', false, @(x)(islogical(x) && isscalar(x)));
 end
 parse(parser,varargin{:});
 opt = parser.Results;
@@ -76,11 +85,18 @@ blockStartTimes=blockStartTimes(opt.blockRange(1):opt.blockRange(2));
 adcLengths=[];
 b_adc=[];
 for iB=opt.blockRange(1):opt.blockRange(2)
-    block = seq.getBlock(iB);
-    if ~isempty(block.adc)
-        adcLengths(end+1)=block.adc.numSamples;
+    raw_block = seq.getRawBlockContentIDs(iB); % this is much faster than seq.getBlock(iB)
+    if ~isempty(raw_block.adc)
+        libData = seq.adcLibrary.data(raw_block.adc).array;
+        % from getBlock(): adc = cell2struct(num2cell(libData(1:end-1)), {'numSamples', 'dwell', 'delay', ...
+        adcLengths(end+1)=libData(1); % libData(1) is adc.numSamples
         b_adc(end+1)=iB-opt.blockRange(1)+1;
     end
+    %block = seq.getBlock(iB);
+    %if ~isempty(block.adc)
+    %    adcLengths(end+1)=block.adc.numSamples;
+    %    b_adc(end+1)=iB-opt.blockRange(1)+1;
+    %end
 end
 adcStartCounts=cumsum([1, adcLengths(1:end-1)]);
 % b_adc=zeros(size(t_adcStarts));
@@ -103,6 +119,9 @@ if isempty(opt.useLabels)
         sliceGrads(i,:)=ppval(gw_pp{i},t_slicepos);
     end
     
+    if opt.mirrorFourier
+        ktraj_adc=-ktraj_adc;
+    end
     if ~isempty(opt.reflect)
         ktraj_adc(opt.reflect,:)=-ktraj_adc(opt.reflect,:);
         slicepos(opt.reflect,:)=-slicepos(opt.reflect,:);
@@ -183,7 +202,10 @@ if isempty(opt.useLabels)
         i_sliseposThisEcho=find(t_slicepos<t_adcThisEcho,1,'last');
         tEcho(i)=t_adcThisEcho-t_slicepos(i_sliseposThisEcho);
         for j=1:3
-            gradReadout(j,i) = ppval(gw_pp{j},t_adcThisEcho);        
+            gradReadout(j,i) = ppval(gw_pp{j},t_adcThisEcho); % this call is relatively expensive for long sequences, we should go away from it       
+        end
+        if opt.mirrorFourier
+            gradReadout(:,i)=-gradReadout(:,i);
         end
         if ~isempty(opt.reflect)
             gradReadout(opt.reflect,i)=-gradReadout(opt.reflect,i);
@@ -356,6 +378,31 @@ if isempty(opt.useLabels)
     %figure; plot(kindex(1,:),kindex(2,:),'.-');
     %figure; plot(kindex_mat(1,:),'.-');
 
+    % see if some repetitions are actully echoes/contrasts
+    nRep=max(repeat)+1;
+    if nRep>1
+        TE=zeros(1, nRep);
+        for i=1:nRep
+            TE(i)=tEcho(kindex==0 & repeat==(i-1));
+        end
+        [TE_sorted, TE_order]=sort(TE);
+        TE_cluster=cumsum([1, diff(TE_sorted)>10e-6]);
+        unique_TE=zeros(1,max(TE_cluster));
+        for i=1:length(unique_TE)
+            unique_TE(i)=mean(TE_sorted(TE_cluster==i));
+            TE(TE_order(TE_cluster==i))=unique_TE(i);
+        end
+        aux.TE=unique_TE; % maybe we should fill this also for single-TE sequences?
+        echo=zeros(1,size(ktraj_adc,2));
+        echo_rep=zeros(1,nRep);
+        for i=1:nRep
+            cecho=find(unique_TE==TE(i));
+            echo(repeat==(i-1))=cecho;
+            repeat(repeat==(i-1))=sum(echo_rep==cecho);
+            echo_rep(i)=cecho;
+        end
+    end
+
     %% create labels struct
     labels=struct();
     % NOISE
@@ -363,6 +410,7 @@ if isempty(opt.useLabels)
     % REV
     % LIN,
     % PAR
+    % ECO
     % REP 
     
     % TODO: SEG,ECO,REF,IMA,AVG,SET
@@ -402,6 +450,14 @@ if isempty(opt.useLabels)
             labels.PAR(firstNonNoiseAdc:end)=kindex_mat(2,:)-1;
         else
             labels.PAR=kindex_mat(2,:)-1;
+        end
+    end
+    if exist('echo','var') && max(echo(:))>1 
+        if firstNonNoiseAdc>1
+            labels.ECO=zeros(1,nADCs);
+            labels.ECO(firstNonNoiseAdc:end)=echo(:).'-1;
+        else
+            labels.ECO=echo(:).'-1;
         end
     end
     if max(repeat(:))>0 
