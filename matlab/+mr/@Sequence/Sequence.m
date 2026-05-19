@@ -2859,6 +2859,8 @@ classdef Sequence < handle
             codes.section.softdelays  = bitor(prefix, int64(13));
             codes.section.rfshims     = bitor(prefix, int64(14));
             codes.section.rotations   = bitor(prefix, int64(15));
+            %
+            codes.section.signature   = bitor(prefix, int64(0x00FFFFFF));
         end
 
         function id = getExtensionTypeID(obj, str)

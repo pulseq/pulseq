@@ -47,6 +47,9 @@ obj.softDelayHints2={};
 obj.rotationLibrary=mr.EventLibrary();
 obj.extensionStringIDs={};
 obj.extensionNumericIDs=[];
+obj.signatureType='';
+obj.signatureFile='';
+obj.signatureValue='';
 
 % Load data from file
 while true
@@ -207,6 +210,21 @@ while true
                 id   = double(fread(fid,1,'int32'));
                 quat = double(fread(fid,4,'float64'))';
                 obj.rotationLibrary.insert(id, mr.aux.quat.normalize(quat));
+            end
+
+        case binaryCodes.section.signature
+            type_len = double(fread(fid,1,'int32'));
+            sig_type = char(fread(fid,type_len,'char')');
+            hash_len = double(fread(fid,1,'int32'));
+            hash_raw = uint8(fread(fid,hash_len,'uint8'));
+            fread(fid,1,'int64'); % original file length prior to signature append
+
+            obj.signatureType = sig_type;
+            obj.signatureFile = 'bin';
+            if isempty(hash_raw)
+                obj.signatureValue = '';
+            else
+                obj.signatureValue = lower(reshape(dec2hex(hash_raw,2)',1,[]));
             end
 
         otherwise

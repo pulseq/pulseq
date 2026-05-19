@@ -1,4 +1,4 @@
-function writeBinary(obj,filename)
+function writeBinary(obj,filename,create_signature)
 %WRITEBINARY Write sequence to file in binary format.
 %   WRITEBINARY(seqObj, filename) Write the sequence data to the given
 %   filename using the binary version of the Pulseq open file format for MR
@@ -8,9 +8,13 @@ function writeBinary(obj,filename)
 %   Examples:
 %   Write the sequence file to the sequences directory
 %
-%       writeBinary(seqObj,'sequences/gre.bin')
+%       writeBinary(seqObj,'sequences/gre.bseq')
 %
 % See also  readBinary
+
+if (nargin<3)
+    create_signature=true;
+end
 
 % handle RequiredExtensions definition (same as write())
 if ~isempty(obj.rotationLibrary.keys)
@@ -248,4 +252,56 @@ if ~isempty(obj.rotationLibrary.keys)
 end
 
 fclose(fid);
+
+if create_signature
+    % sign the file (this version with re/loading the file is a factor 2 faster than the sprintf() based one that kept a memory-copy of the data written)
+
+    % re-open and read in the file
+    fid=fopen(filename, 'r');
+    buf=fread(fid);
+    fclose(fid);
+
+    % calculate the digest
+    if mr.aux.isOctave()
+      md5hash=hash('MD5',char(buf(:)')); % Octave-specific function
+    else
+      md5hash=md5_java(buf); % Matlab Java hack
+    end
+    %fprintf('%s\n',md5hash);
+
+    % store the signature in the seq object
+    obj.signatureType='md5';
+    obj.signatureFile='bin';
+    obj.signatureValue=md5hash;
+
+    % re-open the file for appending
+    fid=fopen(filename, 'a');
+    fpos=ftell(fid);
+    fwrite(fid, binaryCodes.section.signature, 'int64');
+    % signature type: length,string
+    fwrite(fid, length(obj.signatureType), 'int32');
+    fwrite(fid, obj.signatureType, 'char');
+    % signature: length,data (as bytes, not characters)
+    fwrite(fid, length(obj.signatureValue)/2, 'int32');
+    for i=1:length(obj.signatureValue)/2
+        fwrite(fid, hex2dec(obj.signatureValue(i*2-1:i*2)), 'uint8');
+    end
+    % the original length of the file prior to adding the signature for easier signature validation : int64
+    fwrite(fid,fpos,'int64');
+    fclose(fid);
 end
+
+end
+
+function out=md5_java(buf)
+    import java.security.*;
+    import java.math.*;
+    import java.lang.String;
+
+    md = MessageDigest.getInstance('MD5');
+    hash = md.digest(double(buf));
+    bi = BigInteger(1, hash);
+
+    out=char(String.format('%032x', bi));
+end
+
