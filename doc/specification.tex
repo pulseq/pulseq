@@ -24,7 +24,7 @@
 %\def\myversion{1.01 }
 \def\myversionmajor{1}
 \def\myversionminor{5}
-\def\myversionrevision{2}
+\def\myversionrevision{3}
 \def\myversion{\myversionmajor.\myversionminor.\myversionrevision }
 %\def\myversion{1.0.2 }
 
@@ -749,6 +749,7 @@ Section & Section code \\
 \verb.extension DELAYS. payload (soft delay) & \verb.0xFFFFFFFF 0x0000000D. \\
 \verb.extension RF\_SHIMS. payload & \verb.0xFFFFFFFF 0x0000000E. \\
 \verb.extension ROTATIONS. payload & \verb.0xFFFFFFFF 0x0000000F. \\
+\verb.[SIGNATURE]. binary payload & \verb.0xFFFFFFFF 0x00FFFFFF. \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -786,6 +787,7 @@ Section & Binary payload format \\
 \verb.extension DELAYS. payload & \verb.<ext_type_id:int32>. \verb.<num:int64>. then per soft delay: \verb.<id:int32>. \verb.<num_id:int32>. \verb.<offset_ps:int64>. \verb.<factor:float64>. \verb.<hint_len:int32>. \verb.<hint:char[hint_len]>. \\
 \verb.extension RF\_SHIMS. payload & \verb.<ext_type_id:int32>. \verb.<num:int64>. then per shim object: \verb.<id:int32>. \verb.<num_chan:int32>. \verb.<mag_phase_pairs:float64[2*num_chan]>. \\
 \verb.extension ROTATIONS. payload & \verb.<ext_type_id:int32>. \verb.<num:int64>. then per rotation: \verb.<id:int32>. \verb.<q0:float64>. \verb.<qx:float64>. \verb.<qy:float64>. \verb.<qz:float64>. \\
+\verb.[SIGNATURE]. binary payload & \verb.<type_len:int32>. \verb.<type:char[type_len]>. \verb.<hash_len:int32>. \verb.<hash:uint8[hash_len]>. \verb.<orig_size:int64>. where \verb.orig_size. is the original file length before appending the signature trailer. It is also the position in the final file, where the \verb.[SIGNATURE]. section starts.\\
 \bottomrule
 \end{tabularx}
 \end{center}
