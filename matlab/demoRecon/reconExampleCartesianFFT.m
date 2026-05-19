@@ -100,6 +100,7 @@ if isfield(labels, 'PAR'), nFFTs=3; else, nFFTs=2; end
 % plus slices, repetitions, etc % TODO: detect from labels.###
 nDims=nFFTs; 
 if isfield(labels, 'SLC'), nDims=nDims+1; end
+if isfield(labels, 'ECO'), nDims=nDims+1; end
 if isfield(labels, 'REP'), nDims=nDims+1; end
 
 lLBL=length(labels.LIN);
@@ -124,6 +125,10 @@ if isfield(labels, 'SLC')
     nDimInUse=nDimInUse+1;
     [~,sliceReorder]=sort(aux.SlicePositions); % anatomic/spatial slice sorting
     kindex_mat(nDimInUse,:)=reshape(ones(lRO,1)*(sliceReorder(labels.SLC+1)),[1 lRO*lLBL]);
+end
+if isfield(labels, 'ECO')
+    nDimInUse=nDimInUse+1;
+    kindex_mat(nDimInUse,:)=reshape(ones(lRO,1)*(labels.ECO+1),[1 lRO*lLBL]);
 end
 if isfield(labels, 'REP')
     nDimInUse=nDimInUse+1;
@@ -246,7 +251,7 @@ if nFFTs>2
     figure;imab((squeeze(im3D(end/2+1,:,:))).');colormap('gray'); title('central column');
 end
 
-%% reconstruct field map (optional, a wild hack for now, but one way we will have TE information or ECO counter)
+%% reconstruct field map (optional, a wild hack for now, but one day we will include TE information and ECO counter)
 if size(images,3)>=2
     cmplx_diff=images(:,:,2,:).*conj(images(:,:,1,:));
     phase_diff_image=angle(sum(cmplx_diff,4));

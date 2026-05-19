@@ -157,14 +157,14 @@ function seq = buildTestSeq3D(nLines, nPartitions)
     % Helper to build a simple 3D Cartesian-like sequence
     seq = mr.Sequence();
 
-    [rf0, gz0] = mr.makeSincPulse(pi/8, 'duration', 2e-3, 'SliceThickness', 5e-3, 'use', 'excitation');
-    seq.addBlock(rf0, gz0);
-
+    [rf0, gz0] = mr.makeSincPulse(pi/8, 'duration', 1e-3, 'SliceThickness', 100e-3, 'use', 'excitation');
+    
     for ip = 1:nPartitions
         for il = 1:nLines
             kyArea = -300 + (il-1) * 200;
             kzArea = -200 + (ip-1) * 200;
 
+            seq.addBlock(rf0, gz0);
             seq.addBlock(mr.makeTrapezoid('x', 'area', 400));
             seq.addBlock(mr.makeTrapezoid('y', 'area', kyArea), mr.makeTrapezoid('z', 'area', kzArea));
             seq.addBlock(mr.makeTrapezoid('x', 'area', 800, 'duration', 8e-3), mr.makeAdc(64, 'duration', 8e-3));

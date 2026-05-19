@@ -199,6 +199,29 @@ if isempty(opt.useLabels)
         [~,cEchoPos(i)]=min(vecnorm(ktraj_adc(:,c1:c2)-kspaceCenterPoint)); % for echos positioned between samples there can be some jitter... to reduce jitter we compare not to 0 but to the smallest absolute...
         kEcho(:,i)=ktraj_adc(:,c1+cEchoPos(i)-1);
         t_adcThisEcho=t_adc(c1+cEchoPos(i)-1);
+        if vecnorm(kspaceCenterPoint)>eps % this is more or less copied from seq.testRepoert()
+            % the actual echo might be between k-space samples, try to interpolate it
+            i2check=[];
+            % check if adc kspace trajectory has elements left and right to index_echo
+            if cEchoPos(i) > 1
+                i2check=c1+cEchoPos(i)-2;
+            end
+            if c1+cEchoPos(i)-1 < c2
+                i2check(end+1)=c1+cEchoPos(i);
+            end
+            for a=1:numel(i2check)
+                v_i_to_0=-kEcho(:,i);
+                v_i_to_t=ktraj_adc(:,i2check(a))-kEcho(:,i);
+                % project v_i_to_0 to v_o_to_t
+                p_vit=v_i_to_0'*v_i_to_t/(vecnorm(v_i_to_t)^2);
+                if p_vit>0
+                    % we have forund a bracket for the echo and the proportionality coefficient is p_vit
+                    t_adcThisEcho=t_adcThisEcho*(1-p_vit) + t_adc(i2check(a))*p_vit;
+                    break;
+                end
+            end
+        end
+
         i_sliseposThisEcho=find(t_slicepos<t_adcThisEcho,1,'last');
         tEcho(i)=t_adcThisEcho-t_slicepos(i_sliseposThisEcho);
         for j=1:3
@@ -380,26 +403,35 @@ if isempty(opt.useLabels)
 
     % see if some repetitions are actully echoes/contrasts
     nRep=max(repeat)+1;
+    skipECO=false;
     if nRep>1
         TE=zeros(1, nRep);
         for i=1:nRep
-            TE(i)=tEcho(kindex==0 & repeat==(i-1));
+            try
+                TE(i)=tEcho(kindex==0 & repeat==(i-1));
+            catch
+                warning('unclear sequence structure, skipping TE & ECO counter detection');
+                skipECO=true;
+                break;
+            end
         end
-        [TE_sorted, TE_order]=sort(TE);
-        TE_cluster=cumsum([1, diff(TE_sorted)>10e-6]);
-        unique_TE=zeros(1,max(TE_cluster));
-        for i=1:length(unique_TE)
-            unique_TE(i)=mean(TE_sorted(TE_cluster==i));
-            TE(TE_order(TE_cluster==i))=unique_TE(i);
-        end
-        aux.TE=unique_TE; % maybe we should fill this also for single-TE sequences?
-        echo=zeros(1,size(ktraj_adc,2));
-        echo_rep=zeros(1,nRep);
-        for i=1:nRep
-            cecho=find(unique_TE==TE(i));
-            echo(repeat==(i-1))=cecho;
-            repeat(repeat==(i-1))=sum(echo_rep==cecho);
-            echo_rep(i)=cecho;
+        if ~skipECO
+            [TE_sorted, TE_order]=sort(TE);
+            TE_cluster=cumsum([1, diff(TE_sorted)>10e-6]);
+            unique_TE=zeros(1,max(TE_cluster));
+            for i=1:length(unique_TE)
+                unique_TE(i)=mean(TE_sorted(TE_cluster==i));
+                TE(TE_order(TE_cluster==i))=unique_TE(i);
+            end
+            aux.TE=unique_TE; % maybe we should fill this also for single-TE sequences?
+            echo=zeros(1,size(ktraj_adc,2));
+            echo_rep=zeros(1,nRep);
+            for i=1:nRep
+                cecho=find(unique_TE==TE(i));
+                echo(repeat==(i-1))=cecho;
+                repeat(repeat==(i-1))=sum(echo_rep==cecho);
+                echo_rep(i)=cecho;
+            end
         end
     end
 
