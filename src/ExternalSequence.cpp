@@ -47,15 +47,15 @@ ExternalSequence::~ExternalSequence(){}
 /***********************************************************/
 void ExternalSequence::print_msg(MessageType level, std::ostream& ss) {
 	if (MSG_LEVEL>=level) {
-#if defined(VXWORKS) || defined (BUILD_PLATFORM_LINUX)
-		// we skip messages on the scanner platforms due to performance limitations
-		// we could trivially use UTRACE on newer scanners, but it is not compatible with older platforms
-#else		
+//#if defined(VXWORKS) || defined (BUILD_PLATFORM_LINUX)
+//		// we skip messages on the scanner platforms due to performance limitations
+//		// we could trivially use UTRACE on newer scanners, but it is not compatible with older platforms
+//#else		
 		std::ostringstream oss;
 		oss.width(2*(level-1)); oss << "";
 		oss << static_cast<std::ostringstream&>(ss).str();
 		print_fun(oss.str().c_str());
-#endif
+//#endif
 	}
 }
 
@@ -1404,22 +1404,49 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 	}
 
 	// Decode gradients
-	for (int iC=GX; iC<ADC; iC++)
+    if (!decodeArbGradInBlock(block))
+        return false;
+	if (!decodeExtTrapGradInBlock(block))
+		return false;
+
+	// Decode ADC
+	/*if (block->isADC())
+	{
+		block->adc = m_adcLibrary[events[ADC]];
+	}
+
+	// Decode Delays
+	if (block->isDelay())
+	{
+		block->delay = m_delayLibrary[events[DELAY]];
+	}*/
+
+	checkGradient(*block);
+	checkRF(*block);
+
+	return true;
+}
+
+bool ExternalSequence::decodeArbGradInBlock(SeqBlock *block)
+{
+	int *events = &block->events[0];
+	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Decoding arbitrary gradients in block " << block->index << " events: "
+		<< events[0]+1 << " " << events[1]+1 << " " << events[2]+1 << " " << events[3]+1 << " " << events[4]+1 );
+    std::vector<float> waveform;
+    for (int iC = GX; iC < ADC; iC++)
 	{
 		if (block->isArbitraryGradient(iC-GX))	// is arbitrary gradient?
 		{
 			// Decompress the arbitrary shape for this channel
 			CompressedShape& shape = m_shapeLibrary[block->grad[iC-GX].waveShape];
 
-			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Loaded shape with "
-				<< shape.samples.size() << " compressed samples" );
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Loaded shape with " << shape.samples.size() << " compressed samples" );
 
 			waveform.resize(shape.numUncompressedSamples);
 			if (!decompressShape(shape,&waveform[0]))
 				return false;
 
-			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape uncompressed to "
-				<< shape.numUncompressedSamples << " samples" );
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape uncompressed to " << shape.numUncompressedSamples << " samples" );
 
 			if (fabs(m_dGradientRasterTime_us-10)>1e-3)
 			{
@@ -1445,34 +1472,14 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 				block->gradWaveforms[iC-GX] = std::vector<float>(waveform);
 		}
 	}
-
-	if (!decodeExtTrapGradInBlock(block))
-		return false;
-
-	// Decode ADC
-	/*if (block->isADC())
-	{
-		block->adc = m_adcLibrary[events[ADC]];
-	}
-
-	// Decode Delays
-	if (block->isDelay())
-	{
-		block->delay = m_delayLibrary[events[DELAY]];
-	}*/
-
-	checkGradient(*block);
-	checkRF(*block);
-
-	return true;
+    return true;
 }
 
 bool ExternalSequence::decodeExtTrapGradInBlock(SeqBlock *block)
 {
 	int *events = &block->events[0];
 	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Decoding ext gradient in block " << block->index << " events: "
-		<< events[0]+1 << " " << events[1]+1 << " " << events[2]+1 << " "
-		<< events[3]+1 << " " << events[4]+1 );
+		<< events[0]+1 << " " << events[1]+1 << " " << events[2]+1 << " " << events[3]+1 << " " << events[4]+1 );
 
 	std::vector<float> waveform;
 	block->gradExtTrapForms.clear();
@@ -2010,7 +2017,7 @@ void LabelStateAndBookkeeping::updateBookkeepingRecordsADC() // QC: this functio
 {
     // label boundary evaluation
     // data flags for LastLine/LastSlice/LastPar, etc are analyzed further below
-    if (!m_currLabelValueStorage.flag.val[NOISE] && !m_currLabelValueStorage.flag.val[NAV] && !m_currLabelValueStorage.flag.val[REF]) // noise scans and navigator scans and reference scnas are not included in first/last/min/max QC: FIRSTSCANINSLICE==false for navigator scans. 2025.01.31
+    if (!m_currLabelValueStorage.flag.val[NOISE] && !m_currLabelValueStorage.flag.val[NAV] && !m_currLabelValueStorage.flag.val[REF]) // noise scans and navigator scans and reference scans are not included in first/last/min/max QC: FIRSTSCANINSLICE==false for navigator scans. 2025.01.31
     {
 		int id;
 		// flags
@@ -2364,6 +2371,11 @@ void SeqBlock::gradientsAt(double dTimeInBlock, std::vector<double>& vResult) //
                 nLowerBoundCnt = nLen - 1;
 			//if (nUpperBoundCnt>=nLen) nUpperBoundCnt=nLen-1;
 			float* pfShape = GetArbGradShapePtr(i);
+			if (!pfShape)
+			{
+				ExternalSequence::print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: SeqBlock::gradientsAt() called for non-decoded arbitrary gradient");
+				return;
+			}
             if (nLowerBoundCnt < 0)
             {
 				vResult[i] = linear_interpolation(0, grad.first, 0.5, pfShape[0]*grad.amplitude, dTimeInGrad_RU+0.5); 
@@ -2484,6 +2496,11 @@ void SeqBlock::gradMomentsAt(double dTimeInBlock, std::vector<double>& vResult) 
                 continue;
             }
             float* pfShape = GetArbGradShapePtr(i);
+            if (!pfShape)
+			{
+				ExternalSequence::print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: SeqBlock::gradMomentsAt() called for non-decoded arbitrary gradient");
+				return;
+			}
             if (dTimeInGrad_RU < 0.5)
             {
                 vResult[i] = 0.5*getGradientRaster()*segment_integral(grad.first, grad.amplitude * pfShape[0], dTimeInGrad_RU*2);//grad.first*(dTimeInBlock - grad.delay) + (grad.amplitude * pfShape[0]-grad.first)*sqr(dTimeInBlock - grad.delay)*2/getGradientRaster();
@@ -2560,9 +2577,17 @@ double SeqBlock::gradMomentOneExtTrap(int i)
 
 double SeqBlock::gradMomentOneArbitrary(int i)
 {
-    int nLen = GetArbGradNumSamples(i);
     float* pfShape = GetArbGradShapePtr(i);
-    double dM = ((GetGradEvent(i).first + GetGradEvent(i).last)/GetGradEvent(i).amplitude - pfShape[0] - pfShape[nLen-1])*0.25; // TODO: is this correct??? // account for .first and .last effects (for compatibility with Matlab, but it should really have only a very minor effect)
+    if (!pfShape)
+    {
+        ExternalSequence::print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: SeqBlock::gradMomentOneArbitrary() called for non-decoded gradient");
+        return 0.;
+    }
+    int    nLen = GetArbGradNumSamples(i);
+    double dM
+        = ((GetGradEvent(i).first + GetGradEvent(i).last) / GetGradEvent(i).amplitude - pfShape[0] - pfShape[nLen - 1])
+          * 0.25; // TODO: is this correct??? // account for .first and .last effects (for compatibility with Matlab,
+                  // but it should really have only a very minor effect)
     for (int j = 0; j < nLen; ++j)
         dM += pfShape[j]; 
     return GetGradEvent(i).amplitude * getGradientRaster() * dM;
@@ -2632,7 +2657,12 @@ bool SeqBlock::areAllGradientsConstantInRange(double dStartTimeInBlock, double d
                 if (nStart >= nEnd)
                     continue;
 				// now look at the shape and compare samples to the first one
-                float* pfShape = GetArbGradShapePtr(i);				
+                float* pfShape = GetArbGradShapePtr(i);	
+				if (!pfShape)
+				{
+					ExternalSequence::print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: SeqBlock::areAllGradientsConstantInRange() called for non-decoded arbitrary gradient");
+					return false;
+				}
                 for (int j = nStart + 1; j <= nEnd; ++j)
                     if (pfShape[nStart] != pfShape[j])
                         return false;

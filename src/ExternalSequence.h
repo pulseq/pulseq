@@ -953,6 +953,15 @@ class ExternalSequence
 	bool decodeBlock(SeqBlock *block);
 
 	/**
+     * @brief Decode only the arbitrary gradient part of the block
+     *
+     * This maily involves decompressing arbitrary gradient shapes.
+     *
+     * @return true if successful
+     */
+    bool decodeArbGradInBlock(SeqBlock* block);
+    
+	/**
 	 * @brief Decode only the ext trap part of the block
 	 *
 	 * This involves decompressing extended gradient shapes.
