@@ -31,7 +31,6 @@ double SeqBlock::s_gradientRaster = 10.0;
 
 /***********************************************************/
 ExternalSequence::ExternalSequence()
-	: m_isArbGradCenterSampling(true)
 {
 	m_blocks.clear();	// probably not needed.
 	version_major=0;
@@ -40,6 +39,7 @@ ExternalSequence::ExternalSequence()
 	version_combined=0;
 	m_bSignatureDefined=false;
 	m_bSignatureCheckSucceeded=false;
+    m_ArbGradSamplingMode=ags_center;
 }
 
 /***********************************************************/
@@ -1457,18 +1457,22 @@ bool ExternalSequence::decodeArbGradInBlock(SeqBlock *block)
 				return false;
 			}
 
-			if (block->isArbGradWithOversampling(iC-GX))	// oversampling?
+			if (block->isArbGradWithOversampling(iC - GX) && m_ArbGradSamplingMode != ags_preserve_oversampling) // oversampling?
 			{
-				block->gradWaveforms[iC-GX] = std::vector<float>((waveform.size()+1)/2);
+                if (m_ArbGradSamplingMode == ags_center)
+					block->gradWaveforms[iC-GX] = std::vector<float>((waveform.size()+1)/2);
+                else // for now assuming (m_ArbGradSamplingMode == ags_edge)
+                    block->gradWaveforms[iC - GX] = std::vector<float>((waveform.size()-1) / 2); // the number of the available edge samples is always 1 smaller than the center samples
+
 				std::vector<float>::iterator it_os=waveform.begin();
 				for (std::vector<float>::iterator it=block->gradWaveforms[iC-GX].begin(); it !=block->gradWaveforms[iC-GX].end(); ++it){
-					if (m_isArbGradCenterSampling)
+                    if (m_ArbGradSamplingMode == ags_center)
 					{
 						*it = *it_os;
 						// std::advance(it_os,2); // this doen't work because of the odd number of elements 
 						++it_os;
 					}
-					else
+					else // for now assuming (m_ArbGradSamplingMode == ags_edge)
 					{
 						++it_os;
 						*it = *it_os;
