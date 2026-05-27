@@ -1,5 +1,26 @@
+%!test %%% on Octave run with oruntests() %%%
+%! testBinarySignature
 function tests = testBinarySignature
-    tests = functiontests(localfunctions);
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
+    end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
 end
 
 function test_binary_signature_roundtrip_multiple_sequences(testCase)
@@ -15,7 +36,7 @@ function test_binary_signature_roundtrip_multiple_sequences(testCase)
 
     tmpRoot = tempname;
     mkdir(tmpRoot);
-    cleanupObj = onCleanup(@() localCleanup(tmpRoot)); 
+    cleanupObj = onCleanup(@() localCleanup(tmpRoot));
 
     for iSeq = 1:numel(seqs)
         pathBin = fullfile(tmpRoot, sprintf('signature_%d.bseq', iSeq));
@@ -26,16 +47,12 @@ function test_binary_signature_roundtrip_multiple_sequences(testCase)
         seqLoaded = mr.Sequence();
         seqLoaded.readBinary(pathBin);
 
-        [sectionCode, sigType, sigHex, signedLen] = readBinarySignatureTrailer(pathBin);
-        expectedSectionCode = seqLoaded.getBinaryCodes().section.signature;
-        computedHex = computeMd5OfPrefix(pathBin, signedLen);
+        [signatureValid, storedSignature, computedSignature] = mr.verifyFileSignature(pathBin);
 
-        testCase.verifyEqual(int64(sectionCode), int64(expectedSectionCode));
-        testCase.verifyEqual(lower(sigType), 'md5');
         testCase.verifyEqual(lower(seqLoaded.signatureType), 'md5');
         testCase.verifyEqual(lower(seqLoaded.signatureFile), 'bin');
-        testCase.verifyEqual(lower(seqLoaded.signatureValue), lower(sigHex));
-        testCase.verifyEqual(lower(sigHex), lower(computedHex));
+        testCase.verifyTrue(signatureValid);
+        testCase.verifyEqual(storedSignature, computedSignature);
     end
 end
 
@@ -51,7 +68,8 @@ function seqs = makeTestSequences()
         'Duration', 2e-3, ...
         'sliceThickness', 5e-3, ...
         'apodization', 0.5, ...
-        'timeBwProduct', 4);
+        'timeBwProduct', 4, ...
+        'use', 'excitation');
     gzReph = mr.makeTrapezoid('z', 'Area', -gz.area/2, 'Duration', 1e-3);
     seq2.addBlock(rf, gz);
     seq2.addBlock(gzReph);
@@ -60,40 +78,11 @@ function seqs = makeTestSequences()
     seqs = {seq1, seq2};
 end
 
-function [sectionCode, sigType, sigHex, signedLen] = readBinarySignatureTrailer(filename)
-    fid = fopen(filename, 'r');
-    assert(fid>=0, 'Failed to open file: %s', filename);
-    cleanupObj = onCleanup(@() fclose(fid)); 
-
-    fseek(fid, -8, 'eof');
-    signedLen = double(fread(fid, 1, 'int64'));
-
-    fseek(fid, signedLen, 'bof');
-    sectionCode = int64(fread(fid, 1, 'int64'));
-
-    typeLen = double(fread(fid, 1, 'int32'));
-    sigType = char(fread(fid, typeLen, 'char')');
-
-    hashLen = double(fread(fid, 1, 'int32'));
-    hashRaw = uint8(fread(fid, hashLen, 'uint8'));
-    if isempty(hashRaw)
-        sigHex = '';
-    else
-        sigHex = lower(reshape(dec2hex(hashRaw, 2)', 1, []));
-    end
-end
-
-function md5Hex = computeMd5OfPrefix(filename, signedLen)
-    fid = fopen(filename, 'r');
-    assert(fid>=0, 'Failed to open file: %s', filename);
-    cleanupObj = onCleanup(@() fclose(fid)); 
-
-    payload = fread(fid, signedLen, 'uint8=>uint8');
-    md5Hex = lower(mr.md5(payload(:)')); % this is a slow but Matlab/Octave compatible function
-end
-
 function localCleanup(path)
     if exist(path, 'dir')
+        if mr.aux.isOctave()
+            confirm_recursive_rmdir(false,'local');
+        end
         try
             rmdir(path, 's');
         catch

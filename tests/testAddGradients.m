@@ -1,5 +1,26 @@
+%!test %%% on Octave run with oruntests() %%%
+%! testAddGradients
 function tests = testAddGradients
-    tests = functiontests(localfunctions);
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
+    end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
 end
 
 %% Test sum of two identical trapezoids doubles amplitude
@@ -22,20 +43,20 @@ end
 %% Test non-cell input error
 function test_non_cell_error(testCase)
     g = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 1e-3);
-    testCase.verifyError(@() mr.addGradients(g), ?MException);
+    testCase.verifyError(@() mr.addGradients(g),'');
 end
 
 %% Test single gradient error
 function test_single_gradient_error(testCase)
     g = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 1e-3);
-    testCase.verifyError(@() mr.addGradients({g}), ?MException);
+    testCase.verifyError(@() mr.addGradients({g}),'');
 end
 
 %% Test different channels error
 function test_different_channels_error(testCase)
     gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 1e-3);
     gy = mr.makeTrapezoid('y', 'Area', 1000, 'Duration', 1e-3);
-    testCase.verifyError(@() mr.addGradients({gx, gy}), ?MException);
+      testCase.verifyError(@() mr.addGradients({gx, gy}),'');
 end
 
 %% Test trap + extended trap

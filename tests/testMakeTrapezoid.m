@@ -1,5 +1,26 @@
+%!test %%% on Octave run with oruntests() %%%
+%! testMakeTrapezoid
 function tests = testMakeTrapezoid
-    tests = functiontests(localfunctions);
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
+    end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
 end
 
 function test_make_trapezoid(testCase)
@@ -27,7 +48,7 @@ function test_make_trapezoid(testCase)
         error('Expected area too large error not thrown');
     catch e
         expectedErrMsg = "Requested area is too large for this gradient. Minimum required duration for this area (accounting for the gradient raster time) is ";
-        assert(contains(e.message, expectedErrMsg), 'Error message for area too large not as expected');
+        assert(~isempty(strfind(e.message, expectedErrMsg)), 'Error message for area too large not as expected');
     end
 
     % Test for no area and no duration
@@ -43,7 +64,7 @@ function test_make_trapezoid(testCase)
         mr.makeTrapezoid('x', 'amplitude', 1e10, 'duration', 1);
         error('Expected amplitude too large error not thrown');
     catch e
-        assert(contains(e.message, 'Amplitude violation'), 'Error message for amplitude too large not as expected');
+        assert(~isempty(strfind(e.message, 'Amplitude violation')), 'Error message for amplitude too large not as expected');
     end
 
     % Test for duration too short
@@ -51,7 +72,7 @@ function test_make_trapezoid(testCase)
         mr.makeTrapezoid('x', 'area', 1, 'duration', 0.1, 'riseTime', 0.1);
         error('Expected duration too short error not thrown');
     catch e
-        assert(contains(e.message, 'Requested area is too large for this gradient duration. Probably amplitude is violated'), 'Error message for short duration not as expected');
+        assert(~isempty(strfind(e.message, 'Requested area is too large for this gradient duration. Probably amplitude is violated')), 'Error message for short duration not as expected');
     end
 
     % Test for minimum input cases
@@ -70,7 +91,7 @@ function test_make_trapezoid(testCase)
     % area specified
     trap = mr.makeTrapezoid('x', 'area', 1);
     compare_trap_out(trap, 5e4, 2e-5, 0, 2e-5);
-    
+
     % area + duration + riseTime
     trap = mr.makeTrapezoid('x', 'area', 1, 'duration', 1, 'riseTime', 0.01);
     compare_trap_out(trap, 1 / 0.99, 0.01, 0.98, 0.01);

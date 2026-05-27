@@ -1,12 +1,33 @@
+%!test %%% on Octave run with oruntests() %%%
+%! testCheckTiming
 function tests = testCheckTiming
-    tests = functiontests(localfunctions);
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
+    end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
 end
 
 function test_check_timing(testCase)
-    import mr.*
+    %import mr.*
 
     % Define system settings
-    system = opts( ...
+    system = mr.opts( ...
         'maxGrad', 28, ...
         'gradUnit', 'mT/m', ...
         'maxSlew', 200, ...
@@ -17,7 +38,7 @@ function test_check_timing(testCase)
     );
 
     % System with zero ringdown and dead times to introduce errors
-    systemBroken = opts( ...
+    systemBroken = mr.opts( ...
         'maxGrad', 28, ...
         'gradUnit', 'mT/m', ...
         'maxSlew', 200, ...
@@ -28,39 +49,39 @@ function test_check_timing(testCase)
     );
 
     % Create a sequence
-    seq = Sequence(system);
+    seq = mr.Sequence(system);
 
     % Add events with possible timing errors
-    rf = makeSincPulse(1, 'duration', 1e-3, 'delay', system.rfDeadTime, 'use', 'excitation', 'system', system);
+    rf = mr.makeSincPulse(1, 'duration', 1e-3, 'delay', system.rfDeadTime, 'use', 'excitation', 'system', system);
     seq.addBlock(rf); % Block 1: No error
 
-    rf = makeSincPulse(1, 'duration', 1e-3, 'use', 'excitation', 'system', systemBroken);
+    rf = mr.makeSincPulse(1, 'duration', 1e-3, 'use', 'excitation', 'system', systemBroken);
     seq.addBlock(rf); % Block 2: RF_DEAD_TIME, RF_RINGDOWN_TIME, BLOCK_DURATION_MISMATCH
 
-    adc = makeAdc(100, 'duration', 1e-3, 'delay', system.adcDeadTime, 'system', system);
+    adc = mr.makeAdc(100, 'duration', 1e-3, 'delay', system.adcDeadTime, 'system', system);
     seq.addBlock(adc); % Block 3: No error
 
-    adc = makeAdc(123, 'duration', 1e-3, 'delay', system.adcDeadTime, 'system', system);
+    adc = mr.makeAdc(123, 'duration', 1e-3, 'delay', system.adcDeadTime, 'system', system);
     seq.addBlock(adc); % Block 4: RASTER
 
-    adc = makeAdc(100, 'duration', 1e-3, 'system', systemBroken);
+    adc = mr.makeAdc(100, 'duration', 1e-3, 'system', systemBroken);
     seq.addBlock(adc); % Block 5: ADC_DEAD_TIME, POST_ADC_DEAD_TIME
 
-    gx = makeTrapezoid('x', 'area', 1, 'duration', 1, 'system', system);
+    gx = mr.makeTrapezoid('x', 'area', 1, 'duration', 1, 'system', system);
     seq.addBlock(gx); % Block 6: No error
 
-    gx = makeTrapezoid('x', 'area', 1, 'duration', 1.00001e-3, 'system', system);
+    gx = mr.makeTrapezoid('x', 'area', 1, 'duration', 1.00001e-3, 'system', system);
     seq.addBlock(gx); % Block 7: RASTER
 
-    gx = makeTrapezoid('x', 'flatArea', 1, 'riseTime', 1e-6, 'flatTime', 1e-3, 'fallTime', 3e-6, 'system', system);
+    gx = mr.makeTrapezoid('x', 'flatArea', 1, 'riseTime', 1e-6, 'flatTime', 1e-3, 'fallTime', 3e-6, 'system', system);
     seq.addBlock(gx); % Block 8: RASTER
 
-    gx = makeTrapezoid('x', 'area', 1, 'duration', 1e-3, 'delay', -1e-5, 'system', system);
+    gx = mr.makeTrapezoid('x', 'area', 1, 'duration', 1e-3, 'delay', -1e-5, 'system', system);
     seq.addBlock(gx); % Block 9: NEGATIVE_DELAY
 
     % Check timing errors
     [ok, errorReport] = seq.checkTiming();
-    
+
     % Verify that certain blocks have no errors
     % testCase.verifyTrue(blocksNotInErrorReport(errorReport, [1, 3, 6]), 'No timing errors expected on blocks 1, 3, and 6');
     testCase.verifyFalse(existsInErrorReport(errorReport, 1, 'Block:1'));
@@ -86,7 +107,7 @@ function test_check_timing(testCase)
     testCase.verifyTrue(existsInErrorReport(errorReport, 1, 'Block:2'));
     testCase.verifyTrue(existsInErrorReport(errorReport, 1, 'RF dead time'));
     testCase.verifyTrue(existsInErrorReport(errorReport, 1, 'rfRingdownTime'));
-    
+
     testCase.verifyTrue(existsInErrorReport(errorReport, 2, 'Block:4'));
     testCase.verifyTrue(existsInErrorReport(errorReport, 2, 'adcRasterTime'));
 
@@ -96,7 +117,7 @@ function test_check_timing(testCase)
 
     testCase.verifyTrue(existsInErrorReport(errorReport, 4, 'Block:7'));
     testCase.verifyTrue(existsInErrorReport(errorReport, 4, 'blockDurationRaster'));
-    
+
     testCase.verifyTrue(existsInErrorReport(errorReport, 5, 'Block:8'));
     testCase.verifyTrue(existsInErrorReport(errorReport, 5, 'blockDurationRaster'));
     testCase.verifyTrue(existsInErrorReport(errorReport, 5, 'riseTime'));
@@ -104,7 +125,7 @@ function test_check_timing(testCase)
 
     testCase.verifyTrue(existsInErrorReport(errorReport, 6, 'Block:9'));
     testCase.verifyTrue(existsInErrorReport(errorReport, 6, 'delay:-'));
-    
+
 end
 
 % Helper Functions
@@ -114,5 +135,5 @@ function result = existsInErrorReport(errorReport, block, errorSubstring)
         result = false;
         return;
     end
-    result = contains(errorReport{block}, errorSubstring, 'IgnoreCase', true);
+    result = ~isempty(strfind(lower(errorReport{block}), lower(errorSubstring)));
 end

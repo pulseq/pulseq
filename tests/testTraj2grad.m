@@ -1,5 +1,26 @@
+%!test %%% on Octave run with oruntests() %%%
+%! testTraj2grad
 function tests = testTraj2grad
-    tests = functiontests(localfunctions);
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
+    end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
 end
 
 %% Test linear trajectory gives constant gradient

@@ -1,4 +1,29 @@
+% this test is known to fail on Octave, therefore markup % ! with a space in between
+% !test %%% on Octave run with oruntests() %%%
+% ! testMakeHexagonGradientArea
 function tests = testMakeHexagonGradientArea
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
+    end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
+end
+
 %testMakeHexagonGradientArea  Compare makeHexagonGradientArea against
 %   makeExtendedTrapezoidArea across a variety of parameter combinations.
 %
@@ -9,9 +34,6 @@ function tests = testMakeHexagonGradientArea
 %
 %   Additionally, the hexagonal waveform (which relaxes the flat-top
 %   constraint) must never be *longer* than the trapezoidal one.
-
-    tests = functiontests(localfunctions);
-end
 
 % =====================================================================
 %  Helpers
