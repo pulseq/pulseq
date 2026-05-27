@@ -2,7 +2,7 @@ function readBinary(obj,filename)
 %READBINARY Load sequence from binary file.
 %   READBINARY(seqObj, filename) Read the given filename and load sequence
 %   data stored in the binary version of the Pulseq open file format. The
-%   binary format is described in the specficiation available at 
+%   binary format is described in the specficiation available at
 %   http://pulseq.github.io
 %
 %   Examples:
@@ -14,14 +14,14 @@ function readBinary(obj,filename)
 
 binaryCodes = obj.getBinaryCodes();
 fid=fopen(filename);
-magicNum = fread(fid,8,'uchar');
-assert(all(magicNum==binaryCodes.fileHeader(:)),'Not a binary file');
+magicNum = fread(fid,1,'int64=>int64');
+assert(magicNum==binaryCodes.fileHeader,'Not a Pulseq binary file');
 version_major = fread(fid,1,'int64');
 version_minor = fread(fid,1,'int64');
 version_revision = fread(fid,1,'int64');
-assert(version_major==binaryCodes.version_major,'Unsupported version_major %d', version_major)
-assert(version_minor==binaryCodes.version_minor,'Unsupported version_minor %d', version_minor)
-assert(version_revision==binaryCodes.version_revision,'Unsupported version_revision %d', version_revision)
+assert(version_major==obj.version_major,'Unsupported version_major %d', version_major) % too strict - no reverse compatibility yet
+assert(version_minor==obj.version_minor,'Unsupported version_minor %d', version_minor) % too strict - no reverse compatibility yet
+assert(version_revision==obj.version_revision,'Unsupported version_revision %d', version_revision) % too strict - no reverse compatibility yet
 
 % set version
 obj.version_major = version_major;
@@ -248,14 +248,12 @@ return
         def = containers.Map();
         numDefs = fread(fid,1,'int64');
         for iDef=1:numDefs
-            c = fread(fid,1,'char');
-            key=[];
-            while c~=0 && length(key)<255
-                key=[key c];
-                c = fread(fid,1,'char');
+            count = fread(fid,1,'int32');
+            key = char(fread(fid,count,'char'));
+            if size(key,1)~=1
+                key=key.';
             end
-            key = char(key);
-            count = fread(fid,1,'int8');
+            count = fread(fid,1,'int32');
             type  = char(fread(fid,1,'char'));
             switch type
                 case 'f'
@@ -263,7 +261,10 @@ return
                 case 'i'
                     values = int32(fread(fid,count,'int32'));
                 case 'c'
-                    values = char(fread(fid,count,'char')');
+                    values = char(fread(fid,count,'char')').';
+                    if size(values,1)~=1
+                        values=values.';
+                    end
                     if ~isempty(values) && values(end)==0
                         values=values(1:(end-1));
                     end

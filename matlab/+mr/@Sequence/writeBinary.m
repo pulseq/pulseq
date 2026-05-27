@@ -2,7 +2,7 @@ function writeBinary(obj,filename,create_signature)
 %WRITEBINARY Write sequence to file in binary format.
 %   WRITEBINARY(seqObj, filename) Write the sequence data to the given
 %   filename using the binary version of the Pulseq open file format for MR
-%   sequences. The file specification is available at 
+%   sequences. The file specification is available at
 %   http://pulseq.github.io
 %
 %   Examples:
@@ -27,10 +27,10 @@ end
 
 binaryCodes = obj.getBinaryCodes();
 fid=fopen(filename, 'w');
-fwrite(fid, binaryCodes.fileHeader);
-fwrite(fid, binaryCodes.version_major, 'int64');
-fwrite(fid, binaryCodes.version_minor, 'int64');
-fwrite(fid, binaryCodes.version_revision, 'int64');
+fwrite(fid, binaryCodes.fileHeader, 'int64');
+fwrite(fid, int64(obj.version_major), 'int64');
+fwrite(fid, int64(obj.version_minor), 'int64');
+fwrite(fid, int64(obj.version_revision), 'int64');
 
 if ~isempty(obj.definitions)
     fwrite(fid, binaryCodes.section.definitions, 'int64');
@@ -38,13 +38,10 @@ if ~isempty(obj.definitions)
     values = obj.definitions.values;
     fwrite(fid, length(keys), 'int64');
     for i = 1:length(keys)
-        fwrite(fid, [keys{i} 0]);
+        fwrite(fid, length(keys{i}),'int32');
+        fwrite(fid, keys{i},'char');
         val = values{i};
-        % MZ: for backward compatibility, we used to write string values as null-terminated char arrays, but now we write the length followed by the chars, so that we can support arbitrary binary data in the future if needed. The old code was:
-        %if ischar(val)
-        %    val=[val char(0)];
-        %end
-        fwrite(fid, length(val), 'char');
+        fwrite(fid, length(val), 'int32');
         if ischar(val)
             fwrite(fid, 'c', 'char');
             fwrite(fid, val, 'char');
@@ -117,7 +114,7 @@ if any(trapGradMask)
     fwrite(fid, binaryCodes.section.trapezoids, 'int64');
     fwrite(fid, length(keys(trapGradMask)), 'int64');
     for k = keys(trapGradMask)
-        data = obj.gradLibrary.data(k).array;        
+        data = obj.gradLibrary.data(k).array;
         fwrite(fid, k, 'int32');
         fwrite(fid, data(1), 'float64');              % amp
         fwrite(fid, data(2:5)*1e12, 'int64');         % rise, flat, fall, delay (ps)
@@ -262,11 +259,7 @@ if create_signature
     fclose(fid);
 
     % calculate the digest
-    if mr.aux.isOctave()
-      md5hash=hash('MD5',char(buf(:)')); % Octave-specific function
-    else
-      md5hash=md5_java(buf); % Matlab Java hack
-    end
+    md5hash=mr.aux.md5(buf);
     %fprintf('%s\n',md5hash);
 
     % store the signature in the seq object
@@ -276,6 +269,7 @@ if create_signature
 
     % re-open the file for appending
     fid=fopen(filename, 'a');
+    fseek(fid, 0, 'eof'); % Octave seems to need this inspite of 'a'
     fpos=ftell(fid);
     fwrite(fid, binaryCodes.section.signature, 'int64');
     % signature type: length,string
@@ -292,16 +286,3 @@ if create_signature
 end
 
 end
-
-function out=md5_java(buf)
-    import java.security.*;
-    import java.math.*;
-    import java.lang.String;
-
-    md = MessageDigest.getInstance('MD5');
-    hash = md.digest(double(buf));
-    bi = BigInteger(1, hash);
-
-    out=char(String.format('%032x', bi));
-end
-

@@ -763,7 +763,7 @@ Each section starts with its \verb.section code (int64)., see the table above. T
 \toprule
 Section & Binary payload format \\
 \midrule
-\verb.[DEFINITIONS]. & \verb.<num_defs:int64>. then for each definition: \verb.<key:zero-terminated char[]>. \verb.<count:int8>. \verb.<type:char>. where type is \verb.c., \verb.i. or \verb.f., followed by \verb.<value[count]>. as \verb.char./\verb.int32./\verb.float64.. \\
+\verb.[DEFINITIONS]. & \verb.<num_defs:int64>. then for each definition: \verb.<key_length:int32>. followed by \verb.<char[]>. \verb.<count:int32>. \verb.<type:char>. where type is \verb.c., \verb.i. or \verb.f., followed by \verb.<value[count]>. as \verb.char./\verb.int32./\verb.float64.. \\
 \verb.[BLOCKS]. & \verb.<num_blocks:int64>. then per block: \verb.<duration_raster:int64>. \verb.<rf:int32>. \verb.<gx:int32>. \verb.<gy:int32>. \verb.<gz:int32>. \verb.<adc:int32>. \verb.<ext:int32>.. \\
 \verb.[RF]. & \verb.<num:int64>. then per event: \verb.<id:int32>. \verb.<amp:float64>. \verb.<mag_id:int32>. \verb.<phase_id:int32>. \verb.<time_id:int32>. \verb.<center_ps:int64>. \verb.<delay_ps:int64>. \verb.<freq_ppm:float64>. \verb.<phase_ppm:float64>. \verb.<freq_off:float64>. \verb.<phase_off:float64>. \verb.<use:char>. \\
 \verb.[GRADIENTS]. & \verb.<num:int64>. then per event: \verb.<id:int32>. \verb.<amp:float64>. \verb.<first:float64>. \verb.<last:float64>. \verb.<shape_id:int32>. \verb.<time_id:int32>. \verb.<delay_ps:int64>. \\
