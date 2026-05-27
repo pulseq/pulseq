@@ -11,7 +11,7 @@ function [ is_ok, text_error, total_dur ] = checkTiming( system, varargin )
     total_dur=mr.calcDuration(varargin{:});
     is_ok=div_check(total_dur,system.blockDurationRaster);
     if (is_ok)
-        text_error=[];
+        text_error='';
     else
         text_error=['total duration:' num2str(total_dur*1e6) 'us' ];
     end
