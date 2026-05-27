@@ -18,7 +18,7 @@ function [ report ] = testReport( obj, varargin )
         if any(abs(number)>eps)
             s=sprintf(format, number);
         else
-            s=[];
+            s='';
         end
     end
 
@@ -26,7 +26,7 @@ persistent parser
 if isempty(parser)
     parser = inputParser;
     parser.FunctionName = 'testReport';
-    
+
     addParamValue(parser,'system',struct([]),@isstruct);
 end
 parse(parser,varargin{:});
@@ -60,12 +60,12 @@ if ~isempty(t_excitation)
     t_adc = t_adc(t_adc > t_excitation(1));
 end
 
-% trajectory calculation will fail for spin-echoes if seq is loaded from a 
-% file for the current file format revision (1.2.0) because we do not store 
+% trajectory calculation will fail for spin-echoes if seq is loaded from a
+% file for the current file format revision (1.2.0) because we do not store
 % the use of the RF pulses. Read function has an option 'detectRFuse' which
 % may help...
 
-%        
+%
 kabs_adc=sum(ktraj_adc.^2,1).^0.5;
 [kabs_echo, index_echo]=min(kabs_adc);
 t_echo=t_adc(index_echo); % just a first estimate, see if we can improve it
@@ -116,7 +116,7 @@ end
 k_extent=max(abs(ktraj_adc),[],2);
 k_scale=max(k_extent);
 if (k_scale~=0)
-    k_bins=4e6; % this defines our ability to separate k-space samples. 
+    k_bins=4e6; % this defines our ability to separate k-space samples.
                 % lower values give us imunity to rounding errors in k-space calculations
                 % current code below (2nd pass) however merges neighboring cells (+-1)
     k_threshold=k_scale/k_bins;
@@ -173,7 +173,7 @@ if (k_scale~=0)
     % if mr.aux.isOctave()
     %   kmap = containers.Map('KeyType', 'char', 'ValueType', 'int32');
     %   for i=1:k_len
-    %     key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold))); 
+    %     key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold)));
     %     % containers.Map does not have a proper find function so we use direct
     %     % access and catch the possible error
     %     try
@@ -189,7 +189,7 @@ if (k_scale~=0)
     % else
     %   kmap = java.util.HashMap;
     %   for i=1:k_len
-    %     key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold))); 
+    %     key_string = sprintf('%d ', int32(k_bins+round(ktraj_adc(:,i)/k_threshold)));
     %     k_storage_ind = kmap.get(key_string);
     %     if isempty(k_storage_ind)
     %         k_storage_ind=k_storage_next;
@@ -203,7 +203,7 @@ if (k_scale~=0)
     % at this point k_storage(1:(k_storage_next-1)) is our visit frequency map
     Repeats_max=max(k_storage(1:(k_storage_next-1)));
     Repeats_min=min(k_storage(1:(k_storage_next-1)));
-    Repeats_median=median(k_storage(1:(k_storage_next-1))); 
+    Repeats_median=median(k_storage(1:(k_storage_next-1)));
     Repeats_unique=unique(k_storage(1:(k_storage_next-1)));
     Counts_unique=zeros(size(Repeats_unique));
     for i=1:numel(Repeats_unique)
@@ -228,7 +228,7 @@ if (k_scale~=0)
       for j=1:dims
           kmap=configureDictionary("int32","int32");%dictionary(int32.empty(1,0),int32.empty(1,0));%configureDictionary("int32","int32"); % containers.Map('KeyType', 'int32', 'ValueType', 'int32'); %  works as well but is substantially slower
           k_storage=zeros(1,k_len);
-          k_storage_next=1; 
+          k_storage_next=1;
           for i=1:size(ktraj_rep1,2)
               key=int32(round(ktraj_rep1(j,i)/k_threshold));
               k_storage_ind = kmap.lookup(key,'FallbackValue',int32(0));
@@ -256,7 +256,7 @@ if (k_scale~=0)
     else
       for j=1:dims
           k_storage=zeros(1,k_len);
-          k_storage_next=1; 
+          k_storage_next=1;
           kmap = struct(); % use struct() as a replacement for dict()
           for i=1:size(ktraj_rep1,2)
               key=int32(round(ktraj_rep1(j,i)/k_threshold));
@@ -265,11 +265,11 @@ if (k_scale~=0)
                 k_storage_ind = kmap.(skey);
               catch
                   skey1=makeSkey(key+1); % attempt to account for rounding errors
-                  try 
+                  try
                     k_storage_ind = kmap.(skey1);
                   catch
                       skey1=makeSkey(key-1); % attempt to account for rounding errors
-                      try 
+                      try
                           k_storage_ind = kmap.(skey1);
                       catch
                           k_storage_ind=k_storage_next;
@@ -290,11 +290,11 @@ if (k_scale~=0)
           %       k_storage_ind = kmap.(skey);
           %     else
           %         skey1=makeSkey(key+1); % attempt to account for rounding errors
-          %         if isfield(kmap,skey1) 
+          %         if isfield(kmap,skey1)
           %           k_storage_ind = kmap.(skey1);
           %         else
           %             skey1=makeSkey(key-1); % attempt to account for rounding errors
-          %             if isfield(kmap,skey1) 
+          %             if isfield(kmap,skey1)
           %                 k_storage_ind = kmap.(skey1);
           %             else
           %                 k_storage_ind=k_storage_next;
@@ -331,7 +331,7 @@ common_time=unique(dim1ind([wnt.gw_data{:}],1));
 gw_ct=zeros(length(wnt.gw_data),length(common_time));
 gs_ct=zeros(length(wnt.gw_data),length(common_time)-1);
 for gc=1:length(wnt.gw_data)
-    if size(wnt.gw_data{gc},2)>0 
+    if size(wnt.gw_data{gc},2)>0
         gws{gc}=(wnt.gw_data{gc}(2,2:end)-wnt.gw_data{gc}(2,1:end-1))./(wnt.gw_data{gc}(1,2:end)-wnt.gw_data{gc}(1,1:end-1)); % slew
         % interpolate to the common time
         gw_ct(gc,:)=interp1(wnt.gw_data{gc}(1,:),wnt.gw_data{gc}(2,:),common_time,'linear',0);
