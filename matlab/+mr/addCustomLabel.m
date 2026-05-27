@@ -3,7 +3,7 @@ function addCustomLabel(new_lbl)
 % registers a new custom data label
 
 if ~ischar(new_lbl)
-    error('addCustomLabel: new label should be a character sctring');
+    error('addCustomLabel: new label should be a character string');
 end
 
 supported_labels=mr.getSupportedLabels();
