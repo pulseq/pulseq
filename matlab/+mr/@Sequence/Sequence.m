@@ -2833,36 +2833,6 @@ classdef Sequence < handle
             end
         end
 
-        function codes = getBinaryCodes(obj)
-            %getBinaryCodes Return binary codes for section headers in
-            %   in a binary sequence file.
-            %
-            %   See also  writeBinary
-
-            codes.fileHeader = [1 'pulseq' 2];
-            codes.version_major = int64(obj.version_major);
-            codes.version_minor = int64(obj.version_minor);
-            codes.version_revision = int64(obj.version_revision);
-            prefix = bitshift(int64(hex2dec('FFFFFFFF')), 32);
-            codes.section.definitions = bitor(prefix, int64(1));
-            codes.section.blocks      = bitor(prefix, int64(2));
-            codes.section.rf          = bitor(prefix, int64(3));
-            codes.section.gradients   = bitor(prefix, int64(4));
-            codes.section.trapezoids  = bitor(prefix, int64(5));
-            codes.section.adc         = bitor(prefix, int64(6));
-            codes.section.delays      = bitor(prefix, int64(7));
-            codes.section.shapes      = bitor(prefix, int64(8));
-            codes.section.extensions  = bitor(prefix, int64(9));
-            codes.section.triggers    = bitor(prefix, int64(10));
-            codes.section.labelset    = bitor(prefix, int64(11));
-            codes.section.labelinc    = bitor(prefix, int64(12));
-            codes.section.softdelays  = bitor(prefix, int64(13));
-            codes.section.rfshims     = bitor(prefix, int64(14));
-            codes.section.rotations   = bitor(prefix, int64(15));
-            %
-            codes.section.signature   = bitor(prefix, int64(0x00FFFFFF));
-        end
-
         function id = getExtensionTypeID(obj, str)
             % get numeric ID for the given string extention ID
             % will automatically create a new ID if unknown
@@ -2920,6 +2890,38 @@ classdef Sequence < handle
 
             obj.tridHistory{end+1,1} = label_name;
         end
-
     end
+
+    methods(Static)
+        function codes = getBinaryCodes()
+            %getBinaryCodes Return binary codes for section headers in
+            %   in a binary sequence file.
+            %
+            %   See also  writeBinary
+
+            codes.fileHeader = typecast([uint8(1) uint8('pulseq') uint8(2)],'int64');
+            %codes.version_major = int64(obj.version_major);
+            %codes.version_minor = int64(obj.version_minor);
+            %codes.version_revision = int64(obj.version_revision);
+            prefix = bitshift(int64(hex2dec('FFFFFFFF')), 32);
+            codes.section.definitions = bitor(prefix, int64(1));
+            codes.section.blocks      = bitor(prefix, int64(2));
+            codes.section.rf          = bitor(prefix, int64(3));
+            codes.section.gradients   = bitor(prefix, int64(4));
+            codes.section.trapezoids  = bitor(prefix, int64(5));
+            codes.section.adc         = bitor(prefix, int64(6));
+            codes.section.delays      = bitor(prefix, int64(7));
+            codes.section.shapes      = bitor(prefix, int64(8));
+            codes.section.extensions  = bitor(prefix, int64(9));
+            codes.section.triggers    = bitor(prefix, int64(10));
+            codes.section.labelset    = bitor(prefix, int64(11));
+            codes.section.labelinc    = bitor(prefix, int64(12));
+            codes.section.softdelays  = bitor(prefix, int64(13));
+            codes.section.rfshims     = bitor(prefix, int64(14));
+            codes.section.rotations   = bitor(prefix, int64(15));
+            %
+            codes.section.signature   = bitor(prefix, int64(0x00FFFFFF));
+        end
+    end
+
 end % classdef
