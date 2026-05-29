@@ -1,5 +1,6 @@
 #include "ExternalSequence.h"
 #include <stdio.h>
+#include <string.h>
 
 //#include <chrono> // for std::this_thread::sleep_for()
 //#include <thread> // for std::this_thread::sleep_for()
@@ -16,6 +17,7 @@ void print_usage()
     printf("         This is a small C++ application intended \n"
            "         to test and demo the Pulseq C++ library code\n");
     printf("usage: parsemr <sequence_file> [-g] [-m] \n");
+    printf("  <sequence_file> may be Pulseq text (.seq) or binary (.bseq)\n");
     printf("  optional flags -g and -m can be used to request the parser to generate gradient waveform or gradient moment plots of the entire sequence as binary blobs\n");
 }
 
@@ -85,8 +87,10 @@ int main(int argc, char** argv)
         {
             std::cout << "The file contains " << SequenceData.getSignatureType() << " signature "
                       << SequenceData.getSignature() << std::endl;
-            std::cout << "Signature check " << (SequenceData.isSignatureCheckSucceeded() ? "succeeded" : "FAILED")
-                      << std::endl;
+            if (SequenceData.isBinary())
+                std::cout << "Signature check is not yet implemented for binary .bseq files" << std::endl;
+            else    
+                std::cout << "Signature check " << (SequenceData.isSignatureCheckSucceeded() ? "succeeded" : "FAILED") << std::endl;
         }
         else
             std::cout << "The file contains no signature" << std::endl;

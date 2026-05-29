@@ -195,7 +195,7 @@ struct SoftDelayEvent
 {
 	int numID;                        /**< @brief Numeric index of the soft delay to help the intepreter (together with the hint string) to identify the delay and allocate it to the UI element*/
 	int offset;                       /**< @brief Offset (positive or negative) added to the delay after the division by the factor (us) */
-	int factor;                       /**< @brief Factor by which the value on the user interface needs to be divided for calculating the final delay applied to the sequence */
+	float factor;                     /**< @brief Factor by which the value on the user interface needs to be divided for calculating the final delay applied to the sequence */
 	char hint[SOFT_DELAY_HINT_LENGTH]; /**< @brief Text hint corresponding to this soft delay, e.g. TE */
 };
 
@@ -857,6 +857,19 @@ class ExternalSequence
 	bool load(std::istream &data_stream, load_mode loadMose = lm_singlefile);
 
 	/**
+	 * @brief Load the sequence from a binary Pulseq file stream.
+	 *
+	 * Reads the binary Pulseq format and populates the internal sequence
+	 * libraries and block tables.
+	 */
+	bool loadBinary(std::istream& data_stream);
+
+	/**
+	 * @brief True if the loaded sequence was in binary format
+	 */
+	bool isBinary() { return bIsBinary; }
+
+	/**
 	 * @brief Report the version of the loaded sequence
 	 *
 	 * Returns the version of the loaded PulSeq file combined to a single integer
@@ -893,32 +906,7 @@ class ExternalSequence
 	 * @param  fun  Pointer to function
 	 */
 	static void SetPrintFunction(PrintFunPtr fun);
-
-	/**
-	 * @brief Set arbitrary gradient sampling mode, for compatibility with the recent PR, may be removed in future
-	 *
-	 * This affects how we decode the arbitrary gradient samples with oversampling when calling decodeBlock().
-	 * If  m_ArbGradSamplingMode is 'ags_center', raster center samples of the arbitrary grads are exported,
-	 * for 'ags_edge' we return the samples defined on the raster edge.
-	 *
-	 * @param  bool  If arbitrary gradient samples are defined on the raster center, true by default
-	 */
-    inline void SetArbGradCenterSampling(const bool arbGradCenterSampling) { m_ArbGradSamplingMode = arbGradCenterSampling ? ags_center : ags_edge; }
-
-	/**
-     * @brief Set arbitrary gradient sampling mode to preserve oversampling 
-     *
-     * This affects how we decode the arbitrary gradient samples with oversampling when calling decodeBlock().
-     * If  m_ArbGradSamplingMode is 'ags_preserve_oversampling', all samples of the arbitrary grads are exported,
-     * including raster center and raster edge.
-     *
-     * @param  bool  If arbitrary gradient samples are defined on the raster center, true by default
-     */
-    inline void SetArbGradPreserveOversampling()
-    {
-        m_ArbGradSamplingMode = ags_preserve_oversampling;
-    }
-
+	
 	/**
 	 * @brief Lookup the custom definition
 	 *
@@ -975,6 +963,31 @@ class ExternalSequence
 	 * @return true if successful
 	 */
 	bool decodeBlock(SeqBlock *block);
+
+/**
+	 * @brief Set arbitrary gradient sampling mode, for compatibility with the recent PR, may be removed in future
+	 *
+	 * This affects how we decode the arbitrary gradient samples with oversampling when calling decodeBlock().
+	 * If  m_ArbGradSamplingMode is 'ags_center', raster center samples of the arbitrary grads are exported,
+	 * for 'ags_edge' we return the samples defined on the raster edge.
+	 *
+	 * @param  bool  If arbitrary gradient samples are defined on the raster center, true by default
+	 */
+    inline void SetArbGradCenterSampling(const bool arbGradCenterSampling) { m_ArbGradSamplingMode = arbGradCenterSampling ? ags_center : ags_edge; }
+
+	/**
+     * @brief Set arbitrary gradient sampling mode to preserve oversampling 
+     *
+     * This affects how we decode the arbitrary gradient samples with oversampling when calling decodeBlock().
+     * If  m_ArbGradSamplingMode is 'ags_preserve_oversampling', all samples of the arbitrary grads are exported,
+     * including raster center and raster edge.
+     *
+     * @param  bool  If arbitrary gradient samples are defined on the raster center, true by default
+     */
+    inline void SetArbGradPreserveOversampling()
+    {
+        m_ArbGradSamplingMode = ags_preserve_oversampling;
+    }
 
 	/**
      * @brief Decode only the arbitrary gradient part of the block
@@ -1114,6 +1127,11 @@ class ExternalSequence
     enum dl_ret{dl_ok = 0, dl_unknown = 1, dl_ignored = 2, dl_error = -1};
 	int decodeLabel(ExtType, int&, char*, LabelEvent&);
 
+	/**
+	 * @brief Decode binary LABELSET/LABELINC label index to internal label event.
+	 */
+	int decodeBinaryLabel(ExtType exttype, int value, int labelIndex, LabelEvent& label);
+
 	// *** Static helper function ***
 
 	/**
@@ -1148,6 +1166,8 @@ class ExternalSequence
 	// Global user-specified definitions
 	std::map<std::string, std::string >m_definitions_str;  /**< @brief Custom definitions provided through [DEFINITIONS] section (stored as strings) */
 	std::map<std::string, std::vector<double> >m_definitions;  /**< @brief Custom definitions provided through [DEFINITIONS] section (converted to doubles) */
+
+	bool bIsBinary; /**< @brief Flag whether the loaded file was in binary format or not */
 
 	// pulseq file signature (read from file)
 	std::map<std::string, std::string >m_signatureMap;  /**< @brief A hash of the internal sequence data structures stored in the [SIGNATURE] section along with auxilary pieces of information */
