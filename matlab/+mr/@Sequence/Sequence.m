@@ -386,7 +386,7 @@ classdef Sequence < handle
             end
 
             prevTotalDuration=obj.getDefinition('TotalDuration');
-            if ~isempty(prevTotalDuration) && prevTotalDuration~=totalDuration
+            if ~isempty(prevTotalDuration) && abs(prevTotalDuration-totalDuration)>1e-9
                 errorReport = { errorReport{:}, [ '   TotalDuration definition of ' sprintf('%.9g', prevTotalDuration) 's was present in the sequence, but was incorrect. It is now ' sprintf('%.9g', totalDuration) 's\n' ] };
                 is_ok=false;
             end
