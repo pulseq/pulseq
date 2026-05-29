@@ -223,6 +223,7 @@ else
     fprintf('Timing check failed! Error listing follows:\n') ;
     fprintf([error_report{:}]);
     fprintf('\n');
+    error('Sequence timing check failed!');
 end
 
 %% prepare the sequence output 

@@ -108,14 +108,14 @@ function test_enumerate_and_run_legacy_tests(testCase)
             if ~cmpRes
                 error('Output of %s differs from approved reference', testFile);
             end
-            fprintf('Succeded legacy integration test for sequence: %s\n', testFile);
+            fprintf('Finished legacy integration test for sequence: %s\n', testFile);
         else
             testCase.verifyTrue(exist(outFile, 'file') == 2, ...
                 sprintf('Script %s did not produce %s.out', testFile, testFile));
             cmpRes = compareTextFiles(outFile, approvedFile);
             testCase.verifyTrue(cmpRes, ...
                 sprintf('Output of %s differs from approved reference', testFile));
-            testCase.log(1, ['Succeded legacy integration test for sequence: ' testFile]);
+            testCase.log(1, ['Finished legacy integration test for sequence: ' testFile]);
         end
     end
 end
