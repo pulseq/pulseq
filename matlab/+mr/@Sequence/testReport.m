@@ -394,9 +394,9 @@ if any(unique_kpositions>1)
         sprintf('   %d k-space position(s) repeated %d times\n', [Counts_unique;Repeats_unique])};
 
     if isCartesian
-       report = { report{:}, sprintf('Cartesian encoding trajectory detected\n') };
+       report = { report{:}, sprintf('Grid-like/Cartesian encoding trajectory detected\n') };
     else
-       report = { report{:}, sprintf('Non-Cartesian/irregular encoding trajectory detected (e.g. EPI, spiral, radial, etc)\n') };
+       report = { report{:}, sprintf('Non-Cartesian/irregular encoding trajectory detected (e.g. spiral, radial, some EPI, etc)\n') };
     end
 end
 if (timing_ok)
