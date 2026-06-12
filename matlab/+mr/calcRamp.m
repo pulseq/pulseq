@@ -81,6 +81,7 @@ MaxPoints = opt.MaxPoints;
 
 if ~mr.aux.isOctave()
   SaveRecLimit = get(0,'RecursionLimit');
+  restoreRecLimit = onCleanup(@() set(0,'RecursionLimit',SaveRecLimit));
   set(0,'RecursionLimit',MaxPoints+10);
 end
 
@@ -121,9 +122,6 @@ while (success == 0) && (UsePoints <= MaxPoints)
     UsePoints = UsePoints + 1;
 end
 
-if ~mr.aux.isOctave()
-  set(0,'RecursionLimit',SaveRecLimit);      % set previous recursion limit
-end
 
 % -------------------------------------------------------------------------
 function ok = InsideLimits(Grad,Slew)
