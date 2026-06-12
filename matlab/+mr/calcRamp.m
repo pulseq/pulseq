@@ -113,7 +113,7 @@ while (success == 0) && (UsePoints <= MaxPoints)
         end;
         kout = joinleft0(k0,kend,G0,Gend,UsePoints);
     else
-        if (abs(G0)>abs(maxGrad)) || (abs(Gend)>abs(maxGrad))
+        if any(abs(G0)>abs(maxGrad)) || any(abs(Gend)>abs(maxGrad))
             break;
         end;
         kout = joinleft1(k0,kend,G0,Gend,UsePoints);
