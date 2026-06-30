@@ -38,8 +38,15 @@ function [labels, aux] = autoLabel(seq, varargin)
 %   autoLabel(...,'skipApply',true) Skip applying label evolution to the
 %   sequence and onoly return the labaels struct.
 %
+%   From the experience, Siemens scanners need 'mirrorFourier' if the "XYZ
+%   in TRA" coordinate mapping (default) mode is applied, which transforms
+%   the sequence by the following rotation matrix [0 -1 0; -1 0 0; 0 0 -1]
+%   prior to passing it to IDEA; On Siemens 'sortSlices'='descending' is
+%   optional, otherwise the interpreter will change the slice indexes.
+%
 %   see evalLabels()
 
+validSliceSorting={'acquisition','ascending','descending'};
 persistent parser
 if isempty(parser)
     parser = inputParser;
@@ -51,6 +58,7 @@ if isempty(parser)
     parser.addParamValue('mirrorFourier', false, @(x)(islogical(x) && isscalar(x)));
     parser.addParamValue('reflect', [], @(x)(isnumeric(x) && numel(x)<4));
     parser.addParamValue('reorder', [], @(x)(isnumeric(x) && numel(x)<4));
+    parser.addParamValue('sortSlices','acquisition',@(x) any(validatestring(x,validSliceSorting)));
     parser.addParamValue('noPlots', false, @(x)(islogical(x) && isscalar(x)));
 end
 parse(parser,varargin{:});
@@ -145,7 +153,7 @@ if isempty(opt.useLabels)
     for i=1:numel(t_usp)
         b_usp(i) = find(blockStartTimes<t_usp(i),1,'last');
     end
-    [sortedSlicePositions, ~, sliceCountersSorted] = unique(sliceOffsets);    
+    [sortedSlicePositions, ~, sliceCountersSortedPositions] = unique(sliceOffsets);
 
     % aux.SliceThickness
     % aux.SliceGap
@@ -160,16 +168,23 @@ if isempty(opt.useLabels)
             aux.SliceGap=diff(sortedSlicePositions(1:2))-aux.SliceThickness;
         end
     end
+    if strcmp(opt.sortSlices,'descending')
+        sortedSlicePositions=sortedSlicePositions(end:-1:1);
+        sliceCountersSortedPositions = max(sliceCountersSortedPositions) + 1 - sliceCountersSortedPositions;
+    end
 
     % useful results:
     %   uniqueSlicePositions : speaks for itself, sorted in the order of occurence
     %   sliceCountersAcquisitionOrder : slice cointers in the acquisition order
     %   b_usp: block indices containg RF pulses corresponding to the first
     %          occurence of each of the unique slice positions
-    %   sortedSlicePositions : slice positions in the accending order
+    %   sortedSlicePositions : slice positions in the ascending or descending deorder
     %   sliceCountersSorted : slice counters corresponding to the sorted slice order
     
     %% index ADCs, part 2
+    if ~strcmp(opt.sortSlices,'acquisition')
+        uniqueSlicePositions=sortedSlicePositions;
+    end
     sliceCountersAdc=zeros(1,nReadouts);
     for i=firstNonNoiseAdc:numel(t_adcStarts)
         j=find(t_slicepos<t_adcStarts(i),1,'last');
@@ -408,7 +423,11 @@ if isempty(opt.useLabels)
         TE=zeros(1, nRep);
         for i=1:nRep
             try
-                TE(i)=tEcho(kindex==0 & repeat==(i-1));
+                if isvector(kindex)
+                    TE(i)=tEcho(kindex==0 & sliceCountersAdc==1 & repeat==(i-1)); % we assume all slices have the same TEs and only check slice 1
+                else
+                    TE(i)=tEcho(all(kindex==0) & sliceCountersAdc==1 & repeat==(i-1)); % we assume all slices have the same TEs and only check slice 1
+                end
             catch
                 warning('unclear sequence structure, skipping TE & ECO counter detection');
                 skipECO=true;
@@ -427,7 +446,7 @@ if isempty(opt.useLabels)
             echo=zeros(1,size(ktraj_adc,2));
             echo_rep=zeros(1,nRep);
             for i=1:nRep
-                cecho=find(unique_TE==TE(i));
+                cecho=find(abs(unique_TE-TE(i))<=1e-6);
                 echo(repeat==(i-1))=cecho;
                 repeat(repeat==(i-1))=sum(echo_rep==cecho);
                 echo_rep(i)=cecho;
@@ -507,7 +526,9 @@ if isempty(opt.useLabels)
     if isfield(labels,'LIN'), aux.kSpaceCenterLine = labels.LIN(cCentralReadout); end
     if isfield(labels,'PAR'), aux.kSpaceCenterPartition = labels.PAR(cCentralReadout); end
     aux.kSpaceCenterSample = cCentralReadoutCenter-1;
-    if length(uniqueSlicePositions)>1, aux.SlicePositions = uniqueSlicePositions; end
+    if length(uniqueSlicePositions)>1
+        aux.SlicePositions = uniqueSlicePositions;
+    end
     % aux.kSpacePhaseEncodingLines
     % aux.PhaseResolution
     % aux.ReadoutOversamplingFactor
