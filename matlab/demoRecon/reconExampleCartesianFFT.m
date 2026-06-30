@@ -72,7 +72,7 @@ axis('equal'); title('2D kx/kz k-space trajectory');
 %% Analyze the trajectory data (ktraj_adc)
 fprintf('analyzing the k-space trajectory ...\n');
 %[labels, aux] = seq.autoLabel('skipApply',true,'reflect',[1,2,3]); % Siemens raw data require reflect on axes 1,2 and possibly 3 ??? for now there seems to be a contradiction between 2D-multislice and 3D sequences
-[labels, aux] = seq.autoLabel('skipApply',true); % Siemens raw data expect FFT (and not iFFT) for image recon, but we dont need to change indexes here because we already conjugated the data (TODO: verify with the field-mapping / multi-echo sequence in the same fat-water phantom)
+[labels, aux] = seq.autoLabel('skipApply',true,'sortSlices','ascending'); % Siemens raw data expect FFT (and not iFFT) for image recon, but we dont need to change indexes here because we already conjugated the data (TODO: verify with the field-mapping / multi-echo sequence in the same fat-water phantom)
 %% build kindex_mat from labels
 % the code below currently ignores FID / CSI even if it is Cartesian per se, but autoLabel() also doe not support it (TODO?)
 lRO=size(aux.kReadout,2);
@@ -253,8 +253,8 @@ end
 
 %% reconstruct field map (optional, a wild hack for now, but one day we will include TE information and ECO counter)
 if size(images,3)>=2
-    cmplx_diff=images(:,:,2,:).*conj(images(:,:,1,:));
-    phase_diff_image=angle(sum(cmplx_diff,4));
+    cmplx_diff=images(:,:,:,2,:).*conj(images(:,:,:,1,:));
+    phase_diff_image=angle(sum(cmplx_diff,5));
     figure;
     imab(phase_diff_image);colormap('jet');
     title('phase difference(s) echo2-echo1');
