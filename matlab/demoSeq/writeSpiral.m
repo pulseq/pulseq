@@ -2,8 +2,8 @@
 
 fov=256e-3; Nx=256; Ny=Nx;  % Define FOV and resolution
 sliceThickness=3e-3;       % slice thinckness
-Nslices=1;
-interleaves=64;
+Nslices=11;
+interleaves=4;
 TRdelay=1; % delay in seconds
 adcOversampling=2; % by looking at the periphery of the spiral I would say it needs to be at least 2
 phi=0;%pi/4; % orientation of the readout e.g. for manual interleaving
@@ -188,7 +188,7 @@ end
 if interleaves >1
     nBlocksOrig=length(seq.blockDurations);
     for i=2:interleaves
-        T=mr.TransformFOV('rotation',rotz(360/interleaves*(i-1)),'system',sys);
+        T=mr.TransformFOV('rotation',mr.aux.rotmat.z(2*pi/interleaves*(i-1)),'system',sys);
         seq.addBlock(TRdelay);
         seq=T.applyToSeq(seq,'sameSeq',true,'blockRange',[1 nBlocksOrig]);
     end
