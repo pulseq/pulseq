@@ -416,7 +416,7 @@ classdef TransformFOV < handle
                         rotExtQuaternion=mr.aux.quat.multiply(rotExtQuaternion, obj.rotation_quaternion); % TODO: check left or right rotation
                     end
                 else
-                    grads = mr.rotate3D(obj.rotation,grads); 
+                    grads = mr.rotate3D(obj.rotation,grads,'system',obj.system); 
                 end
             end
 
