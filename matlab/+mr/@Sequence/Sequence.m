@@ -44,7 +44,7 @@ classdef Sequence < handle
         definitions       % Optional sequence definitions
 
         blockEvents;      % Event table (references to events)
-        blockDurations;   % Cache of block durations
+        blockDurations;   % List of block durations
         rfLibrary;        % Library of RF events
         gradLibrary;      % Library of gradient events
         adcLibrary;       % Library of ADC readouts
