@@ -1,16 +1,16 @@
 % this is an experimental spiral sequence
 
-fov=256e-3; Nx=64; Ny=Nx;  % Define FOV and resolution
+fov=256e-3; Nx=256; Ny=Nx;  % Define FOV and resolution
 sliceThickness=3e-3;       % slice thinckness
-Nslices=4;
-interleaves=1;
+Nslices=1;
+interleaves=64;
 TRdelay=1; % delay in seconds
 adcOversampling=2; % by looking at the periphery of the spiral I would say it needs to be at least 2
 phi=0;%pi/4; % orientation of the readout e.g. for manual interleaving
 
 % Set system limits
-sys = mr.opts('MaxGrad',20,'GradUnit','mT/m',...
-    'MaxSlew',150,'SlewUnit','T/m/s',...
+sys = mr.opts('MaxGrad',40,'GradUnit','mT/m',...
+    'MaxSlew',200,'SlewUnit','T/m/s',...
     'rfRingdownTime', 20e-6, 'rfDeadtime', 100e-6, 'adcDeadTime', 10e-6, 'adcSamplesLimit', 8192);
 seq=mr.Sequence(sys);          % Create a new sequence object
 %warning('OFF', 'mr:restoreShape'); % restore shape is not compatible with spirals and will throw a warning from each plot() or calcKspace() call
@@ -42,13 +42,14 @@ tos_calculation = 25 ; % time oversampling during the trajectory optimization, c
 gradOversampling = true ; % oversampling of the gradient shape, can be either true or false. QC: should be set to "false" for seq.write_v141. 20250103
 
 clear ka;
-ka(kRadius*kSamples+1) = 1i ; % initialize as complex
+%ka(kRadius*kSamples+1) = 1i ; % initialize as complex
 % QC: the single-shot Archimedian spiral is not really efficient because it has
 % a lot of redundant k-space samples. 2025.01.03
 cmax=kRadius*kSamples*tos_calculation/interleaves;
+ka(cmax) = 1i ; % initialize as complex
 slowStartingFactor=cmax;% looks like the factor should be on the order of cmax %30000;
 slowStarting=@(c) c-slowStartingFactor*log(1+c/slowStartingFactor);
-%figure; plot(0:cmax,0:cmax,0:cmax,slowStarting(0:cmax)/slowStarting(cmax)*cmax); title('slow-starting time evolution');
+figure; plot(0:cmax,0:cmax,0:cmax,slowStarting(0:cmax)/slowStarting(cmax)*cmax); title('slow-starting time evolution');
 for c = 0:cmax % QC: total number of k-space points, account for oversampling for calculation
     slowStartingC=slowStarting(c)/slowStarting(cmax)*cmax;
     r = deltak*slowStartingC*interleaves/kSamples/tos_calculation ;
@@ -62,7 +63,7 @@ du = sys.gradRasterTime/tos_calculation ; % QC: sampling dwell time with calcula
 [ga, sa] = mr.traj2grad(ka,'RasterTime',du,'firstGradStepHalfRaster',tos_calculation==1,'conservativeSlewEstimate',true);
 
 % limit analysis
-safety_margin = 0.99 ; % we need that, otherwise we just about violate the slew rate due to the rounding errors
+safety_margin = 0.97 ; % we need that, otherwise we just about violate the slew rate due to the rounding errors
 dt_gabs = abs(ga(1,:) + 1i*ga(2,:))/(sys.maxGrad*safety_margin)*du ; % dt in case of decreased g
 dt_sabs = sqrt(abs(sa(1,:)+1i*sa(2,:))/(sys.maxSlew*safety_margin))*du ; % dt in case of decreased slew
 
@@ -187,7 +188,7 @@ end
 if interleaves >1
     nBlocksOrig=length(seq.blockDurations);
     for i=2:interleaves
-        T=mr.TransformFOV('rotation',rotz(360/interleaves*(i-1)));
+        T=mr.TransformFOV('rotation',rotz(360/interleaves*(i-1)),'system',sys);
         seq.addBlock(TRdelay);
         seq=T.applyToSeq(seq,'sameSeq',true,'blockRange',[1 nBlocksOrig]);
     end
