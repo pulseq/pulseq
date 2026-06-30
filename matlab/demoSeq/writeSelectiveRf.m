@@ -87,7 +87,12 @@ else
     fprintf('\n');
 end
 
-%%
+%% add data labels to make image reconstruction on the scanner possible
+seq.autoLabel('mirrorFourier',true,'sortSlices','descending'); % Siemens scanners need 'mirrorFourier'; On Siemens 'sortSlices'='descending' is optional, otherwise the interpreter will change the slice indexes
+
+%% Write to file
+
+seq.setDefinition('FOV', [fov fov 5e-3]);
 seq.setDefinition('Name', 'se_selRF');
 
 seq.write('selectiveRf.seq');   % Write to pulseq file
