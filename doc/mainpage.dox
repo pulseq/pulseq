@@ -16,7 +16,7 @@ can be obtained here: <a href="specification.pdf">`specification.pdf`</a> See al
 ## Source code repository
 
 The source code in this repository provides the Pulseq toolbox and example implementations of several MR pulse sequences in Pulseq format. The code is
-divided into <a href="https://github.com/pulseq/pulseq/tree/master/matlab">Matlab/Octave</a> and <a href="https://github.com/pulseq/pulseq/tree/master/src">C++</a> sections. The C++ part contains a standalone programm capable of loading Pulseq files and displaying basic statistics about the nimber of blocks, number of pulses, etc. It is potentially interesting to those seeking to implement their own Pulseq interpreter for a particular scanner. 
+divided into <a href="https://github.com/pulseq/pulseq/tree/master/matlab">Matlab/Octave</a> and <a href="https://github.com/pulseq/pulseq/tree/master/src">C++</a> sections. The C++ part contains a standalone program capable of loading Pulseq files and displaying basic statistics about the number of blocks, number of pulses, etc. It is potentially interesting to those seeking to implement their own Pulseq interpreter for a particular scanner.
 
 ### Matlab/Octave sequence examples
 
@@ -46,27 +46,27 @@ you would like to run open and flexible sequences at your institution.
 - <a href="https://github.com/lcbMGH/flocra-pulseq">FLOCRA</a>
 - <a href="https://github.com/pulseq/bruker_interpreter">Bruker (out-of-date, discontinued)</a>
 
-Additionally, there are two implementations of the *Philips interpreter* published in the ISMRM 2024 proceedings: 
+Additionally, there are two implementations of the *Philips interpreter* published in the ISMRM 2024 proceedings:
 <a href="https://submissions.mirasmart.com/ISMRM2024/Handlers/ViewTeaser.ashx?esbpgm=3115_3243"> #3243 </a>
-and 
+and
 <a href="https://submissions.mirasmart.com/ISMRM2024/Handlers/ViewTeaser.ashx?esbpgm=3558_3251"> #3251 </a>
-. Please contact the authors if ypu are interested in receiving one of these interpreters.
+. Please contact the authors if you are interested in receiving one of these interpreters.
 
 ## Download source code
 
-### Matlab/Octave 
+### Matlab/Octave
 
 Both Matlab/Octave and C++ source code is available here: https://github.com/pulseq/pulseq.
 Alternatively, you may consider cloning the git repository directly:
 
     git clone git@github.com:pulseq/pulseq.git
 
-### Python 
+### Python
 
-<a href="https://github.com/imr-framework/pypulseq">PyPulseq</a> is an alternative implementaton of the Pulseq sequence toolbox in Python, with a very similar syntax and functionality, originally implemented by Sairam Geethanath and Keerthi Ravi and maintained by an active developer community. It can be clonned from the GutHub site or installed directly via pip. See <a href="https://github.com/imr-framework/pypulseq">PyPulseq</a> GitHub Repository</a> for more details. 
+<a href="https://github.com/imr-framework/pypulseq">PyPulseq</a> is an alternative implementation of the Pulseq sequence toolbox in Python, with a very similar syntax and functionality, originally implemented by Sairam Geethanath and Keerthi Ravi and maintained by an active developer community. It can be cloned from the GitHub site or installed directly via pip. See <a href="https://github.com/imr-framework/pypulseq">PyPulseq</a> GitHub Repository</a> for more details.
 
 ## Supported by
 
-<img src="nih_logo_horizontal.png"> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <img src="eu_logo_horizontal.png">  
+<img src="nih_logo_horizontal.png"> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <img src="eu_logo_horizontal.png">
 
 */
