@@ -41,7 +41,8 @@ function grad = addGradients(grads, varargin)
 %                            arbitrary-grad path. Default 0 (use system.maxSlew).
 %
 %   OUTPUT
-%     grad struct. Shape depends on the input mix (see PURPOSE). Field order:
+%     grad struct. Gradient yype depends on the input mix (see PURPOSE). 
+%     Field order (this detailed description will be moved to respective mr.make... functions):
 %
 %       Trapezoid fast path (all inputs identical-timing traps):
 %         .type       'trap'
@@ -91,7 +92,7 @@ function grad = addGradients(grads, varargin)
 %     - 'system' is registered as a positional (addOptional) parameter but
 %       Pulseq's permissive input parser also accepts it as name-value.
 %     - The returned delay is the minimum delay among the inputs; shapes
-%       that started later than that are zero-padded internally so the
+%       that start later than that are zero-padded internally so the
 %       summed waveform preserves each input's original onset time.
 %     - The fast trapezoid path triggers only when all inputs share the
 %       same delay, riseTime, flatTime, AND fallTime. Inputs with matching
@@ -101,7 +102,7 @@ function grad = addGradients(grads, varargin)
 %     - If any input is an oversampled arbitrary gradient, the result is
 %       sampled at system.gradRasterTime/2 instead of system.gradRasterTime.
 %     - maxGrad / maxSlew are only consulted on the arbitrary-grad path;
-%       they are ignored on the trap and extended-trap paths.
+%       they are ignored on the trap and extended-trap paths (may change in future).
 %
 %   EXAMPLE
 %     sys = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
@@ -121,6 +122,7 @@ function grad = addGradients(grads, varargin)
 %     mr.Sequence/addBlock, mr.opts, mr.makeTrapezoid,
 %     mr.makeExtendedTrapezoid, mr.makeArbitraryGrad, mr.calcDuration
 %
+%   Maxim Zaitsev <maxim.zaitsev@uniklinik-freiburg.de>
 %   Stefan Kroboth <stefan.kroboth@uniklinik-freiburg.de>
 
 persistent parser
