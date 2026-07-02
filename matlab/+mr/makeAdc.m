@@ -19,22 +19,22 @@ function adc=makeAdc(num,varargin)
 %     Parameter names are case-insensitive.
 %
 %   INPUTS
-%     numSamples         integer  number of ADC samples (must be a whole number)  required
-%     system             struct   from mr.opts; defaults to mr.opts() if omitted  optional
-%     'Duration'         double   total acquisition duration, seconds. Dwell is
-%                                 computed as Duration/numSamples.                name/value
-%     'Dwell'            double   per-sample dwell time, seconds. Total acquisition
-%                                 time is Dwell*numSamples.                       name/value
-%     'Delay'            double   delay before sampling starts, seconds, default 0.
-%                                 Silently bumped to system.adcDeadTime if smaller
-%                                 (see NOTES).                                    name/value
-%     'freqOffset'       double   demodulation frequency offset, Hz, default 0    name/value
-%     'phaseOffset'      double   demodulation phase offset, radians, default 0   name/value
-%     'freqPPM'          double   frequency offset in PPM (relative to system B0
-%                                 and gamma), default 0                           name/value
-%     'phasePPM'         double   phase offset in PPM, default 0                  name/value
-%     'phaseModulation'  vector   per-sample phase modulation, length must equal
-%                                 numSamples. Default: [] (no modulation).        name/value
+%     numSamples         [required]    integer, number of ADC samples (must be a whole number)
+%     system             [optional]    struct from mr.opts; defaults to mr.opts() if omitted
+%     'Duration'         [name/value]  double, total acquisition duration, seconds. Dwell is
+%                                      computed as Duration/numSamples.
+%     'Dwell'            [name/value]  double, per-sample dwell time, seconds. Total
+%                                      acquisition time is Dwell*numSamples.
+%     'Delay'            [name/value]  double, delay before sampling starts, seconds,
+%                                      default 0. Silently bumped to system.adcDeadTime
+%                                      if smaller (see NOTES).
+%     'freqOffset'       [name/value]  double, demodulation frequency offset, Hz, default 0
+%     'phaseOffset'      [name/value]  double, demodulation phase offset, radians, default 0
+%     'freqPPM'          [name/value]  double, frequency offset in PPM (relative to system
+%                                      B0 and gamma), default 0
+%     'phasePPM'         [name/value]  double, phase offset in PPM, default 0
+%     'phaseModulation'  [name/value]  vector, per-sample phase modulation, length must
+%                                      equal numSamples. Default: [] (no modulation).
 %
 %   OUTPUT
 %     adc  struct with fields (in order returned by fieldnames):

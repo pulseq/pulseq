@@ -21,18 +21,18 @@ function grad=makeTrapezoid(channel, varargin)
 %     Parameter names are case-insensitive.
 %
 %   INPUTS
-%     channel     char    'x'|'y'|'z'                                   required
-%     system      struct  from mr.opts; defaults to mr.opts() if omitted optional
-%     'Duration'  double  total duration including ramps, seconds, >0   name/value
-%     'Area'      double  total gradient area including ramps, 1/m      name/value
-%     'FlatTime'  double  flat-top duration, seconds                    name/value
-%     'FlatArea'  double  flat-top-only area, 1/m                       name/value
-%     'Amplitude' double  flat-top amplitude, Hz/m                      name/value
-%     'maxGrad'   double  override system.maxGrad, Hz/m                 name/value
-%     'maxSlew'   double  override system.maxSlew, Hz/m/s               name/value
-%     'riseTime'  double  force rise time, seconds                      name/value
-%     'fallTime'  double  force fall time, seconds (requires riseTime)  name/value
-%     'delay'     double  pre-event delay, seconds, default 0           name/value
+%     channel      [required]    char, 'x'|'y'|'z'
+%     system       [optional]    struct from mr.opts; defaults to mr.opts() if omitted
+%     'Duration'   [name/value]  double, total duration including ramps, seconds, >0
+%     'Area'       [name/value]  double, total gradient area including ramps, 1/m
+%     'FlatTime'   [name/value]  double, flat-top duration, seconds
+%     'FlatArea'   [name/value]  double, flat-top-only area, 1/m
+%     'Amplitude'  [name/value]  double, flat-top amplitude, Hz/m
+%     'maxGrad'    [name/value]  double, override system.maxGrad, Hz/m
+%     'maxSlew'    [name/value]  double, override system.maxSlew, Hz/m/s
+%     'riseTime'   [name/value]  double, force rise time, seconds
+%     'fallTime'   [name/value]  double, force fall time, seconds (requires riseTime)
+%     'delay'      [name/value]  double, pre-event delay, seconds, default 0
 %
 %   OUTPUT
 %     grad  struct with fields:
