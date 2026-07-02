@@ -59,10 +59,25 @@ for i=1:Ny
     end
 end
 
+%% add labels automatically
+seq.autoLabel('noPlots',true);
+
+%% check sequence timing
+[ok, error_report]=seq.checkTiming ;
+
+if (ok)
+    fprintf('Timing check passed successfully\n') ;
+else
+    fprintf('Timing check failed! Error listing follows:\n') ;
+    fprintf([error_report{:}]);
+    fprintf('\n');
+    error('Sequence timing check failed!');
+end
 
 %% prepare sequence export
 seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'gre');
 
 seq.write('gre.seq')       % Write to pulseq file
+seq.writeBinary('gre.bseq')       % Write to pulseq file
 parsemr('gre.seq');

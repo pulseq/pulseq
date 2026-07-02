@@ -44,7 +44,7 @@ classdef Sequence < handle
         definitions       % Optional sequence definitions
 
         blockEvents;      % Event table (references to events)
-        blockDurations;   % Cache of block durations
+        blockDurations;   % List of block durations
         rfLibrary;        % Library of RF events
         gradLibrary;      % Library of gradient events
         adcLibrary;       % Library of ADC readouts
@@ -182,6 +182,9 @@ classdef Sequence < handle
         % See testReport.m
         [ report ] = testReport( obj, varargin )
 
+        % See autoLabel.m
+        [labels, aux] = autoLabel(seq, varargin)
+
         % See gradSpectrum.m
         [R, Rax, F] = gradSpectrum(obj, FB, fmax, plt)
 
@@ -260,6 +263,10 @@ classdef Sequence < handle
                         rep = [rep ' time between the end of the RF pulse at ' num2str((b.rf.delay+b.rf.t(end))*1e6) ' and the end of the block at ' num2str(dur*1e6) 'us is shorter than rfRingdownTime'];
                         is_ok = false;
                     end
+                    if abs(b.rf.freqOffset) > obj.sys.maxFreqOffset || abs(b.rf.freqPPM*1e-6*obj.sys.gamma) > obj.sys.maxFreqOffset || abs(b.rf.freqOffset + b.rf.freqPPM*1e-6*obj.sys.gamma) > obj.sys.maxFreqOffset
+                        rep = [rep ' frequency offset of the RF pulse exceeds the maximum allowed value of ' num2str(obj.sys.maxFreqOffset) 'Hz'];
+                        is_ok = false;
+                    end
                 end
 
                 % check ADC dead times, dwell times and numbers of samples
@@ -279,6 +286,10 @@ classdef Sequence < handle
                     if abs(b.adc.numSamples/obj.sys.adcSamplesDivisor-round(b.adc.numSamples/obj.sys.adcSamplesDivisor)) > eps
                         rep = [rep ' adc: numSamples is not an integer multiple of sys.adcSamplesDivisor'];
                         is_ok=false;
+                    end
+                    if abs(b.adc.freqOffset) > obj.sys.maxFreqOffset || abs(b.adc.freqPPM*1e-6*obj.sys.gamma) > obj.sys.maxFreqOffset || abs(b.adc.freqOffset + b.adc.freqPPM*1e-6*obj.sys.gamma) > obj.sys.maxFreqOffset
+                        rep = [rep ' frequency offset of the ADC object exceeds the maximum allowed value of ' num2str(obj.sys.maxFreqOffset) 'Hz'];
+                        is_ok = false;
                     end
                 end
 
@@ -375,7 +386,7 @@ classdef Sequence < handle
             end
 
             prevTotalDuration=obj.getDefinition('TotalDuration');
-            if ~isempty(prevTotalDuration) && prevTotalDuration~=totalDuration
+            if ~isempty(prevTotalDuration) && abs(prevTotalDuration-totalDuration)>1e-9
                 errorReport = { errorReport{:}, [ '   TotalDuration definition of ' sprintf('%.9g', prevTotalDuration) 's was present in the sequence, but was incorrect. It is now ' sprintf('%.9g', totalDuration) 's\n' ] };
                 is_ok=false;
             end
@@ -1079,7 +1090,7 @@ classdef Sequence < handle
                         end
                     end
                     % now it's a pain, but we also need to extract the rotation extension of the previous block --
-                    warning('FIXME: need rotation extension of the previous non-zero block here...');
+                    warning('mr:fixmePreviousRotationExtension','FIXME: need rotation extension of the previous non-zero block here...');
                 end
                 % check if connection to the previous block is correct using check_g and gradCheckData.lastGradVals
                 % up to here gradCheckData.lastGradVals are in physical coordinates, we transform them into current
@@ -2117,7 +2128,7 @@ classdef Sequence < handle
                                     wave_data_local=[[wave_data_local(1,1)-obj.gradRasterTime/2; 0] wave_data_local]; % this is likely to cause memory reallocations also later on
                                     len=len+1;
                                 else
-                                    % we are wihin the tolorance, just set it to 0 quaietly
+                                    % we are wihin the tolorance, just set it to 0 quietly
                                     wave_data_local(2,1)=0.0;
                                 end
                             end
@@ -2139,7 +2150,7 @@ classdef Sequence < handle
             for j=1:shape_channels
                 if any(diff(wave_data{j}(1,1:wave_cnt(j)))<=0.0) %&& ... % quick pre-check whether the time vector is monotonously increasing to avoid too often unique() calls
                     %wave_cnt(j)~=length(unique(wave_data{j}(1,1:wave_cnt(j))))
-                    warning('Warning: not all elements of the generated time vector are unique and sorted in accending order!\n');
+                    warning('Warning: not all elements of the generated time vector are unique and sorted in accending order!');
                 end
             end
 
@@ -2822,27 +2833,6 @@ classdef Sequence < handle
             end
         end
 
-        function codes = getBinaryCodes(obj)
-            %getBinaryCodes Return binary codes for section headers in
-            %   in a binary sequence file.
-            %
-            %   See also  writeBinary
-
-            codes.fileHeader = [1 'pulseq' 2];
-            codes.version_major = int64(obj.version_major);
-            codes.version_minor = int64(obj.version_minor);
-            codes.version_revision = int64(obj.version_revision);
-            prefix = bitshift(int64(hex2dec('FFFFFFFF')), 32);
-            codes.section.definitions = bitor(prefix, int64(1));
-            codes.section.blocks      = bitor(prefix, int64(2));
-            codes.section.rf          = bitor(prefix, int64(3));
-            codes.section.gradients   = bitor(prefix, int64(4));
-            codes.section.trapezoids  = bitor(prefix, int64(5));
-            codes.section.adc         = bitor(prefix, int64(6));
-            codes.section.delays      = bitor(prefix, int64(7));
-            codes.section.shapes      = bitor(prefix, int64(8));
-        end
-
         function id = getExtensionTypeID(obj, str)
             % get numeric ID for the given string extention ID
             % will automatically create a new ID if unknown
@@ -2900,6 +2890,38 @@ classdef Sequence < handle
 
             obj.tridHistory{end+1,1} = label_name;
         end
-
     end
+
+    methods(Static)
+        function codes = getBinaryCodes()
+            %getBinaryCodes Return binary codes for section headers in
+            %   in a binary sequence file.
+            %
+            %   See also  writeBinary
+
+            codes.fileHeader = typecast([uint8(1) uint8('pulseq') uint8(2)],'int64');
+            %codes.version_major = int64(obj.version_major);
+            %codes.version_minor = int64(obj.version_minor);
+            %codes.version_revision = int64(obj.version_revision);
+            prefix = bitshift(int64(hex2dec('FFFFFFFF')), 32);
+            codes.section.definitions = bitor(prefix, int64(1));
+            codes.section.blocks      = bitor(prefix, int64(2));
+            codes.section.rf          = bitor(prefix, int64(3));
+            codes.section.gradients   = bitor(prefix, int64(4));
+            codes.section.trapezoids  = bitor(prefix, int64(5));
+            codes.section.adc         = bitor(prefix, int64(6));
+            codes.section.delays      = bitor(prefix, int64(7));
+            codes.section.shapes      = bitor(prefix, int64(8));
+            codes.section.extensions  = bitor(prefix, int64(9));
+            codes.section.triggers    = bitor(prefix, int64(10));
+            codes.section.labelset    = bitor(prefix, int64(11));
+            codes.section.labelinc    = bitor(prefix, int64(12));
+            codes.section.softdelays  = bitor(prefix, int64(13));
+            codes.section.rfshims     = bitor(prefix, int64(14));
+            codes.section.rotations   = bitor(prefix, int64(15));
+            %
+            codes.section.signature   = bitor(prefix, int64(0x00FFFFFF));
+        end
+    end
+
 end % classdef

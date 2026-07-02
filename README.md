@@ -20,7 +20,8 @@ This project is open source under the MIT License. See [LICENSE](LICENSE) for de
 The directories are organized as follows:
 
 * `doc/` - Contains the file specification and HTML source code documentation
-* `examples/` - Contains example sequence files (`*.seq`)
+* [`tests/legacy/approved/`](https://github.com/pulseq/pulseq/tree/master/tests/legacy/approved)
+  - Contains example sequence files (`*.seq`)
 * `src/` - C++ class for reading sequence files
 * `matlab/` - MATLAB code for reading, writing, modifying and visualizing sequence files
 

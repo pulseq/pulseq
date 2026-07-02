@@ -97,9 +97,6 @@ lblResetRefScan = mr.makeLabel('SET','REF', false) ;
 lblResetRefAndImaScan = mr.makeLabel('SET','IMA', false) ;
 
 % pre-register objects that do not change while looping
-gslSp.id=seq.registerGradEvent(gslSp);
-groSp.id=seq.registerGradEvent(groSp);
-gro1.id=seq.registerGradEvent(gro1);
 [~, rf.shapeIDs]=seq.registerRfEvent(rf); % the phase of the RF object will change, therefore we only pre-register the shapes 
 [rf180.id, rf180.shapeIDs]=seq.registerRfEvent(rf180); % 
 
@@ -145,6 +142,11 @@ gro1 = mr.scaleGrad(gro1, -1) ;
 % reverse the polarity of all gradients in partition encoding direction (Gx)
 gpe1.amplitude = -gpe1.amplitude ;
 gslSp.amplitude = -gslSp.amplitude ;
+
+groSp.id=seq.registerGradEvent(groSp);
+gro1.id=seq.registerGradEvent(gro1);
+gslSp.id=seq.registerGradEvent(gslSp);
+
 % start the sequence
 tic;
 

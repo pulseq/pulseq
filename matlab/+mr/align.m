@@ -46,7 +46,7 @@ for i=2:length(varargin)
         required_duration=varargin{i};
         continue;
     end
-    iobjects=[iobjects i];
+    iobjects(end+1)=i;
     alignments=[alignments curr_align];
 end
 
@@ -62,6 +62,9 @@ end
 
 % set new delays
 for i=1:length(objects)
+    if isfield(objects{i},'id')
+        error('attempting to align() readily registered object! please register objects after calling this function or deregister the argument(s) by calling rmfield(...,''id'')');
+    end
     switch alignments(i)
         case 1
             objects{i}.delay=0;

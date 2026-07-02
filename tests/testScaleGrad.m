@@ -1,5 +1,26 @@
+%!test %%% on Octave run with oruntests() %%%
+%! testScaleGrad
 function tests = testScaleGrad
-    tests = functiontests(localfunctions);
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
+    end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
 end
 
 %% Test scale trapezoid by 2
@@ -38,12 +59,11 @@ function test_scale_arbitrary_grad(testCase)
     testCase.verifyEqual(g2.last, 0.5*g.last, 'AbsTol', 1e-6);
 end
 
-%% Test id field removed after scaling
+%% Test id field triggers an error
 function test_id_field_removed(testCase)
     g = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 1e-3);
     g.id = 42;  % simulate an assigned library ID
-    g2 = mr.scaleGrad(g, 1.5);
-    testCase.verifyFalse(isfield(g2, 'id'), 'id field should be removed after scaling');
+    verifyErrorThrown(testCase, @() mr.scaleGrad(g, 1.5));
 end
 
 %% Test maxGrad violation with system

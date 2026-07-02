@@ -1,5 +1,27 @@
+% this test is not yet Octave-compatible, therefore markup % ! with a space in between
+% !test %%% on Octave run with oruntests() %%%
+% ! testCalcADCSegments
 function tests = testCalcADCSegments
-    tests = functiontests(localfunctions);
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
+    end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
 end
 
 %% Setup function: Load test data
@@ -18,7 +40,7 @@ function setup(testCase)
     testCase.TestData.mode = data(:, 5);
     testCase.TestData.res_num_seg = data(:, 6);
     testCase.TestData.res_num_samples_seg = data(:, 7);
-    
+
     % Define system options
     testCase.TestData.system = opts;
     testCase.TestData.system.adcRasterTime = 1e-7;
@@ -39,7 +61,7 @@ end
 %% Main Test Function
 function testCalcADC(testCase)
     sys = testCase.TestData.system;
-    
+
     % Loop through all test cases
     for i = 1:length(testCase.TestData.dwell)
         dwell = testCase.TestData.dwell(i);
@@ -49,12 +71,12 @@ function testCalcADC(testCase)
         res_num_seg = testCase.TestData.res_num_seg(i);
         res_num_samples_seg = testCase.TestData.res_num_samples_seg(i);
         modeNum = testCase.TestData.mode(i);
-        
+
         % Convert mode number to string
         if modeNum == 1
             mode = 'shorten';
         else
-            mode = 'lenghen';
+            mode = 'lengthen';
         end
 
         % Update system settings
@@ -63,7 +85,7 @@ function testCalcADC(testCase)
 
         % Run function under test
         [num_seg, num_samples_seg] = mr.calcAdcSeg(num_samples, dwell, sys, mode);
-        
+
         % Validate results against expected values
         testCase.verifyEqual(num_seg, res_num_seg, 'AbsTol', 1e-9);
         testCase.verifyEqual(num_samples_seg, res_num_samples_seg, 'AbsTol', 1e-9);

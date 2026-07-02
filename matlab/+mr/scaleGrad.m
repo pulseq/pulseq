@@ -2,6 +2,11 @@ function [grad] = scaleGrad(grad, scale, system)
 % scaleGrad just scales the gradint with the scalar
 % if the optional parameter 'system' is provided the result is schecked
 % against the system limits (amolityde and slew rate)
+
+    if isfield(grad,'id')
+        error('attempting to scale readily registered object! please register objects after calling this function or deregister the argument by calling rmfield(...,''id'')');
+    end
+
     if strcmp(grad.type,'trap')
         grad.amplitude=grad.amplitude*scale;
         grad.area=grad.area*scale;
@@ -29,9 +34,6 @@ function [grad] = scaleGrad(grad, scale, system)
                 end
             end
         end
-    end
-    if isfield(grad,'id')
-        grad = rmfield(grad,'id'); 
     end
 end
 

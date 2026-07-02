@@ -26,7 +26,11 @@ classdef TransformFOV < handle
             %   translation: 1x3 translation vector in the original
             %                (non-rotated) logical Pulseq coordinates
             %   scale:       1x3 scailing vector in the original
-            %                (non-rotated) logical Pulseq coordinates
+            %                (non-rotated) logical Pulseq coordinates. The
+            %                provided vector is the *gradient* scailing
+            %                vector, so the FOV size is *divided* by the
+            %                provided values. Scaling of 0 on one or
+            %                several axes sets gradients on these axes to 0
             %   transform:   4x4 homogeneous transform matrix, used as an
             %                alternative to a combination of 'rotation' and
             %                'translation'. If 'tansform' is specified
@@ -181,7 +185,11 @@ classdef TransformFOV < handle
                 for i=1:length(grads)
                     %grads{i}=mr.scaleGrad(grads{i},obj.scale(channel2index.(grads{i}.channel)),obj.system);
                     if ~isempty(grads{i})
-                        grads{i}=mr.scaleGrad(grads{i},obj.scale(i),obj.system);
+                        if (isfield(grads{i},'id'))
+                            grads{i}=mr.scaleGrad(rmfield(grads{i},'id'),obj.scale(i),obj.system);
+                        else
+                            grads{i}=mr.scaleGrad(grads{i},obj.scale(i),obj.system);
+                        end
                     end
                 end
             end
@@ -408,7 +416,7 @@ classdef TransformFOV < handle
                         rotExtQuaternion=mr.aux.quat.multiply(rotExtQuaternion, obj.rotation_quaternion); % TODO: check left or right rotation
                     end
                 else
-                    grads = mr.rotate3D(obj.rotation,grads); 
+                    grads = mr.rotate3D(obj.rotation,grads,'system',obj.system); 
                 end
             end
 

@@ -9,6 +9,7 @@ extern "C" {
 
 #include <algorithm>	// for std::max_element
 #include <functional>	// for std::bind...
+#include <stdint.h>
 
 #include <math.h>		// fabs etc
 
@@ -25,6 +26,65 @@ const char ExternalSequence::COMMENT_CHAR = '#';
 std::string& str_trim(std::string& str);
 std::string str_tolower(std::string str);
 
+namespace {
+
+template <typename T>
+bool readScalar(std::istream& stream, T& value)
+{
+	stream.read(reinterpret_cast<char*>(&value), sizeof(T));
+	return stream.good();
+}
+
+template <typename T>
+bool readArray(std::istream& stream, std::vector<T>& data, size_t count)
+{
+	data.resize(count);
+	if (count==0)
+		return true;
+	stream.read(reinterpret_cast<char*>(&data[0]), sizeof(T)*count);
+	return stream.good();
+}
+
+int64_t pulseqBinaryMagic()
+{
+	unsigned char bytes[8] = {1, 'p', 'u', 'l', 's', 'e', 'q', 2};
+	int64_t v = 0;
+	memcpy(&v, bytes, 8);
+	return v;
+}
+
+bool streamHasPulseqBinaryMagic(std::istream& stream)
+{
+	std::istream::pos_type pos = stream.tellg();
+	if (pos<0)
+		return false;
+	int64_t magic = 0;
+	if (!readScalar(stream, magic)) {
+		stream.clear();
+		stream.seekg(pos, std::ios::beg);
+		return false;
+	}
+	stream.clear();
+	stream.seekg(pos, std::ios::beg);
+	return magic == pulseqBinaryMagic();
+}
+
+long ps_to_us_rounded(int64_t ps)
+{
+	if (ps>=0)
+		return static_cast<long>((ps + 500000LL) / 1000000LL);
+	return static_cast<long>((ps - 500000LL) / 1000000LL);
+}
+
+int ps_to_ns_rounded(int64_t ps)
+{
+	if (ps>=0)
+		return static_cast<int>((ps + 500LL) / 1000LL);
+	return static_cast<int>((ps - 500LL) / 1000LL);
+}
+
+}
+
 // TODO: get rid of this Siemens-specific initialization and make it more vendor-neutral
 double SeqBlock::s_blockDurationRaster = 10.0;
 double SeqBlock::s_gradientRaster = 10.0;
@@ -37,8 +97,10 @@ ExternalSequence::ExternalSequence()
 	version_minor=0;
 	version_revision=0;
 	version_combined=0;
+	bIsBinary = false;
 	m_bSignatureDefined=false;
 	m_bSignatureCheckSucceeded=false;
+    m_ArbGradSamplingMode=ags_center;
 }
 
 /***********************************************************/
@@ -47,15 +109,15 @@ ExternalSequence::~ExternalSequence(){}
 /***********************************************************/
 void ExternalSequence::print_msg(MessageType level, std::ostream& ss) {
 	if (MSG_LEVEL>=level) {
-#if defined(VXWORKS) || defined (BUILD_PLATFORM_LINUX)
-		// we skip messages on the scanner platforms due to performance limitations
-		// we could trivially use UTRACE on newer scanners, but it is not compatible with older platforms
-#else		
+//#if defined(VXWORKS) || defined (BUILD_PLATFORM_LINUX)
+//		// we skip messages on the scanner platforms due to performance limitations
+//		// we could trivially use UTRACE on newer scanners, but it is not compatible with older platforms
+//#else		
 		std::ostringstream oss;
 		oss.width(2*(level-1)); oss << "";
 		oss << static_cast<std::ostringstream&>(ss).str();
 		print_fun(oss.str().c_str());
-#endif
+//#endif
 	}
 }
 
@@ -108,82 +170,677 @@ bool ExternalSequence::load(std::string path)
 	std::ifstream data_file;
 	bool isSingleFileMode = true;
 	std::string filepath = path;
-	if (filepath.substr(filepath.size()-4) != std::string(".seq")) {
-		filepath = path + PATH_SEPARATOR + "external.seq";
-	}
 	print_msg(NORMAL_MSG, std::ostringstream().flush() << "Opening " << filepath);			
 	// Open in binary mode to ensure all end-of-line characters are processed
 	data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
 	data_file.seekg(0, std::ios::beg);
 
+	if (data_file.is_open() && data_file.good())
+	{
+		data_file.seekg(0, std::ios::beg);
+		if (streamHasPulseqBinaryMagic(data_file))
+			return loadBinary(data_file);
+		return load(data_file);
+	}
+
+	// Try separate file mode (blocks.seq, events.seq, shapes.seq)
+	// not really logical, but the current code expects [VERSION] to be defined in every file,
+	// [DEFINITIONS] to be in the blocks.seq and only blocks.seq is signed... Not logical at all... TODO: FixMe!
+	reset();
+
+	filepath = path + PATH_SEPARATOR + "shapes.seq";
+	data_file.clear();
+	data_file.close();
+	data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
+	data_file.seekg(0, std::ios::beg);
 	if (!data_file.is_open() || !data_file.good())
 	{
-		// Try separate file mode (blocks.seq, events.seq, shapes.seq)
-		// not really logical, but the current code expects [VERSION] to be defined in every file, 
-		// [DEFINITIONS] to be in the blocks.seq and only blocks.seq is signed... Not logical at all... TODO: FixMe!
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
+		return false;
+	}
+	if (!load(data_file, lm_shapes)) {
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to load shapes from file " << filepath);
+		return false;
+	}
 
-		reset();
+	filepath = path + PATH_SEPARATOR + "events.seq";
+	data_file.clear();
+	data_file.close();
+	data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
+	data_file.seekg(0, std::ios::beg);
+	if (!data_file.is_open() || !data_file.good())
+	{
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
+		return false;
+	}
+	if (!load(data_file, lm_events)) {
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to load events from file " << filepath);
+		return false;
+	}
 
-		filepath = path + PATH_SEPARATOR + "shapes.seq";
-		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
-		data_file.seekg(0, std::ios::beg);
-		
-		if (!data_file.is_open() || !data_file.good())
+	filepath = path + PATH_SEPARATOR + "blocks.seq";
+	data_file.clear();
+	data_file.close();
+	data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
+	data_file.seekg(0, std::ios::beg);
+	if (!data_file.is_open() || !data_file.good())
+	{
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
+		return false;
+	}
+
+	if (!load(data_file, lm_blocks)) {
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to load blocks from file " << filepath);
+		return false;
+	}
+
+	return true;
+}
+
+bool ExternalSequence::loadBinary(std::istream& data_stream)
+{
+	reset();
+	bIsBinary = true;
+
+	if (!data_stream.good())
+	{
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Function loadBinary() failed to read from the stream provided");
+		return false;
+	}
+
+	const int64_t prefix = static_cast<int64_t>(0xFFFFFFFFLL) << 32;
+	const int64_t section_definitions = prefix | static_cast<int64_t>(1);
+	const int64_t section_blocks      = prefix | static_cast<int64_t>(2);
+	const int64_t section_rf          = prefix | static_cast<int64_t>(3);
+	const int64_t section_gradients   = prefix | static_cast<int64_t>(4);
+	const int64_t section_trapezoids  = prefix | static_cast<int64_t>(5);
+	const int64_t section_adc         = prefix | static_cast<int64_t>(6);
+	const int64_t section_delays      = prefix | static_cast<int64_t>(7);
+	const int64_t section_shapes      = prefix | static_cast<int64_t>(8);
+	const int64_t section_extensions  = prefix | static_cast<int64_t>(9);
+	const int64_t section_triggers    = prefix | static_cast<int64_t>(10);
+	const int64_t section_labelset    = prefix | static_cast<int64_t>(11);
+	const int64_t section_labelinc    = prefix | static_cast<int64_t>(12);
+	const int64_t section_softdelays  = prefix | static_cast<int64_t>(13);
+	const int64_t section_rfshims     = prefix | static_cast<int64_t>(14);
+	const int64_t section_rotations   = prefix | static_cast<int64_t>(15);
+	const int64_t section_signature   = prefix | static_cast<int64_t>(0x00FFFFFF);
+
+	int64_t magic = 0;
+	if (!readScalar(data_stream, magic) || magic!=pulseqBinaryMagic()) {
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Not a Pulseq binary file");
+		return false;
+	}
+
+	int64_t major = 0, minor = 0, revision = 0;
+	if (!readScalar(data_stream, major) || !readScalar(data_stream, minor) || !readScalar(data_stream, revision)) {
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to decode binary file version");
+		return false;
+	}
+	version_major = static_cast<int>(major);
+	version_minor = static_cast<int>(minor);
+	version_revision = static_cast<int>(revision);
+	version_combined = version_major*1000000L + version_minor*1000L + version_revision;
+
+	while (true)
+	{
+		int64_t section = 0;
+		if (!readScalar(data_stream, section)) {
+			break;
+		}
+
+		switch (section)
 		{
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
-			return false;
+			case section_definitions:
+			{
+				int64_t numDefs = 0;
+				if (!readScalar(data_stream, numDefs)) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to decode [DEFINITIONS] section header");
+					return false;
+				}
+				for (int64_t i=0; i<numDefs; ++i)
+				{
+					int32_t keyLen = 0;
+					if (!readScalar(data_stream, keyLen) || keyLen<0) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Invalid key length in [DEFINITIONS]");
+						return false;
+					}
+					std::vector<char> keyData;
+					if (!readArray(data_stream, keyData, static_cast<size_t>(keyLen))) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read definition key");
+						return false;
+					}
+					std::string key(keyData.begin(), keyData.end());
+
+					int32_t valCount = 0;
+					char valType = 0;
+					if (!readScalar(data_stream, valCount) || valCount<0 || !readScalar(data_stream, valType)) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Invalid value header in [DEFINITIONS]");
+						return false;
+					}
+
+					std::vector<double> vals;
+					std::string strValue;
+					std::ostringstream sv;
+					if (valType=='f') {
+						std::vector<double> data;
+						if (!readArray(data_stream, data, static_cast<size_t>(valCount))) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read float definition values");
+							return false;
+						}
+						vals = data;
+						for (int j=0; j<valCount; ++j) {
+							if (j>0) sv << " ";
+							sv << data[j];
+						}
+						strValue = sv.str();
+					}
+					else if (valType=='i') {
+						std::vector<int32_t> data;
+						if (!readArray(data_stream, data, static_cast<size_t>(valCount))) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read int definition values");
+							return false;
+						}
+						vals.resize(data.size());
+						for (size_t j=0; j<data.size(); ++j) {
+							vals[j] = static_cast<double>(data[j]);
+							if (j>0) sv << " ";
+							sv << data[j];
+						}
+						strValue = sv.str();
+					}
+					else if (valType=='c') {
+						std::vector<char> data;
+						if (!readArray(data_stream, data, static_cast<size_t>(valCount))) {
+							print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read string definition values");
+							return false;
+						}
+						strValue.assign(data.begin(), data.end());
+						if (!strValue.empty() && strValue[strValue.size()-1]=='\0')
+							strValue = strValue.substr(0, strValue.size()-1);
+					}
+					else {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Unknown definition value type in [DEFINITIONS]");
+						return false;
+					}
+
+					m_definitions[key] = vals;
+					m_definitions_str[key] = strValue;
+				}
+				break;
+			}
+
+			case section_blocks:
+			{
+				int64_t numBlocks = 0;
+				if (!readScalar(data_stream, numBlocks) || numBlocks<0) {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to decode [BLOCKS] section header");
+					return false;
+				}
+				m_blocks.clear();
+				m_blockDurations_ru.clear();
+				for (int64_t i=0; i<numBlocks; ++i)
+				{
+					int64_t dur_ru = 0;
+					int32_t ids[6] = {0,0,0,0,0,0};
+					if (!readScalar(data_stream, dur_ru) || !readScalar(data_stream, ids[0]) || !readScalar(data_stream, ids[1]) ||
+						!readScalar(data_stream, ids[2]) || !readScalar(data_stream, ids[3]) || !readScalar(data_stream, ids[4]) ||
+						!readScalar(data_stream, ids[5])) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to decode [BLOCKS] entry");
+						return false;
+					}
+					EventIDs events;
+					memset(events.id, 0, NUM_EVENTS*sizeof(int));
+					events.id[RF]  = ids[0];
+					events.id[GX]  = ids[1];
+					events.id[GY]  = ids[2];
+					events.id[GZ]  = ids[3];
+					events.id[ADC] = ids[4];
+					events.id[EXT] = ids[5];
+					m_blocks.push_back(events);
+					m_blockDurations_ru.push_back(static_cast<long>(dur_ru));
+				}
+				break;
+			}
+
+			case section_rf:
+			{
+				int64_t numEvents = 0;
+				if (!readScalar(data_stream, numEvents) || numEvents<0) return false;
+				m_rfLibrary.clear();
+				for (int64_t i=0; i<numEvents; ++i)
+				{
+					int32_t id=0, mag=0, phs=0, tsh=0;
+					double amp=0.0, fpp=0.0, ppp=0.0, foff=0.0, poff=0.0;
+					int64_t center_ps=0, delay_ps=0;
+					char use='u';
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, amp) || !readScalar(data_stream, mag) ||
+						!readScalar(data_stream, phs) || !readScalar(data_stream, tsh) || !readScalar(data_stream, center_ps) ||
+						!readScalar(data_stream, delay_ps) || !readScalar(data_stream, fpp) || !readScalar(data_stream, ppp) ||
+						!readScalar(data_stream, foff) || !readScalar(data_stream, poff) || !readScalar(data_stream, use)) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to decode [RF] entry");
+						return false;
+					}
+					RFEvent ev;
+					ev.amplitude   = static_cast<float>(amp);
+					ev.magShape    = static_cast<int>(mag);
+					ev.phaseShape  = static_cast<int>(phs);
+					ev.timeShape   = static_cast<int>(tsh);
+					ev.center      = static_cast<float>(center_ps*1e-6);
+					ev.delay       = static_cast<int>(ps_to_us_rounded(delay_ps));
+					ev.freqPPM     = static_cast<float>(fpp);
+					ev.phasePPM    = static_cast<float>(ppp);
+					ev.freqOffset  = static_cast<float>(foff);
+					ev.phaseOffset = static_cast<float>(poff);
+					ev.use         = use;
+					m_rfLibrary[id] = ev;
+				}
+				break;
+			}
+
+			case section_gradients:
+			{
+				int64_t numEvents = 0;
+				if (!readScalar(data_stream, numEvents) || numEvents<0) return false;
+				for (int64_t i=0; i<numEvents; ++i)
+				{
+					int32_t id=0, sid=0, tid=0;
+					double amp=0.0, first=0.0, last=0.0;
+					int64_t delay_ps=0;
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, amp) || !readScalar(data_stream, first) ||
+						!readScalar(data_stream, last) || !readScalar(data_stream, sid) || !readScalar(data_stream, tid) ||
+						!readScalar(data_stream, delay_ps)) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to decode [GRADIENTS] entry");
+						return false;
+					}
+					GradEvent ev;
+					ev.amplitude = static_cast<float>(amp);
+					ev.first = static_cast<float>(first);
+					ev.last = static_cast<float>(last);
+					ev.waveShape = sid;
+					ev.timeShape = tid;
+					ev.delay = static_cast<int>(ps_to_us_rounded(delay_ps));
+					ev.rampUpTime = ev.flatTime = ev.rampDownTime = 0;
+					m_gradLibrary[id] = ev;
+				}
+				break;
+			}
+
+			case section_trapezoids:
+			{
+				int64_t numEvents = 0;
+				if (!readScalar(data_stream, numEvents) || numEvents<0) return false;
+				for (int64_t i=0; i<numEvents; ++i)
+				{
+					int32_t id=0;
+					double amp=0.0;
+					int64_t rise_ps=0, flat_ps=0, fall_ps=0, delay_ps=0;
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, amp) || !readScalar(data_stream, rise_ps) ||
+						!readScalar(data_stream, flat_ps) || !readScalar(data_stream, fall_ps) || !readScalar(data_stream, delay_ps)) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to decode [TRAP] entry");
+						return false;
+					}
+					GradEvent ev;
+					ev.amplitude = static_cast<float>(amp);
+					ev.rampUpTime = ps_to_us_rounded(rise_ps);
+					ev.flatTime = ps_to_us_rounded(flat_ps);
+					ev.rampDownTime = ps_to_us_rounded(fall_ps);
+					ev.delay = static_cast<int>(ps_to_us_rounded(delay_ps));
+					ev.waveShape = 0;
+					ev.timeShape = 0;
+					ev.first = FLOAT_UNDEFINED;
+					ev.last = FLOAT_UNDEFINED;
+					m_gradLibrary[id] = ev;
+				}
+				break;
+			}
+
+			case section_adc:
+			{
+				int64_t numEvents = 0;
+				if (!readScalar(data_stream, numEvents) || numEvents<0) return false;
+				m_adcLibrary.clear();
+				for (int64_t i=0; i<numEvents; ++i)
+				{
+					int32_t id=0, phase_id=0;
+					int64_t num=0, dwell_ps=0, delay_ps=0;
+					double fpp=0.0, ppp=0.0, foff=0.0, poff=0.0;
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, num) || !readScalar(data_stream, dwell_ps) ||
+						!readScalar(data_stream, delay_ps) || !readScalar(data_stream, fpp) || !readScalar(data_stream, ppp) ||
+						!readScalar(data_stream, foff) || !readScalar(data_stream, poff) || !readScalar(data_stream, phase_id)) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to decode [ADC] entry");
+						return false;
+					}
+					ADCEvent ev;
+					ev.numSamples = static_cast<int>(num);
+					ev.dwellTime = ps_to_ns_rounded(dwell_ps);
+					ev.delay = static_cast<int>(ps_to_us_rounded(delay_ps));
+					ev.freqPPM = static_cast<float>(fpp);
+					ev.phasePPM = static_cast<float>(ppp);
+					ev.freqOffset = static_cast<float>(foff);
+					ev.phaseOffset = static_cast<float>(poff);
+					ev.phaseModulationShape = static_cast<int>(phase_id);
+					m_adcLibrary[id] = ev;
+				}
+				break;
+			}
+
+			case section_delays:
+			{
+				int64_t numEvents = 0;
+				if (!readScalar(data_stream, numEvents) || numEvents<0) return false;
+				m_tmpDelayLibrary.clear();
+				for (int64_t i=0; i<numEvents; ++i)
+				{
+					int32_t id=0;
+					int64_t delay_ps=0;
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, delay_ps)) return false;
+					m_tmpDelayLibrary[id] = ps_to_us_rounded(delay_ps);
+				}
+				break;
+			}
+
+			case section_shapes:
+			{
+				int64_t numShapes = 0;
+				if (!readScalar(data_stream, numShapes) || numShapes<0) return false;
+				m_shapeLibrary.clear();
+				for (int64_t i=0; i<numShapes; ++i)
+				{
+					int32_t id=0;
+					int64_t numUncompressed=0, numCompressed=0;
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, numUncompressed) || !readScalar(data_stream, numCompressed) ||
+						numUncompressed<0 || numCompressed<0) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to decode [SHAPES] entry header");
+						return false;
+					}
+					std::vector<float> data;
+					if (!readArray(data_stream, data, static_cast<size_t>(numCompressed))) {
+						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to decode [SHAPES] data");
+						return false;
+					}
+					CompressedShape shape;
+					shape.numUncompressedSamples = static_cast<int>(numUncompressed);
+					shape.isCompressed = (numCompressed != numUncompressed);
+					shape.samples = data;
+					m_shapeLibrary[id] = shape;
+				}
+				break;
+			}
+
+			case section_extensions:
+			{
+				int64_t numEvents = 0;
+				if (!readScalar(data_stream, numEvents) || numEvents<0) return false;
+				m_extensionLibrary.clear();
+				for (int64_t i=0; i<numEvents; ++i)
+				{
+					int32_t id=0;
+					int32_t type=0, ref=0, next=0;
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, type) || !readScalar(data_stream, ref) || !readScalar(data_stream, next))
+						return false;
+					ExtensionListEntry ext;
+					ext.type = type;
+					ext.ref = ref;
+					ext.next = next;
+					m_extensionLibrary[id] = ext;
+				}
+				break;
+			}
+
+			case section_triggers:
+			{
+				int32_t ext_id = 0;
+				int64_t numEvents = 0;
+				if (!readScalar(data_stream, ext_id) || !readScalar(data_stream, numEvents) || numEvents<0) return false;
+				m_extensionNameIDs[ext_id] = std::make_pair(std::string("TRIGGERS"), EXT_TRIGGER);
+				m_triggerLibrary.clear();
+				for (int64_t i=0; i<numEvents; ++i)
+				{
+					int32_t id=0, type=0, channel=0;
+					int64_t delay_ps=0, duration_ps=0;
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, type) || !readScalar(data_stream, channel) ||
+						!readScalar(data_stream, delay_ps) || !readScalar(data_stream, duration_ps)) return false;
+					TriggerEvent trig;
+					trig.triggerType = type;
+					trig.triggerChannel = channel;
+					trig.delay = ps_to_us_rounded(delay_ps);
+					trig.duration = ps_to_us_rounded(duration_ps);
+					m_triggerLibrary[id] = trig;
+				}
+				break;
+			}
+
+			case section_labelset:
+			case section_labelinc:
+			{
+				const ExtType exttype = (section==section_labelset) ? EXT_LABELSET : EXT_LABELINC;
+				const std::string extname = (section==section_labelset) ? "LABELSET" : "LABELINC";
+				std::map<int, LabelEvent>& lib = (section==section_labelset) ? m_labelsetLibrary : m_labelincLibrary;
+				int32_t ext_id = 0;
+				int64_t numEvents = 0;
+				if (!readScalar(data_stream, ext_id) || !readScalar(data_stream, numEvents) || numEvents<0) return false;
+				m_extensionNameIDs[ext_id] = std::make_pair(extname, static_cast<int>(exttype));
+				lib.clear();
+				for (int64_t i=0; i<numEvents; ++i)
+				{
+					int32_t id=0, value=0, labelIndex=0;
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, value) || !readScalar(data_stream, labelIndex)) return false;
+					LabelEvent label;
+					int ret = decodeBinaryLabel(exttype, value, labelIndex, label);
+					if (ret<0)
+						return false;
+					if (ret==dl_ok)
+						lib[id] = label;
+				}
+				break;
+			}
+
+			case section_softdelays:
+			{
+				int32_t ext_id = 0;
+				int64_t numEvents = 0;
+				if (!readScalar(data_stream, ext_id) || !readScalar(data_stream, numEvents) || numEvents<0) return false;
+				m_extensionNameIDs[ext_id] = std::make_pair(std::string("DELAYS"), EXT_DELAY);
+				m_softDelayLibrary.clear();
+				for (int64_t i=0; i<numEvents; ++i)
+				{
+					int32_t id=0, num=0, hint_len=0;
+					int64_t offset_ps=0;
+					double factor=0.0;
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, num) || !readScalar(data_stream, offset_ps) ||
+						!readScalar(data_stream, factor) || !readScalar(data_stream, hint_len) || hint_len<0) return false;
+					std::vector<char> hint_data;
+					if (!readArray(data_stream, hint_data, static_cast<size_t>(hint_len))) return false;
+					SoftDelayEvent d;
+					d.numID = num;
+					d.offset = static_cast<int>(ps_to_us_rounded(offset_ps));
+					d.factor = static_cast<float>(factor);
+					memset(d.hint, 0, SOFT_DELAY_HINT_LENGTH);
+					if (!hint_data.empty()) {
+						size_t copy_len = std::min(static_cast<size_t>(SOFT_DELAY_HINT_LENGTH-1), hint_data.size());
+						memcpy(d.hint, &hint_data[0], copy_len);
+					}
+					m_softDelayLibrary[id] = d;
+				}
+				break;
+			}
+
+			case section_rfshims:
+			{
+				int32_t ext_id = 0;
+				int64_t numEvents = 0;
+				if (!readScalar(data_stream, ext_id) || !readScalar(data_stream, numEvents) || numEvents<0) return false;
+				m_extensionNameIDs[ext_id] = std::make_pair(std::string("RF_SHIMS"), EXT_RF_SHIM);
+				m_rfShimLibrary.clear();
+				for (int64_t i=0; i<numEvents; ++i)
+				{
+					int32_t id=0, nchan=0;
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, nchan) || nchan<0) return false;
+					std::vector<double> raw;
+					if (!readArray(data_stream, raw, static_cast<size_t>(2*nchan))) return false;
+					RfShimmingEvent shim;
+					shim.id = id;
+					shim.nchan = nchan;
+					shim.amplitudes.reserve(nchan);
+					shim.phases.reserve(nchan);
+					for (int c=0; c<nchan; ++c) {
+						shim.amplitudes.push_back(static_cast<float>(raw[2*c]));
+						shim.phases.push_back(static_cast<float>(raw[2*c+1]));
+					}
+					m_rfShimLibrary[id] = shim;
+				}
+				break;
+			}
+
+			case section_rotations:
+			{
+				int32_t ext_id = 0;
+				int64_t numEvents = 0;
+				if (!readScalar(data_stream, ext_id) || !readScalar(data_stream, numEvents) || numEvents<0) return false;
+				m_extensionNameIDs[ext_id] = std::make_pair(std::string("ROTATIONS"), EXT_ROTATION);
+				m_rotationLibrary.clear();
+				for (int64_t i=0; i<numEvents; ++i)
+				{
+					int32_t id=0;
+					double q[4] = {0,0,0,0};
+					if (!readScalar(data_stream, id) || !readScalar(data_stream, q[0]) || !readScalar(data_stream, q[1]) ||
+						!readScalar(data_stream, q[2]) || !readScalar(data_stream, q[3])) return false;
+					double n = sqrt(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
+					if (n<=0.0)
+						return false;
+					RotationEvent rot;
+					rot.defined = true;
+					for (int j=0; j<4; ++j)
+						rot.rotQuaternion[j] = q[j]/n;
+					m_rotationLibrary[id] = rot;
+				}
+				break;
+			}
+
+			case section_signature:
+			{
+				int32_t type_len = 0;
+				if (!readScalar(data_stream, type_len) || type_len<0) return false;
+				std::vector<char> type_chars;
+				if (!readArray(data_stream, type_chars, static_cast<size_t>(type_len))) return false;
+				std::string sigType(type_chars.begin(), type_chars.end());
+
+				int32_t hash_len = 0;
+				if (!readScalar(data_stream, hash_len) || hash_len<0) return false;
+				std::vector<unsigned char> hash;
+				if (!readArray(data_stream, hash, static_cast<size_t>(hash_len))) return false;
+
+				int64_t original_size = 0;
+				if (!readScalar(data_stream, original_size)) return false;
+
+				std::ostringstream oss;
+				oss << std::hex << std::setfill('0');
+				for (size_t i=0; i<hash.size(); ++i)
+					oss << std::setw(2) << static_cast<unsigned int>(hash[i]);
+
+				m_bSignatureDefined = !hash.empty();
+				m_strSignature = str_tolower(oss.str());
+				m_strSignatureType = str_tolower(sigType);
+				(void)original_size;
+				break;
+			}
+
+			default:
+				print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Unknown binary section code: " << std::hex << section);
+				return false;
 		}
+	}
 
-		if (!load(data_file, lm_shapes)) {
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to load shapes from file " << filepath);
-			return false;
-		}
+	if (!data_stream.eof()) {
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Unexpected EOF/stream error while reading binary file");
+		return false;
+	}
 
-		filepath = path + PATH_SEPARATOR + "events.seq";
-		data_file.close();
-		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
-		data_file.seekg(0, std::ios::beg);
-
-		if (!data_file.is_open() || !data_file.good())
-		{
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
-			return false;
-		}
-
-		if (!load(data_file, lm_events)) {
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to load events from file " << filepath);
-			return false;
-		}
-
-		filepath = path + PATH_SEPARATOR + "blocks.seq";
-		data_file.close();
-		data_file.open(filepath.c_str(), std::ios::in | std::ios::binary);
-		data_file.seekg(0, std::ios::beg);
-
-		if (!data_file.is_open() || !data_file.good())
-		{
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to read file " << filepath);
-			return false;
-		}
-		
-		if (!load(data_file, lm_blocks)) {
-			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Failed to load blocks from file " << filepath);
-			return false;
-		}
-
-		return true;
+	// Raster times and required definitions/extensions as in the text loader
+	if (version_combined<1004000L)
+	{
+		m_dAdcRasterTime_us=1e-1;
+		m_dGradientRasterTime_us=10.0;
+		m_dRadiofrequencyRasterTime_us=1.0;
+		m_dBlockDurationRaster_us = m_dGradientRasterTime_us;
 	}
 	else
 	{
-		return load(data_file);
+		std::vector<double> def = GetDefinition("AdcRasterTime");
+		if (def.empty()) { print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition AdcRasterTime is not present in the file"); return false; }
+		m_dAdcRasterTime_us=1e6*def[0];
+		def = GetDefinition("GradientRasterTime");
+		if (def.empty()) { print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition GradientRasterTime is not present in the file"); return false; }
+		m_dGradientRasterTime_us=1e6*def[0];
+		def = GetDefinition("RadiofrequencyRasterTime");
+		if (def.empty()) { print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition RadiofrequencyRasterTime is not present in the file"); return false; }
+		m_dRadiofrequencyRasterTime_us=1e6*def[0];
+		def = GetDefinition("BlockDurationRaster");
+		if (def.empty()) { print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Required: definition BlockDurationRaster is not present in the file"); return false; }
+		m_dBlockDurationRaster_us=1e6*def[0];
+
+		if (version_combined >= 1005001L)
+		{
+			std::string req = GetDefinitionStr("RequiredExtensions");
+			while (!req.empty())
+			{
+				std::string ext = "";
+				int p = req.find(' ');
+				if (p>=0) {
+					ext = req.substr(0,p);
+					req = req.substr(p+1);
+				}
+				else {
+					ext = req;
+					req = "";
+				}
+				if (ext != "TRIGGERS" && ext != "ROTATIONS" && ext != "LABELSET" && ext != "LABELINC" && ext != "DELAYS" && ext != "RF_SHIMS") {
+					print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: The extension '" << ext << "' is unknown to this interpreter but is defined as REQUIRED in the sequence file");
+					return false;
+				}
+			}
+		}
 	}
+
+	SeqBlock::s_blockDurationRaster = m_dBlockDurationRaster_us;
+
+	for (size_t b=0; b<m_blocks.size(); ++b)
+	{
+		if (!checkBlockReferences(m_blocks[b])) {
+			print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Block " << b << " contains references to undefined events");
+			return false;
+		}
+	}
+
+	m_bSignatureCheckSucceeded = false;
+	return true;
+}
+
+int ExternalSequence::decodeBinaryLabel(ExtType exttype, int value, int labelIndex, LabelEvent& label)
+{
+	static const char* supported_labels[] = {
+		"SLC","SEG","REP","AVG","SET","ECO","PHS","LIN","PAR","ACQ","TRID",
+		"NAV","REV","SMS","REF","IMA","OFF","NOISE","PMC","NOROT","NOPOS","NOSCL","ONCE"
+	};
+	const int nLabels = static_cast<int>(sizeof(supported_labels)/sizeof(supported_labels[0]));
+	if (labelIndex<1 || labelIndex>nLabels) {
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: Invalid binary label index: " << labelIndex);
+		return dl_error;
+	}
+
+	char buf[SOFT_DELAY_HINT_LENGTH];
+	memset(buf, 0, sizeof(buf));
+	strncpy(buf, supported_labels[labelIndex-1], sizeof(buf)-1);
+	int val = value;
+	return decodeLabel(exttype, val, buf, label);
 }
 
 bool ExternalSequence::load_from_buffer(char * buffer) 
 {
 	print_msg(DEBUG_HIGH_LEVEL, std::ostringstream().flush() << "Loading sequence from a text buffer");
 
-	// Try single file mode (everything in a single .seq file)
+	// Single-file mode (everything in a single buffer)
 	std::istringstream string_stream(buffer);
 	string_stream.seekg(0, std::ios::beg);
 	return load(string_stream);
@@ -195,6 +852,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 	{
 		reset();
 	}
+	bIsBinary = false;
 
 	if (!data_stream.good())
 	{
@@ -601,7 +1259,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 					LabelEvent	label;			   // write label event
 					switch (nExtensionID) {
 						case EXT_LIST: 
-							if (4!=sscanf(buffer, "%d%d%d%ld", &nID, &(extEntry.type), &(extEntry.ref), &(extEntry.next))) {
+							if (4!=sscanf(buffer, "%d%d%d%d", &nID, &(extEntry.type), &(extEntry.ref), &(extEntry.next))) {
 								print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode extension list entry\n" << buffer << std::endl );
 								return false;
 							}
@@ -666,7 +1324,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						case EXT_DELAY: 
 							{
 								int n=0;
-								if (4!=sscanf(buffer, "%d%d%d%d%n", &nID, &(delay.numID), &(delay.offset), &(delay.factor), &n)) {
+								if (4!=sscanf(buffer, "%d%d%d%f%n", &nID, &(delay.numID), &(delay.offset), &(delay.factor), &n)) {
 									print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode soft delay event\n" << buffer << std::endl );
 									return false;
 								}
@@ -901,7 +1559,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 			memset(events.id, 0, NUM_EVENTS*sizeof(int));
 			long dur_ru =0;
 
-			int ret=sscanf(buffer, "%d%d%d%d%d%d%d%d", &blockIdx,
+			int ret=sscanf(buffer, "%d%ld%d%d%d%d%d%d", &blockIdx,
 					&dur_ru,                                        // block duration
 					&events.id[RF],                                 // RF
 					&events.id[GX],&events.id[GY],&events.id[GZ],   // Gradients
@@ -1404,48 +2062,8 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 	}
 
 	// Decode gradients
-	for (int iC=GX; iC<ADC; iC++)
-	{
-		if (block->isArbitraryGradient(iC-GX))	// is arbitrary gradient?
-		{
-			// Decompress the arbitrary shape for this channel
-			CompressedShape& shape = m_shapeLibrary[block->grad[iC-GX].waveShape];
-
-			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Loaded shape with "
-				<< shape.samples.size() << " compressed samples" );
-
-			waveform.resize(shape.numUncompressedSamples);
-			if (!decompressShape(shape,&waveform[0]))
-				return false;
-
-			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape uncompressed to "
-				<< shape.numUncompressedSamples << " samples" );
-
-			if (fabs(m_dGradientRasterTime_us-10)>1e-3)
-			{
-				print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape is on a raster that is different from the system raster, exitting... (will try resampling in the future versions...)" );
-				// TODO: !!!
-				// PROBLEM: we need 'first' and 'last' to be able to interpolate correctly...
-				return false;
-			}
-
-			if (block->isArbGradWithOversampling(iC-GX))	// oversampling?
-			{
-				block->gradWaveforms[iC-GX] = std::vector<float>((waveform.size()+1)/2);
-				std::vector<float>::iterator it_os=waveform.begin();
-				for (std::vector<float>::iterator it=block->gradWaveforms[iC-GX].begin(); it !=block->gradWaveforms[iC-GX].end(); ++it){
-					*it=*it_os;
-					// std::advance(it_os,2); // this doen't work because of the odd number of elements 
-					++it_os;
-					if (it_os!=waveform.end())
-						++it_os;
-				}
-			}
-			else
-				block->gradWaveforms[iC-GX] = std::vector<float>(waveform);
-		}
-	}
-
+    if (!decodeArbGradInBlock(block))
+        return false;
 	if (!decodeExtTrapGradInBlock(block))
 		return false;
 
@@ -1467,12 +2085,72 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 	return true;
 }
 
+bool ExternalSequence::decodeArbGradInBlock(SeqBlock *block)
+{
+	int *events = &block->events[0];
+	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Decoding arbitrary gradients in block " << block->index << " events: "
+		<< events[0]+1 << " " << events[1]+1 << " " << events[2]+1 << " " << events[3]+1 << " " << events[4]+1 );
+    std::vector<float> waveform;
+    for (int iC = GX; iC < ADC; iC++)
+	{
+		if (block->isArbitraryGradient(iC-GX))	// is arbitrary gradient?
+		{
+			// Decompress the arbitrary shape for this channel
+			CompressedShape& shape = m_shapeLibrary[block->grad[iC-GX].waveShape];
+
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Loaded shape with " << shape.samples.size() << " compressed samples" );
+
+			waveform.resize(shape.numUncompressedSamples);
+			if (!decompressShape(shape,&waveform[0]))
+				return false;
+
+			print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape uncompressed to " << shape.numUncompressedSamples << " samples" );
+
+			if (fabs(m_dGradientRasterTime_us-10)>1e-3)
+			{
+				print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Shape is on a raster that is different from the system raster, exitting... (will try resampling in the future versions...)" );
+				// TODO: !!!
+				// PROBLEM: we need 'first' and 'last' to be able to interpolate correctly...
+				return false;
+			}
+
+			if (block->isArbGradWithOversampling(iC - GX) && m_ArbGradSamplingMode != ags_preserve_oversampling) // oversampling?
+			{
+                if (m_ArbGradSamplingMode == ags_center)
+					block->gradWaveforms[iC-GX] = std::vector<float>((waveform.size()+1)/2);
+                else // for now assuming (m_ArbGradSamplingMode == ags_edge)
+                    block->gradWaveforms[iC - GX] = std::vector<float>((waveform.size()-1) / 2); // the number of the available edge samples is always 1 smaller than the center samples
+
+				std::vector<float>::iterator it_os=waveform.begin();
+				for (std::vector<float>::iterator it=block->gradWaveforms[iC-GX].begin(); it !=block->gradWaveforms[iC-GX].end(); ++it){
+                    if (m_ArbGradSamplingMode == ags_center)
+					{
+						*it = *it_os;
+						// std::advance(it_os,2); // this doen't work because of the odd number of elements 
+						++it_os;
+					}
+					else // for now assuming (m_ArbGradSamplingMode == ags_edge)
+					{
+						++it_os;
+						*it = *it_os;
+					}
+
+					if (it_os != waveform.end())
+						++it_os;
+				}
+			}
+			else
+				block->gradWaveforms[iC-GX] = std::vector<float>(waveform);
+		}
+	}
+    return true;
+}
+
 bool ExternalSequence::decodeExtTrapGradInBlock(SeqBlock *block)
 {
 	int *events = &block->events[0];
 	print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "Decoding ext gradient in block " << block->index << " events: "
-		<< events[0]+1 << " " << events[1]+1 << " " << events[2]+1 << " "
-		<< events[3]+1 << " " << events[4]+1 );
+		<< events[0]+1 << " " << events[1]+1 << " " << events[2]+1 << " " << events[3]+1 << " " << events[4]+1 );
 
 	std::vector<float> waveform;
 	block->gradExtTrapForms.clear();
@@ -2010,7 +2688,7 @@ void LabelStateAndBookkeeping::updateBookkeepingRecordsADC() // QC: this functio
 {
     // label boundary evaluation
     // data flags for LastLine/LastSlice/LastPar, etc are analyzed further below
-    if (!m_currLabelValueStorage.flag.val[NOISE] && !m_currLabelValueStorage.flag.val[NAV] && !m_currLabelValueStorage.flag.val[REF]) // noise scans and navigator scans and reference scnas are not included in first/last/min/max QC: FIRSTSCANINSLICE==false for navigator scans. 2025.01.31
+    if (!m_currLabelValueStorage.flag.val[NOISE] && !m_currLabelValueStorage.flag.val[NAV] && !m_currLabelValueStorage.flag.val[REF]) // noise scans and navigator scans and reference scans are not included in first/last/min/max QC: FIRSTSCANINSLICE==false for navigator scans. 2025.01.31
     {
 		int id;
 		// flags
@@ -2364,6 +3042,11 @@ void SeqBlock::gradientsAt(double dTimeInBlock, std::vector<double>& vResult) //
                 nLowerBoundCnt = nLen - 1;
 			//if (nUpperBoundCnt>=nLen) nUpperBoundCnt=nLen-1;
 			float* pfShape = GetArbGradShapePtr(i);
+			if (!pfShape)
+			{
+				ExternalSequence::print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: SeqBlock::gradientsAt() called for non-decoded arbitrary gradient");
+				return;
+			}
             if (nLowerBoundCnt < 0)
             {
 				vResult[i] = linear_interpolation(0, grad.first, 0.5, pfShape[0]*grad.amplitude, dTimeInGrad_RU+0.5); 
@@ -2484,6 +3167,11 @@ void SeqBlock::gradMomentsAt(double dTimeInBlock, std::vector<double>& vResult) 
                 continue;
             }
             float* pfShape = GetArbGradShapePtr(i);
+            if (!pfShape)
+			{
+				ExternalSequence::print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: SeqBlock::gradMomentsAt() called for non-decoded arbitrary gradient");
+				return;
+			}
             if (dTimeInGrad_RU < 0.5)
             {
                 vResult[i] = 0.5*getGradientRaster()*segment_integral(grad.first, grad.amplitude * pfShape[0], dTimeInGrad_RU*2);//grad.first*(dTimeInBlock - grad.delay) + (grad.amplitude * pfShape[0]-grad.first)*sqr(dTimeInBlock - grad.delay)*2/getGradientRaster();
@@ -2560,9 +3248,17 @@ double SeqBlock::gradMomentOneExtTrap(int i)
 
 double SeqBlock::gradMomentOneArbitrary(int i)
 {
-    int nLen = GetArbGradNumSamples(i);
     float* pfShape = GetArbGradShapePtr(i);
-    double dM = ((GetGradEvent(i).first + GetGradEvent(i).last)/GetGradEvent(i).amplitude - pfShape[0] - pfShape[nLen-1])*0.25; // TODO: is this correct??? // account for .first and .last effects (for compatibility with Matlab, but it should really have only a very minor effect)
+    if (!pfShape)
+    {
+        ExternalSequence::print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: SeqBlock::gradMomentOneArbitrary() called for non-decoded gradient");
+        return 0.;
+    }
+    int    nLen = GetArbGradNumSamples(i);
+    double dM
+        = ((GetGradEvent(i).first + GetGradEvent(i).last) / GetGradEvent(i).amplitude - pfShape[0] - pfShape[nLen - 1])
+          * 0.25; // TODO: is this correct??? // account for .first and .last effects (for compatibility with Matlab,
+                  // but it should really have only a very minor effect)
     for (int j = 0; j < nLen; ++j)
         dM += pfShape[j]; 
     return GetGradEvent(i).amplitude * getGradientRaster() * dM;
@@ -2632,7 +3328,12 @@ bool SeqBlock::areAllGradientsConstantInRange(double dStartTimeInBlock, double d
                 if (nStart >= nEnd)
                     continue;
 				// now look at the shape and compare samples to the first one
-                float* pfShape = GetArbGradShapePtr(i);				
+                float* pfShape = GetArbGradShapePtr(i);	
+				if (!pfShape)
+				{
+					ExternalSequence::print_msg(WARNING_MSG, std::ostringstream().flush() << "*** WARNING: SeqBlock::areAllGradientsConstantInRange() called for non-decoded arbitrary gradient");
+					return false;
+				}
                 for (int j = nStart + 1; j <= nEnd; ++j)
                     if (pfShape[nStart] != pfShape[j])
                         return false;

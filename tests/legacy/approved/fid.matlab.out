@@ -1,0 +1,23 @@
+Testing file: fid.seq
+Number of blocks: 64
+Number of events:
+   RF:       16
+   ADC:      16
+Event library use:
+   RF:         1
+   Shape:      3
+   ADC:        1
+Sequence duration: 16.378720s
+TE: 0.020206s
+TR: 1.023670s
+Flip angle: 90.00°
+Unique k-space positions (a.k.a. columns, rows, etc): 1
+Block timing check passed successfully
+Max. Gradient: 0 Hz/m == 0.00 mT/m
+Max. Gradient: 0 Hz/m == 0.00 mT/m
+Max. Gradient: 0 Hz/m == 0.00 mT/m
+Max. Slew Rate: 0 Hz/m/s == 0.00 T/m/s
+Max. Slew Rate: 0 Hz/m/s == 0.00 T/m/s
+Max. Slew Rate: 0 Hz/m/s == 0.00 T/m/s
+Max. Absolute Gradient: 0 Hz/m == 0.00 mT/m
+Max. Absolute Slew Rate: 0 Hz/m/s == 0.00 T/m/s

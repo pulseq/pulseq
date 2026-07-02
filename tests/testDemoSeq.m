@@ -1,17 +1,27 @@
+%!test %%% on Octave run with oruntests() %%%
+%! testDemoSeq
 % simple test that runs all demo sequences
 function tests = testDemoSeq
-  if exist('functiontests')
-    tests = functiontests(localfunctions);
-  else
-    lf=localfunctions();
-    for i=1:length(lf)
-      f=lf{i};
-      n=func2str(f);
-      if length(n)>3 && strcmp(n(1:4),'test')
-        f();
-      end
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
     end
-  end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
 end
 
 function test_run_all_demo_seqs(testCase)

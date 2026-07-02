@@ -124,6 +124,9 @@ else
     fprintf('\n');
 end
 
+%% add data labels to make image reconstruction on the scanner possible
+seq.autoLabel('mirrorFourier',true,'sortSlices','descending'); % Siemens scanners need 'mirrorFourier'; On Siemens 'sortSlices'='descending' is optional, otherwise the interpreter will change the slice indexes
+
 %% prepare export
 
 seq.setDefinition('FOV', [fov fov thick*1e-3]);

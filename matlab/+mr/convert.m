@@ -35,6 +35,22 @@ if isempty(opt.toUnit)
     end
 end
 
+% Verify fromUnit and toUnit are in the same category.
+if ismember(opt.fromUnit,validB1Units),       fromCat = 'B1';
+elseif ismember(opt.fromUnit,validGradUnits), fromCat = 'gradient';
+elseif ismember(opt.fromUnit,validSlewUnits), fromCat = 'slew rate';
+end
+
+if ismember(opt.toUnit,validB1Units),         toCat = 'B1';
+elseif ismember(opt.toUnit,validGradUnits),   toCat = 'gradient';
+elseif ismember(opt.toUnit,validSlewUnits),   toCat = 'slew rate';
+end
+
+if ~strcmp(fromCat,toCat)
+    error('mr.convert: fromUnit ''%s'' (%s) and toUnit ''%s'' (%s) are in different unit categories.', ...
+        opt.fromUnit, fromCat, opt.toUnit, toCat);
+end
+
 % Convert to standard units
 switch opt.fromUnit
     case {'Hz','Hz/m','Hz/m/s'}

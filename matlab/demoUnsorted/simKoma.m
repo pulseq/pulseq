@@ -51,7 +51,7 @@ helper={
 'sim_params = KomaMRICore.default_sim_params()';
 ['seq=read_seq("' strrep(seqpath,'\','\\') '")'];
 'sim_params["return_type"] = "mat"';
-'raw = simulate(obj, seq, sys; sim_params)';
+'raw = conj(simulate(obj, seq, sys; sim_params)) # we need to conjugaate Koma.jl simulation data to make them reconstructable with FFT instead of iFFT';
 ['matwrite("' strrep(sigpath,'\','\\') '", Dict("raw" => raw))'];
 };
 

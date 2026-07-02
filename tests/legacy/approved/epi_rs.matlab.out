@@ -1,0 +1,42 @@
+Testing file: epi_rs.seq
+Number of blocks: 442
+Number of events:
+   RF:        8
+   Gx:      400
+   Gy:      388
+   Gz:       12
+   ADC:     396
+Event library use:
+   RF:         5
+   Grad:      10
+   Shape:     10
+   ADC:        1
+   Extn:      23
+   Trigg:      1
+   Label:     14
+   SoDel:      3
+Sequence duration: 3.000000s
+TE: 0.002870s
+TR: 0.750000s
+Flip angle: 90.00°
+Flip angle: 110.00°
+Unique k-space positions (a.k.a. columns, rows, etc): 192
+Unique k-space positions (a.k.a. columns, rows, etc): 97
+Unique k-space positions (a.k.a. columns, rows, etc): 1
+Dimensions: 3
+   Spatial resolution: 2.30 mm
+   Spatial resolution: 2.29 mm
+   Spatial resolution: 284900.26 mm
+Repetitions/slices/contrasts: 4  range: [4 12]
+   18432 k-space position(s) repeated 4 times
+   192 k-space position(s) repeated 12 times
+Grid-like/Cartesian encoding trajectory detected
+Block timing check passed successfully
+Max. Gradient: 1103340 Hz/m == 25.91 mT/m
+Max. Gradient: 296717 Hz/m == 6.97 mT/m
+Max. Gradient: 1351350 Hz/m == 31.74 mT/m
+Max. Slew Rate: 5.52359e+09 Hz/m/s == 129.73 T/m/s
+Max. Slew Rate: 5.0505e+09 Hz/m/s == 118.62 T/m/s
+Max. Slew Rate: 5.4054e+09 Hz/m/s == 126.96 T/m/s
+Max. Absolute Gradient: 1574594 Hz/m == 36.98 mT/m
+Max. Absolute Slew Rate: 7.69073e+09 Hz/m/s == 180.64 T/m/s

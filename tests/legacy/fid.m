@@ -21,6 +21,19 @@ for i=1:Nrep
     seq.addBlock(mr.makeDelay(delayTR))
 end
 
+% check sequence timing
+[ok, error_report]=seq.checkTiming ;
+
+if (ok)
+    fprintf('Timing check passed successfully\n') ;
+else
+    fprintf('Timing check failed! Error listing follows:\n') ;
+    fprintf([error_report{:}]);
+    fprintf('\n');
+    error('Sequence timing check failed!');
+end
+
+% prepare export
 seq.setDefinition('Name', 'fid');
 
 seq.write('fid.seq');       % Write to pulseq file

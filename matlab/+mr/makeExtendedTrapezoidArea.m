@@ -1,7 +1,7 @@
 function [grad, times, amplitudes] = makeExtendedTrapezoidArea(channel, grad_start, grad_end, area, sys)
 % Make the shortest possible extended trapezoid for a given area and edge values
 % This version is the one with the fixed flat top and was derived from the
-% corresponding PyPulseq version by by Mehmet Emin Öztürk. This implementation
+% corresponding PyPulseq version by Mehmet Emin Öztürk. This implementation
 % is both faster and more accurate than the previous one and it runs in Octave.
 % Main methodology in explained in Python version
 % Some variable names might also be different

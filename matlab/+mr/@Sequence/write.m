@@ -269,11 +269,7 @@ if create_signature
     fclose(fid);
 
     % calculate the digest
-    if mr.aux.isOctave()
-      md5hash=hash('MD5',char(buf(:)')); % Octave-specific function
-    else
-      md5hash=md5_java(buf); % Matlab Java hack
-    end
+    md5hash=mr.aux.md5(buf); 
     %fprintf('%s\n',md5hash);
 
     % store the signature in the object
@@ -296,14 +292,3 @@ end
 
 end
 
-function out=md5_java(buf)
-    import java.security.*;
-    import java.math.*;
-    import java.lang.String;
-
-    md = MessageDigest.getInstance('MD5');
-    hash = md.digest(double(buf));
-    bi = BigInteger(1, hash);
-
-    out=char(String.format('%032x', bi));
-end

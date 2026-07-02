@@ -4,41 +4,56 @@
 
 %% Load data from the given directory sorted by name
 path='../../IceNIH_RawSend/'; % directory to be scanned for data files
+%path='/dev/shm/mr0mat/';
+%path='/dev/shm/koma_mat/';
 
-pattern='*.dat';
+pattern='*.seq';
 D=dir([path filesep pattern]);
-[~,I]=sort({D(:).datenum});
-data_file_path=[path filesep D(I(end-0)).name];
+[~,I]=sort([D(:).datenum]);
+seq_file_path=[path filesep D(I(end-0)).name]; % use end-1 to reconstruct the second-last data set, etc...
+                                                % or replace I(end-0) with I(1) to process the first dataset, I(2) for the second, etc...
+%seq_file_path='../interpreters/siemens/data_example/gre_example.seq'
 
-fprintf(['loading `' data_file_path '´ ...\n']);
-twix_obj = mapVBVD(data_file_path);
+% keep basic filename without the extension
+[p,n,e] = fileparts(seq_file_path);
+basic_file_path=fullfile(p,n);
 
-%% Load the latest file from a dir
-%path='../IceNIH_RawSend/'; % directory to be scanned for data files
-%pattern='*.dat';
-%D=dir([path filesep pattern]);
-%[~,I]=sort([D(:).datenum]);
-%data_file_path=[path D(I(end-5)).name]; % use end-1 to reconstruct the second-last data set, etc.
-
-%% raw data preparation
-if iscell(twix_obj)
-    data_unsorted = double(twix_obj{end}.image.unsorted());
+% try loading Matlab data
+data_file_path=[basic_file_path '.mat'];
+if isfile(data_file_path)
+    fprintf(['loading `' data_file_path '´ ...\n']);
+    data_unsorted = load(data_file_path);
+    if isstruct(data_unsorted)
+        fn=fieldnames(data_unsorted);
+        assert(length(fn)==1); % we only expect a single variable
+        data_unsorted=data_unsorted.(fn{1});
+    end
 else
-    data_unsorted = double(twix_obj.image.unsorted());
+    % revert to Siemens .dat file
+    data_file_path=[basic_file_path '.dat'];
+    fprintf(['loading `' data_file_path '´ ...\n']);
+    twix_obj = mapVBVD(data_file_path);
+    if iscell(twix_obj)
+        data_unsorted = twix_obj{end}.image.unsorted(); 
+        seqHash_twix=twix_obj{end}.hdr.Dicom.tSequenceVariant;
+    else
+        data_unsorted = twix_obj.image.unsorted(); 
+        seqHash_twix=twix_obj.hdr.Dicom.tSequenceVariant;
+    end
+    
+    if length(seqHash_twix)==32
+        fprintf(['raw data contain pulseq-file signature ' seqHash_twix '\n']);
+    end
 end
-
-channels=size(data_unsorted,2);
-adc_len=size(data_unsorted,1);
-readouts=size(data_unsorted,3);
-
-rawdata = permute(data_unsorted, [1,3,2]);
 
 %% Load sequence from the file with the same name as the raw data
 seq_file_path = [data_file_path(1:end-3) 'seq'];
 fprintf(['loading `' seq_file_path '´ ...\n']);
 seq = mr.Sequence();              % Create a new sequence object
 seq.read(seq_file_path,'detectRFuse'); 
-if strcmp(seq.getDefinition('Name'),'fid-mfa')
+seqName=seq.getDefinition('Name');
+if ~isempty(seqName), fprintf('sequence name: %s\n',seqName); end
+if strcmp(seqName,'fid-mfa')
     fprintf('FID-MFA sequence detected, re-loading the sequence file ...\n');
     seq = mr.Sequence(); % reload the sequence without detecting the RF pulse use because otherwise the code assumes that we have refocusing pulses...
     seq.read(seq_file_path); 
@@ -47,6 +62,22 @@ end
 %% we just want t_adc
 [ktraj_adc, t_adc, ktraj, t, t_excitation, t_refocusing]=seq.calculateKspacePP();
 
+%%
+channels=size(data_unsorted,2);    
+if strcmp(data_file_path(end-3:end),'.dat')
+    adc_len=size(data_unsorted,1);
+    readouts=size(data_unsorted,3);
+
+    rawdata = permute(data_unsorted, [1,3,2]);
+else
+    [~,i]=find(diff(diff(t_adc))>1e-9,1,'first');
+    adc_len=i+1;
+    readouts=size(data_unsorted,1)/adc_len;
+
+    rawdata = reshape(data_unsorted, [adc_len, readouts, channels]);
+end
+
+%%
 t_adc=reshape(t_adc,[adc_len,readouts]);
 % calc TE but account for dummy scans...
 %[~,iND]=max(t_excitation(t_excitation<t_adc(1,1)));
@@ -88,7 +119,9 @@ if (readouts>1)
     xlabel('time since excitation /s');
 end
 
-%% plot spectr(um/a)
+%% plot spectr(um/a) for the strongest channel
+[~,iCh]=max(abs(rawdata(4,1,:)));
+
 data_fft=fftshift(fft(fftshift(rawdata,1)),1);
 
 if iscell(twix_obj)
@@ -102,6 +135,6 @@ end
 
 w_axis=(-adc_len/2:(adc_len/2-1))/((t_adc(end,1,1)-t_adc(1,1,1))/(adc_len-1)*adc_len)/measurementFrequency*1e6';
 figure; 
-plot(w_axis, abs(data_fft(:,:,1))); title('abs spectr(um/a)');
+plot(w_axis, abs(data_fft(:,:,iCh))); title('abs spectr(um/a)');
 xlim([-10 10]); xlabel('frequency /ppm');
 set(gca,'Xdir','reverse')

@@ -1,5 +1,26 @@
+%!test %%% on Octave run with oruntests() %%%
+%! testAddCustomLabel
 function tests = testAddCustomLabel
-    tests = functiontests(localfunctions);
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
+    end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
 end
 
 %% Setup: reset global state
@@ -29,7 +50,15 @@ end
 
 %% Test non-char input throws error
 function test_non_char_error(testCase)
-    testCase.verifyError(@() mr.addCustomLabel(123), ?MException);
+    %try
+    %    mr.addCustomLabel(123); % should throw an error
+    %    res=false;
+    %catch
+    %    res=true;
+    %end
+    %testCase.verifyTrue(res);
+    testCase.verifyError(@() mr.addCustomLabel(123),'');
+    %testCase.verifyError(@() mr.addCustomLabel(123), ?MException);
 end
 
 %% Test multiple custom labels

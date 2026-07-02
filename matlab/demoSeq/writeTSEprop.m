@@ -1,5 +1,5 @@
 %% Create a TSE sequence and export for execution
-% 
+%
 % The |Sequence| class provides functionality to create magnetic
 % resonance sequences (MRI or NMR) from basic building blocks.
 %
@@ -7,16 +7,16 @@
 % described here: http://pulseq.github.io/specification.pdf
 %
 % This example performs the following steps:
-% 
+%
 % # Create slice selective RF pulse for imaging.
 % # Create readout gradient and phase encode strategy.
 % # Loop through phase encoding and generate sequence blocks.
 % # Write the sequence to an open file format suitable for execution on a
 % scanner.
-% 
+%
 %   Juergen Hennig <juergen.hennig@uniklinik-freiburg.de>
 %   Maxim Zaitsev  <maxim.zaitsev@uniklinik-freiburg.de>
- 
+
 
 %% Instantiation and gradient limits
 % The system gradient limits can be specified in various units _mT/m_,
@@ -32,6 +32,12 @@ sys = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
 % A new sequence object is created by calling the class constructor.
 seq=mr.Sequence(sys);
 
+% define a local function here (and not at the end) for compatibility with Octave
+function m=rotm_z(phi)
+  c=cos(phi);
+  s=sin(phi);
+  m=[c -s 0; s c 0; 0 0 1];
+end
 
 %% Sequence events
 % Some sequence parameters are defined using standard MATLAB variables
@@ -46,9 +52,9 @@ TEeff=100e-3; % the desired echo time (can only be achieved approximately)
 
 samplingTime= 6.4e-3;
 readoutTime = samplingTime + 2*sys.adcDeadTime;
-tEx=2.5e-3; 
+tEx=2.5e-3;
 tExwd=tEx+sys.rfRingdownTime+sys.rfDeadTime;
-tRef=2e-3; 
+tRef=2e-3;
 tRefwd=tRef+sys.rfRingdownTime+sys.rfDeadTime;
 tSp=0.5*(TE1-readoutTime-tRefwd);
 tSpex=0.5*(TE1-tExwd-tRefwd);
@@ -66,7 +72,7 @@ rfref_phase=0;
 % Blocks describe a group of events that are executed simultaneously. This
 % hierarchical structure means that one event can be used in multiple
 % blocks, a common occurrence in MR sequences, particularly in imaging
-% sequences. 
+% sequences.
 %
 % First, the slice selective RF pulses (and corresponding slice gradient)
 % are generated using the |makeSincPulse| function.
@@ -96,7 +102,7 @@ GSspex = mr.makeTrapezoid('z',sys,'area',AGSex*fspS,'duration',tSpex,'riseTime',
 % $k$-space sampling. The Fourier relationship
 %
 % $$\Delta k = \frac{1}{FOV}$$
-% 
+%
 % Therefore the area of the readout gradient is $n\Delta k$.
 deltak=1/fov;
 kWidth = Nx*deltak;
@@ -127,8 +133,8 @@ if 0==mod(necho,2)
 end
 % TSE echo time magic
 [~,iPEmin]=min(abs(pe_steps));
-k0curr=floor((iPEmin-1)/nex)+1; % calculate the 'native' central echo index 
-k0prescr=max(round(TEeff/TE1),1); % echo to be aligned to the k-space center 
+k0curr=floor((iPEmin-1)/nex)+1; % calculate the 'native' central echo index
+k0prescr=max(round(TEeff/TE1),1); % echo to be aligned to the k-space center
 PEorder=circshift(reshape(pe_steps,[nex,necho])',k0prescr-k0curr);
 
 phaseAreas = PEorder*deltak;
@@ -189,10 +195,10 @@ tETrain=tex+necho*tref+tend;
 TRfill=(TR-Nslices*tETrain)/Nslices;
 % round to gradient raster
 TRfill=sys.gradRasterTime * round(TRfill / sys.gradRasterTime);
-if TRfill<0, TRfill=1e-3; 
-    disp(strcat('Warning!!! TR too short, adapted to include all slices to : ',num2str(1000*Nslices*(tETrain+TRfill)),' ms')); 
+if TRfill<0, TRfill=1e-3;
+    disp(strcat('Warning!!! TR too short, adapted to include all slices to : ',num2str(1000*Nslices*(tETrain+TRfill)),' ms'));
 else
-    disp(strcat('TRfill : ',num2str(1000*TRfill),' ms')); 
+    disp(strcat('TRfill : ',num2str(1000*TRfill),' ms'));
 end
 delayTR = mr.makeDelay(TRfill);
 
@@ -204,7 +210,7 @@ for kex=0:nex % MZ: we start at 0 to have one dummy
         rfref.freqOffset=GSref.amplitude*sliceThickness*(s-1-(Nslices-1)/2);
         rfex.phaseOffset=rfex_phase-2*pi*rfex.freqOffset*mr.calcRfCenter(rfex); % align the phase for off-center slices
         rfref.phaseOffset=rfref_phase-2*pi*rfref.freqOffset*mr.calcRfCenter(rfref); % dito
-    
+
         seq.addBlock(GS1);
         seq.addBlock(GS2,rfex);
         seq.addBlock(GS3,GR3);
@@ -269,10 +275,10 @@ title('2D k-space');
 % disp(s(1:300))
 seq.plot();
 
-%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits  
+%% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits
 
-rep = seq.testReport; 
-fprintf([rep{:}]); 
+rep = seq.testReport;
+fprintf([rep{:}]);
 
 %% Write to file
 
@@ -282,8 +288,3 @@ seq.write('tse-prop.seq')
 
 % seq.install('siemens');
 
-function m=rotm_z(phi) 
-  c=cos(phi);
-  s=sin(phi);
-  m=[c -s 0; s c 0; 0 0 1];
-end

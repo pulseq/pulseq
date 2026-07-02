@@ -1,5 +1,26 @@
+%!test %%% on Octave run with oruntests() %%%
+%! testCompressShape
 function tests = testCompressShape
-    tests = functiontests(localfunctions);
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
+    end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
 end
 
 %% Test constant waveform compresses well
@@ -51,12 +72,12 @@ end
 %% Test non-finite sample throws error
 function test_inf_sample_error(testCase)
     w = [1 2 Inf 4];
-    testCase.verifyError(@() mr.compressShape(w), ?MException);
+    testCase.verifyError(@() mr.compressShape(w),'');
 end
 
 function test_nan_sample_error(testCase)
     w = [1 NaN 3 4 5];
-    testCase.verifyError(@() mr.compressShape(w), ?MException);
+    testCase.verifyError(@() mr.compressShape(w),'');
 end
 
 %% Test num_samples field always correct

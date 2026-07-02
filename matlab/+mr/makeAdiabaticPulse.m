@@ -10,49 +10,49 @@ function [rf, gz, gzr, delay] = makeAdiabaticPulse(type,varargin)
 %
 %     hypsec(n=512, beta=800, mu=4.9, dur=0.012)
 %         Design a hyperbolic secant adiabatic pulse.
-%         
+%
 %         mu * beta becomes the amplitude of the frequency sweep
-%         
+%
 %         Args:
 %             n (int): number of samples (should be a multiple of 4).
 %             beta (float): AM waveform parameter.
 %             mu (float): a constant, determines amplitude of frequency sweep.
 %             dur (float): pulse time (s).
-%         
+%
 %         Returns:
 %             2-element tuple containing
-%         
+%
 %             - **a** (*array*): AM waveform.
 %             - **om** (*array*): FM waveform (radians/s).
-%         
+%
 %         References:
 %             Baum, J., Tycko, R. and Pines, A. (1985). 'Broadband and adiabatic
 %             inversion of a two-level system by phase-modulated pulses'.
 %             Phys. Rev. A., 32:3435-3447.
-%     
+%
 %     wurst(n=512, n_fac=40, bw=40000.0, dur=0.002)
 %         Design a WURST (wideband, uniform rate, smooth truncation) adiabatic
 %          inversion pulse
-%         
+%
 %         Args:
 %             n (int): number of samples (should be a multiple of 4).
 %             n_fac (int): power to exponentiate to within AM term. ~20 or greater is
 %              typical.
 %             bw (float): pulse bandwidth.
 %             dur (float): pulse time (s).
-%         
-%         
+%
+%
 %         Returns:
 %             2-element tuple containing
 %            - **a** (*array*): AM waveform.
 %             - **om** (*array*): FM waveform (radians/s).
-%         
+%
 %         References:
 %             Kupce, E. and Freeman, R. (1995). 'Stretched Adiabatic Pulses for
 %             Broadband Spin Inversion'.
 %             J. Magn. Reson. Ser. A., 117:246-256.
 
-            
+
 validPulseTypes = {'hypsec','wurst'};
 validPulseUses = mr.getSupportedRfUse();
 
@@ -60,7 +60,7 @@ persistent parser
 if isempty(parser)
     parser = mr.aux.InputParserCompat;
     parser.FunctionName = 'makeAdiabaticPulse';
-    
+
     % RF params
     addRequired(parser, 'type', @(x) any(validatestring(x,validPulseTypes)));
     addOptional(parser, 'system', [], @isstruct);
@@ -82,7 +82,7 @@ if isempty(parser)
     addParamValue(parser, 'dwell', 0, @isnumeric); % dummy default value
     % whether it is a refocusing pulse (for k-space calculation)
     addParamValue(parser, 'use', 'u', @(x) any(validatestring(x,validPulseUses)));
-    % optional Python command 
+    % optional Python command
     addParamValue(parser, 'pythonCmd', '', @(x)isstring(x)||ischar(x));
 end
 
@@ -99,38 +99,30 @@ if opt.dwell==0
     opt.dwell=sys.rfRasterTime;
 end
 
-% find/check python 
+% find/check python
 if ~isempty(opt.pythonCmd)
     [status, result]=system([opt.pythonCmd ' --version']);
     if status~=0
         error(['provided python executable ''' opt.pythonCmd ''' returns an error on the version check']);
     end
+    if ispc
+        [status, result] = system(sprintf('%s  -c "import sigpy" 2>nul',opt.pythonCmd));
+    else
+        [status, result] = system(sprintf('%s  -c "import sigpy" 2>/dev/null',opt.pythonCmd));
+    end
+    if status~=0
+        error(['provided python executable ''' opt.pythonCmd ''' returns an error on the sigPy check']);
+    end
     python=opt.pythonCmd;
-elseif ispc()
-    % on Windows we rely on the PATH settings
-    [status, result]=system('python --version');
-    if status==0
-        python='python';
-    else
-        [status, result]=system('py --version');
-        if status~=0
-            error('python executable not found, please check your system PATH settings');
-        end
-        python='py';
-    end
 else
-    % this probably only works on linux and maybe also on mac
-    [status, result]=system('which python3');
-    if status==0
-        python=mr.aux.strstrip(result);
-    else
-        [status, result]=system('which python');
-        if status==0
-            python=mr.aux.strstrip(result);
-        else
-            error('python executable not found');
-        end
+    [avail, python]=mr.aux.isSigPyAvailable();
+    if ~avail
+        error('python executable with installed sigPy not found, please check your system PATH settings and Python installation');
     end
+end
+% add quotes in case Python install path contains spaces or alike characters
+if python(1)~='"'
+  python=['"' python '"'];
 end
 
 Nraw = round(opt.duration/opt.dwell+eps);
@@ -174,7 +166,7 @@ if status~=0
     error('executing python command failed');
 end
 
-lines = regexp(result,'\n','split'); % the response from the python call contains some garbage 
+lines = regexp(result,'\n','split'); % the response from the python call contains some garbage
 % look for two usable result vectors
 for i=1:length(lines)-1
     try
@@ -196,7 +188,7 @@ pm=cumsum(fm)*opt.dwell;
 [dfm,ifm]=min(abs(fm)); % find the center of the pulse
 % we will also use the ocasion to find the rate of change of the frequency
 % at the center of the pulse
-if dfm==0 
+if dfm==0
     pm0=pm(ifm);
     am0=am(ifm);
     roc_fm0=abs(fm(ifm+1)-fm(ifm-1))/2/opt.dwell;
@@ -256,7 +248,7 @@ if nargout > 1
     if opt.maxSlew > 0
         sys.maxSlew = opt.maxSlew;
     end
-    
+
     switch type
         case 'hypsec'
             BW=mr.calcRfBandwidth(rf,0.1);
@@ -265,7 +257,7 @@ if nargout > 1
         otherwise
             error('unsupported pulse type')
     end
-    
+
     amplitude = BW/opt.sliceThickness;
     area = amplitude*opt.duration;
     gz = mr.makeTrapezoid('z', sys, 'flatTime', opt.duration, ...
@@ -275,7 +267,7 @@ if nargout > 1
         gz.delay = ceil((rf.delay - gz.riseTime)/sys.gradRasterTime)*sys.gradRasterTime; % round-up to gradient raster
     end
     if rf.delay < (gz.riseTime+gz.delay)
-        rf.delay = gz.riseTime+gz.delay; % these are on the grad raster already which is coarser 
+        rf.delay = gz.riseTime+gz.delay; % these are on the grad raster already which is coarser
     end
 end
 

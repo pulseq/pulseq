@@ -265,7 +265,13 @@ seq.plot('showBlocks',true,'stacked',true);
 rep = seq.testReport; 
 fprintf([rep{:}]); 
 
+%% add data labels to make image reconstruction on the scanner possible
+seq.autoLabel('mirrorFourier',true,'sortSlices','descending'); % Siemens scanners need 'mirrorFourier'; On Siemens 'sortSlices'='descending' is optional, otherwise the interpreter will change the slice indexes
+
 %% Write to file
+
+seq.setDefinition('FOV', [fov fov Nslices*sliceThickness]);
+seq.setDefinition('Name', 'tse');
 
 % The sequence is written to file in compressed form according to the file
 % format specification using the |write| method.

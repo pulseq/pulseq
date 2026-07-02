@@ -8,7 +8,7 @@ voxel=[20 30 40]*1e-3; % voxel size
 Nx=4096;
 Nrep=1;
 Ndummy=0;
-adcDur=256e-3; 
+adcDur=256e-3;
 rfDurEx=3000e-6;
 rfDurRef=6000e-6;
 TR=3000e-3;
@@ -42,10 +42,10 @@ g_ref1.channel='y';
 
 %% join spoilers with the slice selection pulses of the refocusing gradients
 % step 1: create pre-gradient to merge into the plato
-g_ref1_pre=mr.makeExtendedTrapezoidArea(g_ref1.channel,0,g_ref1.amplitude,spA,system); 
+g_ref1_pre=mr.makeExtendedTrapezoidArea(g_ref1.channel,0,g_ref1.amplitude,spA,system);
 % step 2: create post-gradient to start at the plato
 g_ref1_post=mr.makeExtendedTrapezoidArea(g_ref1.channel,g_ref1.amplitude,0,spA,system);
-% step 3: create a composite gradient 
+% step 3: create a composite gradient
 g_refC1=mr.makeExtendedTrapezoid(g_ref1_pre.channel,...
     'times', [g_ref1_pre.tt g_ref1_post.tt+g_ref1_pre.shape_dur+g_ref1.flatTime],...
     'amplitudes',[g_ref1_pre.waveform g_ref1_post.waveform],'system',system);
@@ -111,7 +111,7 @@ ws_sp_area=1 / 1e-4; % in inverse m
 %rf_ws=[None]*3
 %g_ws=[None]*3
 for i=1:3
-  rf_ws(i) = mr.makeGaussPulse(ws_fa(i) * pi / 180, 'system', system, ...      
+  rf_ws(i) = mr.makeGaussPulse(ws_fa(i) * pi / 180, 'system', system, ...
       'duration', ws_rf_dur, 'bandwidth', ws_rf_bw, 'use', 'saturation');
   g_ws(i) = mr.makeTrapezoid(ws_sp_axes{i}, 'system', system, ...
       'delay', mr.calcDuration(rf_ws(i)), 'area', ws_sp_area);
@@ -130,9 +130,9 @@ for i=(1-Ndummy):Nrep
     seq.addBlock(rf_ex,g_ex);
     seq.addBlock(mr.makeDelay(delayTE1));
     seq.addBlock(rf_ref1,g_refC1,g_spAz,g_spAx);
-    seq.addBlock(mr.makeDelay(delayTE2)); 
+    seq.addBlock(mr.makeDelay(delayTE2));
     seq.addBlock(rf_ref2,g_refC2,g_spBy,g_spBx);
-    if i>0 
+    if i>0
         seq.addBlock(adc);
     else
         seq.addBlock(mr.makeDelay(mr.calcDuration(adc)));
@@ -163,8 +163,11 @@ seq.write('press.seq')       % Write to pulseq file
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP('gradient_offset',[1500 -1200 1000]);
 
 figure; plot(t_ktraj,ktraj);title('k-space components as functions of time'); grid on;
+if ~exist('xline')
+  xline= @(x,varargin) plot([x x], ylim, varargin(:));
+end
 hold on; xline(t_excitation(1)); xline(t_refocusing(1)); xline(t_refocusing(2)); xline(t_excitation(1)+TE);
 % one we zoom in very-very much we start to notice very small errors,
 % probably related to the current inaccuracies in the calculation of the RF
-% center. These are in any case not relevant for any physical experiments. 
+% center. These are in any case not relevant for any physical experiments.
 % TODO: double check after switching to v1.5.x

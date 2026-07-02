@@ -114,6 +114,14 @@ else
     fprintf('\n');
 end
 
+%% add data labels to make image reconstruction on the scanner possible
+%seq.autoLabel('mirrorFourier',true,'sortSlices','descending'); % Siemens scanners need 'mirrorFourier'; On Siemens 'sortSlices'='descending' is optional, otherwise the interpreter will change the slice indexes
+[labels, aux]=seq.autoLabel('mirrorFourier',true,'skipApply',true,'noPlots',true);
+% patch labels to copy REP to PHS
+labels.PHS=labels.REP;
+labels=rmfield(labels,'REP');
+seq.autoLabel('useLabels',labels,'useAux',aux);
+
 %% prepare sequence export
 seq.setDefinition('FOV', [fov fov sliceThickness]);
 seq.setDefinition('Name', 'cine-gre');

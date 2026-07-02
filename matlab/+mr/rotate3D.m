@@ -11,6 +11,10 @@ function [varargout] = rotate3D(rotation, varargin)
 %   in mind that for a single Z axis rotation mr.rotate() can be faster.
 %   Non-gradient objects are not affected.
 %
+%   The objects that contain the field 'id' but are not modified by this
+%   function are passed through without modification. For the gradients
+%   that are modified, the field 'id' is removed automatically.
+%
 %   Optional parameter list may include the keyword 'system' followed by a
 %   system limits struct. The system can only be provided in the beginning
 %   or at the ent of the list of optional parameters. 
@@ -98,7 +102,11 @@ for i=1:length(va)
         if ~isempty(grads3_in{iAxis})
             error('More than one gradient on the same axis %s provided', event.channel);
         end
-        grads3_in{iAxis}=event;
+        if isfield(event,'id')
+            grads3_in{iAxis}=rmfield(event,'id');
+        else
+            grads3_in{iAxis}=event;
+        end
     end
 end
 

@@ -1,5 +1,7 @@
-fov=[190e-3 190e-3 190e-3];     % Define FOV
+fov=[200e-3 200e-3 160e-3];     % Define FOV
 Nx=64; Ny=Nx; Nz=Nx;            % Define FOV and resolution
+TE=10e-3;                       % TE; for multiple TEs use [10 11]*1e-3;
+TR=40e-3;                       % TR
 Tread=3.2e-3;
 Tpre=3e-3;
 riseTime=400e-6;
@@ -20,18 +22,13 @@ adc = mr.makeAdc(Nx,'Duration',gx.flatTime,'Delay',gx.riseTime);
 gxPre = mr.makeTrapezoid('x',sys,'Area',-gx.area/2,'Duration',Tpre);
 gxSpoil = mr.makeTrapezoid('x',sys,'Area',gx.area,'Duration',Tpre);
 areaY = ((0:Ny-1)-Ny/2)*deltak(2);
-areaZ = ((0:Nz-1)-Nz/2)*deltak(3);
+areaZ = -((0:Nz-1)-Nz/2)*deltak(3); % on-line reconstruction on Siemens with autoLabel doesn't work otherwise (e.g. without -)...
 
 % Calculate timing
-TE=10e-3;
-TR=40e-3;
 delayTE = ceil((TE - mr.calcDuration(rf) + mr.calcRfCenter(rf) + rf.delay - mr.calcDuration(gxPre)  ...
     - mr.calcDuration(gx)/2)/seq.gradRasterTime)*seq.gradRasterTime;
 delayTR = ceil((TR - mr.calcDuration(rf) - mr.calcDuration(gxPre) ...
     - mr.calcDuration(gx) - mr.calcDuration(gxSpoil) - delayTE)/seq.gradRasterTime)*seq.gradRasterTime;
-
-dTE=mr.makeDelay(delayTE);
-dTR=mr.makeDelay(delayTR);
 
 % Make trapezoids for inner loop to save computation
 clear gyPre gyReph;
@@ -57,18 +54,20 @@ for iY=1:Ny
     gyReph(iY).id = seq.registerGradEvent(gyReph(iY));
 end
 
+iRF=0;
 % Drive magnetization to the steady state
 for iY=1:Ndummy
     % RF
     % RF spoiling phase increment = 84° for smoother transient decay, https://doi.org/10.1002/mrm.1910350216, 169° for diffusion independent rf spoiling in steady-state https://doi.org/10.1371/journal.pone.0324455
-    rf.phaseOffset = mod(84*(iY^2+iY+2)*pi/180,2*pi);
+    iRF = iRF+1;
+    rf.phaseOffset = mod(84*(iRF^2+iRF)*pi/180,2*pi);
     seq.addBlock(rf,rfDelay);
     % Gradients
     seq.addBlock(gxPre,gyPre(floor(Ny/2)));
-    seq.addBlock(dTE);
+    seq.addBlock(delayTE(1));
     seq.addBlock(gx);
     seq.addBlock(gyReph(floor(Ny/2)),gxSpoil);
-    seq.addBlock(dTR);
+    seq.addBlock(delayTR(1));
 end
 
 % Loop over phase encodes and define sequence blocks
@@ -79,20 +78,23 @@ for iZ=1:Nz
     gzPre.id = seq.registerGradEvent(gzPre);
     gzReph.id = seq.registerGradEvent(gzReph);
     for iY=1:Ny
-        % RF spoiling
-        % RF spoiling phase increment = 84° for smoother transient decay, https://doi.org/10.1002/mrm.1910350216, 169° for diffusion independent rf spoiling in steady-state https://doi.org/10.1371/journal.pone.0324455
-        rf.phaseOffset = mod(84*(iY^2+iY+2)*pi/180,2*pi);
-        adc.phaseOffset = rf.phaseOffset;
-        
-        % Excitation
-        seq.addBlock(rf,rfDelay);
-        
-        % Encoding
-        seq.addBlock(gxPre,gyPre(iY),gzPre);
-        seq.addBlock(dTE);
-        seq.addBlock(gx,adc);
-        seq.addBlock(gyReph(iY),gzReph,gxSpoil);
-        seq.addBlock(dTR)
+        for iC=1:length(TE)
+            % RF spoiling
+            % RF spoiling phase increment = 84° for smoother transient decay, https://doi.org/10.1002/mrm.1910350216, 169° for diffusion independent rf spoiling in steady-state https://doi.org/10.1371/journal.pone.0324455
+            iRF = iRF+1;
+            rf.phaseOffset = mod(84*(iRF^2+iRF)*pi/180,2*pi);
+            adc.phaseOffset = rf.phaseOffset;
+            
+            % Excitation
+            seq.addBlock(rf,rfDelay);
+            
+            % Encoding
+            seq.addBlock(gxPre,gyPre(iY),gzPre);
+            seq.addBlock(delayTE(iC));
+            seq.addBlock(gx,adc);
+            seq.addBlock(gyReph(iY),gzReph,gxSpoil);
+            seq.addBlock(delayTR(iC))
+        end
     end
 end
 
@@ -112,6 +114,10 @@ end
 % Visualise sequence and output for execution
 seq.plot('TimeRange',[Ndummy+1 Ndummy+3]*TR)
 
+% add data labels to make image reconstruction on the scanner possible
+seq.autoLabel('mirrorFourier',true); % Siemens scanners need 'mirrorFourier'; On Siemens 'sortSlices'='descending' is optional, otherwise the interpreter will change the slice indexes
+
+% add more definitions and export
 seq.setDefinition('FOV', fov);
 seq.setDefinition('Name', 'gre3d');
 seq.write('gre3d.seq',false);

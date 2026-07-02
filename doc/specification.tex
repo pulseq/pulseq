@@ -24,7 +24,7 @@
 %\def\myversion{1.01 }
 \def\myversionmajor{1}
 \def\myversionminor{5}
-\def\myversionrevision{1}
+\def\myversionrevision{3}
 \def\myversion{\myversionmajor.\myversionminor.\myversionrevision }
 %\def\myversion{1.0.2 }
 
@@ -123,7 +123,9 @@ Extension "Soft Delay" is introduced. \\
 1.5.1 & 14 Aug 2025 & \makecell{Minor format revision, new extensions and bugfixes: \\
 New concept of \textit{required extensions} wich must be supported by the interpeter; \\
 Introduce new Rotation Extension; \\
-Introduce new RF Shimming Extension; \\
+Introduce new RF Shimming Extension. \\
+} \\ 
+1.5.2 & 28 Apr 2026 & \makecell{Minor format update for the binary format and bugfixes. \\
 TODO: update figures and examples.  \\
 } \\ 
 \bottomrule
@@ -684,41 +686,44 @@ $\cdots$ &  & $\cdots$  &  & 0 \\
 \end{center}
 
 \section{Binary files}
- \textbf{Binary Pulseq format is not widely accepted and is poorly supported. This section is out-of-date.} The specification described in Section~\ref{sec:specification} can be implemented as a binary file. The same general principles apply with specific modifications outlined here. The basic structure of a binary \emph{pulseq} file is depicted below,
+The specification described in Section~\ref{sec:specification} can also be implemented as a binary file. The binary stream starts with a fixed 8-byte file header followed by version numbers and then a list of sections.
+
 \texttt{
 \begin{center}
-\begin{tabular}{|c|c|c|c|c|c|c|c|l}
+\begin{tabular}{|c|c|c|c|c|c|c|c|}
 \hline
 0x01 & p & u & l & s & e & q & 0x02 \\
 \hline
-%\multicolumn{8}{|c|}{0x0000000000000001} \\
-\multicolumn{8}{|c|}{version major} \\
+\multicolumn{8}{|c|}{version major (int64)} \\
 \hline
-%\multicolumn{8}{|c|}{0x0000000000000001} \\
-\multicolumn{8}{|c|}{version minor} \\
+\multicolumn{8}{|c|}{version minor (int64)} \\
 \hline
-%\multicolumn{8}{|c|}{0x0000000000000000} \\
-\multicolumn{8}{|c|}{version revision} \\
+\multicolumn{8}{|c|}{version revision (int64)} \\
 \hline
-\multicolumn{8}{|c|}{section code} \\
+\multicolumn{8}{|c|}{section code (int64)} \\
 \hline
-\multicolumn{8}{|c|}{number of events} \\
+\multicolumn{8}{|c|}{section-specific payload} \\
 \hline
-\multicolumn{8}{|c|}{\multirow{2}{*}{data}} \\
-\multicolumn{8}{|c|}{}\\
+\multicolumn{8}{|c|}{section code (int64)} \\
 \hline
-\multicolumn{8}{|c|}{section code} \\
-\hline
-\multicolumn{8}{|c|}{number of events} \\
-\hline
-\multicolumn{8}{|c|}{\multirow{2}{*}{data}} \\
-\multicolumn{8}{|c|}{}\\
+\multicolumn{8}{|c|}{section-specific payload} \\
 \hline
 \multicolumn{8}{|c|}{$\cdots$}\\
 \hline
 \end{tabular}
 \end{center}
 }
+
+Unless specified otherwise, integer values are little-endian and stored as \verb.int64. or \verb.int32., and floating-point values are \verb.float64..
+
+\subsection{Binary numeric conventions}
+
+The current binary implementation uses a unified representation for time-like quantities:
+\begin{itemize}
+\item Generic time values are stored as \verb.int64. picoseconds (ps). This applies to RF center/delay, arbitrary-gradient delay, trapezoid rise/flat/fall/delay, ADC dwell/delay, trigger delay/duration, and soft-delay offset.
+\item Block duration is a special case and is stored as \verb.int64. in units of \verb.BlockDurationRaster. (not in ps).
+\item Shape payload samples in binary files are currently written as \verb.float32. compressed values.
+\end{itemize}
 
 \subsection{File and section codes}
 
@@ -735,10 +740,56 @@ Section & Section code \\
 \verb.[GRADIENTS]. & \verb.0xFFFFFFFF 0x00000004. \\
 \verb.[TRAP]. & \verb.0xFFFFFFFF 0x00000005. \\
 \verb.[ADC]. & \verb.0xFFFFFFFF 0x00000006. \\
-\verb.[DELAYS]. & \verb.0xFFFFFFFF 0x00000007. \\
+\verb.[DELAYS]. (legacy, deprecated) & \verb.0xFFFFFFFF 0x00000007. \\
 \verb.[SHAPES]. & \verb.0xFFFFFFFF 0x00000008. \\
+\verb.[EXTENSIONS]. & \verb.0xFFFFFFFF 0x00000009. \\
+\verb.extension TRIGGERS. payload & \verb.0xFFFFFFFF 0x0000000A. \\
+\verb.extension LABELSET. payload & \verb.0xFFFFFFFF 0x0000000B. \\
+\verb.extension LABELINC. payload & \verb.0xFFFFFFFF 0x0000000C. \\
+\verb.extension DELAYS. payload (soft delay) & \verb.0xFFFFFFFF 0x0000000D. \\
+\verb.extension RF\_SHIMS. payload & \verb.0xFFFFFFFF 0x0000000E. \\
+\verb.extension ROTATIONS. payload & \verb.0xFFFFFFFF 0x0000000F. \\
+\verb.[SIGNATURE]. binary payload & \verb.0xFFFFFFFF 0x00FFFFFF. \\
 \bottomrule
 \end{tabular}
+\end{center}
+
+\subsection{Section payload formats}
+
+Each section starts with its \verb.section code (int64)., see the table above. The payload formats are listed below.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+Section & Binary payload format \\
+\midrule
+\verb.[DEFINITIONS]. & \verb.<num_defs:int64>. then for each definition: \verb.<key_length:int32>. followed by \verb.<char[]>. \verb.<count:int32>. \verb.<type:char>. where type is \verb.c., \verb.i. or \verb.f., followed by \verb.<value[count]>. as \verb.char./\verb.int32./\verb.float64.. \\
+\verb.[BLOCKS]. & \verb.<num_blocks:int64>. then per block: \verb.<duration_raster:int64>. \verb.<rf:int32>. \verb.<gx:int32>. \verb.<gy:int32>. \verb.<gz:int32>. \verb.<adc:int32>. \verb.<ext:int32>.. \\
+\verb.[RF]. & \verb.<num:int64>. then per event: \verb.<id:int32>. \verb.<amp:float64>. \verb.<mag_id:int32>. \verb.<phase_id:int32>. \verb.<time_id:int32>. \verb.<center_ps:int64>. \verb.<delay_ps:int64>. \verb.<freq_ppm:float64>. \verb.<phase_ppm:float64>. \verb.<freq_off:float64>. \verb.<phase_off:float64>. \verb.<use:char>. \\
+\verb.[GRADIENTS]. & \verb.<num:int64>. then per event: \verb.<id:int32>. \verb.<amp:float64>. \verb.<first:float64>. \verb.<last:float64>. \verb.<shape_id:int32>. \verb.<time_id:int32>. \verb.<delay_ps:int64>. \\
+\verb.[TRAP]. & \verb.<num:int64>. then per event: \verb.<id:int32>. \verb.<amp:float64>. \verb.<rise_ps:int64>. \verb.<flat_ps:int64>. \verb.<fall_ps:int64>. \verb.<delay_ps:int64>. \\
+\verb.[ADC]. & \verb.<num:int64>. then per event: \verb.<id:int32>. \verb.<num_samples:int64>. \verb.<dwell_ps:int64>. \verb.<delay_ps:int64>. \verb.<freq_ppm:float64>. \verb.<phase_ppm:float64>. \verb.<freq_off:float64>. \verb.<phase_off:float64>. \verb.<phase_shape_id:int32>. \\
+\verb.[DELAYS]. (legacy) & \verb.<num:int64>. then repeated \verb.<id:int32>. \verb.<delay_ps:int64>.. Current readers ignore this section for compatibility with old files. \\
+\verb.[SHAPES]. & \verb.<num_shapes:int64>. then per shape: \verb.<id:int32>. \verb.<num_uncompressed:int64>. \verb.<num_compressed:int64>. \verb.<compressed_data:float32[num_compressed]>. \\
+\verb.[EXTENSIONS]. & \verb.<num:int64>. then per entry: \verb.<id:int32>. \verb.<type_id:int32>. \verb.<ref:int32>. \verb.<next:int32>.. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+See the next page for the continuation of the table.
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+Section & Binary payload format \\
+\midrule
+\verb.extension TRIGGERS. payload & \verb.<ext_type_id:int32>. \verb.<num:int64>. then per trigger: \verb.<id:int32>. \verb.<type:int32>. \verb.<channel:int32>. \verb.<delay_ps:int64>. \verb.<duration_ps:int64>. \\
+\verb.extension LABELSET. payload & \verb.<ext_type_id:int32>. \verb.<num:int64>. then per object: \verb.<id:int32>. \verb.<value:int32>. \verb.<label_index:int32>. \\
+\verb.extension LABELINC. payload & \verb.<ext_type_id:int32>. \verb.<num:int64>. then per object: \verb.<id:int32>. \verb.<value:int32>. \verb.<label_index:int32>. \\
+\verb.extension DELAYS. payload & \verb.<ext_type_id:int32>. \verb.<num:int64>. then per soft delay: \verb.<id:int32>. \verb.<num_id:int32>. \verb.<offset_ps:int64>. \verb.<factor:float64>. \verb.<hint_len:int32>. \verb.<hint:char[hint_len]>. \\
+\verb.extension RF\_SHIMS. payload & \verb.<ext_type_id:int32>. \verb.<num:int64>. then per shim object: \verb.<id:int32>. \verb.<num_chan:int32>. \verb.<mag_phase_pairs:float64[2*num_chan]>. \\
+\verb.extension ROTATIONS. payload & \verb.<ext_type_id:int32>. \verb.<num:int64>. then per rotation: \verb.<id:int32>. \verb.<q0:float64>. \verb.<qx:float64>. \verb.<qy:float64>. \verb.<qz:float64>. \\
+\verb.[SIGNATURE]. binary payload & \verb.<type_len:int32>. \verb.<type:char[type_len]>. \verb.<hash_len:int32>. \verb.<hash:uint8[hash_len]>. \verb.<orig_size:int64>. where \verb.orig_size. is the original file length before appending the signature trailer. It is also the position in the final file, where the \verb.[SIGNATURE]. section starts.\\
+\bottomrule
+\end{tabularx}
 \end{center}
 
 \section{Source code}

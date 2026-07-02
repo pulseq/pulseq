@@ -1,5 +1,26 @@
+%!test %%% on Octave run with oruntests() %%%
+%! testMakeSoftDelay
 function tests = testMakeSoftDelay
-    tests = functiontests(localfunctions);
+    try
+        mr.opts();
+    catch
+        pulseqPath=fullfile(fileparts(mfilename),'..','matlab');
+        addpath(genpath(pulseqPath));
+    end
+    if exist('functiontests')
+        tests = functiontests(localfunctions);
+    else
+        lf=localfunctions();
+        testCase=makeOctaveTestCase();
+        for i=1:length(lf)
+            f=lf{i};
+            n=func2str(f);
+            if length(n)>3 && strcmp(n(1:4),'test')
+                f(testCase);
+                fprintf('Test function %s completed successfully\n', n);
+            end
+        end
+    end
 end
 
 %% Test valid creation
@@ -23,7 +44,7 @@ end
 
 %% Test hint with whitespace throws error
 function test_whitespace_hint_error(testCase)
-    testCase.verifyError(@() mr.makeSoftDelay(1, 'my delay'), ?MException);
+    testCase.verifyError(@() mr.makeSoftDelay(1, 'my delay'),'');
 end
 
 %% Test different numIDs
