@@ -21,7 +21,7 @@ function duration=calcDuration(varargin)
 %   INPUTS
 %     varargin  [required]  One or more arguments, each one of:
 %                             - event struct with a .type field set to one of
-%                               'rf', 'grad', 'trap', 'adc', 'output', 'trigger'
+%                               'rf', 'grad', 'trap', 'adc', 'delay', 'output', 'trigger'
 %                             - a cell array containing such structs or a single 
 %                               numeric scalar
 %                             - a block struct (i.e. has a .rf field; typically
@@ -52,6 +52,7 @@ function duration=calcDuration(varargin)
 %         grad    : event.delay + event.shape_dur (arbitrary gradient)
 %         trap    : event.delay + event.riseTime + event.flatTime + event.fallTime
 %         adc     : event.delay + event.numSamples*event.dwell + event.deadTime
+%         delay   : event.delay
 %         output  : event.delay + event.duration
 %         trigger : event.delay + event.duration
 %     - For 'rf' and 'grad' events the function relies on a precomputed
@@ -60,6 +61,9 @@ function duration=calcDuration(varargin)
 %     - For 'adc', the deadTime addend is the post-acquisition dead time
 %       captured at construction (adc.deadTime), not the pre-acquisition
 %       delay (which is already included via adc.delay).
+%     - Note that 'delay' is not a true Pulseq object as it is not stored
+%       in the event table; it is just used as a dummy to construct blocks
+%       with a minimal duration
 %     - Unknown .type values are silently skipped. A struct without a
 %       .type field whose value matches no case will not raise. (This 
 %       behaviour may change in future)
@@ -97,8 +101,8 @@ for i=1:length(varargin)
             continue;
         end
         switch event.type
-%            case 'delay' % deprecated since v140
-%                duration=max(duration, event.delay);
+            case 'delay' % not a true object since v140 but still used to set a minimal block duration
+                duration=max(duration, event.delay);
             case 'rf'
                 duration=max(duration, event.delay + event.shape_dur + event.ringdownTime);  % rf has now a field called 'shape_dur' because it is impossible to calculate duration here in a general case...
             case 'grad'
