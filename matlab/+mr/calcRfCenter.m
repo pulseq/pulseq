@@ -50,8 +50,13 @@ function [tc, ic, fi]=calcRfCenter(rf)
 %     - rf.delay is intentionally excluded from tc. If a sequence places
 %       an RF event after a delay, the absolute time within the block is
 %       rf.delay + tc.
-%     - Returned tc is on the RF raster (rf.t edges); fi captures the
-%       sub-raster offset when rf.center does not coincide with a sample.
+%     - Returned tc is calculated as a floating-point value in seconds 
+%       relative to the beginning of the RF shape (the leading edge of the  
+%       first RF raster cell of the shape); ic is the index of the raster 
+%       cell (in Matlab indexing convention), which center is the closest to 
+%       tc; fi captures the sub-raster offset when rf.center does not 
+%       coincide with a sample (center of the RF raster cell) and is 
+%       constrained to the range [-0.5 0.5).
 %
 %   EXAMPLE
 %     sys = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
