@@ -1,11 +1,125 @@
 function grad = addGradients(grads, varargin)
-%addGradients Superposition of several gradients
+%addGradients Superposition of several gradients on a single axis.
 %
-%   [grad] = addGradients(grads, system) 
-%   Returns the superposition of serveral gradients
-%   gradients have to be passed as a cell array e.g. {g1, g2, g3}
+%   PURPOSE
+%     Combines two or more gradient events on the same logical channel
+%     ('x', 'y', or 'z') into a single equivalent gradient event by
+%     pointwise summation of their waveforms on a common time grid. Used
+%     to merge pre-phasers, spoilers, blip-up/blip-down pairs, and similar
+%     co-scheduled gradients into one block entry consumed by
+%     mr.Sequence/addBlock.
 %
-%   See also  Sequence.addBlock  mr.opts  makeTrapezoid
+%     The returned struct's type depends on the inputs:
+%       - if every input is a trapezoid with identical delay, riseTime,
+%         flatTime, and fallTime, the result is a trapezoid struct with
+%         amplitudes summed (fast path);
+%       - if every input is a trapezoid or an extended trapezoid on an
+%         irregular time sampling, the result is an extended trapezoid
+%         built via mr.makeExtendedTrapezoid;
+%       - otherwise the result is an arbitrary gradient on the gradient
+%         raster built via mr.makeArbitraryGrad.
+%     In all three cases the returned struct is a valid gradient event
+%     and can be passed directly to mr.Sequence/addBlock.
+%
+%   SIGNATURES
+%     grad = mr.addGradients(grads)                              % uses defaults from mr.opts()
+%     grad = mr.addGradients(grads, system)                      % positional system
+%     grad = mr.addGradients(grads, 'system', system)            % name-value system
+%     grad = mr.addGradients(grads, system, 'maxGrad', g, ...)   % override slew/amplitude caps
+%
+%     grads must be a cell array of at least two gradient event structs,
+%     all on the same channel. Per-gradient delays are preserved; the
+%     returned gradient's delay is the smallest delay among the inputs.
+%
+%   INPUTS
+%     grads    [required]    cell array of >=2 gradient event structs on the same channel
+%     system   [optional]    struct from mr.opts. If omitted or empty, mr.opts() defaults
+%                            are used. Also accepted as 'system', sys name/value pair.
+%     maxGrad  [name/value]  double, Hz/m, override for max gradient amplitude used by
+%                            the arbitrary-grad path. Default 0 (use system.maxGrad).
+%     maxSlew  [name/value]  double, Hz/m/s, override for max slew rate used by the
+%                            arbitrary-grad path. Default 0 (use system.maxSlew).
+%
+%   OUTPUT
+%     grad struct. Shape depends on the input mix (see PURPOSE). Field order:
+%
+%       Trapezoid fast path (all inputs identical-timing traps):
+%         .type       'trap'
+%         .channel    'x' | 'y' | 'z'
+%         .amplitude  Hz/m, sum of input amplitudes
+%         .riseTime   seconds, same as inputs
+%         .flatTime   seconds, same as inputs
+%         .fallTime   seconds, same as inputs
+%         .area       1/m, sum of input areas
+%         .flatArea   1/m, sum of input flat areas
+%         .delay      seconds, same as inputs
+%         .first      0 (trapezoids always start at zero)
+%         .last       0 (trapezoids always end at zero)
+%
+%       Extended trapezoid path (all trap or extended-trap inputs):
+%         .type       'grad'
+%         .channel    'x' | 'y' | 'z'
+%         .waveform   Hz/m, amplitude samples on the union time grid
+%         .delay      seconds, min delay across inputs
+%         .tt         seconds, time-offsets of samples relative to delay
+%         .shape_dur  seconds, waveform duration on the gradient raster
+%         .area       1/m, waveform area
+%         .first      Hz/m, sum of inputs' first values that share the common delay
+%         .last       Hz/m, sum of inputs' last values that share the max duration
+%
+%       Arbitrary gradient fallback (mixed arbitrary + other):
+%         .type       'grad'
+%         .channel    'x' | 'y' | 'z'
+%         .waveform   Hz/m, uniformly-sampled amplitudes on system.gradRasterTime
+%                     (or half that if any input is oversampled-arbitrary)
+%         .delay      seconds, min delay across inputs
+%         .area       1/m, waveform area
+%         .tt         seconds, sample time-offsets relative to delay
+%         .shape_dur  seconds, waveform duration
+%         .first      Hz/m, as above
+%         .last       Hz/m, as above
+%
+%   ERRORS
+%     - 'gradients have to be passed as cell array': grads is not a cell
+%     - 'cannot add less then two gradients': numel(grads) < 2
+%     - 'cannot add gradients on different channels': inputs mix x/y/z
+%     Additional errors may propagate from mr.makeArbitraryGrad (e.g., slew
+%     rate or amplitude limit violation) when the arbitrary-grad fallback
+%     is taken.
+%
+%   NOTES
+%     - 'system' is registered as a positional (addOptional) parameter but
+%       Pulseq's permissive input parser also accepts it as name-value.
+%     - The returned delay is the minimum delay among the inputs; shapes
+%       that started later than that are zero-padded internally so the
+%       summed waveform preserves each input's original onset time.
+%     - The fast trapezoid path triggers only when all inputs share the
+%       same delay, riseTime, flatTime, AND fallTime. Inputs with matching
+%       total duration but different rise/fall times (typical when the
+%       caller uses 'Duration' + different 'Area') fall through to the
+%       extended-trapezoid path.
+%     - If any input is an oversampled arbitrary gradient, the result is
+%       sampled at system.gradRasterTime/2 instead of system.gradRasterTime.
+%     - maxGrad / maxSlew are only consulted on the arbitrary-grad path;
+%       they are ignored on the trap and extended-trap paths.
+%
+%   EXAMPLE
+%     sys = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
+%                   'MaxSlew', 170, 'SlewUnit', 'T/m/s');
+%
+%     % pre-phaser immediately followed 5 ms later by a spoiler, combined
+%     % into one readout-axis gradient event
+%     gxPre   = mr.makeTrapezoid('x', 'Area', -500, 'Duration', 2e-3, 'system', sys);
+%     gxSpoil = mr.makeTrapezoid('x', 'Area', 2000, 'Duration', 2e-3, ...
+%                                'delay', 5e-3, 'system', sys);
+%     gxComb  = mr.addGradients({gxPre, gxSpoil}, 'system', sys);
+%
+%     seq = mr.Sequence(sys);
+%     seq.addBlock(gxComb);
+%
+%   SEE ALSO
+%     mr.Sequence/addBlock, mr.opts, mr.makeTrapezoid,
+%     mr.makeExtendedTrapezoid, mr.makeArbitraryGrad, mr.calcDuration
 %
 %   Stefan Kroboth <stefan.kroboth@uniklinik-freiburg.de>
 
