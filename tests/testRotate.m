@@ -141,11 +141,11 @@ function test_cross_validate_z(testCase)
     gy = mr.makeTrapezoid('y', 'Area', 500, 'Duration', 2e-3, 'system', sys);
     angle = pi/5;
     testCase.verifyError(@() mr.rotate('z', angle, gx, gy),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
-    testCase.verifyError(@() mr.rotate3D(rotz(angle), gx, gy),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
+    testCase.verifyError(@() mr.rotate3D(mr.aux.rotmat.z(angle), gx, gy),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
     gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
     gy = mr.makeTrapezoid('y', 'Area', 500, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
     out_rotate = mr.rotate('z', angle, gx, gy);
-    out_rotate3D = mr.rotate3D(rotz(angle), gx, gy);
+    out_rotate3D = mr.rotate3D(mr.aux.rotmat.z(angle), gx, gy);
     map_r  = getAreaStruct(out_rotate);
     map_3d = getAreaStruct(out_rotate3D);
     testCase.verifyEqual(map_r.x, map_3d.x, 'AbsTol', 5, ...
@@ -163,11 +163,11 @@ function test_cross_validate_x(testCase)
     gz = mr.makeTrapezoid('z', 'Area', 700, 'Duration', 2e-3, 'system', sys);
     angle = pi/7;
     testCase.verifyError(@() mr.rotate('x', angle, gy, gz),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
-    testCase.verifyError(@() mr.rotate3D(rotx(angle), gy, gz),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
+    testCase.verifyError(@() mr.rotate3D(mr.aux.rotmat.x(angle), gy, gz),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
     gy = mr.makeTrapezoid('y', 'Area', 1000, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
     gz = mr.makeTrapezoid('z', 'Area', 700, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
     out_rotate = mr.rotate('x', angle, gy, gz);
-    out_rotate3D = mr.rotate3D(rotx(angle), gy, gz);
+    out_rotate3D = mr.rotate3D(mr.aux.rotmat.x(angle), gy, gz);
     map_r  = getAreaStruct(out_rotate);
     map_3d = getAreaStruct(out_rotate3D);
     testCase.verifyEqual(map_r.x, map_3d.x, 'AbsTol', 5, ...
@@ -185,11 +185,11 @@ function test_cross_validate_y(testCase)
     gz = mr.makeTrapezoid('z', 'Area', 700, 'Duration', 2e-3, 'system', sys);
     angle = pi/3;
     testCase.verifyError(@() mr.rotate('y', angle, gx, gz),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
-    testCase.verifyError(@() mr.rotate3D(roty(angle), gx, gz),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
+    testCase.verifyError(@() mr.rotate3D(mr.aux.rotmat.y(angle), gx, gz),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
     gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
     gz = mr.makeTrapezoid('z', 'Area', 700, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
     out_rotate = mr.rotate('y', angle, gx, gz);
-    out_rotate3D = mr.rotate3D(roty(angle), gx, gz);
+    out_rotate3D = mr.rotate3D(mr.aux.rotmat.y(angle), gx, gz);
     map_r  = getAreaStruct(out_rotate);
     map_3d = getAreaStruct(out_rotate3D);
     testCase.verifyEqual(map_r.x, map_3d.x, 'AbsTol', 5, ...
@@ -204,7 +204,7 @@ end
 function test_cross_validate_single_grad_all_axes(testCase)
     angles = [pi/6, pi/4, pi/3];
     axes_list = {'x', 'y', 'z'};
-    rot_funcs = {@rotx, @roty, @rotz};
+    rot_funcs = {@mr.aux.rotmat.x, @mr.aux.rotmat.y, @mr.aux.rotmat.z};
     for a = 1:3
         for ch = 1:3
             g = mr.makeTrapezoid(axes_list{ch}, 'Area', 1000, 'Duration', 2e-3);
@@ -242,17 +242,4 @@ function verifyErrorThrown(testCase, funcHandle)
         didError = true;
     end
     testCase.verifyTrue(didError, 'Expected an error, but none was thrown.');
-end
-
-%% Local rotation matrix constructors (equivalent to rotx/roty/rotz)
-function R = rotx(angle)
-    R = [1 0 0; 0 cos(angle) -sin(angle); 0 sin(angle) cos(angle)];
-end
-
-function R = roty(angle)
-    R = [cos(angle) 0 sin(angle); 0 1 0; -sin(angle) 0 cos(angle)];
-end
-
-function R = rotz(angle)
-    R = [cos(angle) -sin(angle) 0; sin(angle) cos(angle) 0; 0 0 1];
 end
