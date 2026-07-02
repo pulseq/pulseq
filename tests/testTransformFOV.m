@@ -282,9 +282,9 @@ end
 %% Test: rotation preserves total gradient area (norm)
 function test_rotation_preserves_total_area(testCase)
     sys = defaultSys();
-    gx = mr.makeTrapezoid('x', sys, 'Area', 1000, 'Duration', 2e-3);
-    gy = mr.makeTrapezoid('y', sys, 'Area', 2000, 'Duration', 2e-3);
-    gz = mr.makeTrapezoid('z', sys, 'Area', 1500, 'Duration', 2e-3);
+    gx = mr.makeTrapezoid('x', sys, 'Area', 1000, 'Duration', 2e-3, 'maxSlew', sys.maxSlew/sqrt(3)); % derate slew rate
+    gy = mr.makeTrapezoid('y', sys, 'Area', 2000, 'Duration', 2e-3, 'maxSlew', sys.maxSlew/sqrt(3)); % derate slew rate
+    gz = mr.makeTrapezoid('z', sys, 'Area', 1500, 'Duration', 2e-3, 'maxSlew', sys.maxSlew/sqrt(3)); % derate slew rate
     area_vec_orig = [1000, 2000, 1500];
     norm_orig = norm(area_vec_orig);
 
@@ -303,9 +303,9 @@ end
 %% Test: rotation analytically matches R * area_vector
 function test_rotation_analytic_area_vector(testCase)
     sys = defaultSys();
-    gx = mr.makeTrapezoid('x', sys, 'Area', 1000, 'Duration', 2e-3);
-    gy = mr.makeTrapezoid('y', sys, 'Area', -500, 'Duration', 2e-3);
-    gz = mr.makeTrapezoid('z', sys, 'Area', 2000, 'Duration', 2e-3);
+    gx = mr.makeTrapezoid('x', sys, 'Area', 1000, 'Duration', 2e-3, 'maxSlew', sys.maxSlew/sqrt(3)); % derate slew rate
+    gy = mr.makeTrapezoid('y', sys, 'Area', -500, 'Duration', 2e-3, 'maxSlew', sys.maxSlew/sqrt(3)); % derate slew rate
+    gz = mr.makeTrapezoid('z', sys, 'Area', 2000, 'Duration', 2e-3, 'maxSlew', sys.maxSlew/sqrt(3)); % derate slew rate
     area_orig = [1000; -500; 2000];
 
     % Rotation: 37° about z, then 53° about x
@@ -622,9 +622,9 @@ function test_kspace_combined_transform_analytic(testCase)
     sys = defaultSys();
 
     area_orig = [3000; -1000; 2000];
-    gx = mr.makeTrapezoid('x', sys, 'Area', area_orig(1), 'Duration', 3e-3);
-    gy = mr.makeTrapezoid('y', sys, 'Area', area_orig(2), 'Duration', 3e-3);
-    gz = mr.makeTrapezoid('z', sys, 'Area', area_orig(3), 'Duration', 3e-3);
+    gx = mr.makeTrapezoid('x', sys, 'Area', area_orig(1), 'Duration', 3e-3, 'maxSlew', sys.maxSlew/sqrt(3)); % derate slew rate
+    gy = mr.makeTrapezoid('y', sys, 'Area', area_orig(2), 'Duration', 3e-3, 'maxSlew', sys.maxSlew/sqrt(3)); % derate slew rate
+    gz = mr.makeTrapezoid('z', sys, 'Area', area_orig(3), 'Duration', 3e-3, 'maxSlew', sys.maxSlew/sqrt(3)); % derate slew rate
 
     seq_orig = mr.Sequence(sys);
     seq_orig.addBlock(gx, gy, gz);
@@ -678,9 +678,9 @@ end
 function test_three_axis_rotation_chain(testCase)
     sys = defaultSys();
     a = [1500; -800; 2200];
-    gx = mr.makeTrapezoid('x', sys, 'Area', a(1), 'Duration', 3e-3);
-    gy = mr.makeTrapezoid('y', sys, 'Area', a(2), 'Duration', 3e-3);
-    gz = mr.makeTrapezoid('z', sys, 'Area', a(3), 'Duration', 3e-3);
+    gx = mr.makeTrapezoid('x', sys, 'Area', a(1), 'Duration', 3e-3, 'maxSlew', sys.maxSlew/sqrt(3)); % derate slew rate due to simultaneous slewing
+    gy = mr.makeTrapezoid('y', sys, 'Area', a(2), 'Duration', 3e-3, 'maxSlew', sys.maxSlew/sqrt(3)); 
+    gz = mr.makeTrapezoid('z', sys, 'Area', a(3), 'Duration', 3e-3, 'maxSlew', sys.maxSlew/sqrt(3)); 
 
     % Euler angles ZYX:  Rz(alpha) * Ry(beta) * Rx(gamma)
     alpha = 17*pi/180;

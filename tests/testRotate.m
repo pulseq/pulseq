@@ -118,9 +118,13 @@ end
 
 %% Test two gradients on perpendicular axes
 function test_two_gradients(testCase)
-    gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 2e-3);
-    gy = mr.makeTrapezoid('y', 'Area', 2000, 'Duration', 2e-3);
+    sys = mr.opts();
+    gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 2e-3, 'system', sys);
+    gy = mr.makeTrapezoid('y', 'Area', 2000, 'Duration', 2e-3, 'system', sys);
     angle = pi/6;
+    testCase.verifyError(@() mr.rotate('z', angle, gx, gy),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
+    gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
+    gy = mr.makeTrapezoid('y', 'Area', 2000, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
     out = mr.rotate('z', angle, gx, gy);
     areas = getAreaStruct(out);
     % x_out = gx*cos - gy*sin, y_out = gx*sin + gy*cos
@@ -132,9 +136,14 @@ end
 
 %% Test mr.rotate('z', angle) matches mr.rotate3D(rotz(angle))
 function test_cross_validate_z(testCase)
-    gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 2e-3);
-    gy = mr.makeTrapezoid('y', 'Area', 500, 'Duration', 2e-3);
+    sys = mr.opts();
+    gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 2e-3, 'system', sys);
+    gy = mr.makeTrapezoid('y', 'Area', 500, 'Duration', 2e-3, 'system', sys);
     angle = pi/5;
+    testCase.verifyError(@() mr.rotate('z', angle, gx, gy),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
+    testCase.verifyError(@() mr.rotate3D(rotz(angle), gx, gy),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
+    gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
+    gy = mr.makeTrapezoid('y', 'Area', 500, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
     out_rotate = mr.rotate('z', angle, gx, gy);
     out_rotate3D = mr.rotate3D(rotz(angle), gx, gy);
     map_r  = getAreaStruct(out_rotate);
@@ -149,9 +158,14 @@ end
 
 %% Test mr.rotate('x', angle) matches mr.rotate3D(rotx(angle))
 function test_cross_validate_x(testCase)
-    gy = mr.makeTrapezoid('y', 'Area', 1000, 'Duration', 2e-3);
-    gz = mr.makeTrapezoid('z', 'Area', 500, 'Duration', 2e-3);
+    sys = mr.opts();
+    gy = mr.makeTrapezoid('y', 'Area', 1000, 'Duration', 2e-3, 'system', sys);
+    gz = mr.makeTrapezoid('z', 'Area', 700, 'Duration', 2e-3, 'system', sys);
     angle = pi/7;
+    testCase.verifyError(@() mr.rotate('x', angle, gy, gz),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
+    testCase.verifyError(@() mr.rotate3D(rotx(angle), gy, gz),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
+    gy = mr.makeTrapezoid('y', 'Area', 1000, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
+    gz = mr.makeTrapezoid('z', 'Area', 700, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
     out_rotate = mr.rotate('x', angle, gy, gz);
     out_rotate3D = mr.rotate3D(rotx(angle), gy, gz);
     map_r  = getAreaStruct(out_rotate);
@@ -166,9 +180,14 @@ end
 
 %% Test mr.rotate('y', angle) matches mr.rotate3D(roty(angle))
 function test_cross_validate_y(testCase)
-    gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 2e-3);
-    gz = mr.makeTrapezoid('z', 'Area', 500, 'Duration', 2e-3);
+    sys = mr.opts();
+    gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 2e-3, 'system', sys);
+    gz = mr.makeTrapezoid('z', 'Area', 700, 'Duration', 2e-3, 'system', sys);
     angle = pi/3;
+    testCase.verifyError(@() mr.rotate('y', angle, gx, gz),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
+    testCase.verifyError(@() mr.rotate3D(roty(angle), gx, gz),''); % must fail due to exceeding slew rate because both gradient slew at the maximum rate already
+    gx = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
+    gz = mr.makeTrapezoid('z', 'Area', 700, 'Duration', 2e-3, 'system', sys, 'maxSlew', sys.maxSlew/sqrt(2)); % derate slew rate
     out_rotate = mr.rotate('y', angle, gx, gz);
     out_rotate3D = mr.rotate3D(roty(angle), gx, gz);
     map_r  = getAreaStruct(out_rotate);

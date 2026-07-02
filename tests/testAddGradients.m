@@ -62,7 +62,7 @@ end
 %% Test trap + extended trap
 function test_trap_plus_extended(testCase)
     sys = mr.opts();
-    g_trap = mr.makeTrapezoid('x', 'Area', 1000, 'Duration', 1e-3);
+    g_trap = mr.makeTrapezoid('x', 'Amplitude', 1e5, 'Duration', 1e-3);
     g_ext = mr.makeExtendedTrapezoid('x', ...
         'Times', [0 2e-4 8e-4 1e-3], ...
         'Amplitudes', [0 50000 50000 0]);
@@ -77,9 +77,22 @@ end
 
 %% Test three trapezoids
 function test_three_traps(testCase)
-    g1 = mr.makeTrapezoid('y', 'Area', 500, 'Duration', 1e-3);
-    g2 = mr.makeTrapezoid('y', 'Area', 300, 'Duration', 1e-3);
-    g3 = mr.makeTrapezoid('y', 'Area', 200, 'Duration', 1e-3);
-    gsum = mr.addGradients({g1, g2, g3});
-    testCase.verifyEqual(gsum.area, g1.area + g2.area + g3.area, 'AbsTol', 1);
+    sys = mr.opts();
+    g1 = mr.makeTrapezoid('y', 'Area', 1000, 'system', sys); 
+    g2 = mr.makeTrapezoid('y', 'Area', 700, 'system', sys);
+    g3 = mr.makeTrapezoid('y', 'Area', 500, 'system', sys);
+    g4 = mr.makeTrapezoid('y', 'Area', 1000, 'system', sys, 'maxGrad', sys.maxGrad/3); % derate the amplitude to avoid exceeding slew rate limits due to simultaneous slewing
+    g5 = mr.makeTrapezoid('y', 'Area', 700, 'system', sys, 'maxGrad', sys.maxGrad/3);
+    g6 = mr.makeTrapezoid('y', 'Area', 500, 'system', sys, 'maxGrad', sys.maxGrad/3);
+    g7 = mr.makeTrapezoid('y', 'Area', 1000, 'system', sys, 'maxSlew', sys.maxSlew/3); % derate the slew to avoid exceeding slew rate limits due to simultaneous slewing
+    g8 = mr.makeTrapezoid('y', 'Area', 700, 'system', sys, 'maxSlew', sys.maxSlew/3);
+    g9 = mr.makeTrapezoid('y', 'Area', 500, 'system', sys, 'maxSlew', sys.maxSlew/3);
+    ga = mr.makeTrapezoid('y', 'Area', 1000, 'system', sys, 'maxGrad', sys.maxGrad/3, 'maxSlew', sys.maxSlew/3); % derate both the max grad slew to avoid exceeding slew rate limits due to simultaneous slewing
+    gb = mr.makeTrapezoid('y', 'Area', 700, 'system', sys, 'maxGrad', sys.maxGrad/3, 'maxSlew', sys.maxSlew/3);
+    gc = mr.makeTrapezoid('y', 'Area', 500, 'system', sys, 'maxGrad', sys.maxGrad/3, 'maxSlew', sys.maxSlew/3);
+    testCase.verifyError(@() mr.addGradients({g1, g2, g3}),''); % must fail due to exceeding both amplitude and slew rate limits
+    testCase.verifyError(@() mr.addGradients({g4, g5, g6}),''); % must fail due to exceeding slew rate limits
+    testCase.verifyError(@() mr.addGradients({g7, g8, g9}),''); % must fail due to exceeding amplitude limits
+    gsum = mr.addGradients({ga, gb, gc});
+    testCase.verifyEqual(gsum.area, ga.area + gb.area + gc.area, 'AbsTol', 1);
 end
