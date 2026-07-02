@@ -15,20 +15,22 @@ function duration=calcDuration(varargin)
 %
 %     For multiple events the return value is the maximum of each event's
 %     duration (events in a block run concurrently, not sequentially).
-%     Unknown event types are silently ignored and contribute 0.
+%     Unknown event types are silently ignored and contribute 0 (this behaviour may 
+%     change in future).
 %
 %   INPUTS
 %     varargin  [required]  One or more arguments, each one of:
 %                             - event struct with a .type field set to one of
-%                               'delay', 'rf', 'grad', 'trap', 'adc', 'output',
-%                               'trigger'
+%                               'rf', 'grad', 'trap', 'adc', 'output', 'trigger'
+%                             - a cell array containing such structs or a single 
+%                               numeric scalar
 %                             - a block struct (i.e. has a .rf field; typically
 %                               obtained from mr.Sequence/getBlock). Only a single
 %                               block struct may be passed.
 %                             - a numeric scalar interpreted as a blockDuration
 %                               field (seconds). Used internally when block2events
 %                               expands a block struct; rarely passed directly by
-%                               user code.
+%                               user code, but possibly as a member of cell array.
 %
 %   OUTPUT
 %     duration  double, seconds. The maximum event duration encountered.
@@ -46,7 +48,6 @@ function duration=calcDuration(varargin)
 %
 %   NOTES
 %     - Per-event duration formulas (all in seconds):
-%         delay   : event.delay
 %         rf      : event.delay + event.shape_dur + event.ringdownTime
 %         grad    : event.delay + event.shape_dur (arbitrary gradient)
 %         trap    : event.delay + event.riseTime + event.flatTime + event.fallTime
@@ -60,7 +61,8 @@ function duration=calcDuration(varargin)
 %       captured at construction (adc.deadTime), not the pre-acquisition
 %       delay (which is already included via adc.delay).
 %     - Unknown .type values are silently skipped. A struct without a
-%       .type field whose value matches no case will not raise.
+%       .type field whose value matches no case will not raise. (This 
+%       behaviour may change in future)
 %
 %   EXAMPLE
 %     sys = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
@@ -95,8 +97,8 @@ for i=1:length(varargin)
             continue;
         end
         switch event.type
-            case 'delay'
-                duration=max(duration, event.delay);
+%            case 'delay' % deprecated since v140
+%                duration=max(duration, event.delay);
             case 'rf'
                 duration=max(duration, event.delay + event.shape_dur + event.ringdownTime);  % rf has now a field called 'shape_dur' because it is impossible to calculate duration here in a general case...
             case 'grad'
