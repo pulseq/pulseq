@@ -126,8 +126,8 @@ end
 %     rf.t = [rf.t rf.t(end)+tFill];
 %     rf.signal = [rf.signal, zeros(size(tFill))];
 % end
-if rf.ringdownTime > 0 && nargout > 3
-    delay=mr.makeDelay(mr.calcDuration(rf)+rf.ringdownTime);
+if nargout > 3
+    delay=mr.makeDelay(mr.calcDuration(rf)); % calcDuration already includes the ringdown time
 end
 
 % RF amplitude check
