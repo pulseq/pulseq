@@ -1288,9 +1288,9 @@ classdef Sequence < handle
                     end
                     data = obj.rfShimLibrary.data(rf_shim_ext(2,1)).array;
                     if addIDs
-                        block.rfShim=struct('type','rfShim','shimVector',data(1:2:end).*exp(1i*2*pi*data(2:2:end)),'id',rf_shim_ext(2,1));
+                        block.rfShim=struct('type','rfShim','shimVector',data(1:2:end).*exp(1i*data(2:2:end)),'id',rf_shim_ext(2,1));
                     else
-                        block.rfShim=struct('type','rfShim','shimVector',data(1:2:end).*exp(1i*2*pi*data(2:2:end)));
+                        block.rfShim=struct('type','rfShim','shimVector',data(1:2:end).*exp(1i*data(2:2:end)));
                     end
                 end
                 % unpack 3D rotations
