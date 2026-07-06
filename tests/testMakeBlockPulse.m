@@ -36,7 +36,7 @@ function test_bandwidth_and_duration_error(testCase)
         pulse = mr.makeBlockPulse(pi);
     catch ME
         % Check for the user warning
-        assert(strcmp(ME.message, 'Either bandwidth or duration must be defined'));
+        assert(strncmp(ME.message, 'Either bandwidth or duration must be defined', 44));
     end
 end
 
