@@ -57,10 +57,11 @@ function [grad, times, amplitudes] = makeHexagonGradientArea(channel, grad_start
         [times, amplitudes] = binary_search(@(d) find_solution(d, area, grad_start, grad_end, max_slew, max_grad, raster_time), ...
                                  floor(duration/2), duration);
     end
-    if any(diff(times) == 0)
-        times = [times(1), times(2), times(4)];
-        amplitudes = [amplitudes(1), amplitudes(2), amplitudes(4)];
-    end
+    % drop zero-length segments (their end points always carry equal
+    % amplitudes, otherwise the slew-rate check would have rejected them)
+    keep = [true, diff(times) > 0];
+    times = times(keep);
+    amplitudes = amplitudes(keep);
     grad=mr.makeExtendedTrapezoid(channel,'system',sys,'times',times, 'amplitudes', amplitudes);
     if abs(grad.area - area) >= 1e-3
         error('Could not find a solution for area=%.6f.', area);
@@ -93,6 +94,16 @@ function [times, amplitudes] = find_solution(duration, area, grad_start, grad_en
 % Find extended trapezoid gradient waveform for given duration
 
     sign_area = sign(area);
+    if sign_area == 0
+        % zero-area request (e.g. linking two trajectory segments without
+        % changing the k-space position): sign(0) would zero out the search
+        % direction and send the loops below into runaway iterations, so
+        % search on the side opposite to the edge gradients instead
+        sign_area = -sign(grad_start + grad_end);
+        if sign_area == 0
+            sign_area = 1;
+        end
+    end
     grad_amp = sign_area * max_grad;
     ramp_up_times = [];
     ramp_down_times = [];

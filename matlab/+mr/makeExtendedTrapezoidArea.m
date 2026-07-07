@@ -87,6 +87,16 @@ end
 
 function sol = find_solution(duration, area, grad_start, grad_end, max_slew, max_grad, raster_time)
     sign_area = sign(area);
+    if sign_area == 0
+        % zero-area request (e.g. linking two trajectory segments without
+        % changing the k-space position): sign(0) would zero out the search
+        % direction and produce Inf ranges in the flat=0 estimates below, so
+        % search on the side opposite to the edge gradients instead
+        sign_area = -sign(grad_start + grad_end);
+        if sign_area == 0
+            sign_area = 1;
+        end
+    end
     grad_amp = sign_area * max_grad;
 
     % Convert to raster steps

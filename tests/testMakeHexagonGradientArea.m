@@ -141,7 +141,7 @@ end
 function test_case_12_nearmax_small_area(tc)
     sys = defaultSys();
     g = sys.maxGrad * 0.8;
-    channel = 'y'; g_start = g; g_end = g; area = 500; %0 fails!
+    channel = 'y'; g_start = g; g_end = g; area = 500;
 
     [grad_trap, ~, ~] = mr.makeExtendedTrapezoidArea(channel, ...
         g_start, g_end, area, sys);
@@ -157,6 +157,39 @@ function test_case_12_nearmax_small_area(tc)
     % Log durations for information (hexagon may be longer here)
     fprintf('  near-max case: trap=%.6f s  hex=%.6f s\n', ...
         grad_trap.shape_dur, grad_hex.shape_dur);
+end
+
+%% Test: zero area, equal nonzero edges (link two trajectory segments)
+function test_case_13_zero_area_equal_edges(tc)
+    sys = defaultSys();
+    g = sys.maxGrad * 0.3;
+    run_case(tc, 'x', g, g, 0);
+end
+
+%% Test: zero area, antisymmetric edges (straight-ramp solution)
+function test_case_14_zero_area_antisym_edges(tc)
+    sys = defaultSys();
+    g = sys.maxGrad * 0.3;
+    run_case(tc, 'y', g, -g, 0);
+end
+
+%% Test: zero area, nonzero start, zero end
+function test_case_15_zero_area_onesided(tc)
+    sys = defaultSys();
+    run_case(tc, 'z', sys.maxGrad*0.3, 0, 0);
+end
+
+%% Test: zero area, unequal negative edges
+function test_case_16_zero_area_unequal_edges(tc)
+    sys = defaultSys();
+    run_case(tc, 'x', -sys.maxGrad*0.3, -sys.maxGrad*0.075, 0);
+end
+
+%% Test: zero area, near-max edges (regime of test_case_12)
+function test_case_17_zero_area_nearmax_edges(tc)
+    sys = defaultSys();
+    g = sys.maxGrad * 0.8;
+    run_case(tc, 'y', g, g, 0);
 end
 
 % =====================================================================
