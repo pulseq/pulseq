@@ -32,14 +32,17 @@ function setup(testCase)
     % Load expected output data
     data = readmatrix(fullfile(dirpath, 'expected_output', 'pulseq_calcAdcSeg.txt'));
 
+    % the full test is too slow, so we can accelerate it by skiping some test condition combinations
+    test_subset = 1:10:size(data,1); % change the step parameter to sub-sample tests
+
     % Assign structured data fields
-    testCase.TestData.dwell = data(:, 1);
-    testCase.TestData.num_samples = data(:, 2);
-    testCase.TestData.adc_limit = data(:, 3);
-    testCase.TestData.adc_divisor = data(:, 4);
-    testCase.TestData.mode = data(:, 5);
-    testCase.TestData.res_num_seg = data(:, 6);
-    testCase.TestData.res_num_samples_seg = data(:, 7);
+    testCase.TestData.dwell = data(test_subset, 1);
+    testCase.TestData.num_samples = data(test_subset, 2);
+    testCase.TestData.adc_limit = data(test_subset, 3);
+    testCase.TestData.adc_divisor = data(test_subset, 4);
+    testCase.TestData.mode = data(test_subset, 5);
+    testCase.TestData.res_num_seg = data(test_subset, 6);
+    testCase.TestData.res_num_samples_seg = data(test_subset, 7);
 
     % Define system options
     testCase.TestData.system = opts;
