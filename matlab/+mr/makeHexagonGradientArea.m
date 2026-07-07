@@ -15,6 +15,15 @@ function [grad, times, amplitudes] = makeHexagonGradientArea(channel, grad_start
         sys = default_opts(); % Define your default system
     end
 
+    % validate inputs the search below cannot handle (runaway loops or
+    % obscure downstream errors)
+    if abs(grad_start) > sys.maxGrad
+        error('grad_start amplitude violation (%.0f%%)', abs(grad_start)/sys.maxGrad*100);
+    end
+    if abs(grad_end) > sys.maxGrad
+        error('grad_end amplitude violation (%.0f%%)', abs(grad_end)/sys.maxGrad*100);
+    end
+    
     max_slew = sys.maxSlew * 0.99;
     max_grad = sys.maxGrad * 0.99;
     raster_time = sys.gradRasterTime;
