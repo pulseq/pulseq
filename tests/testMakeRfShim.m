@@ -58,3 +58,36 @@ function test_single_element(testCase)
     rfShim = mr.makeRfShim(1.5);
     testCase.verifyEqual(rfShim.shimVector, 1.5);
 end
+
+%% Test that addBlock/getBlock round trip preserves complex shim weights
+function test_addblock_getblock_roundtrip(testCase)
+    shimVec = [1; exp(1i*pi/2); 0.8*exp(-1i*2.5); 0.5];
+    seq = mr.Sequence();
+    rf = mr.makeBlockPulse(pi/2, 'Duration', 1e-3, 'use', 'excitation');
+    seq.addBlock(rf, mr.makeRfShim(shimVec));
+    b = seq.getBlock(1);
+    testCase.verifyTrue(isfield(b, 'rfShim'), ...
+        'getBlock did not return an rfShim field');
+    testCase.verifyEqual(b.rfShim.shimVector(:), shimVec, 'AbsTol', 1e-12, ...
+        'shimVector returned by getBlock does not match the original');
+end
+
+%% Test that write/read/getBlock round trip preserves complex shim weights
+function test_writeread_getblock_roundtrip(testCase)
+    shimVec = [1; exp(1i*pi/2); 0.8*exp(-1i*2.5); 0.5];
+    seq = mr.Sequence();
+    rf = mr.makeBlockPulse(pi/2, 'Duration', 1e-3, 'use', 'excitation');
+    seq.addBlock(rf, mr.makeRfShim(shimVec));
+    tempFile = fullfile(tempdir, 'test_rfshim_roundtrip.seq');
+    seq.write(tempFile);
+    seq2 = mr.Sequence();
+    seq2.read(tempFile);
+    b = seq2.getBlock(1);
+    testCase.verifyTrue(isfield(b, 'rfShim'), ...
+        'getBlock did not return an rfShim field after write/read');
+    testCase.verifyEqual(b.rfShim.shimVector(:), shimVec, 'AbsTol', 1e-5, ...
+        'shimVector after write/read/getBlock does not match the original');
+    if exist(tempFile, 'file')
+        delete(tempFile);
+    end
+end
