@@ -291,7 +291,8 @@ if isempty(opt.useLabels)
             if isfield(b,'gx') && ~isempty(b.gx) && strcmp(b.gx.type,'trap') && isfield(b,'adc') && ~isempty(b.adc)
                 aux.TrapezoidGriddingParameters=[b.gx.riseTime, b.gx.flatTime, b.gx.fallTime, b.adc.delay-b.gx.delay b.adc.numSamples*b.adc.dwell];
                 % TODO: figure out a better way to find TargetGriddedSamples... In Siemens sequences it is often adc.numsamples
-                aux.TargetGriddedSamples=b.adc.numSamples;
+                % we need kReadout to be able to do it, so we will patch this value below (in the trajectory analysis part)
+                aux.TargetGriddedSamples=b.adc.numSamples; 
             end
         end
         % TODO: figure out a better way to find TargetGriddedSamples... In Siemens sequences it is often adc.numsamples
@@ -365,6 +366,12 @@ if isempty(opt.useLabels)
     k_extent=max(abs(ktraj_adc-kspaceCenterPoint),[],2);
     k_scale=max(k_extent);
     k_threshold=abs(dkR/50);
+
+    % calculate/update gridding samples
+    if any(any(abs(diff(aux.kReadout,2,2))>1e-6)) % threshold?
+        % calculate samples based on the largest k-space step, so that we never add samples in between that we didn't measure
+        aux.TargetGriddedSamples=floor((max(aux.kReadout(1,:))-min(aux.kReadout(1,:)))/max(abs(diff(aux.kReadout(1,:)))))+1;
+    end
     
     % detect unused dimensions and delete them
     if any(k_extent<k_threshold)

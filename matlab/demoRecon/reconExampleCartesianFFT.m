@@ -11,7 +11,7 @@
 %% Load the latest file from the specified directory
 path='../../IceNIH_RawSend/'; % directory to be scanned for data files
 %path='/dev/shm/mr0mat/';
-%path='/dev/shm/koma_mat/';
+path='/dev/shm/koma_mat/';
 %path='/ad/O/Permanent/Holl/auto_lable/myRARE/meas_data_pulseq';
 
 pattern='*.seq';
@@ -74,10 +74,10 @@ fprintf('analyzing the k-space trajectory ...\n');
 %[labels, aux] = seq.autoLabel('skipApply',true,'reflect',[1,2,3]); % Siemens raw data require reflect on axes 1,2 and possibly 3 ??? for now there seems to be a contradiction between 2D-multislice and 3D sequences
 [labels, aux] = seq.autoLabel('skipApply',true,'sortSlices','ascending'); % Siemens raw data expect FFT (and not iFFT) for image recon, but we dont need to change indexes here because we already conjugated the data (TODO: verify with the field-mapping / multi-echo sequence in the same fat-water phantom)
 %% build kindex_mat from labels
-% the code below currently ignores FID / CSI even if it is Cartesian per se, but autoLabel() also doe not support it (TODO?)
+% the code below currently ignores FID / CSI even if it is Cartesian per se, but autoLabel() also does not support it (TODO?)
 lRO=size(aux.kReadout,2);
 % if we have bipolar readouts create readout counter mapping vectors
-if size(aux.kReadout,1)==1
+if size(aux.kReadout,1)==1 || isfield(aux,'TargetGriddedSamples')
     kindexRO=1:lRO;
 else
     dkROmean=mean([diff(aux.kReadout(1,:)), -diff(aux.kReadout(2,:))]);
@@ -107,7 +107,7 @@ lLBL=length(labels.LIN);
 kindex_mat=zeros(nDims,lRO*lLBL); 
 nDimInUse=nFFTs;
 
-if isfield(labels, 'REV')
+if isfield(labels, 'REV') && ~isfield(aux,'TargetGriddedSamples') % if we do regridding, no reflection is required because the actuak k-traj will be used
     if size(aux.kReadout,1)>1
         kindex_mat(1,:)=reshape(kindexRO(labels.REV+1,:)',[1 lRO*lLBL]);
     else
@@ -185,6 +185,27 @@ elseif (size(kindex_mat,1)==3)
 end
 data=reshape(data,[kindex_end',channels]);
 
+%% good place to do readout re-gridding (if it is needed)
+if isfield(aux,'TargetGriddedSamples') 
+    if isfield(labels, 'REV')
+        ridx=labels.REV;
+        ridx=ridx-min(ridx)+1; % in case all lines are labeled with REV
+    else
+        ridx=ones(1,lLBL);
+    end
+    data_gridded=zeros(aux.TargetGriddedSamples,lLBL,channels);
+    kmin=max(min(aux.kReadout'));
+    kmax=min(max(aux.kReadout'));
+    kxx=linspace(kmin,kmax,aux.TargetGriddedSamples);
+    for c=1:channels
+        for i=1:lLBL
+            data_gridded(:,i,c)=interp1(aux.kReadout(ridx(i),:),data(:,i,c),kxx,'spline',0);
+        end
+    end
+    data=data_gridded;
+end
+
+%% proceed with image recon
 ndimsData=numel(kindex_end)+1;
 if ndimsData<5
     if ndimsData==4
@@ -253,7 +274,8 @@ end
 
 %% reconstruct field map (optional, a wild hack for now, but one day we will include TE information and ECO counter)
 if size(images,3)>=2
-    cmplx_diff=images(:,:,:,2,:).*conj(images(:,:,:,1,:));
+    %cmplx_diff=images(:,:,:,2,:).*conj(images(:,:,:,1,:));
+    cmplx_diff=images(:,:,2).*conj(images(:,:,1));
     phase_diff_image=angle(sum(cmplx_diff,5));
     figure;
     imab(phase_diff_image);colormap('jet');
