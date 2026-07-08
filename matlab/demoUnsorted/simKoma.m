@@ -11,7 +11,8 @@ if isempty(parser)
      
     addParamValue(parser, 'workPath', '', @(x)isstring(x)||ischar(x)); % optional path to the temporary directory for files stored by the function
     addParamValue(parser, 'baseName', 'komasim', @(x)isstring(x)||ischar(x)); % optional file name for the sequence and simulation result files in the temporary directory
-    addParamValue(parser, 'noCleanUp', false, @(x)islogical(x)||isnumeric(x)); % leave sequence and simulated signal files in place
+    addParamValue(parser, 'noCleanUp', false, @(x)islogical(x)||isnumeric(x)); % leave sequence and simulated signal files in place    
+    addParamValue(parser, 'sphPhanRad', 0, @isnumeric); % if provided a homogeneous spherical phantom is used instead of the standard brain phantom
 end
 parse(parser, varargin{:});
 opt = parser.Results;
@@ -43,17 +44,34 @@ if exist(sigpath,'file')
     delete(sigpath);
 end
 
-helper={
+if opt.sphPhanRad>0
+    phantomHelper = {
+        'function sphere_phantom(; radius=60e-3, dx=1e-3, ρ=1.0, T1=1.0, T2=0.2, Δw=0.0)';
+        'xs = -radius:dx:radius';
+        'pts = [(x, y, z) for x in xs for y in xs for z in xs if x^2 + y^2 + z^2 <= radius^2]';
+        'n = length(pts)';
+        'return Phantom(x = getindex.(pts, 1),y = getindex.(pts, 2),z = getindex.(pts, 3),ρ = fill(ρ, n),T1 = fill(T1, n),T2 = fill(T2, n),Δw = fill(Δw, n),)';
+        'end';
+        ['obj = sphere_phantom(radius=' num2str(opt.sphPhanRad) ', dx=1e-3, ρ=1.0, T1=1.0, T2=0.1, Δw=0.0)']
+    }; 
+else
+    phantomHelper = {'obj = brain_phantom2D(; ss=1)'}; % us=2
+end
+
+helper1={
 'using KomaMRI'; 
 'using MAT';
 'sys = Scanner()';
-'obj = brain_phantom2D(; ss=1)'; % us=2
+};
+helper2={
 'sim_params = KomaMRICore.default_sim_params()';
 ['seq=read_seq("' strrep(seqpath,'\','\\') '")'];
 'sim_params["return_type"] = "mat"';
 'raw = conj(simulate(obj, seq, sys; sim_params)) # we need to conjugaate Koma.jl simulation data to make them reconstructable with FFT instead of iFFT';
+'#raw = simulate(obj, seq, sys; sim_params) # temporarily disable conjugation';
 ['matwrite("' strrep(sigpath,'\','\\') '", Dict("raw" => raw))'];
 };
+helper=[helper1; phantomHelper; helper2];
 
 % create the helper script
 fid=fopen([workPath filesep 'helper.jl'],'w');
