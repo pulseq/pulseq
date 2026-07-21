@@ -2,24 +2,24 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:xlink="http://www.w3.org/1999/xlink"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="148mm"
    height="105mm"
    viewBox="0 0 524.40944 372.04724"
    id="svg2"
    version="1.1"
-   inkscape:version="0.91 r13725"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
    sodipodi:docname="icon.svg"
    inkscape:export-filename="Z:/code/pulseq/logo_hires.png"
    inkscape:export-xdpi="236.75999"
-   inkscape:export-ydpi="236.75999">
+   inkscape:export-ydpi="236.75999"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <defs
      id="defs4">
     <linearGradient
@@ -60,9 +60,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.69999999"
-     inkscape:cx="266.49577"
-     inkscape:cy="310.14841"
+     inkscape:zoom="9.2099831"
+     inkscape:cx="264.9842"
+     inkscape:cy="192.07419"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -77,11 +77,12 @@
      inkscape:snap-bbox-edge-midpoints="true"
      inkscape:snap-global="true"
      showguides="false"
-     inkscape:window-width="720"
-     inkscape:window-height="688"
+     inkscape:window-width="1999"
+     inkscape:window-height="1370"
      inkscape:window-x="150"
      inkscape:window-y="150"
-     inkscape:window-maximized="0">
+     inkscape:window-maximized="0"
+     inkscape:pagecheckerboard="0">
     <inkscape:grid
        type="xygrid"
        id="grid3424" />
@@ -94,7 +95,6 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -108,12 +108,18 @@
        inkscape:connector-curvature="0"
        id="path4192"
        d="m 234.13032,860.26624 5,-10.0001 15,0 5,10.0001 4.99999,10 5,0 5.00001,-10 10,0"
-       style="fill:#79bba4;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+       style="fill:#79bba4;fill-opacity:1;fill-rule:evenodd;stroke:#4d4d4d;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       inkscape:export-filename="icon_400x400.png"
+       inkscape:export-xdpi="599.99817"
+       inkscape:export-ydpi="599.99817" />
     <path
        sodipodi:nodetypes="cccccccc"
        inkscape:connector-curvature="0"
        id="path4194"
        d="m 224.13032,875.26624 10,0 5,-10 15,0 5,10 4.99999,10.00001 5,0 5.00001,-10.00001"
-       style="fill:#ffa00f;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+       style="fill:#ffa00f;fill-opacity:1;fill-rule:evenodd;stroke:#4d4d4d;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       inkscape:export-filename="icon_400x400.png"
+       inkscape:export-xdpi="599.99817"
+       inkscape:export-ydpi="599.99817" />
   </g>
 </svg>
