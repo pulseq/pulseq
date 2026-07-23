@@ -1,6 +1,6 @@
 <div align="center">
 <a href="http://pulseq.github.io/" target="_blank">
-<img src="http://pulseq.github.io/logo_hires.png" width="250" alt="Pulseq logo"></img>
+<img src="doc/logo_hires.png" width="250" alt="Pulseq logo"></img>
 </a>
 </div>
 
