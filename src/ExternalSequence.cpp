@@ -2593,7 +2593,7 @@ void LabelStateAndBookkeeping::updateLabelValues(SeqBlock* pBlock)
                 m_currLabelValueStorage.flag.bValUsed[Tmp_labelset[id].flagVal.first]
                     = true; // only mark as used if non-zero
             m_currLabelValueStorage.flag.bValUpdated[Tmp_labelset[id].flagVal.first] = true;
-            if (Tmp_labelset[id].numVal.first <= LAST_ADC_RELEVANT_FLAG)
+            if (Tmp_labelset[id].flagVal.first <= LAST_ADC_RELEVANT_FLAG)
                 m_bAdcLabelsInUse = true;
             else
                 m_bNonAdcLabelsInUse = true;
