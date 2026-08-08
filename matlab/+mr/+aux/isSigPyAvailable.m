@@ -32,6 +32,9 @@ for c=1:length(test_commands)
             exe=mr.aux.strstrip(lines{l});
             if isempty(exe), continue; end
             % test for Python with sigPy
+            if startsWith(exe, '~/')
+                exe = fullfile(getenv('HOME'), exe(3:end)); % expand tilde to home directory
+            end
             cmd=sprintf('"%s"  -c "import sigpy" 2>%s',exe,null_out);
             [status, output] = system(cmd);
             if status ~= 0, continue; end
