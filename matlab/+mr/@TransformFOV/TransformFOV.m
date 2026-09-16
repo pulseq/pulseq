@@ -166,6 +166,7 @@ classdef TransformFOV < handle
                                         obj.labels(e(j).label)=e(j).value;
                                 end
                             end
+                            other{end+1} = e; % preserve labelset events in the output block
                         case 'rot3D'
                             rotExtQuaternion=e.rotQuaternion;
                         otherwise
