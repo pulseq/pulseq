@@ -259,7 +259,7 @@ classdef TransformFOV < handle
                 % TransformFOV object is configured not to use the rotation
                 % extension then we apply the rotation to the gradients now
                 if ~obj.use_rotation_extension && ~isempty(rotExtQuaternion)
-                    grads=mr.rotate3D(rotExtQuaternion,grads,'system',obj.sys);
+                    grads=mr.rotate3D(rotExtQuaternion,grads,'system',obj.system);
                     rotExtQuaternion=[]; % now that we have applied the current rotation, we can discard it
                 end
 
@@ -270,7 +270,7 @@ classdef TransformFOV < handle
                     grads_backup=grads;
                     % MZ: HA! we could rotate obj.translation (or it's copy) in the opposite direction instead
                     % MZ: and, we could use the same mechanism to handle the rotation extention
-                    grads=mr.rotate3D(obj.rotation',grads,'system',obj.sys); % MZ: I guess we have to rotate the gradients "back" because we are normally in local logical coordinates, which would be "rotated" if there were NOROT flag
+                    grads=mr.rotate3D(obj.rotation',grads,'system',obj.system); % MZ: I guess we have to rotate the gradients "back" because we are normally in local logical coordinates, which would be "rotated" if there were NOROT flag
                     % MZ: please check if the above point is correct
                 end
                 
