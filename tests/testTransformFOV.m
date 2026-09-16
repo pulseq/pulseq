@@ -87,6 +87,26 @@ function adc = extractAdc(events)
     end
 end
 
+% Helper: extract all label events from a cell-array output of applyToBlock
+% (a single cell may hold an array of label events)
+function labels = extractLabels(events)
+    labels = [];
+    for k = 1:length(events)
+        e = events{k};
+        if isstruct(e) && isfield(e,'type')
+            for j = 1:numel(e)
+                if any(strcmp(e(j).type, {'labelset','labelinc'}))
+                    if isempty(labels)
+                        labels = e(j);
+                    else
+                        labels(end+1) = e(j); %#ok<AGROW>
+                    end
+                end
+            end
+        end
+    end
+end
+
 % Helper: get gradient area (works for both trap and grad types)
 function a = gradArea(g)
     if isempty(g)
@@ -755,4 +775,23 @@ function test_translation_rf_only_block(testCase)
     rf2 = extractRf(out);
     % Without gradients there is nothing to produce a frequency offset
     testCase.verifyEqual(rf2.freqOffset, rf.freqOffset, 'AbsTol', 1e-6);
+end
+
+% =====================================================================
+%  13. Labels
+% =====================================================================
+
+%% Test: a block carrying a single label keeps it
+function test_labels_single_label_preserved(testCase)
+    sys = defaultSys();
+    gx = mr.makeTrapezoid('x', sys, 'Area', 1000, 'Duration', 2e-3);
+    T = mr.TransformFOV('rotation', Rz(pi/2), 'system', sys);
+
+    out = T.applyToBlock(gx, mr.makeLabel('SET','REV',1));
+
+    labels = extractLabels(out);
+    testCase.verifyEqual(numel(labels), 1, 'The label event must be preserved');
+    testCase.verifyEqual(labels(1).type, 'labelset');
+    testCase.verifyEqual(labels(1).label, 'REV');
+    testCase.verifyEqual(labels(1).value, 1);
 end
