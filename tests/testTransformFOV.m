@@ -87,24 +87,22 @@ function adc = extractAdc(events)
     end
 end
 
-% Helper: extract all label events from a cell-array output of applyToBlock
-% (a single cell may hold an array of label events)
-function labels = extractLabels(events)
-    labels = [];
+% Helper: sorted signatures of all label events found in a cell array of
+% events (a single cell may hold an array of label events). 
+function signatures = genLabelSignatures(events)
+    signatures = {};
     for k = 1:length(events)
         e = events{k};
         if isstruct(e) && isfield(e,'type')
             for j = 1:numel(e)
                 if any(strcmp(e(j).type, {'labelset','labelinc'}))
-                    if isempty(labels)
-                        labels = e(j);
-                    else
-                        labels(end+1) = e(j); %#ok<AGROW>
-                    end
+                    signatures{end+1} = sprintf('%s:%s:%.17g', ...
+                        e(j).type, e(j).label, e(j).value); %#ok<AGROW>
                 end
             end
         end
     end
+    signatures = sort(signatures);
 end
 
 % Helper: get gradient area (works for both trap and grad types)
@@ -787,11 +785,27 @@ function test_labels_single_label_preserved(testCase)
     gx = mr.makeTrapezoid('x', sys, 'Area', 1000, 'Duration', 2e-3);
     T = mr.TransformFOV('rotation', Rz(pi/2), 'system', sys);
 
-    out = T.applyToBlock(gx, mr.makeLabel('SET','REV',1));
+    labels = {mr.makeLabel('SET','REV',1)};
 
-    labels = extractLabels(out);
-    testCase.verifyEqual(numel(labels), 1, 'The label event must be preserved');
-    testCase.verifyEqual(labels(1).type, 'labelset');
-    testCase.verifyEqual(labels(1).label, 'REV');
-    testCase.verifyEqual(labels(1).value, 1);
+    out = T.applyToBlock(gx, labels{:});
+
+    testCase.verifyEqual(genLabelSignatures(out), genLabelSignatures(labels), ...
+        'The label event must be preserved');
+end
+
+%% Test: a block carrying several labels keeps all of them
+function test_labels_multiple_labels_preserved(testCase)
+    sys = defaultSys();
+    gx = mr.makeTrapezoid('x', sys, 'Area', 1000, 'Duration', 2e-3);
+    cases = { ...
+        {mr.makeLabel('SET','REV',1), mr.makeLabel('SET','SEG',7)}, ...   % SET + SET
+        {mr.makeLabel('SET','REV',1), mr.makeLabel('INC','LIN',-1)}};     % SET + INC
+    for k = 1:numel(cases)
+        T = mr.TransformFOV('rotation', Rz(pi/2), 'system', sys);
+
+        out = T.applyToBlock(gx, cases{k}{:});
+
+        testCase.verifyEqual(genLabelSignatures(out), genLabelSignatures(cases{k}), ...
+            sprintf('Case %d: all label events must be preserved', k));
+    end
 end
