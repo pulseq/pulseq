@@ -71,7 +71,11 @@ if strcmp(data_file_path(end-3:end),'.dat')
     rawdata = permute(data_unsorted, [1,3,2]);
 else
     [~,i]=find(diff(diff(t_adc))>1e-9,1,'first');
-    adc_len=i+1;
+    if isempty(i)
+        adc_len=length(t_adc);
+    else
+        adc_len=i+1;
+    end
     readouts=size(data_unsorted,1)/adc_len;
 
     rawdata = reshape(data_unsorted, [adc_len, readouts, channels]);
@@ -91,6 +95,8 @@ t_e=t_adc-t_relevant_excitation(ones(1,adc_len),:);
 %% plot raw data
 figure; plot(t_e, abs(rawdata(:,:,1))); title('raw FID(s)');
 hold on; 
+plot(t_e, real(rawdata(:,:,1))); 
+plot(t_e, imag(rawdata(:,:,1))); 
 if channels>1
     for j=2:channels
         plot(t_e, abs(rawdata(:,:,j)));
@@ -98,6 +104,9 @@ if channels>1
 end
 plot(t_e(1),0); % trick to force Y axis scaling
 xlabel('time since excitation /s');
+
+%% plot raw data phase
+figure; plot(t_e, angle(rawdata(:,:,1))); title('raw FID phase for channel 1');
 
 if (readouts>1)
     figure; plot(abs(rawdata(4,:,1))); title('time evolution (4th FID point)');
@@ -124,17 +133,22 @@ end
 
 data_fft=fftshift(fft(fftshift(rawdata,1)),1);
 
-if iscell(twix_obj)
-    measurementFrequency = twix_obj{end}.hdr.Meas.lFrequency;
-else
-    measurementFrequency = twix_obj.hdr.Meas.lFrequency;
+if exist('twix_obj','var')
+    if iscell(twix_obj)
+        measurementFrequency = twix_obj{end}.hdr.Meas.lFrequency;
+    else
+        measurementFrequency = twix_obj.hdr.Meas.lFrequency;
+    end
 end
-if isempty(measurementFrequency)
+if ~exist('measurementFrequency','var') || isempty(measurementFrequency)
     measurementFrequency=123206046;
 end
 
+%%
 w_axis=(-adc_len/2:(adc_len/2-1))/((t_adc(end,1,1)-t_adc(1,1,1))/(adc_len-1)*adc_len)/measurementFrequency*1e6';
-figure; 
+f=figure;
+%f.Position(3:4)=[480 420];
 plot(w_axis, abs(data_fft(:,:,iCh))); title('abs spectr(um/a)');
 xlim([-10 10]); xlabel('frequency /ppm');
 set(gca,'Xdir','reverse')
+%saveas(f,'spec_k2_FFT.png');
