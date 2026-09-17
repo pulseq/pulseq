@@ -139,6 +139,19 @@ classdef TransformFOV < handle
             rotExtQuaternion = [];
             for i = 1:length(block_events)
                 e=block_events{i};
+                if isstruct(e) && ~isempty(e) && isfield(e, 'type') && ...
+                        all(ismember({e.type},{'labelset','labelinc'}))
+                    for j=1:numel(e)
+                        if strcmp(e(j).type,'labelset')
+                            switch e(j).label % this switch has only one case on purpose, it is just a lazy way of checking that we deal with a relevant label setting
+                                case {'NOPOS','NOROT','NOSCL'}
+                                    obj.labels.(e(j).label)=e(j).value;
+                            end
+                        end
+                    end
+                    other{end+1}=e;
+                    continue
+                end
                 if length(e)==1 && isstruct(e) && isfield(e, 'type')
                     switch e.type
                         case 'rf'
