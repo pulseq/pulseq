@@ -51,11 +51,13 @@ function sys = defaultSys()
 end
 
 % Helper: extract gradient events from a cell-array output of applyToBlock
+% A cell can hold an array of events (e.g. all labels of a block), so check
+% for a single event before reading its 'type' field.
 function [gx, gy, gz] = extractGrads(events)
     gx = []; gy = []; gz = [];
     for k = 1:length(events)
         e = events{k};
-        if isstruct(e) && isfield(e,'type') && (strcmp(e.type,'trap') || strcmp(e.type,'grad'))
+        if isstruct(e) && isscalar(e) && isfield(e,'type') && (strcmp(e.type,'trap') || strcmp(e.type,'grad'))
             switch e.channel
                 case 'x', gx = e;
                 case 'y', gy = e;
@@ -807,5 +809,46 @@ function test_labels_multiple_labels_preserved(testCase)
 
         testCase.verifyEqual(genLabelSignatures(out), genLabelSignatures(cases{k}), ...
             sprintf('Case %d: all label events must be preserved', k));
+    end
+end
+
+%% Test: NOROT is applied and stays in effect until cleared
+% NOROT must switch the rotation off for the block that sets it, stay off in
+% the next blocks, and switch back on when set to 0.
+% The labels arrive in two ways: as separate arguments, or as one struct
+% array, which is how seq.getBlock() delivers them. Both are tested.
+function test_labels_norot_takes_effect(testCase)
+    sys = defaultSys();
+    gx = mr.makeTrapezoid('x', sys, 'Area', 1000, 'Duration', 2e-3);
+    blockLabels = { ...
+        {mr.makeLabel('SET','NOROT',1), mr.makeLabel('SET','SEG',7)}, ...  % NOROT set
+        {}, ...                                                            % flag persists
+        {mr.makeLabel('SET','NOROT',0), mr.makeLabel('INC','LIN',1)}, ...  % NOROT cleared
+        {}};                                                               % stays cleared
+    isRotated = [false false true true];
+
+    for packed = [false true]
+        T = mr.TransformFOV('rotation', Rz(pi/2), 'system', sys);
+        for k = 1:numel(blockLabels)
+            labels = blockLabels{k};
+            if packed && ~isempty(labels)
+                labels = {[labels{:}]}; % one struct array instead of separate events
+            end
+
+            out = T.applyToBlock(gx, labels{:});
+
+            [gx2, gy2, ~] = extractGrads(out);
+            if isRotated(k)
+                testCase.verifyEqual(gradArea(gx2), 0, 'AbsTol', 1, ...
+                    sprintf('Block %d (packed=%d): Gx should vanish after the 90 deg z-rotation', k, packed));
+                testCase.verifyEqual(gradArea(gy2), gx.area, 'AbsTol', 1, ...
+                    sprintf('Block %d (packed=%d): Gy should carry the area', k, packed));
+            else
+                testCase.verifyEqual(gradArea(gx2), gx.area, 'AbsTol', 1, ...
+                    sprintf('Block %d (packed=%d): NOROT, the gradient must stay on x', k, packed));
+                testCase.verifyEqual(gradArea(gy2), 0, 'AbsTol', 1, ...
+                    sprintf('Block %d (packed=%d): NOROT, nothing should appear on y', k, packed));
+            end
+        end
     end
 end
