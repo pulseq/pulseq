@@ -91,6 +91,7 @@ struct RFEvent
 	int magShape;        /**< @brief ID of shape for magnitude */
 	int phaseShape;      /**< @brief ID of shape for phase */
 	int timeShape;       /**< @brief ID of shape for time sampling points */
+    float shape_dur;     /**< @brief Duration of the RF shape (us) */
 	float center;        /**< @brief Effective RF center of the pulse shape measured from the start of the shape (us) */
     float freqPPM;       /**< @brief B0-dependent frequency offset of transmitter (ppm) */
     float phasePPM;      /**< @brief B0-dependent phase offset of transmitter (rad/MHz) */
@@ -135,14 +136,14 @@ struct GradEvent
  */
 struct ADCEvent
 {
-	int numSamples;           /**< @brief Number of samples */
-	int dwellTime;            /**< @brief Dwell time of ADC readout (ns) */
-	int delay;                /**< @brief Delay before first sample (us) */
-    float freqPPM;            /**< @brief B0-dependent frequency offset of receiver (ppm) */
-    float phasePPM;           /**< @brief B0-dependent phase offset of receiver (rad/MHz) */
-    float freqOffset;         /**< @brief Constant frequency offset of receiver (Hz) */
-	float phaseOffset;        /**< @brief Phase offset of receiver (rad) */
-	int phaseModulationShape; /**< @brief Phase modulation shape of receiver (rad) */
+	int numSamples;             /**< @brief Number of samples */
+	int dwellTime;              /**< @brief Dwell time of ADC readout (ns) */
+	int delay;                  /**< @brief Delay before first sample (us) */
+    float freqPPM;              /**< @brief B0-dependent frequency offset of receiver (ppm) */
+    float phasePPM;             /**< @brief B0-dependent phase offset of receiver (rad/MHz) */
+    float freqOffset;           /**< @brief Constant frequency offset of receiver (Hz) */
+	float phaseOffset;          /**< @brief Phase offset of receiver (rad) */
+	int phaseModulationShapeID; /**< @brief Phase modulation shape of receiver (rad) */
 };
 
 /**
@@ -641,6 +642,7 @@ public:
     void gradMomentsAt(double dTimeInBlock, std::vector<double>& vResult);
     void totalBlockGradMoments(std::vector<double>& vResult);
     bool areAllGradientsConstantInRange(double dStartTimeInBlock, double dEndInBlock);
+	void computeLocalPhaseAndFrequencyOffsets(const std::vector<double>& positionOffset_mm, const std::vector<double>& gradientScaling, double timeInBlockStart_us, double timeInBlockEnd_us, double timeInBlockToSample_us, double& dFreqAdd_Hz, double& dPhaseAdd_Cycles);
 
 protected:
 	// internal helper functions, should not be called directly
@@ -1028,10 +1030,102 @@ class ExternalSequence
 
 	bool usesRfShimExtension();
     bool getRfShimEventByID(int id, RfShimmingEvent& rfse); 
-	
+
+	/**
+	 * @brief Modulate RF phase according to a constant FOV position offset. Onlu blocks that contain RF pulses plaid out during non-constant gradients are updated
+	 *
+	 * Iterates through every block in the currently loaded sequence. For each block
+	 * containing an RF pulse the function checks whether the gradients vary during
+	 * the RF interval, optionally resamples the RF to 1-μs dwell, applies a
+	 * position-dependent phase modulation based on gradient moments, inserts the
+	 * updated shapes / RF event into the corresponding libraries when no identical
+	 * entry exists yet, updates the RF event ID in the block table, and returns the
+	 * number of modified blocks.
+	 *
+	 * @param positionOffsetPulseqFrame_mm Position offset vector in millimetres,
+	 *        defined in the Pulseq logical coordinate frame  (x, y, z)
+	 * @return Number of modified blocks, or -1 on invalid input or error.
+	 */
+    int applyRfPhaseModulation(const std::vector<double>& positionOffsetPulseqFrame_mm, const std::vector<double>& gradientScaling);
+
+	/**
+     * @brief Update phase modulation in all blocks according to a constant FOV position offset. Only blocks that contain ADC objects plaid out during non-constant gradients are updated
+     *
+     * Iterates through every block in the currently loaded sequence. For each block
+     * containing an ADC object the function checks whether the gradients vary during
+     * the ADC-on interval,  and applies a position-dependent phase modulation based 
+	 * on gradient moments, inserts the updated shapes and ADC events into the 
+	 * corresponding libraries when no identicalentry exists yet, updates the ADC event 
+	 * ID in the block table, and returns the number of modified blocks.
+     *
+     * @param positionOffsetPulseqFrame_mm Position offset vector in millimetres,
+	 *        defined in the Pulseq logical coordinate frame  (x, y, z)
+	 * @return Number of modified blocks, or -1 on invalid input or error.
+     */
+    int updateAdcPhaseModulation(const std::vector<double>& positionOffsetPulseqFrame_mm, const std::vector<double>& gradientScaling);
+
+	std::map<int, ADCEvent>::iterator GetAdcLibraryIteratorBegin() { return m_adcLibrary.begin(); }
+    std::map<int, ADCEvent>::iterator GetAdcLibraryIteratorEnd() { return m_adcLibrary.end(); }
+
+	/**
+     * @brief fill in the decompressed shape samples into the provided vector
+     *
+     * Fails if shapeID is unknown, or the size of the provided vector doesn't match
+	 * the decompressed size. If the vector is empty it is automatically allocated to 
+	 * the correct size.
+     * @return true or false.
+     */
+    bool getDecompressedShapeForID(int nShapeID, std::vector<float>& vecShape);
+		
   private:
 
-	static const int MAX_LINE_SIZE;	/**< @brief Maximum length of line */
+	/**
+	 * @brief Find or insert a shape into the library, with deduplication.
+	 *
+	 * Searches the shape library for an existing entry matching the given
+	 * samples. If found, returns its ID. If not found, creates a new
+	 * uncompressed shape entry and returns the new ID.
+	 *
+	 * @param samples    Normalised [0,1) sample values
+	 * @param keyToId    Local deduplication map (stringified samples -> ID)
+	 * @param nextId     Next available shape ID counter; incremented if new entry created
+	 * @return ID of existing or newly inserted shape
+	 */
+	int findOrInsertShape(const std::vector<float>& samples, 
+	                      std::map<std::string, int>& keyToId, 
+	                      int& nextId);
+
+	/**
+	 * @brief Find or insert an RF event into the library, with deduplication.
+	 *
+	 * Searches the RF library for an existing entry matching all fields of
+	 * the given RF event. If found, returns its ID. If not found, creates a
+	 * new RF event entry and returns the new ID.
+	 *
+	 * @param rfEvent  RF event to find or insert
+	 * @param keyToId  Local deduplication map (stringified RF event -> ID)
+	 * @param nextId   Next available RF ID counter; incremented if new entry created
+	 * @return ID of existing or newly inserted RF event
+	 */
+	int findOrInsertRfEvent(const RFEvent& rfEvent, 
+	                        std::map<std::string, int>& keyToId, 
+	                        int& nextId);
+
+	/**
+     * @brief Find or insert an ADC event into the library, with deduplication.
+     *
+     * Searches the ADC library for an existing entry matching all fields of
+     * the given ADC event. If found, returns its ID. If not found, creates a
+     * new ADC event entry and returns the new ID.
+     *
+     * @param adcEvent ADC event to find or insert
+     * @param keyToId  Local deduplication map (stringified ADC event -> ID)
+     * @param nextId   Next available ADC ID counter; incremented if new entry created
+     * @return ID of existing or newly inserted ADC event
+     */
+    int               findOrInsertAdcEvent(const ADCEvent& adcEvent, std::map<std::string, int>& keyToId, int& nextId);
+
+	static const int  MAX_LINE_SIZE; /**< @brief Maximum length of line */
 	static const char COMMENT_CHAR;	/**< @brief Character defining the start of a comment line */
 
 	// *** Private helper functions ***

@@ -5,7 +5,7 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>C:\ProgramData\Siemens\Numaris\MriCustomer\CustomerSeq\pulseq\spiral.seq -g -m</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>C:\ProgramData\Siemens\Numaris\MriCustomer\CustomerSeq\pulseq\rgre-iso.seq -f20,30,0</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>

@@ -433,6 +433,7 @@ bool ExternalSequence::loadBinary(std::istream& data_stream)
 					ev.freqOffset  = static_cast<float>(foff);
 					ev.phaseOffset = static_cast<float>(poff);
 					ev.use         = use;
+                    ev.shape_dur   = 0; // preliminary, computed in decodeBlock 
 					m_rfLibrary[id] = ev;
 				}
 				break;
@@ -519,7 +520,7 @@ bool ExternalSequence::loadBinary(std::istream& data_stream)
 					ev.phasePPM = static_cast<float>(ppp);
 					ev.freqOffset = static_cast<float>(foff);
 					ev.phaseOffset = static_cast<float>(poff);
-					ev.phaseModulationShape = static_cast<int>(phase_id);
+					ev.phaseModulationShapeID = static_cast<int>(phase_id);
 					m_adcLibrary[id] = ev;
 				}
 				break;
@@ -1046,6 +1047,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 						return false;
 					}
 				}
+                event.shape_dur   = 0; // preliminary, computed in decodeBlock
 				m_rfLibrary[rfId] = event;
                 ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "m_rfLibrary["<<rfId<<"].use="<<event.use);
 			}
@@ -1144,7 +1146,7 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 				{
 					// v1.5.0
 					if (9!=sscanf(buffer, "%d%d%d%d%f%f%f%f%d", &adcId, &(event.numSamples),
-								&(event.dwellTime),&(event.delay),&(event.freqPPM),&(event.phasePPM),&(event.freqOffset),&(event.phaseOffset),&(event.phaseModulationShape))) {
+								&(event.dwellTime),&(event.delay),&(event.freqPPM),&(event.phasePPM),&(event.freqOffset),&(event.phaseOffset),&(event.phaseModulationShapeID))) {
 						print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: failed to decode ADC event\n" << buffer << std::endl );
 						return false;
 					}
@@ -1159,8 +1161,9 @@ bool ExternalSequence::load(std::istream& data_stream, load_mode loadMode /*=lm_
 					}
                     event.freqPPM=0.0; // no ppmOffset in older formats
                     event.phasePPM= 0.0; 
-					event.phaseModulationShape=0; // no phase modulation shape provided 
+					event.phaseModulationShapeID=0; // no phase modulation shape provided 
 				}
+                //print_msg(NORMAL_MSG, std::ostringstream().flush() << "ADCevent.phaseModulationShapeID=" << event.phaseModulationShapeID <<" while loading");
 				
 				m_adcLibrary[adcId] = event;
 			}
@@ -2055,6 +2058,9 @@ bool ExternalSequence::decodeBlock(SeqBlock *block)
 				// compatibility mode with the older pulseq versions
 				fDwellTime_us=1.0; // old Pulseq's predefined RF raster time
 		}
+		// 
+		// shape_dur for this RF pulse
+        block->rf.shape_dur = fDwellTime_us * (float) waveform.size();
 		//
 		block->rfAmplitude = std::vector<float>(waveform);
 		block->rfPhase = std::vector<float>(waveform_p);
@@ -2483,7 +2489,630 @@ bool ExternalSequence::isAllGradientsInBlockStartAtZero(SeqBlock *block) {
 	return true;
 }
 
+int ExternalSequence::findOrInsertShape(const std::vector<float>& samples,
+                                        std::map<std::string, int>& keyToId,
+                                        int& nextId)
+{
+	// Build string key from samples
+	std::ostringstream oss;
+	oss << std::setprecision(6);
+	for (size_t k = 0; k < samples.size(); ++k)
+		oss << samples[k] << ' ';
+	const std::string key = oss.str();
+
+	// Check local deduplication map
+	std::map<std::string,int>::iterator it = keyToId.find(key);
+	if (it != keyToId.end())
+		return it->second;
+
+	// Search the shape library for a matching existing shape
+	int nSamples = (int)samples.size();
+	for (std::map<int,CompressedShape>::iterator itShape = m_shapeLibrary.begin();
+	     itShape != m_shapeLibrary.end(); ++itShape)
+	{
+		CompressedShape& shape = itShape->second;
+		if (shape.numUncompressedSamples != nSamples)
+			continue;
+
+		// Decompress if needed for comparison
+		std::vector<float> unpacked;
+		const std::vector<float>* pCmp = NULL;
+		if (shape.isCompressed)
+		{
+			unpacked.resize(shape.numUncompressedSamples);
+			if (!decompressShape(shape, &unpacked[0]))
+				continue;
+			pCmp = &unpacked;
+		}
+		else
+		{
+			pCmp = &shape.samples;
+		}
+
+		if ((int)pCmp->size() != nSamples)
+			continue;
+
+		// Compare samples
+		bool bEqual = true;
+		for (int k = 0; k < nSamples; ++k)
+			if (fabs((*pCmp)[k] - samples[k]) > 1e-6)
+			{
+				bEqual = false;
+				break;
+			}
+
+		if (bEqual)
+		{
+			keyToId[key] = itShape->first;
+			return itShape->first;
+		}
+	}
+
+	// No match found, create new shape
+	int newId = nextId++;
+	CompressedShape cs;
+	cs.numUncompressedSamples = nSamples;
+	cs.isCompressed           = false;
+	cs.samples                = samples;
+	m_shapeLibrary[newId]     = cs;
+	keyToId[key]              = newId;
+	return newId;
+}
+
+int ExternalSequence::findOrInsertRfEvent(const RFEvent& rfEvent,
+                                          std::map<std::string, int>& keyToId,
+                                          int& nextId)
+{
+	// Build string key from all RF event fields
+	std::ostringstream oss;
+	oss << std::setprecision(9)
+		<< rfEvent.amplitude   << ' '
+		<< rfEvent.magShape    << ' '
+		<< rfEvent.phaseShape  << ' '
+		<< rfEvent.timeShape   << ' '
+		<< rfEvent.delay       << ' '
+		<< rfEvent.freqOffset  << ' '
+		<< rfEvent.phaseOffset << ' '
+		<< rfEvent.freqPPM     << ' '
+		<< rfEvent.phasePPM;
+	const std::string key = oss.str();
+
+	// Check local deduplication map
+	std::map<std::string,int>::iterator it = keyToId.find(key);
+	if (it != keyToId.end())
+		return it->second;
+
+	// Search the RF library for a matching existing event
+	for (std::map<int,RFEvent>::iterator itRf = m_rfLibrary.begin();
+	     itRf != m_rfLibrary.end(); ++itRf)
+	{
+		RFEvent& rfCmp = itRf->second;
+		if (fabs(rfCmp.amplitude   - rfEvent.amplitude)   > 1e-6f) continue; // is this a reasonable threshold?
+		if (rfCmp.magShape    != rfEvent.magShape)    continue;
+		if (rfCmp.phaseShape  != rfEvent.phaseShape)  continue;
+		if (rfCmp.timeShape   != rfEvent.timeShape)   continue;
+		if (fabs(rfCmp.center      - rfEvent.center)      > 1e-6f) continue; // is this a reasonable threshold?
+		if (fabs(rfCmp.freqPPM     - rfEvent.freqPPM)     > 1e-6f) continue; // is this a reasonable threshold?
+		if (fabs(rfCmp.phasePPM    - rfEvent.phasePPM)    > 1e-6f) continue; // is this a reasonable threshold?
+		if (fabs(rfCmp.freqOffset  - rfEvent.freqOffset)  > 1e-6f) continue; // is this a reasonable threshold?
+		if (fabs(rfCmp.phaseOffset - rfEvent.phaseOffset) > 1e-6f) continue; // is this a reasonable threshold?
+        if (fabs(rfCmp.delay       - rfEvent.delay)       > 1e-6f) continue; // is this a reasonable threshold?
+		if (rfCmp.use         != rfEvent.use)         continue;
+
+		keyToId[key] = itRf->first;
+		return itRf->first;
+	}
+
+	// No match found, create new RF event
+	int newId = nextId++;
+	m_rfLibrary[newId] = rfEvent;
+	keyToId[key]       = newId;
+	return newId;
+}
+
+int ExternalSequence::findOrInsertAdcEvent(const ADCEvent& adcEvent, std::map<std::string, int>& keyToId, int& nextId)
+{
+    // Build string key from all RF event fields
+    std::ostringstream oss;
+    oss << std::setprecision(9) 
+		<< adcEvent.numSamples << ' ' 
+		<< adcEvent.dwellTime << ' ' 
+		<< adcEvent.delay << ' '
+        << adcEvent.freqPPM << ' ' 
+		<< adcEvent.phasePPM << ' ' 
+		<< adcEvent.freqOffset << ' ' 
+		<< adcEvent.phaseOffset << ' '
+        << adcEvent.phaseModulationShapeID;
+    const std::string key = oss.str();
+
+    // Check local deduplication map
+    std::map<std::string, int>::iterator it = keyToId.find(key);
+    if (it != keyToId.end())
+        return it->second;
+
+    // Search the ADC library for a matching existing event
+    for (std::map<int, ADCEvent>::iterator itADC = m_adcLibrary.begin(); itADC != m_adcLibrary.end(); ++itADC)
+    {
+        ADCEvent& adcCmp = itADC->second;
+		if (adcCmp.numSamples              != adcEvent.numSamples)             continue;
+		if (adcCmp.phaseModulationShapeID  != adcEvent.phaseModulationShapeID) continue;
+		if (fabs(adcCmp.dwellTime   - adcEvent.dwellTime)   > 1e-6f) continue; // is this a reasonable threshold?
+		if (fabs(adcCmp.freqPPM     - adcEvent.freqPPM)     > 1e-6f) continue; // is this a reasonable threshold?
+		if (fabs(adcCmp.phasePPM    - adcEvent.phasePPM)    > 1e-6f) continue; // is this a reasonable threshold?
+		if (fabs(adcCmp.freqOffset  - adcEvent.freqOffset)  > 1e-6f) continue; // is this a reasonable threshold?
+		if (fabs(adcCmp.phaseOffset - adcEvent.phaseOffset) > 1e-6f) continue; // is this a reasonable threshold?
+        if (fabs(adcCmp.delay       - adcEvent.delay)       > 1e-6f) continue; // is this a reasonable threshold?
+
+        keyToId[key] = itADC->first;
+        return itADC->first;
+    }
+
+    // No match found, create new ADC event
+    int newId           = nextId++;
+    m_adcLibrary[newId] = adcEvent;
+    keyToId[key]        = newId;
+    return newId;
+}
+
+// Helper function: cross product of two 3D vectors stored in C arrays
+void vec3_cross(double* out, const double* a, const double* b)
+{
+    out[0] = a[1] * b[2] - a[2] * b[1];
+    out[1] = a[2] * b[0] - a[0] * b[2];
+    out[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+// Helper function: rotate vector v by quaternion q, all stored in C arrays
+void rotate_vec3_by_quat(
+    double* out, const double* q, const double* v, double c = 1.0) /* c is a conjugation flag, must be +- 1.0 */
+{
+    // t = 2 * cross(q.xyz, v) * q.w
+    double t[3];
+    vec3_cross(t, q + 1, v);
+    t[0] *= 2;
+    t[1] *= 2;
+    t[2] *= 2;
+
+    // t2 = cross(q.xyz, t) -- store directly in out
+    vec3_cross(out, q + 1, t);
+
+    // v' = v + q.w * t + t2
+    c *= q[0];
+    out[0] += v[0] + c * t[0];
+    out[1] += v[1] + c * t[1];
+    out[2] += v[2] + c * t[2];
+}
+
+int ExternalSequence::applyRfPhaseModulation(const std::vector<double>& positionOffsetPulseqFrame_mm, const std::vector<double>& gradientScaling)
+{
+	// ------------------------------------------------------------------
+	// Validate input
+	// ------------------------------------------------------------------
+    if ( (int)positionOffsetPulseqFrame_mm.size() != NUM_GRADS || 
+		 (int)gradientScaling.size()              != NUM_GRADS )
+	{
+		print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: applyRfPhaseModulation() requires "
+			<< NUM_GRADS << " elements in positionOffsetPulseqFrame_mm");
+		return -1;
+	}
+
+	// Early-exit when offset is effectively zero
+	bool bNonZeroOffset = false;
+	for (int i = 0; i < NUM_GRADS; ++i)
+		if (fabs(positionOffsetPulseqFrame_mm[i]) > 1e-12) { bNonZeroOffset = true; break; }
+	if (!bNonZeroOffset)
+		return 0;
+
+	//print_msg(NORMAL_MSG, std::ostringstream().flush() << "applyRfPhaseModulation() is using position vector (" << positionOffsetPulseqFrame_mm[0] << "," << positionOffsetPulseqFrame_mm[1] << "," << positionOffsetPulseqFrame_mm[2] << ")mm");
+	
+	// ------------------------------------------------------------------
+	// Track the next available IDs for new library entries.
+	// std::map is ordered, so rbegin() gives the largest existing key.
+	// ------------------------------------------------------------------
+	int nextShapeId = m_shapeLibrary.empty() ? 1 : m_shapeLibrary.rbegin()->first + 1;
+	int nextRfId    = m_rfLibrary.empty()    ? 1 : m_rfLibrary.rbegin()->first    + 1;
+
+	// Deduplication maps: stringified content -> library ID
+	std::map<std::string, int> shapeKeyToId; // for both mag and phase shapes
+	std::map<std::string, int> rfKeyToId;    // for RF events
+
+	int nModifiedBlocks = 0;
+
+	for (int iB = 0; iB < m_blocks.size(); ++iB)
+	{
+		// ---------------------------------------------------------------
+		// Skip blocks that carry no RF event
+		// ---------------------------------------------------------------
+		if (m_blocks[iB].id[RF] <= 0) 
+			continue;
+
+		// Build the SeqBlock (copies event structs from libraries)
+		SeqBlock* pBlock = GetBlock(iB);
+		if (!pBlock) {
+			print_msg(ERROR_MSG, std::ostringstream().flush()
+				<< "*** ERROR: applyRfPhaseModulation() failed to build block " << iB);
+			return -1;
+		}
+
+		// Decode: decompresses shape data into working arrays
+		if (!decodeBlock(pBlock))
+		{
+			delete pBlock;
+			print_msg(ERROR_MSG, std::ostringstream().flush()
+				<< "*** ERROR: applyRfPhaseModulation() failed to decode block " << iB);
+			return -1;
+		}
+
+		const RFEvent& rfEvent = pBlock->GetRFEvent();
+		const float    rfDwell = pBlock->GetRFDwellTime(); // μs per sample
+		const int      nOrigN  = pBlock->GetRFLength();    // number of decoded samples
+
+		// Sample-centre time range of the RF pulse in block time (μs) -- we want to be more tolerant to little rounding errors and inaccuracies in the sequence programming
+		double rfStart_us = rfEvent.delay + rfDwell * 0.5;
+		double rfEnd_us   = rfEvent.delay + rfDwell * (nOrigN - 0.5);
+
+		// ---------------------------------------------------------------
+		// (1) Skip if all gradients are constant during the RF pulse.
+		//     A spatially uniform gradient shift only adds a global phase
+		//     and does not cause spectral distortion.
+		// ---------------------------------------------------------------
+		if (pBlock->areAllGradientsConstantInRange(rfStart_us, rfEnd_us))
+		{
+			delete pBlock;
+			continue;
+		}
+
+		// ---------------------------------------------------------------
+        // (2) If rotation extension is used we need to update the offset
+        //     vector (or gradientts, which is harder)
+        // ---------------------------------------------------------------
+        std::vector<double> positionOffset_mm = positionOffsetPulseqFrame_mm;
+        if (pBlock->isRotation())
+        {
+            RotationEvent& rotation = pBlock->GetRotationEvent();
+            rotate_vec3_by_quat(
+                &positionOffset_mm.front(),
+                rotation.rotQuaternion,
+                &positionOffsetPulseqFrame_mm.front(),
+                -1.0); // conjugate operation because we update the offset, not the gradients
+        }
+
+
+
+		// ---------------------------------------------------------------
+		// (3) Resample amplitude and phase waveforms to the system RF raster
+		//     (m_dRadiofrequencyRasterTime_us) if the current dwell time is
+		//     different. Complex linear interpolation is used for phase to
+		//     handle 2π wrapping. Phase is stored in cycles [0,1).
+		// ---------------------------------------------------------------
+		const float* pOrigAmp   = pBlock->GetRFAmplitudePtr(); // normalised [0,1]
+		const float* pOrigPhase = pBlock->GetRFPhasePtr();      // radians  [0, 2π)
+		std::vector<float> ampWork;
+		std::vector<float> phaseWork;  // phase stored in cycles [0,1)
+		int   nNewN;
+		const bool bResample = (fabs(rfDwell - m_dRadiofrequencyRasterTime_us) >= 1e-6f);
+
+		if (!bResample)
+		{
+			//print_msg(NORMAL_MSG, std::ostringstream().flush() << "No resampling required for RF in block " << iB);
+			nNewN = nOrigN;
+			ampWork.assign(pOrigAmp, pOrigAmp + nOrigN);
+			// Convert original phase from radians to cycles [0,1)
+			phaseWork.resize(nOrigN);
+			for (int k = 0; k < nOrigN; ++k)
+				phaseWork[k] = pOrigPhase[k] / (float)TWO_PI;
+		}
+		else
+		{
+			// Total RF duration at new raster rate, rounded to nearest integer
+			nNewN = (int)(0.5 + nOrigN * (double)rfDwell / m_dRadiofrequencyRasterTime_us);
+			ampWork.resize  (nNewN);
+			phaseWork.resize(nNewN);
+            //print_msg(NORMAL_MSG, std::ostringstream().flush() << "Resampling RF in block " << iB << " from " << nOrigN << " to " << nNewN << " samples");
+			
+			for (int k = 0; k < nNewN; ++k)
+			{
+				// Centre of this sample at the new raster (μs from RF start)
+				double t_new = k * m_dRadiofrequencyRasterTime_us + m_dRadiofrequencyRasterTime_us * 0.5;
+				// Fractional index into the original sample array
+				double idx  = t_new / (double)rfDwell - 0.5;
+				int    k0   = (int)floor(idx);
+				int    k1   = k0 + 1;
+				double frac = idx - k0;
+
+				// Clamp to valid range
+				if (k0 < 0)         { k0 = 0;          frac = 1.0; }
+				if (k0 >= nOrigN)   { k0 = nOrigN - 1; frac = 0.0; }
+				if (k1 >= nOrigN)     k1 = nOrigN - 1;
+
+				// Interpolate complex phasor: amp * exp(i*phase)
+				double origRealK0 = pOrigAmp[k0] * cos(pOrigPhase[k0]);
+				double origImagK0 = pOrigAmp[k0] * sin(pOrigPhase[k0]);
+				double origRealK1 = pOrigAmp[k1] * cos(pOrigPhase[k1]);
+				double origImagK1 = pOrigAmp[k1] * sin(pOrigPhase[k1]);
+
+				double interpReal = (1.0 - frac) * origRealK0 + frac * origRealK1;
+				double interpImag = (1.0 - frac) * origImagK0 + frac * origImagK1;
+
+				// Convert back to polar: amplitude and phase
+				ampWork[k] = (float)sqrt(interpReal*interpReal + interpImag*interpImag);
+				float ph   = (float)(atan2(interpImag, interpReal)/TWO_PI); // Convert to cycles [0,1)
+				if (ph < 0.0f)
+					ph += 1.0f;
+				phaseWork[k] = ph;
+			}
+		}
+
+		// ---------------------------------------------------------------
+		// (4) Apply position-dependent phase modulation at every sample.
+		//
+		//     δφ [cycles] = 1e-9 × Σ_i  offset_i [mm] × M_i [Hz·μs/m]
+		//
+		//     Factor: offset [mm] × moment [Hz·μs/m] × 1e-9 = cycles
+		//     (mm × 1e-3 → m; Hz·μs × 1e-6 → cycles per m; product in cycles)
+		// ---------------------------------------------------------------
+		
+		// replicate the calculation of local phase and frequency offsets for the current block to subtract what will be applied later
+		double dSeqFreqAdd_Hz = 0.0;
+		double dSeqPhaseAdd_Cycles = 0.0;
+		pBlock->computeLocalPhaseAndFrequencyOffsets(positionOffset_mm, gradientScaling, rfEvent.delay, rfEvent.delay + rfEvent.shape_dur, rfEvent.delay, dSeqFreqAdd_Hz, dSeqPhaseAdd_Cycles);	
+
+		std::vector<float>  phaseModulated(nNewN);
+		std::vector<double> moments;
+		double dPhaseDecDueToFreqAdd = dSeqFreqAdd_Hz * m_dRadiofrequencyRasterTime_us * 1e-6;
+		dPhaseDecDueToFreqAdd -= floor(dPhaseDecDueToFreqAdd); // wrap to [0,1)
+		double dPhaseDueToFreqAdd = -0.5 * dPhaseDecDueToFreqAdd; // initialize phase counter with the -0.5*deltaPhase due to the sampling in the middle of the dwell periods
+		for (int k = 0; k < nNewN; ++k)
+		{
+			// Absolute time of sample centre inside the block (μs)
+            double t_k = rfEvent.delay + (k + 0.5) * m_dRadiofrequencyRasterTime_us;
+			pBlock->gradMomentsAt(t_k, moments);
+
+			double deltaPhase = -dSeqPhaseAdd_Cycles - dPhaseDueToFreqAdd; //  we intialize this with the negated phase value that will be applied later during the sequence run
+			double deltaDeltaPhase = 0.0;
+			for (int i = 0; i < NUM_GRADS; ++i) {
+                deltaDeltaPhase = positionOffset_mm[i] * gradientScaling[i] * moments[i] * 1e-9;
+				deltaDeltaPhase -= floor(deltaDeltaPhase); // wrap to [0,1)
+				deltaPhase += deltaDeltaPhase - dPhaseDecDueToFreqAdd; // subtract the frequency offset contribution that will be applied later during the sequence run
+				deltaPhase -= floor(deltaPhase); // wrap to [0,1)
+			}
+			dPhaseDueToFreqAdd += dPhaseDecDueToFreqAdd; // increment the phase counter for the next sample
+			dPhaseDueToFreqAdd -= floor(dPhaseDueToFreqAdd); // wrap to	
+
+			float newPhase = phaseWork[k] + (float)deltaPhase; // MZ: try - instead of +
+			// Wrap to [0,1) and store in the modulated phase array
+			phaseModulated[k] = newPhase - floor(newPhase);
+		}
+
+		// ---------------------------------------------------------------
+		// (5a) Find or insert the phase shape into the library.
+		//      Phase is already normalised ([0,1) cycles).
+		// ---------------------------------------------------------------
+		int newPhaseShapeId = findOrInsertShape(phaseModulated, shapeKeyToId, nextShapeId);
+
+		// Start building the modified RF event
+		RFEvent newRfEvent  = rfEvent;       // copy all fields
+		newRfEvent.phaseShape = newPhaseShapeId;
+
+		// ---------------------------------------------------------------
+		// (5b) When the waveform was resampled, also insert the new
+		//      amplitude shape and update the time shape.
+		// ---------------------------------------------------------------
+		if (bResample)
+		{
+			int newMagShapeId = findOrInsertShape(ampWork, shapeKeyToId, nextShapeId);
+			newRfEvent.magShape = newMagShapeId;
+
+            // Time shape: the dwell is now on the default the system RF raster.
+			// therefore timeShape = 0 (always)
+			newRfEvent.timeShape = 0;			
+		}
+
+		// ---------------------------------------------------------------
+		// (6) Find or insert the RF event, then update the block table.
+		// ---------------------------------------------------------------
+		int newRfId = findOrInsertRfEvent(newRfEvent, rfKeyToId, nextRfId);
+		m_blocks[iB].id[RF] = newRfId;
+
+		++nModifiedBlocks;
+		delete pBlock;
+	}
+
+	return nModifiedBlocks;
+}
+
+
+bool ExternalSequence::getDecompressedShapeForID(int nShapeID, std::vector<float>& vecShape) 
+{
+    std::map<int, CompressedShape>::iterator it = m_shapeLibrary.find(nShapeID);
+    if (it == m_shapeLibrary.end())
+        return false;
+    if (it->second.numUncompressedSamples != vecShape.size())
+        if (vecShape.size() != 0)
+            return false;
+        else
+            vecShape.resize(it->second.numUncompressedSamples);
+    return decompressShape(it->second, &vecShape.front());
+}
+
+int ExternalSequence::updateAdcPhaseModulation(const std::vector<double>& positionOffsetPulseqFrame_mm, const std::vector<double>& gradientScaling)
+{
+    // ------------------------------------------------------------------
+    // Validate input
+    // ------------------------------------------------------------------
+    if ((int)positionOffsetPulseqFrame_mm.size() != NUM_GRADS || 
+		(int)gradientScaling.size()              != NUM_GRADS )
+    {
+        print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: applyRfPhaseModulation() requires " << NUM_GRADS << " elements in positionOffset_mm");
+        return -1;
+    }
+
+    // Early-exit when offset is effectively zero
+    bool bNonZeroOffset = false;
+    for (int i = 0; i < NUM_GRADS; ++i)
+        if (fabs(positionOffsetPulseqFrame_mm[i]) > 1e-12)
+        {
+            bNonZeroOffset = true;
+            break;
+        }
+    if (!bNonZeroOffset)
+        return 0;
+
+	// ------------------------------------------------------------------
+    // Track the next available IDs for new library entries.
+    // std::map is ordered, so rbegin() gives the largest existing key.
+    // ------------------------------------------------------------------
+    int nextShapeId = m_shapeLibrary.empty() ? 1 : m_shapeLibrary.rbegin()->first + 1;
+    int nextAdcId    = m_adcLibrary.empty() ? 1 : m_adcLibrary.rbegin()->first + 1;
+
+    // Deduplication maps: stringified content -> library ID
+    std::map<std::string, int> shapeKeyToId; // for phase shapes
+    std::map<std::string, int> adcKeyToId;    // for ADC events
+
+    int nModifiedBlocks = 0;
+
+    for (int iB = 0; iB < m_blocks.size(); ++iB)
+    {
+        // ---------------------------------------------------------------
+        // Skip blocks that carry no ADC event
+        // ---------------------------------------------------------------
+        if (m_blocks[iB].id[ADC] <= 0)
+            continue;
+
+        // Build the SeqBlock (copies event structs from libraries)
+        SeqBlock* pBlock = GetBlock(iB);
+        if (!pBlock)
+        {
+            print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: updateAdcPhaseModulation() failed to build block " << iB);
+            return -1;
+        }
+
+        // Decode: decompresses shape data into working arrays
+        if (!decodeBlock(pBlock))
+        {
+            delete pBlock;
+            print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: updateAdcPhaseModulation() failed to decode block " << iB);
+            return -1;
+        }
+
+        const ADCEvent& adcEvent = pBlock->GetADCEvent();
+
+        // Sample-centre time range of the RF pulse in block time (μs) -- we want to be more tolerant to little rounding
+        // errors and inaccuracies in the sequence programming
+        double adcStart_us = adcEvent.delay + adcEvent.dwellTime * 0.5e-3; // adcDwell is in ns
+        double adcEnd_us   = adcEvent.delay + adcEvent.dwellTime * 1e-3 * (adcEvent.numSamples - 0.5);
+
+        // ---------------------------------------------------------------
+        // (1) Skip if all gradients are constant during the ADC event.
+        // ---------------------------------------------------------------
+        if (pBlock->areAllGradientsConstantInRange(adcStart_us, adcEnd_us))
+        {
+            delete pBlock;
+            continue;
+        }
+
+		print_msg(NORMAL_MSG, std::ostringstream().flush() << "*** processing block " << iB << " and ADC with phase modulation shape ID " << adcEvent.phaseModulationShapeID );
+
+		// ---------------------------------------------------------------
+		// (2) If rotation extension is used we need to update the offset 
+		//     vector (or gradientts, which is harder)
+		// ---------------------------------------------------------------
+        std::vector<double> positionOffset_mm = positionOffsetPulseqFrame_mm;
+        if (pBlock->isRotation())
+        {
+            RotationEvent& rotation = pBlock->GetRotationEvent();
+            rotate_vec3_by_quat(&positionOffset_mm.front(), rotation.rotQuaternion, &positionOffsetPulseqFrame_mm.front(), -1.0); // conjugate operation because we update the offset, not the gradients
+        }
+
+        // ---------------------------------------------------------------
+        // (3) Apply position-dependent phase modulation at every sample.
+        //
+        //     δφ [cycles] = 1e-9 × Σ_i  offset_i [mm] × M_i [Hz·μs/m]
+        //
+        //     Factor: offset [mm] × moment [Hz·μs/m] × 1e-9 = cycles
+        //     (mm × 1e-3 → m; Hz·μs × 1e-6 → cycles per m; product in cycles)
+        // ---------------------------------------------------------------
+
+        // replicate the calculation of local phase and frequency offsets for the current block to subtract what will be
+        // applied later
+        double dSeqFreqAdd_Hz      = 0.0;
+        double dSeqPhaseAdd_Cycles = 0.0;
+        pBlock->computeLocalPhaseAndFrequencyOffsets(positionOffset_mm, gradientScaling, adcEvent.delay, adcEvent.delay + adcEvent.dwellTime*1e-3*adcEvent.numSamples, adcEvent.delay, dSeqFreqAdd_Hz, dSeqPhaseAdd_Cycles);
+
+        std::vector<float>  phaseModulated(adcEvent.numSamples, 0.0f);
+        std::vector<double> moments;
+        double              dPhaseDecDueToFreqAdd = dSeqFreqAdd_Hz * adcEvent.dwellTime * 1e-9;
+        dPhaseDecDueToFreqAdd -= floor(dPhaseDecDueToFreqAdd); // wrap to [0,1)
+        double dPhaseDueToFreqAdd
+            = -0.5 * dPhaseDecDueToFreqAdd; // initialize phase counter with the -0.5*deltaPhase due to the sampling in
+                                            // the middle of the dwell periods
+        // Decode phase modulation vector into phaseModulated ( it is already initialized with 0s)
+        if (adcEvent.phaseModulationShapeID>0)
+        {
+            // Decompress the shape for this event
+            if (!getDecompressedShapeForID(adcEvent.phaseModulationShapeID, phaseModulated))
+            {
+                print_msg(ERROR_MSG, std::ostringstream().flush() << "*** ERROR: updateAdcPhaseModulation() decompressShape for shape ID " << adcEvent.phaseModulationShapeID << " failed in block " << iB);
+                delete pBlock;
+                return -1; 
+            }
+            // // Scale phase by 2pi
+            // std::transform(phaseModulated.begin(), phaseModulated.end(), phaseModulated.begin(), std::bind1st(std::multiplies<float>(), TWO_PI));
+		}
+
+        for (int k = 0; k < adcEvent.numSamples; ++k)
+        {
+            // Absolute time of sample centre inside the block (μs)
+            double t_k = adcEvent.delay + (k + 0.5) * 1e-3 * adcEvent.dwellTime;
+            pBlock->gradMomentsAt(t_k, moments);
+
+            double deltaPhase
+                = -dSeqPhaseAdd_Cycles - dPhaseDueToFreqAdd; //  we intialize this with the negated phase value that
+                                                             //  will be applied later during the sequence run
+            double deltaDeltaPhase = 0.0;
+            for (int i = 0; i < NUM_GRADS; ++i)
+            {
+                deltaDeltaPhase = positionOffset_mm[i] * gradientScaling[i] * moments[i] * 1e-9;
+                deltaDeltaPhase -= floor(deltaDeltaPhase); // wrap to [0,1)
+                deltaPhase
+                    += deltaDeltaPhase - dPhaseDecDueToFreqAdd; // subtract the frequency offset contribution that will
+                                                                // be applied later during the sequence run
+                deltaPhase -= floor(deltaPhase);                // wrap to [0,1)
+            }
+            dPhaseDueToFreqAdd += dPhaseDecDueToFreqAdd;     // increment the phase counter for the next sample
+            dPhaseDueToFreqAdd -= floor(dPhaseDueToFreqAdd); // wrap to
+
+            float newPhase = phaseModulated[k] + (float) deltaPhase;
+			// Wrap to [0,1) and store in the modulated phase array
+            phaseModulated[k] = newPhase - floor(newPhase);
+        }
+
+        // ---------------------------------------------------------------
+        // (4) Find or insert the phase shape into the library.
+        //      Phase is already normalised ([0,1) cycles).
+        // ---------------------------------------------------------------
+        int newPhaseShapeId = findOrInsertShape(phaseModulated, shapeKeyToId, nextShapeId);
+
+        // Start building the modified ADC event
+        ADCEvent newAdcEvent    = adcEvent; // copy all fields
+        newAdcEvent.phaseModulationShapeID = newPhaseShapeId;
+
+        // ---------------------------------------------------------------
+        // (5) Find or insert the ADC event, then update the block table.
+        // ---------------------------------------------------------------
+        int newAdcId         = findOrInsertAdcEvent(newAdcEvent, adcKeyToId, nextAdcId);
+        m_blocks[iB].id[ADC] = newAdcId;
+
+        ++nModifiedBlocks;
+        delete pBlock;
+    }
+
+    return nModifiedBlocks;
+}
+
+/* some generic string trimming and conversion functions */
 const std::string& trim_chars = "\t\n\v\f\r ";
+
 std::string& str_ltrim(std::string& str)
 {
     str.erase(0, str.find_first_not_of(trim_chars));
@@ -2975,7 +3604,7 @@ void SeqBlock::gradientsAt(double dTimeInBlock, std::vector<double>& vResult) //
                     grad.delay + grad.rampUpTime + grad.flatTime, grad.amplitude,
                     grad.delay + grad.rampUpTime + grad.flatTime + grad.rampDownTime, 0.0,
                     dTimeInBlock);
-                ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "gradientsAt() requesting gradient on ramp-down");
+                ExternalSequence::print_msg(NORMAL_MSG, std::ostringstream().flush() << "gradientsAt() requesting gradient on ramp-down (dTimeInBlock=" << dTimeInBlock << "us i="<<i<<")");
 				continue;
 			}            
         }
@@ -3342,3 +3971,40 @@ bool SeqBlock::areAllGradientsConstantInRange(double dStartTimeInBlock, double d
     }
     return true;
 }
+
+void SeqBlock::computeLocalPhaseAndFrequencyOffsets(const std::vector<double>& positionOffset_mm, const std::vector<double>& gradientScaling, double timeInBlockStart_us, double timeInBlockEnd_us, double timeInBlockToSample_us, double& dFreqAdd_Hz, double& dPhaseAdd_Cycles)
+{
+    if ( positionOffset_mm.size() != 3 ||
+	     gradientScaling.size()   != 3  ) return; // sanity check
+
+	if (!areAllGradientsConstantInRange(timeInBlockStart_us, timeInBlockEnd_us))
+    {
+        ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "computeLocalPhaseAndFrequencyOffsets(): gradients are not constant in range ["<<timeInBlockStart_us<<","<<timeInBlockEnd_us<<"]us, so we don't change the frequency/phase offsets");
+        dPhaseAdd_Cycles = 0.0;
+        dFreqAdd_Hz      = 0.0;
+        return;
+    }
+
+    ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "computeLocalPhaseAndFrequencyOffsets() slcx="<<positionOffset_mm[0]<<" slcy="<<positionOffset_mm[1]<<" slcz="<<positionOffset_mm[2]);
+
+    std::vector<double> G;
+    std::vector<double> M;
+
+    gradientsAt(timeInBlockToSample_us, G);
+    gradMomentsAt(timeInBlockToSample_us, M);
+
+    dPhaseAdd_Cycles = 0.0;
+    dFreqAdd_Hz = 0.0;
+	double dPhaseCycleIncrement = 0.0;
+    for (int a = 0; a < 3; ++a)
+    {
+        dFreqAdd_Hz += G[a] * gradientScaling[a] * positionOffset_mm[a] * 1e-3; // 1e-3 for meters
+        dPhaseCycleIncrement = M[a] * gradientScaling[a] * positionOffset_mm[a] * 1e-9; // 1e-3 for meters and 1e-6 for seconds
+        dPhaseCycleIncrement -= floor(dPhaseCycleIncrement); // do modulus "360 degrees" to the increment so that we never loose accuracy
+        dPhaseAdd_Cycles += dPhaseCycleIncrement;
+        dPhaseAdd_Cycles -= floor(dPhaseAdd_Cycles); // do modulus "360 degrees" to the increment so that we never lose accuracy
+    }
+
+    ExternalSequence::print_msg(DEBUG_LOW_LEVEL, std::ostringstream().flush() << "computeLocalPhaseAndFrequencyOffsets() dFreqAdd_Hz="<<dFreqAdd_Hz<<" dPhaseAdd_Cycles="<<dPhaseAdd_Cycles<<" dPhaseAdd_Rad="<<dPhaseAdd_Cycles*TWO_PI);
+}
+

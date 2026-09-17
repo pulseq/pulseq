@@ -17,8 +17,9 @@ void print_usage()
     printf("         This is a small C++ application intended \n"
            "         to test and demo the Pulseq C++ library code\n");
     printf("usage: parsemr <sequence_file> [-g] [-m] \n");
-    printf("  <sequence_file> may be Pulseq text (.seq) or binary (.bseq)\n");
+    printf("  <sequence_file> may be Pulseq text (.seq) or binary (.seqbin)\n");
     printf("  optional flags -g and -m can be used to request the parser to generate gradient waveform or gradient moment plots of the entire sequence as binary blobs\n");
+    printf("  a further optional flags -f can be used to simulate FOV offset calculations in the form -fX,Y,Z where the offsets are given in mm\n");
 }
 
 int main(int argc, char** argv)
@@ -31,13 +32,18 @@ int main(int argc, char** argv)
 
     std::string pulseqFilePath = argv[1];
     bool        bGenerateWaveforms = false;
-    bool        bGenerateMoments = false;
+    bool        bGenerateMoments   = false;
+    std::vector<double> v_fov_data(3);
+    bool     bTestFovShift         = false;
     for (int i = 2; i < argc; ++i)
     {
         if (0==strcmp(argv[i],"-g"))
             bGenerateWaveforms=true;
         if (0==strcmp(argv[i],"-m"))
             bGenerateMoments=true;
+        if (0 == strncmp(argv[i], "-f", 2)
+            && 3 == sscanf(argv[i], "-f%lf,%lf,%lf", &v_fov_data[0], &v_fov_data[1], &v_fov_data[2]))
+            bTestFovShift = true;
     }
         
     // TODO: check if file exists and whether this is a Pulseq file
@@ -88,7 +94,7 @@ int main(int argc, char** argv)
             std::cout << "The file contains " << SequenceData.getSignatureType() << " signature "
                       << SequenceData.getSignature() << std::endl;
             if (SequenceData.isBinary())
-                std::cout << "Signature check is not yet implemented for binary .bseq files" << std::endl;
+                std::cout << "Signature check is not yet implemented for binary .seqbin files" << std::endl;
             else    
                 std::cout << "Signature check " << (SequenceData.isSignatureCheckSucceeded() ? "succeeded" : "FAILED") << std::endl;
         }
@@ -125,6 +131,7 @@ int main(int argc, char** argv)
         bool                     bGradientConstantDuringAllAdcEvents = true;
         bool                     bGradientConstantDuringAllRfPulses = true;
         std::vector<double>      vdPrevMoments;
+        double dPriorPhaseCycle = 0.;
 
         vdPrevMoments.resize(3);
         vdPrevMoments[0] = 0.0;
@@ -149,6 +156,23 @@ int main(int argc, char** argv)
                         pBlock->GetRFEvent().delay,
                         pBlock->GetRFEvent().delay + pBlock->GetRFDwellTime() * pBlock->GetRFLength()))
                     bGradientConstantDuringAllRfPulses = false;
+                else if (bTestFovShift)
+                {
+                    // test FOV positioning code
+                    double dFreqAdd_Hz, dPhaseCycle;
+                    std::vector<double> pos(3);
+                    pBlock->computeLocalPhaseAndFrequencyOffsets(
+                        v_fov_data,
+                        pBlock->GetRFEvent().delay,
+                        pBlock->GetRFEvent().delay + pBlock->GetRFEvent().shape_dur,
+                        pBlock->GetRFEvent().delay,
+                        dFreqAdd_Hz,
+                        dPhaseCycle);
+                    std::cout << "FOV positioning test | b:" << iB + 1
+                              << " RF_freq:" << pBlock->GetRFEvent().freqOffset + dFreqAdd_Hz << "Hz RF_phase:"
+                              << 360.0 * (pBlock->GetRFEvent().phaseOffset/TWO_PI + dPhaseCycle + dPriorPhaseCycle) << "deg"
+                              << std::endl;
+                }
             }
 
             // Process each gradient channel
@@ -194,6 +218,22 @@ int main(int argc, char** argv)
                         pBlock->GetADCEvent().delay
                             + pBlock->GetADCEvent().dwellTime * 1e-3 * pBlock->GetADCEvent().numSamples))
                     bGradientConstantDuringAllAdcEvents = false;
+                else if (bTestFovShift)
+                {
+                    // test FOV positioning code
+                    double dFreqAdd_Hz, dPhaseCycle;
+                    pBlock->computeLocalPhaseAndFrequencyOffsets(
+                        v_fov_data,
+                        pBlock->GetADCEvent().delay,
+                        pBlock->GetADCEvent().delay + 1e-3 * pBlock->GetADCEvent().dwellTime * pBlock->GetADCEvent().numSamples,
+                        pBlock->GetADCEvent().delay,
+                        dFreqAdd_Hz,
+                        dPhaseCycle);
+                    std::cout << "FOV positioning test | b:" << iB + 1
+                              << " ADC_freq:" << pBlock->GetADCEvent().freqOffset + dFreqAdd_Hz << "Hz ADC_phase:"
+                              << 360.0 * (pBlock->GetADCEvent().phaseOffset/TWO_PI + dPhaseCycle + dPriorPhaseCycle)
+                              << "deg" << std::endl;
+                }
             }
 
             if (pBlock->isRotation())
@@ -304,7 +344,7 @@ int main(int argc, char** argv)
             if (pFW)
             {
                 std::vector<double> ga;
-                for (int t = 0; t < pBlock->GetDuration(); ++t) // coint time in microseconds
+                for (int t = 0; t < pBlock->GetDuration(); ++t) // count time in microseconds
                 {
                     pBlock->gradientsAt(t, ga);
                     fwrite(&ga[0], sizeof(double), 3, pFW);
@@ -313,7 +353,7 @@ int main(int argc, char** argv)
             if (pFM)
             {
                 std::vector<double> gm;
-                for (int t = 0; t < pBlock->GetDuration(); ++t) // coint time in microseconds
+                for (int t = 0; t < pBlock->GetDuration(); ++t) // count time in microseconds
                 {
                     pBlock->gradMomentsAt(t, gm);
                     gm[0] += vdPrevMoments[0];
@@ -325,6 +365,26 @@ int main(int argc, char** argv)
                 vdPrevMoments[0] += gm[0];
                 vdPrevMoments[1] += gm[1];
                 vdPrevMoments[2] += gm[2];
+            }
+
+            if (bTestFovShift)
+            {
+                std::vector<double> vMoments;
+                pBlock->totalBlockGradMoments(vMoments);
+                /* ExternalSequence::print_msg(
+                    DEBUG_LOW_LEVEL,
+                    std::ostringstream().flush()
+                        << " moments=(" << vMoments[0] << "," << vMoments[1] << "," << vMoments[2] << ")");*/
+                double dPhaseCycleIncrement;
+                for (int a = 0; a < 3; ++a)
+                {
+                    dPhaseCycleIncrement
+                        = vMoments[a] * v_fov_data[a] * 1e-9;           // 1e-3 for meters and 1e-6 for seconds
+                    dPhaseCycleIncrement -= floor(dPhaseCycleIncrement);   // do modulus "360 degrees" also to the
+                                                                           // increment so that we never loose accuracy
+                    dPriorPhaseCycle += dPhaseCycleIncrement;
+                    dPriorPhaseCycle -= floor(dPriorPhaseCycle); // do modulus "360 degrees"
+                }
             }
 
             llTotalDuration += int(0.5+pBlock->GetDuration());
