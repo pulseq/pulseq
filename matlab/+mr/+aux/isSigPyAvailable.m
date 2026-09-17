@@ -31,11 +31,16 @@ for c=1:length(test_commands)
         for l=1:length(lines)
             exe=mr.aux.strstrip(lines{l});
             if isempty(exe), continue; end
-            % test for Python with sigPy
-            if startsWith(exe, '~/')
-                exe = fullfile(getenv('HOME'), exe(3:end)); % expand tilde to home directory
+            % expand tilde to home directory or user profile
+            if strcmp(exe(1:2), '~/') || strcmp(exe(1:2), '~\')
+                if ispc()
+                    exe = fullfile(getenv('USERPROFILE'), exe(3:end)); 
+                else
+                    exe = fullfile(getenv('HOME'), exe(3:end)); 
+                end
             end
-            cmd=sprintf('"%s"  -c "import sigpy" 2>%s',exe,null_out);
+            % test for Python with sigPy
+            cmd=sprintf('"%s" -c "import sigpy" 2>%s',exe,null_out);
             [status, output] = system(cmd);
             if status ~= 0, continue; end
             % found it!
