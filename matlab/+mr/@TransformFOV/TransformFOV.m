@@ -139,19 +139,6 @@ classdef TransformFOV < handle
             rotExtQuaternion = [];
             for i = 1:length(block_events)
                 e=block_events{i};
-                if isstruct(e) && ~isempty(e) && isfield(e, 'type') && ...
-                        all(ismember({e.type},{'labelset','labelinc'}))
-                    for j=1:numel(e)
-                        if strcmp(e(j).type,'labelset')
-                            switch e(j).label % this switch has only one case on purpose, it is just a lazy way of checking that we deal with a relevant label setting
-                                case {'NOPOS','NOROT','NOSCL'}
-                                    obj.labels.(e(j).label)=e(j).value;
-                            end
-                        end
-                    end
-                    other{end+1}=e;
-                    continue
-                end
                 if length(e)==1 && isstruct(e) && isfield(e, 'type')
                     switch e.type
                         case 'rf'
@@ -259,7 +246,7 @@ classdef TransformFOV < handle
                 % TransformFOV object is configured not to use the rotation
                 % extension then we apply the rotation to the gradients now
                 if ~obj.use_rotation_extension && ~isempty(rotExtQuaternion)
-                    grads=mr.rotate3D(rotExtQuaternion,grads,'system',obj.system);
+                    grads=mr.rotate3D(rotExtQuaternion,grads,'system',obj.sys);
                     rotExtQuaternion=[]; % now that we have applied the current rotation, we can discard it
                 end
 
@@ -270,7 +257,7 @@ classdef TransformFOV < handle
                     grads_backup=grads;
                     % MZ: HA! we could rotate obj.translation (or it's copy) in the opposite direction instead
                     % MZ: and, we could use the same mechanism to handle the rotation extention
-                    grads=mr.rotate3D(obj.rotation',grads,'system',obj.system); % MZ: I guess we have to rotate the gradients "back" because we are normally in local logical coordinates, which would be "rotated" if there were NOROT flag
+                    grads=mr.rotate3D(obj.rotation',grads,'system',obj.sys); % MZ: I guess we have to rotate the gradients "back" because we are normally in local logical coordinates, which would be "rotated" if there were NOROT flag
                     % MZ: please check if the above point is correct
                 end
                 
