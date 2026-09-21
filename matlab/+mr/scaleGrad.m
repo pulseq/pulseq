@@ -1,6 +1,6 @@
 function [grad] = scaleGrad(grad, scale, system)
-% scaleGrad just scales the gradint with the scalar
-% if the optional parameter 'system' is provided the result is schecked
+% scaleGrad just scales the gradient with the scalar
+% if the optional parameter 'system' is provided the result is checked
 % against the system limits (amolityde and slew rate)
 
     if isfield(grad,'id')
@@ -23,6 +23,8 @@ function [grad] = scaleGrad(grad, scale, system)
         grad.waveform=grad.waveform*scale;
         grad.first=grad.first*scale;
         grad.last=grad.last*scale;
+        grad.area = grad.area*scale;
+
         if nargin>2
             if system.maxGrad<max(abs(grad.waveform))
                 error("mr.scaleGrad: maximum amplitude exceeded (%g %%)",100*max(abs(grad.waveform))/system.maxGrad);
