@@ -89,7 +89,7 @@ while true
             end
             if isKey(tmpSignDefs,'Hash')
                 obj.signatureValue=tmpSignDefs('Hash');
-                obj.signatureFile='Text'; % we are reading a text file, so much is known for sure
+                obj.signatureFile='text'; % we are reading a text file, so much is known for sure
             end
         case '[VERSION]'
             [version_major, ...
